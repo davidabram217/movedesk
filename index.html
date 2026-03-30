@@ -296,7 +296,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <div class="card-body" id="fee-report"></div>
       </div>
       <!-- Payment method breakdown -->
-      <div class="card">
+      <div class="card" style="margin-bottom:16px">
         <div class="card-header">
           <div>
             <div class="card-title">Payment method breakdown</div>
@@ -304,6 +304,37 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           </div>
         </div>
         <div class="card-body" id="payment-method-chart"></div>
+      </div>
+
+      <!-- Zip code analysis -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Top pick-up zip codes</div>
+              <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Where your customers are moving from</div>
+            </div>
+          </div>
+          <div class="card-body" id="pickup-zip-chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Top drop-off zip codes</div>
+              <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Where your customers are moving to</div>
+            </div>
+          </div>
+          <div class="card-body" id="dropoff-zip-chart"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Top routes</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Most common pick-up → drop-off zip code combinations</div>
+          </div>
+        </div>
+        <div class="card-body" id="routes-chart"></div>
       </div>
     </div>
 
@@ -1014,7 +1045,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 <!-- QUOTE BUILDER MODAL -->
 <div class="modal-bg" id="modal-quote-builder" style="cursor:default">
-  <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-width:720px;max-height:92vh;overflow-y:auto">
     <div class="modal-header">
       <div>
         <div class="modal-title">Build quote</div>
@@ -1030,6 +1061,20 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <button id="qb-multi-btn" class="btn btn-secondary btn-sm" onclick="setJobType('multi')">Multi-day</button>
       </div>
 
+      <!-- Project name -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Project name <span style="font-size:11px;color:var(--text3)">(shown on quote)</span></label>
+        <input type="text" id="qb-project-name" placeholder="e.g. Halpern Move — April 10" oninput="qbAutoSave()">
+      </div>
+
+      <!-- Project description -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label>Project description <span style="font-size:11px;color:var(--text3)">(shown on quote — describe the scope of work)</span></label>
+        <textarea id="qb-description" style="min-height:60px" placeholder="e.g. Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF." oninput="qbAutoSave()"></textarea>
+      </div>
+
+      <!-- Arrival window moved to per-day blocks below -->
+
       <!-- Days container -->
       <div id="qb-days"></div>
 
@@ -1037,22 +1082,34 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <button id="qb-add-day-btn" class="btn btn-secondary btn-sm" style="display:none;margin-bottom:20px" onclick="addQuoteDay()">+ Add another day</button>
 
       <!-- Fee line items -->
-      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Additional fees</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Additional fees & line items</div>
       <div id="qb-fees"></div>
-      <button class="btn btn-secondary btn-sm" style="margin-bottom:20px" onclick="addQuoteFee()">+ Add fee</button>
+      <button class="btn btn-secondary btn-sm" style="margin-bottom:20px" onclick="addQuoteFee()">+ Add line item</button>
 
-      <!-- Notes / terms -->
+      <!-- Cash discount note -->
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Cash discount note <span style="font-size:11px;color:var(--text3)">(leave blank to hide)</span></label>
+        <input type="text" id="qb-cash-discount" placeholder="e.g. 3 men rate reduced to $210/hr if paid in cash" oninput="qbAutoSave()">
+      </div>
+
+      <!-- Stipulations -->
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Stipulations <span style="font-size:11px;color:var(--text3)">(leave blank to hide)</span></label>
+        <textarea id="qb-stipulations" style="min-height:60px" placeholder="e.g. CareMore is not responsible for any parking tickets." oninput="qbAutoSave()"></textarea>
+      </div>
+
+      <!-- Notes -->
       <div class="form-group">
-        <label>Quote notes <span style="font-size:11px;color:var(--text3)">(shown to customer)</span></label>
-        <textarea id="qb-notes" style="min-height:70px" placeholder="e.g. Please note this is our best estimate based on the information provided..."></textarea>
+        <label>Additional notes <span style="font-size:11px;color:var(--text3)">(shown to customer)</span></label>
+        <textarea id="qb-notes" style="min-height:60px" placeholder="e.g. Please note this is our best estimate based on the information provided..." oninput="qbAutoSave()"></textarea>
       </div>
 
       <!-- Total summary -->
-      <div id="qb-total-bar" style="background:var(--surface2);border-radius:var(--radius);padding:14px 16px;margin-top:4px"></div>
+      <div id="qb-total-bar" style="background:var(--surface2);border-radius:var(--radius);padding:14px 16px;margin-top:12px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('quote-builder')">Cancel</button>
-      <button class="btn btn-secondary" onclick="previewQuote()">👁 Preview</button>
+      <button class="btn btn-secondary" onclick="previewQuote()">👁 Preview quote</button>
       <button class="btn btn-primary" onclick="sendQuote()">✉ Send quote →</button>
     </div>
   </div>
@@ -1060,12 +1117,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 <!-- QUOTE PREVIEW MODAL -->
 <div class="modal-bg" id="modal-quote-preview">
-  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-width:700px;max-height:92vh;overflow-y:auto">
     <div class="modal-header"><div class="modal-title">Quote preview</div><button class="modal-close" onclick="closeModal('quote-preview')">✕</button></div>
-    <div class="modal-body" id="quote-preview-body"></div>
+    <div class="modal-body" id="quote-preview-body" style="padding:0"></div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('quote-preview')">← Back to edit</button>
-      <button class="btn btn-secondary" onclick="copyToClipboard(document.getElementById('quote-preview-text').value)">📋 Copy</button>
+      <button class="btn btn-secondary" onclick="closeModal('quote-preview');openModal('quote-builder')">← Back to edit</button>
       <button class="btn btn-primary" onclick="sendQuote()">✉ Open in Gmail →</button>
     </div>
   </div>
@@ -1196,14 +1252,127 @@ let db={leads:[],bookedJobs:[],completedJobs:[],settings:{bizName:'',bizPhone:''
 const SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
 
-async function sbFetch(path,method,body){
-  const res=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
-    method:method||'GET',
-    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':method==='POST'?'resolution=merge-duplicates':''},
-    body:body?JSON.stringify(body):undefined
+// ── GMAIL API CONFIG ──
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TO ACTIVATE: Set GMAIL_API_ACTIVE to true and fill in
+// GMAIL_CLIENT_ID with your Google Cloud OAuth client ID.
+// Steps when ready:
+//   1. Go to console.cloud.google.com
+//   2. Create a new project called "MoveDesk"
+//   3. Enable the Gmail API
+//   4. Create OAuth 2.0 credentials (Web application)
+//   5. Add your Netlify URL to Authorized JavaScript Origins
+//   6. Copy the Client ID and paste it below
+//   7. Set GMAIL_API_ACTIVE = true
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const GMAIL_API_ACTIVE = false; // ← flip to true when ready
+const GMAIL_CLIENT_ID = ''; // ← paste your Google OAuth Client ID here
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.send';
+const OFFICE_EMAIL = 'move@caremoremoving.com';
+
+let _gmailAccessToken = null;
+let _gmailTokenExpiry = 0;
+
+// Load Google Identity Services library (needed for OAuth)
+function loadGoogleAuthScript(){
+  if(document.getElementById('google-auth-script')) return;
+  const s = document.createElement('script');
+  s.id = 'google-auth-script';
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  document.head.appendChild(s);
+}
+if(GMAIL_API_ACTIVE) loadGoogleAuthScript();
+
+// Request Gmail access token via OAuth popup
+function getGmailToken(){
+  return new Promise(function(resolve, reject){
+    if(!GMAIL_API_ACTIVE){ resolve(null); return; }
+    if(_gmailAccessToken && Date.now() < _gmailTokenExpiry){ resolve(_gmailAccessToken); return; }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GMAIL_CLIENT_ID,
+      scope: GMAIL_SCOPES,
+      callback: function(resp){
+        if(resp.error){ reject(resp.error); return; }
+        _gmailAccessToken = resp.access_token;
+        _gmailTokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+        resolve(_gmailAccessToken);
+      }
+    });
+    client.requestAccessToken();
   });
-  if(!res.ok){const t=await res.text();console.error('Supabase error:',res.status,t);return null;}
-  const text=await res.text();return text?JSON.parse(text):null;
+}
+
+// Build a base64url-encoded RFC 2822 email message
+function buildMimeMessage(to, cc, subject, body){
+  const lines = [
+    'To: ' + to,
+    cc ? 'Cc: ' + cc : '',
+    'From: CareMore Moving & Storage <' + OFFICE_EMAIL + '>',
+    'Subject: ' + subject,
+    'Content-Type: text/plain; charset=UTF-8',
+    '',
+    body
+  ].filter(function(l){ return l !== ''; });
+  const raw = lines.join('\r\n');
+  return btoa(unescape(encodeURIComponent(raw)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+// Send email via Gmail API
+async function sendViaGmailAPI(to, cc, subject, body){
+  try{
+    const token = await getGmailToken();
+    if(!token) return false;
+    const message = buildMimeMessage(to, cc, subject, body);
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raw: message })
+    });
+    if(!res.ok){
+      const err = await res.text();
+      console.error('Gmail API error:', err);
+      return false;
+    }
+    return true;
+  } catch(e){
+    console.error('Gmail send error:', e);
+    return false;
+  }
+}
+
+// Main email sending function — uses Gmail API if active, falls back to Gmail window
+async function sendEmail(to, cc, subject, body){
+  if(GMAIL_API_ACTIVE){
+    const sent = await sendViaGmailAPI(to, cc, subject, body);
+    if(sent) return true;
+    // If API fails, fall back to Gmail window
+    console.warn('Gmail API failed — falling back to Gmail window');
+  }
+  // Fallback: open Gmail compose window
+  const mailto = 'https://mail.google.com/mail/?view=cm'
+    + '&to=' + encodeURIComponent(to||'')
+    + (cc ? '&cc=' + encodeURIComponent(cc) : '')
+    + '&su=' + encodeURIComponent(subject)
+    + '&body=' + encodeURIComponent(body);
+  window.open(mailto, '_blank');
+  return false;
+}
+
+async function sbFetch(path,method,body){
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
+      method:method||'GET',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':method==='POST'?'resolution=merge-duplicates':''},
+      body:body?JSON.stringify(body):undefined
+    });
+    if(!res.ok){const t=await res.text();console.warn('Supabase error:',res.status,t);return null;}
+    const text=await res.text();return text?JSON.parse(text):null;
+  }catch(e){return null;}
 }
 
 async function loadDB(){
@@ -1294,6 +1463,7 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
 function toggleSourceOther(){
   const val=document.getElementById('nl-source').value;
@@ -1501,9 +1671,8 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
       ${isPending?`<button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent);padding:6px 14px;font-size:12.5px" onclick="acceptQuote('${l.id}')">✓ Mark as quote accepted</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="closeModal('view');openDidNotBook('${l.id}')">✕ Did not book</button>
     </div>`;
-const canBuildQuote=['Estimate scheduled','Need to send estimate'].includes(l.status);
 const footerBtnRight=isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openConfirmEmail('${l.id}')">✉ Send confirmation email →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
-document.getElementById('view-modal-footer').innerHTML=`<button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>${canBuildQuote?`<button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>`:''} ${footerBtnRight}`;
+document.getElementById('view-modal-footer').innerHTML=`<button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button><button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button> ${footerBtnRight}`;
 openModal('view');}
 
 function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
@@ -2383,6 +2552,74 @@ function renderAnalytics(){
         }).join('')}
       </tbody>
     </table>`:`<div class="empty-state"><div class="empty-title">No staff data yet</div><div class="empty-sub">Assign team members when logging leads and estimates to see performance here</div></div>`;
+
+  // ── ZIP CODE ANALYSIS ──
+  const zipYear=document.getElementById('analytics-year')?.value||new Date().getFullYear().toString();
+  const allLeads=db.leads.filter(l=>{
+    if(!l.date)return false;
+    const y=l.date.slice(0,4);
+    const m=parseInt(l.date.slice(5,7));
+    const period2=document.getElementById('analytics-period')?.value||'all';
+    const qMap2={all:[1,12],q1:[1,3],q2:[4,6],q3:[7,9],q4:[10,12]};
+    const[mS,mE]=qMap2[period2];
+    return y===zipYear&&m>=mS&&m<=mE&&l.status!=='Did not book';
+  });
+
+  function countZips(arr,field){
+    const counts={};
+    arr.forEach(l=>{const z=(l[field]||'').trim();if(z&&z.length>=5){const zip=z.slice(0,5);counts[zip]=(counts[zip]||0)+1;}});
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  }
+
+  function renderZipBar(entries,total){
+    if(!entries.length)return`<div class="empty-state"><div class="empty-title">No zip data yet</div><div class="empty-sub">Make sure zip codes are entered on leads</div></div>`;
+    const max=entries[0][1];
+    return entries.map(([zip,count])=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600;width:52px;flex-shrink:0">${zip}</div>
+        <div style="flex:1;background:var(--border2);border-radius:3px;height:20px;overflow:hidden">
+          <div style="height:100%;background:var(--accent);border-radius:3px;width:${Math.round(count/max*100)}%;min-width:4px;display:flex;align-items:center;padding-left:6px">
+            ${count/max>0.25?`<span style="font-size:11px;color:#fff;font-weight:600">${count}</span>`:''}
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text2);width:30px;text-align:right;flex-shrink:0">${count}</div>
+        <div style="font-size:11px;color:var(--text3);width:36px;text-align:right;flex-shrink:0">${Math.round(count/total*100)}%</div>
+      </div>`).join('');
+  }
+
+  const pickupZips=countZips(allLeads,'fromZip');
+  const dropoffZips=countZips(allLeads,'toZip');
+  const total=allLeads.length||1;
+
+  document.getElementById('pickup-zip-chart').innerHTML=renderZipBar(pickupZips,total);
+  document.getElementById('dropoff-zip-chart').innerHTML=renderZipBar(dropoffZips,total);
+
+  // Routes — pick-up zip → drop-off zip
+  const routes={};
+  allLeads.forEach(l=>{
+    const from=(l.fromZip||'').trim().slice(0,5);
+    const to=(l.toZip||'').trim().slice(0,5);
+    if(from&&to&&from.length===5&&to.length===5){
+      const key=from+' → '+to;
+      routes[key]=(routes[key]||0)+1;
+    }
+  });
+  const topRoutes=Object.entries(routes).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const routeMax=topRoutes[0]?topRoutes[0][1]:1;
+  document.getElementById('routes-chart').innerHTML=topRoutes.length?`
+    <div style="margin-bottom:12px;font-size:12px;color:var(--text3)">${allLeads.length} jobs analysed · ${Object.keys(routes).length} unique routes</div>
+    ${topRoutes.map(([route,count],i)=>`
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:18px;font-size:11px;color:var(--text3);text-align:right;flex-shrink:0">${i+1}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:12.5px;font-weight:600;width:120px;flex-shrink:0">${route}</div>
+        <div style="flex:1;background:var(--border2);border-radius:3px;height:20px;overflow:hidden">
+          <div style="height:100%;background:var(--amber);border-radius:3px;width:${Math.round(count/routeMax*100)}%;min-width:4px;display:flex;align-items:center;padding-left:6px">
+            ${count/routeMax>0.25?`<span style="font-size:11px;color:#fff;font-weight:600">${count}</span>`:''}
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text2);width:30px;text-align:right;flex-shrink:0">${count}</div>
+      </div>`).join('')}
+  `:`<div class="empty-state"><div class="empty-title">No route data yet</div><div class="empty-sub">Routes appear once leads have both pick-up and drop-off zip codes</div></div>`;
 }
 
 function exportData(){
@@ -3103,35 +3340,23 @@ function openQuoteBuilder(leadId){
   currentQuoteLeadId=leadId;
   currentQuoteId=null;
   qbJobType='single';
-
   const l=leadId?db.leads.find(x=>x.id===leadId):null;
-
-  // Summary
   document.getElementById('qb-lead-summary').textContent=l?`${l.name} · ${l.phone||''} · ${fmtDate(l.date)}`:'New quote';
-
-  // Check for existing quote on this lead
+  // Check for existing draft quote on this lead
   if(l&&db.quotes){
-    const existing=db.quotes.find(q=>q.leadId===leadId&&q.status!=='sent');
+    const existing=db.quotes.find(q=>q.leadId===leadId&&q.status==='draft');
     if(existing){currentQuoteId=existing.id;loadQuoteIntoBuilder(existing);openModal('quote-builder');return;}
   }
-
-  // Build default single day from lead data
+  // Default values from lead
   const rate=db.settings.rateBase||225;
-  qbDays=[{
-    id:uid(),
-    date:l?l.date:'',
-    from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromStairs:l?l.fromStairs:'',fromType:l?l.fromType:'',fromElevator:l?l.fromElevator:false,fromLongwalk:l?l.fromLongwalk:false,
-    to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toStairs:l?l.toStairs:'',toType:l?l.toType:'',toElevator:l?l.toElevator:false,toLongwalk:l?l.toLongwalk:false,
-    crew:2,hrsMin:2,hrsMax:4,rate:rate
-  }];
-  qbFees=[
-    {id:uid(),label:'Fuel fee',amount:50,included:true},
-    {id:uid(),label:'Materials fee',amount:50,included:true}
-  ];
-  if(l&&l.packing&&l.packing!=='No'){
-    qbFees.push({id:uid(),label:'Packing service',amount:0,included:true});
-  }
-  document.getElementById('qb-notes').value='Please note this is our best estimate based on the information provided. The final price may differ unless an onsite or video estimate has already been performed. If you would like to request one or have any questions, please call us at (415) 822-8547.';
+  qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toType:l?l.toType:'',crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
+  qbFees=[{id:uid(),label:'Fuel Fee',amount:75,included:true},{id:uid(),label:'Standard Material Fee',amount:40,included:true}];
+  if(l&&l.packing&&l.packing!=='No — just moving')qbFees.push({id:uid(),label:'Packing Materials',amount:0,included:true});
+  document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
+  document.getElementById('qb-description').value='Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF.';
+  document.getElementById('qb-cash-discount').value='';
+  document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
+  document.getElementById('qb-notes').value='Please note this is our best estimate based on the information provided. The final price may differ from the estimate unless an onsite or video estimate has already been performed. If you would like to request one or if you have any questions please give us a call on 415-822-8547.\n\nPlease review your information and follow the prompt at the bottom to continue.';
   setJobType('single');
   openModal('quote-builder');
 }
@@ -3140,8 +3365,32 @@ function loadQuoteIntoBuilder(q){
   qbJobType=q.jobType||'single';
   qbDays=q.days||[];
   qbFees=q.fees||[];
+  document.getElementById('qb-project-name').value=q.projectName||'';
+  document.getElementById('qb-description').value=q.description||'';
+  document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
+  document.getElementById('qb-stipulations').value=q.stipulations||'';
   document.getElementById('qb-notes').value=q.notes||'';
   setJobType(qbJobType);
+}
+
+let _qbAutoSaveTimer=null;
+function qbAutoSave(){
+  clearTimeout(_qbAutoSaveTimer);
+  _qbAutoSaveTimer=setTimeout(function(){
+    saveQuote('draft');
+    // Show subtle indicator
+    const bar=document.getElementById('qb-total-bar');
+    if(bar){
+      const existing=bar.querySelector('.autosave-note');
+      if(existing)existing.remove();
+      const note=document.createElement('div');
+      note.className='autosave-note';
+      note.style.cssText='font-size:11px;color:var(--text3);margin-top:6px;text-align:right';
+      note.textContent='Draft saved ✓';
+      bar.appendChild(note);
+      setTimeout(function(){if(note.parentNode)note.remove();},2000);
+    }
+  },1000);
 }
 
 function setJobType(type){
@@ -3154,62 +3403,62 @@ function setJobType(type){
 
 function addQuoteDay(){
   const last=qbDays[qbDays.length-1]||{};
-  qbDays.push({id:uid(),date:'',from:'',to:'',crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,rate:last.rate||db.settings.rateBase||225,fromUnit:'',fromFloor:'',fromStairs:'',fromType:'',fromElevator:false,fromLongwalk:false,toUnit:'',toFloor:'',toStairs:'',toType:'',toElevator:false,toLongwalk:false});
+  qbDays.push({id:uid(),date:'',from:'',to:'',crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,rate:last.rate||db.settings.rateBase||225,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM',fromUnit:'',fromFloor:'',fromAccess:'',fromType:'',toUnit:'',toFloor:'',toAccess:'',toType:''});
   renderQbDays();
+  qbAutoSave();
 }
 
 function removeQuoteDay(id){
   if(qbDays.length<=1)return;
   qbDays=qbDays.filter(d=>d.id!==id);
   renderQbDays();
+  qbAutoSave();
 }
 
 function updateQbDay(id,field,val){
   const d=qbDays.find(x=>x.id===id);
   if(!d)return;
-  d[field]=field==='crew'||field==='hrsMin'||field==='hrsMax'||field==='rate'?Number(val)||0:val;
+  d[field]=['crew','hrsMin','hrsMax','rate'].includes(field)?Number(val)||0:val;
   updateQbTotal();
+  qbAutoSave();
 }
 
 function renderQbDays(){
   const isMulti=qbJobType==='multi';
   document.getElementById('qb-days').innerHTML=qbDays.map((d,i)=>`
     <div style="border:1px solid var(--border2);border-radius:var(--radius);padding:14px;margin-bottom:14px;background:var(--surface2)">
-      ${isMulti?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:var(--text2)">Day ${i+1}</div>${qbDays.length>1?`<button class="btn btn-danger btn-sm" onclick="removeQuoteDay('${d.id}')">Remove</button>`:''}</div>`:''}
-      <div class="form-grid form-grid-2" style="margin-bottom:10px">
+      ${isMulti?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--text2)">Day ${i+1}</div>
+        ${qbDays.length>1?`<button class="btn btn-danger btn-sm" onclick="removeQuoteDay('${d.id}')">Remove day</button>`:''}
+      </div>`:''}
+      <div class="form-grid form-grid-2" style="margin-bottom:12px">
         <div class="form-group"><label>Date</label><input type="date" value="${d.date||''}" oninput="updateQbDay('${d.id}','date',this.value)"></div>
-        <div class="form-group"><label>Crew size</label><input type="number" value="${d.crew||2}" min="1" max="8" oninput="updateQbDay('${d.id}','crew',this.value)" style="max-width:80px"></div>
+        <div class="form-group"><label>Crew size</label><input type="number" value="${d.crew||2}" min="1" max="10" oninput="updateQbDay('${d.id}','crew',this.value)"></div>
+        <div class="form-group"><label>Arrival window start</label><input type="text" value="${escHtml(d.arrivalStart||'')}" oninput="updateQbDay('${d.id}','arrivalStart',this.value)" placeholder="e.g. 8:00 AM"></div>
+        <div class="form-group"><label>Arrival window end</label><input type="text" value="${escHtml(d.arrivalEnd||'')}" oninput="updateQbDay('${d.id}','arrivalEnd',this.value)" placeholder="e.g. 9:00 AM"></div>
         <div class="form-group"><label>Hours min</label><input type="number" value="${d.hrsMin||2}" min="2" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
         <div class="form-group"><label>Hours max</label><input type="number" value="${d.hrsMax||4}" min="2" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
-        <div class="form-group full"><label>Hourly rate ($/hr)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
+        <div class="form-group full"><label>Hourly rate ($/hr per crew)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">📦 Pick-up</div>
-      <div class="form-grid form-grid-2" style="margin-bottom:10px">
-        <div class="form-group full"><label>Address</label><input type="text" value="${d.from||''}" oninput="updateQbDay('${d.id}','from',this.value)" placeholder="Pick-up address"></div>
-        <div class="form-group"><label>Unit</label><input type="text" value="${d.fromUnit||''}" oninput="updateQbDay('${d.id}','fromUnit',this.value)" placeholder="e.g. Apt 4"></div>
-        <div class="form-group"><label>Floor</label><input type="text" value="${d.fromFloor||''}" oninput="updateQbDay('${d.id}','fromFloor',this.value)" placeholder="e.g. 2"></div>
-        <div class="form-group"><label>Flights of stairs</label><input type="number" value="${d.fromStairs||''}" oninput="updateQbDay('${d.id}','fromStairs',this.value)" placeholder="0"></div>
-        <div class="form-group"><label>Location type</label><select onchange="updateQbDay('${d.id}','fromType',this.value)"><option value="">Select…</option><option ${d.fromType==='House'?'selected':''}>House</option><option ${d.fromType==='Apartment'?'selected':''}>Apartment</option><option ${d.fromType==='Condo'?'selected':''}>Condo</option><option ${d.fromType==='Office'?'selected':''}>Office</option><option ${d.fromType==='Storage unit'?'selected':''}>Storage unit</option></select></div>
-        <div class="form-group" style="display:flex;align-items:center;gap:16px;padding-top:20px">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${d.fromElevator?'checked':''} onchange="updateQbDay('${d.id}','fromElevator',this.checked)"> Elevator</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${d.fromLongwalk?'checked':''} onchange="updateQbDay('${d.id}','fromLongwalk',this.checked)"> Long walk</label>
-        </div>
+      <div class="form-grid form-grid-2" style="margin-bottom:12px">
+        <div class="form-group full"><label>Address</label><input type="text" value="${escHtml(d.from||'')}" oninput="updateQbDay('${d.id}','from',this.value)" placeholder="Street address"></div>
+        <div class="form-group"><label>Unit</label><input type="text" value="${escHtml(d.fromUnit||'')}" oninput="updateQbDay('${d.id}','fromUnit',this.value)" placeholder="e.g. Apt 4"></div>
+        <div class="form-group"><label>Floor</label><input type="text" value="${escHtml(d.fromFloor||'')}" oninput="updateQbDay('${d.id}','fromFloor',this.value)"></div>
+        <div class="form-group"><label>Access at load</label><select onchange="updateQbDay('${d.id}','fromAccess',this.value)"><option value="">Select…</option><option ${d.fromAccess==='Flat'?'selected':''}>Flat</option><option ${d.fromAccess==='Flat with a long walk'?'selected':''}>Flat with a long walk</option><option ${d.fromAccess==='A few steps'?'selected':''}>A few steps</option><option ${d.fromAccess==='1 flight'?'selected':''}>1 flight</option><option ${d.fromAccess==='2 flights'?'selected':''}>2 flights</option><option ${d.fromAccess==='3 flights'?'selected':''}>3 flights</option><option ${d.fromAccess==='4 flights'?'selected':''}>4 flights</option><option ${d.fromAccess==='Elevator'?'selected':''}>Elevator</option><option ${d.fromAccess==='Elevator with a long walk'?'selected':''}>Elevator with a long walk</option></select></div>
+        <div class="form-group"><label>Type</label><select onchange="updateQbDay('${d.id}','fromType',this.value)"><option value="">Select…</option><option ${d.fromType==='House'?'selected':''}>House</option><option ${d.fromType==='Apartment'?'selected':''}>Apartment</option><option ${d.fromType==='Condo'?'selected':''}>Condo</option><option ${d.fromType==='Office'?'selected':''}>Office</option><option ${d.fromType==='Storage unit'?'selected':''}>Storage unit</option></select></div>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🏠 Drop-off</div>
-      <div class="form-grid form-grid-2">
-        <div class="form-group full"><label>Address</label><input type="text" value="${d.to||''}" oninput="updateQbDay('${d.id}','to',this.value)" placeholder="Drop-off address"></div>
-        <div class="form-group"><label>Unit</label><input type="text" value="${d.toUnit||''}" oninput="updateQbDay('${d.id}','toUnit',this.value)" placeholder="e.g. Unit 2"></div>
-        <div class="form-group"><label>Floor</label><input type="text" value="${d.toFloor||''}" oninput="updateQbDay('${d.id}','toFloor',this.value)" placeholder="e.g. 3"></div>
-        <div class="form-group"><label>Flights of stairs</label><input type="number" value="${d.toStairs||''}" oninput="updateQbDay('${d.id}','toStairs',this.value)" placeholder="0"></div>
-        <div class="form-group"><label>Location type</label><select onchange="updateQbDay('${d.id}','toType',this.value)"><option value="">Select…</option><option ${d.toType==='House'?'selected':''}>House</option><option ${d.toType==='Apartment'?'selected':''}>Apartment</option><option ${d.toType==='Condo'?'selected':''}>Condo</option><option ${d.toType==='Office'?'selected':''}>Office</option><option ${d.toType==='Storage unit'?'selected':''}>Storage unit</option></select></div>
-        <div class="form-group" style="display:flex;align-items:center;gap:16px;padding-top:20px">
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${d.toElevator?'checked':''} onchange="updateQbDay('${d.id}','toElevator',this.checked)"> Elevator</label>
-          <label style="display:flex;align-items:center;gap:6px;font-weight:400"><input type="checkbox" ${d.toLongwalk?'checked':''} onchange="updateQbDay('${d.id}','toLongwalk',this.checked)"> Long walk</label>
-        </div>
+      <div class="form-grid form-grid-2" style="margin-bottom:10px">
+        <div class="form-group full"><label>Address</label><input type="text" value="${escHtml(d.to||'')}" oninput="updateQbDay('${d.id}','to',this.value)" placeholder="Street address"></div>
+        <div class="form-group"><label>Unit</label><input type="text" value="${escHtml(d.toUnit||'')}" oninput="updateQbDay('${d.id}','toUnit',this.value)" placeholder="e.g. Unit 2"></div>
+        <div class="form-group"><label>Floor</label><input type="text" value="${escHtml(d.toFloor||'')}" oninput="updateQbDay('${d.id}','toFloor',this.value)"></div>
+        <div class="form-group"><label>Access at unload</label><select onchange="updateQbDay('${d.id}','toAccess',this.value)"><option value="">Select…</option><option ${d.toAccess==='Flat'?'selected':''}>Flat</option><option ${d.toAccess==='Flat with a long walk'?'selected':''}>Flat with a long walk</option><option ${d.toAccess==='A few steps'?'selected':''}>A few steps</option><option ${d.toAccess==='1 flight'?'selected':''}>1 flight</option><option ${d.toAccess==='2 flights'?'selected':''}>2 flights</option><option ${d.toAccess==='3 flights'?'selected':''}>3 flights</option><option ${d.toAccess==='4 flights'?'selected':''}>4 flights</option><option ${d.toAccess==='Elevator'?'selected':''}>Elevator</option><option ${d.toAccess==='Elevator with a long walk'?'selected':''}>Elevator with a long walk</option></select></div>
+        <div class="form-group"><label>Type</label><select onchange="updateQbDay('${d.id}','toType',this.value)"><option value="">Select…</option><option ${d.toType==='House'?'selected':''}>House</option><option ${d.toType==='Apartment'?'selected':''}>Apartment</option><option ${d.toType==='Condo'?'selected':''}>Condo</option><option ${d.toType==='Office'?'selected':''}>Office</option><option ${d.toType==='Storage unit'?'selected':''}>Storage unit</option></select></div>
       </div>
-      <div style="margin-top:10px;padding:10px 12px;background:var(--accent-light);border-radius:var(--radius);font-size:12.5px">
-        Day ${i+1} estimate: <strong>${fmtMoney(d.crew*(d.hrsMin||0)*d.rate)}</strong> — <strong>${fmtMoney(d.crew*(d.hrsMax||0)*d.rate)}</strong>
-        <span style="color:var(--text3);margin-left:8px">(${d.crew} crew × ${d.hrsMin}–${d.hrsMax} hrs × $${d.rate}/hr)</span>
+      <div style="margin-top:8px;padding:8px 12px;background:var(--accent-light);border-radius:var(--radius);font-size:12.5px">
+        Day ${i+1}: <strong>${fmtMoney(d.crew*(d.hrsMin||0)*d.rate)}</strong> — <strong>${fmtMoney(d.crew*(d.hrsMax||0)*d.rate)}</strong>
+        <span style="color:var(--text3);margin-left:6px">(${d.crew} crew × ${d.hrsMin}–${d.hrsMax} hrs × $${d.rate}/hr)</span>
       </div>
     </div>`).join('');
   renderQbFees();
@@ -3217,40 +3466,54 @@ function renderQbDays(){
 }
 
 function addQuoteFee(){
-  qbFees.push({id:uid(),label:'',amount:0,included:true});
+  qbFees.push({id:uid(),label:'',amount:0,hrsMin:0,hrsMax:0,type:'flat',included:true});
   renderQbFees();
+  qbAutoSave();
 }
 
 function removeQuoteFee(id){
   qbFees=qbFees.filter(f=>f.id!==id);
   renderQbFees();
   updateQbTotal();
+  qbAutoSave();
 }
 
 function updateQbFee(id,field,val){
   const f=qbFees.find(x=>x.id===id);
   if(!f)return;
-  if(field==='amount')f.amount=Number(val)||0;
-  else if(field==='included')f.included=val;
+  if(field==='amount'||field==='hrsMin'||field==='hrsMax')f[field]=Number(val)||0;
+  else if(field==='included')f[field]=val;
   else f[field]=val;
   updateQbTotal();
+  qbAutoSave();
 }
 
 function renderQbFees(){
   document.getElementById('qb-fees').innerHTML=qbFees.map(f=>`
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <input type="checkbox" ${f.included?'checked':''} onchange="updateQbFee('${f.id}','included',this.checked)" style="width:15px;height:15px">
-      <input type="text" value="${f.label||''}" placeholder="Fee description" style="flex:1;font-size:13px" oninput="updateQbFee('${f.id}','label',this.value)">
-      <div style="display:flex;align-items:center;gap:4px"><span style="font-size:13px;color:var(--text3)">$</span><input type="number" value="${f.amount||''}" placeholder="0" style="width:80px;font-size:13px" oninput="updateQbFee('${f.id}','amount',this.value)"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <input type="checkbox" ${f.included?'checked':''} onchange="updateQbFee('${f.id}','included',this.checked)" style="width:15px;height:15px;flex-shrink:0">
+      <input type="text" value="${escHtml(f.label||'')}" placeholder="Line item description" style="flex:2;min-width:140px;font-size:13px" oninput="updateQbFee('${f.id}','label',this.value)">
+      <select style="font-size:13px;flex-shrink:0" onchange="updateQbFee('${f.id}','type',this.value)">
+        <option value="flat" ${f.type!=='range'?'selected':''}>Flat $</option>
+        <option value="range" ${f.type==='range'?'selected':''}>Range $</option>
+      </select>
+      ${f.type==='range'?`
+        <input type="number" value="${f.hrsMin||''}" placeholder="Min" style="width:70px;font-size:13px" oninput="updateQbFee('${f.id}','hrsMin',this.value)">
+        <span style="font-size:12px;color:var(--text3)">–</span>
+        <input type="number" value="${f.hrsMax||''}" placeholder="Max" style="width:70px;font-size:13px" oninput="updateQbFee('${f.id}','hrsMax',this.value)">
+      `:`<div style="display:flex;align-items:center;gap:3px"><span style="font-size:13px;color:var(--text3)">$</span><input type="number" value="${f.amount||''}" placeholder="0" style="width:80px;font-size:13px" oninput="updateQbFee('${f.id}','amount',this.value)"></div>`}
       <button class="btn btn-danger btn-sm" onclick="removeQuoteFee('${f.id}')">✕</button>
     </div>`).join('');
 }
 
 function calcQbTotals(){
-  let laborMin=0,laborMax=0,fees=0;
+  let laborMin=0,laborMax=0,fees=0,feesMax=0;
   qbDays.forEach(d=>{laborMin+=d.crew*(d.hrsMin||0)*d.rate;laborMax+=d.crew*(d.hrsMax||0)*d.rate;});
-  qbFees.filter(f=>f.included&&f.amount).forEach(f=>fees+=f.amount);
-  return{laborMin,laborMax,fees,totalMin:laborMin+fees,totalMax:laborMax+fees};
+  qbFees.filter(f=>f.included).forEach(f=>{
+    if(f.type==='range'){fees+=f.hrsMin||0;feesMax+=f.hrsMax||0;}
+    else{fees+=f.amount||0;feesMax+=f.amount||0;}
+  });
+  return{laborMin,laborMax,fees,feesMax,totalMin:laborMin+fees,totalMax:laborMax+feesMax};
 }
 
 function updateQbTotal(){
@@ -3258,44 +3521,163 @@ function updateQbTotal(){
   const isMulti=qbJobType==='multi';
   document.getElementById('qb-total-bar').innerHTML=`
     <div style="display:flex;gap:24px;flex-wrap:wrap">
-      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Labour estimate</div><div style="font-size:16px;font-weight:600">${fmtMoney(t.laborMin)} — ${fmtMoney(t.laborMax)}</div></div>
-      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Fees</div><div style="font-size:16px;font-weight:600">${fmtMoney(t.fees)}</div></div>
-      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${isMulti?'Grand total estimate':'Total estimate'}</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${fmtMoney(t.totalMin)} — ${fmtMoney(t.totalMax)}</div></div>
+      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Labour estimate</div><div style="font-size:15px;font-weight:600">${fmtMoney(t.laborMin)} — ${fmtMoney(t.laborMax)}</div></div>
+      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Fees</div><div style="font-size:15px;font-weight:600">${fmtMoney(t.fees)}${t.feesMax!==t.fees?' — '+fmtMoney(t.feesMax):''}</div></div>
+      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${isMulti?'Grand total':'Total estimate'}</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${fmtMoney(t.totalMin)} — ${fmtMoney(t.totalMax)}</div></div>
     </div>`;
 }
 
-function buildQuoteText(){
+function buildQuoteHTML(){
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const t=calcQbTotals();
-  const name=l?l.name.split(' ')[0]:'there';
   const isMulti=qbJobType==='multi';
-  let text=`Hi ${name},\n\nThank you for considering CareMore Moving & Storage for your upcoming move. Please find your estimate below.\n\n`;
-  text+=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nESTIMATE FOR: ${l?l.name:''}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  qbDays.forEach((d,i)=>{
-    if(isMulti)text+=`DAY ${i+1} — ${d.date?fmtDate(d.date):''}\n`;
-    text+=`From: ${d.from||'—'}${d.fromUnit?' #'+d.fromUnit:''}${d.fromFloor?' · Floor '+d.fromFloor:''}${d.fromStairs?' · '+d.fromStairs+' flights':''}\n`;
-    text+=`To: ${d.to||'—'}${d.toUnit?' #'+d.toUnit:''}${d.toFloor?' · Floor '+d.toFloor:''}${d.toStairs?' · '+d.toStairs+' flights':''}\n\n`;
-    text+=`${d.crew} movers @ $${d.rate}/hr\n`;
-    text+=`Estimated time: ${d.hrsMin}–${d.hrsMax} hours\n`;
-    text+=`Labour estimate: ${fmtMoney(d.crew*d.hrsMin*d.rate)} – ${fmtMoney(d.crew*d.hrsMax*d.rate)}\n`;
-    if(isMulti)text+='\n';
-  });
-  const activeFees=qbFees.filter(f=>f.included&&f.amount);
-  if(activeFees.length){
-    text+=`ADDITIONAL FEES:\n`;
-    activeFees.forEach(f=>{text+=`${f.label}: ${fmtMoney(f.amount)}\n`;});
-    text+='\n';
-  }
-  text+=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  text+=`TOTAL ESTIMATE: ${fmtMoney(t.totalMin)} – ${fmtMoney(t.totalMax)}\n`;
-  text+=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  text+=`2 hour minimum applies.\n`;
-  text+=`We accept cash, check, or credit card (3.5% fee for CC, no AMEX).\n\n`;
+  const projectName=document.getElementById('qb-project-name').value.trim();
+  const desc=document.getElementById('qb-description').value.trim();
+  const cashDiscount=document.getElementById('qb-cash-discount').value.trim();
+  const stipulations=document.getElementById('qb-stipulations').value.trim();
   const notes=document.getElementById('qb-notes').value.trim();
-  if(notes)text+=`${notes}\n\n`;
-  text+=`If you have any questions please call us at (415) 822-8547 or reply to this email.\n\n`;
-  text+=`Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com`;
-  return text;
+  const quoteNum=l?('Q'+new Date().getFullYear()+'-'+String(db.quotes?db.quotes.length+1:1).padStart(3,'0')):'Q001';
+  const d0=qbDays[0]||{};
+
+  // Build billing rows
+  let billingRows='';
+  qbDays.forEach((d,i)=>{
+    const dayLabel=isMulti?`Day ${i+1} — ${d.crew} Movers`:`${d.crew} Movers`;
+    const hrsLabel=`${d.hrsMin} - ${d.hrsMax} hours`;
+    const rateLabel=`$${d.rate}.00 / hour`;
+    const totalLabel=`${fmtMoney(d.crew*d.hrsMin*d.rate)} - ${fmtMoney(d.crew*d.hrsMax*d.rate)}`;
+    billingRows+=`<tr>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${dayLabel}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">${hrsLabel}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${rateLabel}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${totalLabel}</td>
+    </tr>`;
+  });
+  qbFees.filter(f=>f.included).forEach(f=>{
+    const amt=f.type==='range'?`${fmtMoney(f.hrsMin||0)} - ${fmtMoney(f.hrsMax||0)}`:fmtMoney(f.amount||0);
+    billingRows+=`<tr>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${escHtml(f.label||'')}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">1</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${f.type==='range'?'':fmtMoney(f.amount||0)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${amt}</td>
+    </tr>`;
+  });
+
+  return `<div style="font-family:'DM Sans',sans-serif;color:#1a1a1a;padding:32px;max-width:640px;margin:0 auto">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-family:'Playfair Display',serif;font-size:32px;font-weight:400">CareMore</div>
+      <div style="height:2px;background:#2d6a4f;margin:6px 0"></div>
+      <div style="font-family:'Playfair Display',serif;font-style:italic;font-size:26px">Moving & Storage</div>
+      <div style="margin-top:12px;font-size:13px;color:#555;line-height:1.7">
+        <strong>CareMore Moving & Storage</strong><br>
+        Cal-T #0190970<br>
+        925 Palou Ave, San Francisco, CA 94124<br>
+        (415) 822-8547
+      </div>
+    </div>
+
+    <h2 style="font-size:18px;font-weight:700;text-align:center;margin-bottom:20px">Review Your Quote</h2>
+
+    <p style="font-size:14px;line-height:1.7;margin-bottom:8px">Dear ${escHtml(l?l.name:'Customer')},</p>
+    <p style="font-size:14px;line-height:1.7;margin-bottom:16px">Moving is hard. We're here to make your move go as smoothly as possible.</p>
+    <p style="font-size:13.5px;line-height:1.7;color:#444;margin-bottom:8px">${escHtml(notes)}</p>
+
+    <!-- Contact Information -->
+    <div style="margin:20px 0">
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Contact Information</div>
+      <div style="font-size:14px">${escHtml(l?l.name:'')} ${escHtml(l?l.email||'':'')} ${escHtml(l?l.phone||'':'')}</div>
+    </div>
+
+    <!-- Project Information -->
+    <div style="margin:20px 0">
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Project Information</div>
+      <div style="font-size:14px;line-height:1.9">
+        Project: ${escHtml(projectName||quoteNum)}<br>
+        Project Type: Local Move<br>
+        Project Size: ${escHtml(l?l.size||'':'')}
+        ${desc?`<br>Project Description: ${escHtml(desc)}`:''}
+      </div>
+    </div>
+
+    <!-- Move Information -->
+    <div style="margin:20px 0">
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Move Information</div>
+      <div style="font-size:14px;line-height:1.9">
+        ${isMulti?qbDays.map((d,i)=>`Day ${i+1} Date: ${d.date?fmtDate(d.date):''}`).join('<br>'):`Job Date: ${d0.date?fmtDate(d0.date):''}`}<br>
+        Job Type: Move<br>
+        ${isMulti
+          ? qbDays.map((d,i)=>`
+            <br><strong>Day ${i+1}</strong><br>
+            Arrival Time: ${escHtml(d.arrivalStart||'')}${d.arrivalEnd?' - '+escHtml(d.arrivalEnd):''}<br>
+            Pick-up: ${escHtml(d.from||'—')}${d.fromUnit?', '+escHtml(d.fromUnit):''}<br>
+            ${d.fromAccess?'Access at load: '+escHtml(d.fromAccess)+'<br>':''}
+            Drop-off: ${escHtml(d.to||'—')}${d.toUnit?', '+escHtml(d.toUnit):''}<br>
+            ${d.toAccess?'Access at unload: '+escHtml(d.toAccess):''}
+          `).join('')
+          : `Arrival Time: ${escHtml(d0.arrivalStart||'')}${d0.arrivalEnd?' - '+escHtml(d0.arrivalEnd):''}<br>
+            Pick-up: ${escHtml(d0.from||'—')}${d0.fromUnit?', '+escHtml(d0.fromUnit):''}<br>
+            ${d0.fromAccess?'Access at load: '+escHtml(d0.fromAccess)+'<br>':''}
+            Drop-off: ${escHtml(d0.to||'—')}${d0.toUnit?', '+escHtml(d0.toUnit):''}<br>
+            ${d0.toAccess?'Access at unload: '+escHtml(d0.toAccess):''}`
+        }      </div>
+    </div>
+
+    <!-- Billing Information -->
+    <div style="margin:20px 0">
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Billing Information</div>
+      <div style="background:#f5f5f5;border-radius:4px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#555">
+        ${d0.date?fmtDate(d0.date).split(',')[0]+' '+fmtDate(d0.date).split(',')[1]:''}
+        ${isMulti?'· Multi-day':'· Move'}
+      </div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Moving Services</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="border-bottom:2px solid #ddd">
+          <th style="padding:8px;text-align:left;font-size:12px;color:#555;font-weight:500">Service</th>
+          <th style="padding:8px;text-align:center;font-size:12px;color:#555;font-weight:500">Hours</th>
+          <th style="padding:8px;text-align:right;font-size:12px;color:#555;font-weight:500">Rate</th>
+          <th style="padding:8px;text-align:right;font-size:12px;color:#555;font-weight:500">Total</th>
+        </tr></thead>
+        <tbody>${billingRows}</tbody>
+      </table>
+      <div style="display:flex;justify-content:flex-end;padding:12px 8px;border-top:2px solid #ddd;margin-top:4px">
+        <span style="font-size:14px;font-weight:700;margin-right:32px">Total Moving Services</span>
+        <span style="font-size:14px;font-weight:700">${fmtMoney(t.totalMin)} - ${fmtMoney(t.totalMax)}</span>
+      </div>
+    </div>
+
+    ${cashDiscount?`<div style="background:#f5f5f5;border-radius:4px;padding:12px 14px;margin-bottom:12px"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Cash Discount</div><div style="font-size:13px;color:#555">${escHtml(cashDiscount)}</div></div>`:''}
+    ${stipulations?`<div style="background:#f5f5f5;border-radius:4px;padding:12px 14px;margin-bottom:12px"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Stipulations</div><div style="font-size:13px;color:#555;white-space:pre-line">${escHtml(stipulations)}</div></div>`:''}
+
+    <!-- Grand Total -->
+    <div style="display:flex;justify-content:flex-end;padding:12px 8px;border-top:2px solid #ddd">
+      <span style="font-size:15px;font-weight:700;margin-right:32px">Grand Total</span>
+      <span style="font-size:15px;font-weight:700">${fmtMoney(t.totalMin)} - ${fmtMoney(t.totalMax)}</span>
+    </div>
+
+    <!-- Payments -->
+    <div style="margin:16px 0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:16px">💳</span>
+        <span style="font-size:14px;font-weight:600">Payments</span>
+      </div>
+      <div style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;padding:12px 0;font-size:13px;color:#e67e22">
+        No payments have been recorded for this project
+      </div>
+      <div style="display:flex;justify-content:flex-end;padding:12px 8px;border-bottom:2px solid #ddd">
+        <span style="font-size:14px;font-weight:700;margin-right:32px">Balance Due</span>
+        <span style="font-size:14px;font-weight:700">${fmtMoney(t.totalMin)} - ${fmtMoney(t.totalMax)}</span>
+      </div>
+    </div>
+
+    <!-- Request Availability button -->
+    <div style="margin-top:24px">
+      <a href="mailto:move@caremoremoving.com?subject=${encodeURIComponent('Quote availability request — '+(l?l.name:'Customer'))}&body=${encodeURIComponent('Hi,\n\nI would like to request availability for my move.\n\nName: '+(l?l.name:'')+'\nPhone: '+(l?l.phone||'':'')+'\nMove date: '+(d0.date?fmtDate(d0.date):''))}"
+        style="display:block;background:#1a73e8;color:#fff;text-align:center;padding:16px;border-radius:4px;font-size:15px;font-weight:500;text-decoration:none">
+        Request Availability
+      </a>
+    </div>
+  </div>`;
 }
 
 function saveQuote(status){
@@ -3307,10 +3689,14 @@ function saveQuote(status){
     leadId:currentQuoteLeadId,
     customerName:l?l.name:'',
     customerEmail:l?l.email:'',
-    moveDate:qbDays[0]?.date||l?.date||'',
+    moveDate:qbDays[0]?qbDays[0].date:l?l.date:'',
     jobType:qbJobType,
     days:[...qbDays],
     fees:[...qbFees],
+    projectName:document.getElementById('qb-project-name').value,
+    description:document.getElementById('qb-description').value,
+    cashDiscount:document.getElementById('qb-cash-discount').value,
+    stipulations:document.getElementById('qb-stipulations').value,
     notes:document.getElementById('qb-notes').value,
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
@@ -3319,46 +3705,62 @@ function saveQuote(status){
   };
   if(currentQuoteId){const idx=db.quotes.findIndex(q=>q.id===currentQuoteId);if(idx>-1)db.quotes[idx]=quote;else db.quotes.push(quote);}
   else{db.quotes.push(quote);currentQuoteId=quote.id;}
-  // Update lead status to Estimate sent
   if(l&&status==='sent'){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];}
   saveDB();
   return quote;
 }
 
 function previewQuote(){
-  const text=buildQuoteText();
-  document.getElementById('quote-preview-body').innerHTML=
-    `<pre style="white-space:pre-wrap;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.7;color:var(--text)">${text}</pre>`+
-    `<textarea id="quote-preview-text" style="position:absolute;left:-9999px">${text}</textarea>`;
   saveQuote('draft');
+  document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
   closeModal('quote-builder');
   openModal('quote-preview');
 }
 
-function sendQuote(){
+async function sendQuote(){
   const q=saveQuote('sent');
-  const text=buildQuoteText();
-  const subject=`Your move estimate — CareMore Moving & Storage`;
-  const mailto=`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(q.customerEmail||'')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
-  window.open(mailto,'_blank');
+  const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
+  const name=l?l.name.split(' ')[0]:'there';
+  const subject='Your move estimate — CareMore Moving & Storage';
+
+  const customerBody='Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage below.\n\nIf you have any questions please call us at (415) 822-8547 or reply to this email.\n\nThank you,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
+
   closeModal('quote-builder');
   closeModal('quote-preview');
-  showToast('✓ Quote opened in Gmail — mark as sent when done');
+
+  const sent = await sendEmail(
+    q.customerEmail||'',
+    OFFICE_EMAIL,
+    subject,
+    customerBody
+  );
+
+  if(sent){
+    showToast('✓ Quote sent to '+( l?l.name:'customer')+' — copy sent to office');
+  } else {
+    showToast('✓ Quote Gmail opened — customer in To, office in CC');
+  }
+
   renderLeads();
   if(document.getElementById('page-quotes').classList.contains('active'))renderQuotes();
 }
 
 function renderQuotes(){
   if(!db.quotes)db.quotes=[];
-  const statusBadgeQ=(s)=>{const m={'draft':'pill-gray','sent':'pill-green','accepted':'pill-green','declined':'pill-red'};return`<span class="badge ${m[s]||'pill-gray'}">${s}</span>`;};
-  document.getElementById('quotes-tbody').innerHTML=db.quotes.length?[...db.quotes].sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||'')).map(q=>`<tr>
-    <td style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:500;cursor:pointer" onclick="openQuoteBuilder('${q.leadId||''}')">${q.customerName||'—'}</td>
-    <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${fmtDate(q.moveDate)}</td>
-    <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><span class="badge pill-gray">${q.jobType==='multi'?'Multi-day':'Single day'}</span></td>
-    <td style="padding:10px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${fmtMoney(q.totalMin)} — ${fmtMoney(q.totalMax)}</td>
-    <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${statusBadgeQ(q.status)}</td>
-    <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><button class="btn btn-secondary btn-sm" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));openModal('quote-builder')">Edit</button></td>
-  </tr>`).join(''):`<tr><td colspan="6"><div class="empty-state"><div class="empty-title">No quotes yet</div><div class="empty-sub">Open a lead at "Estimate scheduled" stage and click "Build quote"</div></div></td></tr>`;
+  const statusBadgeQ=(s)=>{const m={draft:'pill-gray',sent:'pill-green',accepted:'pill-green',declined:'pill-red'};return`<span class="badge ${m[s]||'pill-gray'}">${s}</span>`;};
+  document.getElementById('quotes-tbody').innerHTML=db.quotes.length
+    ?[...db.quotes].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(q=>`<tr>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:500;cursor:pointer" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));openModal('quote-builder')">${q.customerName||'—'}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${fmtDate(q.moveDate)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><span class="badge pill-gray">${q.jobType==='multi'?'Multi-day':'Single day'}</span></td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${fmtMoney(q.totalMin)} — ${fmtMoney(q.totalMax)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${statusBadgeQ(q.status)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));openModal('quote-builder')">Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));saveQuote('draft');document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();openModal('quote-preview')">Preview</button>
+      </td>
+    </tr>`).join('')
+    :`<tr><td colspan="6"><div class="empty-state"><div class="empty-title">No quotes yet</div><div class="empty-sub">Open a lead at "Estimate scheduled" stage and click "Build quote"</div></div></td></tr>`;
 }
 
 // App init — loadDB is now async
