@@ -2312,7 +2312,7 @@ function viewCompletedJob(id){const j=db.completedJobs.find(x=>x.id===id);if(!j)
 const hasExtras=j.feeMaterials||j.feeFuel||j.feeParkingPermit||j.feeCOI||j.feeInsurance||j.feeDump||j.feeDamage||j.feeYelp;
 const feeBlock=hasExtras?`<div style="margin-top:12px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fee breakdown</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px">${feeRow('Labour',j.feeLabour)}${feeRow('Materials',j.feeMaterials)}${feeRow('Fuel',j.feeFuel)}${feeRow('Parking permits',j.feeParkingPermit)}${feeRow('COI',j.feeCOI)}${feeRow('Insurance',j.feeInsurance)}${feeRow('Dump fee',j.feeDump)}${feeRow('Damage/claim',j.feeDamage)}${j.feeYelp?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Yelp discount</div><div style="color:var(--danger)">-${fmtMoney(j.feeYelp)}</div></div>`:''}</div></div>`:'';
 document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Date</div><div>${fmtDate(j.date)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Crew leader</div><div>${j.crew||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Source</div><div>${sourceBadge(j.source)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Hours worked</div><div>${j.hours||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Rate charged ($/hr)</div><div style="font-weight:600;color:var(--accent)">${j.hourlyRateCharged?'$'+j.hourlyRateCharged+'/hr':'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Effective rate (labour÷hrs)</div><div style="color:var(--text2)">${j.ratePerHour?'$'+j.ratePerHour+'/hr':'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Payment method</div><div>${j.payment||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Total charged</div><div style="font-weight:600;font-size:15px">${fmtMoney(j.total)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Amount paid</div><div>${fmtMoney(j.paid)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Balance owing</div><div>${owed>0?`<span class="badge pill-amber">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid in full ✓</span>'}</div></div></div>${j.paymentHistory&&j.paymentHistory.length?`<div style="margin-top:14px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Payment history</div><div style="display:flex;flex-direction:column;gap:6px">${j.paymentHistory.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--surface2);border-radius:var(--radius);font-size:12.5px"><div><span style="color:var(--text2)">${fmtDate(p.date)}</span>${p.method?` · <span class="badge pill-gray">${p.method}</span>`:''}</div><div style="font-weight:600;color:var(--accent)">${fmtMoney(p.amount)}</div></div>`).join('')}</div></div>`:''} ${feeBlock}${j.notes?`<div style="margin-top:12px;font-size:12.5px"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${j.notes}</div></div>`:''}`;
-document.getElementById('view-modal-footer').innerHTML=`<button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button><button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button>${owed>0?`<button class="btn" style="background:var(--amber-light);color:var(--amber);border-color:#f0d080" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 Update payment</button>`:''}`;openModal('view');}
+document.getElementById('view-modal-footer').innerHTML=`<button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button><button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button><button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${owed>0?`<button class="btn" style="background:var(--amber-light);color:var(--amber);border-color:#f0d080" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 Update payment</button>`:''}`;openModal('view');}
 
 let currentEditCompletedJobId=null;
 function openEditCompletedJob(jobId){
@@ -3992,6 +3992,26 @@ function saveCustomerNotes(){
   saveDB();
   showToast('✓ Notes saved');
   renderCustomers();
+}
+
+function openCustomerFromJob(jobId){
+  const j=db.completedJobs.find(x=>x.id===jobId);
+  if(!j||!db.customers)return;
+  const phone=(j.phone||'').replace(/\D/g,'');
+  const name=(j.name||'').trim().toLowerCase();
+  let cust=null;
+  if(phone.length>=7) cust=db.customers.find(c=>(c.phone||'').replace(/\D/g,'')===phone);
+  if(!cust) cust=db.customers.find(c=>(c.name||'').trim().toLowerCase()===name);
+  if(cust){
+    viewCustomer(cust.id);
+  } else {
+    // Customer doesn't exist yet — create them and open
+    upsertCustomer(j);
+    saveDB();
+    const newCust=db.customers.find(c=>(c.name||'').trim().toLowerCase()===name);
+    if(newCust) viewCustomer(newCust.id);
+    else showToast('Could not find customer record');
+  }
 }
 
 function backfillCustomers(){
