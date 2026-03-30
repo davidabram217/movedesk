@@ -65,7 +65,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 
 textarea{resize:vertical;min-height:70px}
 select{cursor:pointer}
 .form-hint{font-size:10.5px;color:var(--text3);margin-top:1px}
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px;overflow:hidden}
 .modal-bg.open{display:flex}
 #modal-next-step{z-index:300}
 .modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
@@ -1691,7 +1691,7 @@ function saveLead(){
     // Show next step prompt after modal has fully closed
     currentNextStepLeadId=lead.id;
     document.getElementById('next-step-name').textContent=name+' · '+fmtDate(lead.date);
-    setTimeout(function(){ openModal('next-step'); }, 500);
+    setTimeout(function(){ openModal('next-step'); }, 1500);
   }
 }
 
