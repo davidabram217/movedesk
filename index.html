@@ -57,7 +57,7 @@ tr:hover td{background:var(--bg)}
 .td-mono{font-family:'DM Mono',monospace;font-size:11.5px}
 .form-grid{display:grid;gap:13px}
 .form-grid-2{grid-template-columns:1fr 1fr}
-.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
 .form-group.full{grid-column:1/-1}
 label{font-size:11.5px;font-weight:500;color:var(--text2)}
 input,select,textarea{font-family:'DM Sans',sans-serif;font-size:12.5px;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:none;width:100%;transition:border-color .15s,box-shadow .15s}
@@ -67,6 +67,7 @@ select{cursor:pointer}
 .form-hint{font-size:10.5px;color:var(--text3);margin-top:1px}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;padding:16px}
 .modal-bg.open{display:flex}
+#modal-next-step{z-index:300}
 .modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);width:100%;max-width:600px;max-height:90vh;overflow-y:auto}
 .modal-header{padding:16px 20px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
 .modal-title{font-size:14px;font-weight:600}
@@ -114,7 +115,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
 .filter-bar select{width:auto;padding:5px 9px;font-size:12px}
 .owe-badge{color:var(--danger);font-weight:600;font-family:'DM Mono',monospace}
-.loc-section-label{margin-top:14px;margin-bottom:5px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.loc-section-label{margin-top:20px;margin-bottom:10px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid var(--border2)}
 .ac-dropdown{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:500;max-height:210px;overflow-y:auto;display:none}
 .ac-dropdown.open{display:block}
 .ac-item{padding:9px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--border)}
@@ -560,9 +561,9 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       </div>
     </div>
 <div class="modal-bg" id="modal-new-lead">
-  <div class="modal">
+  <div class="modal" style="max-width:660px">
     <div class="modal-header"><div class="modal-title">New lead intake</div><button class="modal-close" onclick="closeModal('new-lead')">✕</button></div>
-    <div class="modal-body">
+    <div class="modal-body" style="padding:24px 28px">
       <div class="form-grid form-grid-2">
         <div class="form-group" style="position:relative"><label>Full name *</label><input type="text" id="nl-name" placeholder="Customer name" autocomplete="off" oninput="customerAutocomplete(this.value)"><div id="nl-name-ac" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:200;max-height:180px;overflow-y:auto"></div></div>
         <div class="form-group"><label>Phone *</label><input type="tel" id="nl-phone" placeholder="(555) 000-0000"></div>
@@ -1689,7 +1690,7 @@ function saveLead(){
     // Show next step prompt after modal has fully closed
     currentNextStepLeadId=lead.id;
     document.getElementById('next-step-name').textContent=name+' · '+fmtDate(lead.date);
-    setTimeout(function(){ openModal('next-step'); }, 300);
+    setTimeout(function(){ openModal('next-step'); }, 500);
   }
 }
 
