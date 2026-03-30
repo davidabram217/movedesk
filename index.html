@@ -1686,10 +1686,10 @@ function saveLead(){
     closeModal('new-lead');
     if(document.getElementById('page-leads').classList.contains('active'))renderLeads();
     if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
-    // Show next step prompt
+    // Show next step prompt after modal has fully closed
     currentNextStepLeadId=lead.id;
     document.getElementById('next-step-name').textContent=name+' · '+fmtDate(lead.date);
-    openModal('next-step');
+    setTimeout(function(){ openModal('next-step'); }, 300);
   }
 }
 
