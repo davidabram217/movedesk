@@ -1188,7 +1188,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('customer-view')">Close</button>
-      <button class="btn btn-primary" onclick="closeModal('customer-view');openModal('new-lead')" id="cv-new-lead-btn">+ New lead for this customer</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteCustomer()">🗑 Delete customer</button>
+      <button class="btn btn-primary" id="cv-new-lead-btn">+ New lead for this customer</button>
     </div>
   </div>
 </div>
@@ -3983,6 +3984,18 @@ function viewCustomer(custId){
     </div>`).join(''):`<div style="font-size:13px;color:var(--text3);padding:8px 0">No history yet</div>`;
 
   openModal('customer-view');
+}
+
+function deleteCustomer(){
+  const c=db.customers.find(x=>x.id===currentCustomerId);
+  if(!c)return;
+  if(!confirm('Delete '+c.name+' from the customer database? This won\'t delete their leads or job history.'))return;
+  db.customers=db.customers.filter(x=>x.id!==currentCustomerId);
+  sbDelete('customers',currentCustomerId);
+  saveDB();
+  closeModal('customer-view');
+  showToast('✓ Customer deleted');
+  renderCustomers();
 }
 
 function saveCustomerNotes(){
