@@ -2260,34 +2260,38 @@ function globalSearch(val){
   clearBtn.style.display=q?'':'none';
   if(!q){results.style.display='none';return;}
   const matched=[];
-  const seenIds=new Set();
+  const seenKeys=new Set();
   (db.customers||[]).forEach(c=>{
     if(!c.name)return;
-    if(!((c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.email||'').toLowerCase().includes(q)))return;
-    if(seenIds.has(c.id))return;
-    seenIds.add(c.id);
+    const cn=(c.name||'').toLowerCase();
+    const cp=(c.phone||'');
+    const ce=(c.email||'').toLowerCase();
+    if(!cn.includes(q)&&!cp.includes(q)&&!ce.includes(q))return;
+    const key=c.id;
+    if(seenKeys.has(key))return;
+    seenKeys.add(key);
     const hist=getCustomerHistory(c.id);
-    const completedJobs=hist.jobs||[];
+    const jobs=hist.jobs||[];
     const leads=hist.leads||[];
-    const latestJob=[...completedJobs].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const latestJob=[...jobs].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
     const latestLead=[...leads].sort((a,b)=>(b.createdAt||b.date||'').localeCompare(a.createdAt||a.date||''))[0];
-    const isBooked=db.bookedJobs.some(b=>!b.pendingConfirmation&&((b.phone&&b.phone===(c.phone||''))||(b.name||'').toLowerCase()===c.name.toLowerCase()));
-    matched.push({custId:c.id,name:c.name,phone:c.phone||'',
-      totalJobs:completedJobs.length,
-      totalSpent:completedJobs.reduce((s,j)=>s+(Number(j.paid)||0),0),
-      latestJob,latestLead,isBooked});
+    const isBooked=db.bookedJobs.some(b=>!b.pendingConfirmation&&((cp&&b.phone===cp)||(b.name||'').toLowerCase()===cn));
+    matched.push({custId:c.id,name:c.name,phone:cp,totalJobs:jobs.length,
+      totalSpent:jobs.reduce((s,j)=>s+(Number(j.paid)||0),0),latestJob,latestLead,isBooked});
   });
-  if(!matched.length){
-    const seenLeadKeys=new Set();
-    db.leads.forEach(l=>{
-      if(!l.name)return;
-      if(!((l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(q)||(l.email||'').toLowerCase().includes(q)))return;
-      const key=(l.name||'').toLowerCase()+'|'+(l.phone||'');
-      if(seenLeadKeys.has(key))return;
-      seenLeadKeys.add(key);
-      matched.push({custId:null,name:l.name,phone:l.phone||'',totalJobs:0,totalSpent:0,latestJob:null,latestLead:l,isBooked:false,leadId:l.id});
-    });
-  }
+  db.leads.forEach(l=>{
+    if(!l.name)return;
+    const ln=(l.name||'').toLowerCase();
+    const lp=(l.phone||'');
+    if(!ln.includes(q)&&!lp.includes(q)&&!(l.email||'').toLowerCase().includes(q))return;
+    const alreadyFound=matched.some(m=>(lp&&m.phone===lp)||(ln===m.name.toLowerCase()&&!lp));
+    if(alreadyFound)return;
+    const key='lead:'+l.id;
+    if(seenKeys.has(key))return;
+    seenKeys.add(key);
+    matched.push({custId:null,name:l.name,phone:lp,totalJobs:0,totalSpent:0,
+      latestJob:null,latestLead:l,isBooked:false,leadId:l.id});
+  });
   if(!matched.length){
     results.innerHTML=`<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3)">No results for "${val}"</div>`;
     results.style.display='block';return;
