@@ -2285,6 +2285,14 @@ function globalSearch(val){
     if(j.name?.toLowerCase().includes(q)||j.phone?.includes(q))
       addToMap(j,'completed');
   });
+  (db.customers||[]).forEach(c=>{
+    if(c.name?.toLowerCase().includes(q)||c.phone?.includes(q)||c.email?.toLowerCase().includes(q)){
+      const key=(c.phone||'').replace(/\D/g,'')||(c.name||'').toLowerCase();
+      if(key&&!customerMap[key]){
+        customerMap[key]={name:c.name,phone:c.phone||'',email:c.email||'',leads:[],booked:[],completed:[],custId:c.id};
+      }
+    }
+  });
   const customers=Object.values(customerMap);
   if(!customers.length){
     results.innerHTML=`<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3)">No results for "${val}"</div>`;
@@ -2301,6 +2309,7 @@ function globalSearch(val){
       const ip=(c.phone||'').replace(/\D/g,'');
       return (cp&&ip&&cp===ip)||(cu.name||'').toLowerCase()===(c.name||'').toLowerCase();
     }):null;
+    const custId=c.custId||(custRecord?custRecord.id:null);
     const badges=[];
     if(totalJobs>1)badges.push(`<span class="badge pill-green">Repeat ×${totalJobs}</span>`);
     if(isBooked)badges.push(`<span class="badge pill-blue">Booked</span>`);
@@ -2311,8 +2320,8 @@ function globalSearch(val){
     if(totalSpent>0)sub.push(fmtMoney(totalSpent)+' total');
     if(latestJob)sub.push('Last: '+fmtDate(latestJob.date));
     else if(latestLead)sub.push('Lead: '+fmtDate(latestLead.date));
-    const clickAction=custRecord
-      ?`closeGlobalSearch();viewCustomer('${custRecord.id}')`
+    const clickAction=custId
+      ?`closeGlobalSearch();viewCustomer('${custId}')`
       :`closeGlobalSearch();${latestLead?`showPage('leads');setTimeout(()=>viewLead('${latestLead.id}'),100)`:`showPage('completed');setTimeout(()=>viewCompletedJob('${(latestJob||c.completed[0])?.id}'),100)`}`;
     return`<div onclick="${clickAction}" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div>
