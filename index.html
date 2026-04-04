@@ -2263,7 +2263,8 @@ function globalSearch(val){
   if(!q){results.style.display='none';return;}
   const customerMap={};
   const addToMap=(item,type)=>{
-    const key=(item.phone||'').replace(/\D/g,'')||(item.name||'').toLowerCase();
+    const phone=(item.phone||'').replace(/\D/g,'');
+    const key=phone.length>=7?phone:(item.name||'').toLowerCase().trim();
     if(!key)return;
     if(!customerMap[key]){
       customerMap[key]={
@@ -2287,7 +2288,8 @@ function globalSearch(val){
   });
   (db.customers||[]).forEach(c=>{
     if(c.name?.toLowerCase().includes(q)||c.phone?.includes(q)||c.email?.toLowerCase().includes(q)){
-      const key=(c.phone||'').replace(/\D/g,'')||(c.name||'').toLowerCase();
+      const phone=(c.phone||'').replace(/\D/g,'');
+      const key=phone.length>=7?phone:(c.name||'').toLowerCase().trim();
       if(key&&!customerMap[key]){
         customerMap[key]={name:c.name,phone:c.phone||'',email:c.email||'',leads:[],booked:[],completed:[],custId:c.id};
       }
