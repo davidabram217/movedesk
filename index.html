@@ -2263,28 +2263,38 @@ function globalSearch(val){
   const seenIds=new Set();
   (db.customers||[]).forEach(c=>{
     if(!c.name)return;
-    if((c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.email||'').toLowerCase().includes(q)){
-      if(seenIds.has(c.id))return;
-      seenIds.add(c.id);
-      const hist=getCustomerHistory(c.id);
-      const latestJob=[...hist.completed].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
-      const latestLead=[...hist.leads].sort((a,b)=>(b.createdAt||b.date||'').localeCompare(a.createdAt||a.date||''))[0];
-      matched.push({
-        custId:c.id,name:c.name,phone:c.phone||'',
-        totalJobs:hist.completed.length,
-        totalSpent:hist.completed.reduce((s,j)=>s+(Number(j.paid)||0),0),
-        latestJob,latestLead,
-        isBooked:db.bookedJobs.some(b=>!b.pendingConfirmation&&((b.phone&&b.phone===(c.phone||''))||(b.name||'').toLowerCase()===c.name.toLowerCase()))
-      });
-    }
+    if(!((c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.email||'').toLowerCase().includes(q)))return;
+    if(seenIds.has(c.id))return;
+    seenIds.add(c.id);
+    const hist=getCustomerHistory(c.id);
+    const completedJobs=hist.jobs||[];
+    const leads=hist.leads||[];
+    const latestJob=[...completedJobs].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const latestLead=[...leads].sort((a,b)=>(b.createdAt||b.date||'').localeCompare(a.createdAt||a.date||''))[0];
+    const isBooked=db.bookedJobs.some(b=>!b.pendingConfirmation&&((b.phone&&b.phone===(c.phone||''))||(b.name||'').toLowerCase()===c.name.toLowerCase()));
+    matched.push({custId:c.id,name:c.name,phone:c.phone||'',
+      totalJobs:completedJobs.length,
+      totalSpent:completedJobs.reduce((s,j)=>s+(Number(j.paid)||0),0),
+      latestJob,latestLead,isBooked});
   });
+  if(!matched.length){
+    const seenLeadKeys=new Set();
+    db.leads.forEach(l=>{
+      if(!l.name)return;
+      if(!((l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(q)||(l.email||'').toLowerCase().includes(q)))return;
+      const key=(l.name||'').toLowerCase()+'|'+(l.phone||'');
+      if(seenLeadKeys.has(key))return;
+      seenLeadKeys.add(key);
+      matched.push({custId:null,name:l.name,phone:l.phone||'',totalJobs:0,totalSpent:0,latestJob:null,latestLead:l,isBooked:false,leadId:l.id});
+    });
+  }
   if(!matched.length){
     results.innerHTML=`<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3)">No results for "${val}"</div>`;
     results.style.display='block';return;
   }
   results.innerHTML=matched.map(c=>{
     const badges=[];
-    if(c.totalJobs>1)badges.push(`<span class="badge pill-green">Repeat ×${c.totalJobs}</span>`);
+    if(c.totalJobs>1)badges.push(`<span class="badge pill-green">Repeat ${c.totalJobs}×</span>`);
     if(c.isBooked)badges.push('<span class="badge pill-blue">Booked</span>');
     if(c.latestLead&&!c.isBooked)badges.push(statusBadge(c.latestLead.status));
     const sub=[];
@@ -2293,7 +2303,10 @@ function globalSearch(val){
     if(c.totalSpent>0)sub.push(fmtMoney(c.totalSpent)+' total');
     if(c.latestJob)sub.push('Last: '+fmtDate(c.latestJob.date));
     else if(c.latestLead)sub.push('Lead: '+fmtDate(c.latestLead.date||c.latestLead.createdAt));
-    const clickAction=`closeGlobalSearch();showPage('customers');setTimeout(()=>viewCustomer('${c.custId}'),100)`;
+    const clickAction=c.custId
+      ?`closeGlobalSearch();showPage('customers');setTimeout(()=>viewCustomer('${c.custId}'),100)`
+      :c.leadId?`closeGlobalSearch();showPage('leads');setTimeout(()=>viewLead('${c.leadId}'),100)`
+      :'closeGlobalSearch()';
     return`<div onclick="${clickAction}" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div>
         <div style="font-size:13px;font-weight:500;margin-bottom:3px">${c.name}</div>
