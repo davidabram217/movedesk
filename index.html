@@ -2259,77 +2259,41 @@ function globalSearch(val){
   const results=document.getElementById('global-search-results');
   clearBtn.style.display=q?'':'none';
   if(!q){results.style.display='none';return;}
-  const customerMap={};
-  const addToMap=(item,type)=>{
-    const phone=(item.phone||'').replace(/\D/g,'');
-    const key=phone.length>=7?phone:(item.name||'').toLowerCase().trim();
-    if(!key)return;
-    if(!customerMap[key]){
-      customerMap[key]={
-        name:item.name,phone:item.phone||'',email:item.email||'',
-        leads:[],booked:[],completed:[]
-      };
-    }
-    customerMap[key][type].push(item);
-  };
-  db.leads.forEach(l=>{
-    if(l.name?.toLowerCase().includes(q)||l.phone?.includes(q)||l.email?.toLowerCase().includes(q))
-      addToMap(l,'leads');
-  });
-  db.bookedJobs.filter(j=>!j.pendingConfirmation).forEach(j=>{
-    if(j.name?.toLowerCase().includes(q)||j.phone?.includes(q))
-      addToMap(j,'booked');
-  });
-  db.completedJobs.forEach(j=>{
-    if(j.name?.toLowerCase().includes(q)||j.phone?.includes(q))
-      addToMap(j,'completed');
-  });
+  const matched=[];
+  const seenIds=new Set();
   (db.customers||[]).forEach(c=>{
-    if(c.name?.toLowerCase().includes(q)||c.phone?.includes(q)||c.email?.toLowerCase().includes(q)){
-      const phone=(c.phone||'').replace(/\D/g,'');
-      const key=phone.length>=7?phone:(c.name||'').toLowerCase().trim();
-      if(!key)return;
-      if(!customerMap[key]){
-        customerMap[key]={name:c.name,phone:c.phone||'',email:c.email||'',leads:[],booked:[],completed:[],custId:c.id};
-      } else {
-        customerMap[key].custId=c.id;
-      }
+    if(!c.name)return;
+    if((c.name||'').toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.email||'').toLowerCase().includes(q)){
+      if(seenIds.has(c.id))return;
+      seenIds.add(c.id);
+      const hist=getCustomerHistory(c.id);
+      const latestJob=[...hist.completed].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+      const latestLead=[...hist.leads].sort((a,b)=>(b.createdAt||b.date||'').localeCompare(a.createdAt||a.date||''))[0];
+      matched.push({
+        custId:c.id,name:c.name,phone:c.phone||'',
+        totalJobs:hist.completed.length,
+        totalSpent:hist.completed.reduce((s,j)=>s+(Number(j.paid)||0),0),
+        latestJob,latestLead,
+        isBooked:db.bookedJobs.some(b=>!b.pendingConfirmation&&((b.phone&&b.phone===(c.phone||''))||(b.name||'').toLowerCase()===c.name.toLowerCase()))
+      });
     }
   });
-  const customers=Object.values(customerMap);
-  if(!customers.length){
+  if(!matched.length){
     results.innerHTML=`<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3)">No results for "${val}"</div>`;
     results.style.display='block';return;
   }
-  results.innerHTML=customers.map(c=>{
-    const totalJobs=c.completed.length;
-    const totalSpent=c.completed.reduce((s,j)=>s+(Number(j.paid)||0),0);
-    const latestLead=c.leads.sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
-    const latestJob=c.completed.sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
-    const isBooked=c.booked.length>0;
-    const custRecord=db.customers?(db.customers.find(cu=>{
-      const cp=(cu.phone||'').replace(/\D/g,'');
-      const ip=(c.phone||'').replace(/\D/g,'');
-      return (cp&&ip&&cp.length>=7&&cp===ip);
-    })||db.customers.find(cu=>{
-      return (cu.name||'').toLowerCase().trim()===(c.name||'').toLowerCase().trim();
-    })):null;
-    const custId=c.custId||(custRecord?custRecord.id:null);
+  results.innerHTML=matched.map(c=>{
     const badges=[];
-    if(totalJobs>1)badges.push(`<span class="badge pill-green">Repeat ×${totalJobs}</span>`);
-    if(isBooked)badges.push(`<span class="badge pill-blue">Booked</span>`);
-    if(latestLead&&!isBooked)badges.push(statusBadge(latestLead.status));
+    if(c.totalJobs>1)badges.push(`<span class="badge pill-green">Repeat ×${c.totalJobs}</span>`);
+    if(c.isBooked)badges.push('<span class="badge pill-blue">Booked</span>');
+    if(c.latestLead&&!c.isBooked)badges.push(statusBadge(c.latestLead.status));
     const sub=[];
     if(c.phone)sub.push(c.phone);
-    if(totalJobs>0)sub.push(`${totalJobs} job${totalJobs>1?'s':''}`);
-    if(totalSpent>0)sub.push(fmtMoney(totalSpent)+' total');
-    if(latestJob)sub.push('Last: '+fmtDate(latestJob.date));
-    else if(latestLead)sub.push('Lead: '+fmtDate(latestLead.date));
-    const clickAction=custId
-      ?`closeGlobalSearch();showPage('customers');setTimeout(()=>viewCustomer('${custId}'),100)`
-      :latestLead?`closeGlobalSearch();showPage('leads');setTimeout(()=>viewLead('${latestLead.id}'),100)`
-      :latestJob?`closeGlobalSearch();showPage('completed');setTimeout(()=>viewCompletedJob('${latestJob.id}'),100)`
-      :`closeGlobalSearch()`;
+    if(c.totalJobs>0)sub.push(c.totalJobs+' job'+(c.totalJobs>1?'s':''));
+    if(c.totalSpent>0)sub.push(fmtMoney(c.totalSpent)+' total');
+    if(c.latestJob)sub.push('Last: '+fmtDate(c.latestJob.date));
+    else if(c.latestLead)sub.push('Lead: '+fmtDate(c.latestLead.date||c.latestLead.createdAt));
+    const clickAction=`closeGlobalSearch();showPage('customers');setTimeout(()=>viewCustomer('${c.custId}'),100)`;
     return`<div onclick="${clickAction}" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div>
         <div style="font-size:13px;font-weight:500;margin-bottom:3px">${c.name}</div>
