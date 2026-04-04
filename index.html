@@ -3495,17 +3495,19 @@ function openCustomerFromJob(jobId){
     else showToast('Could not find customer record');
   }
 }
-function backfillCustomers(){
+function backfillCustomers(silent){
   if(!db.customers)db.customers=[];
   let count=0;
   db.leads.forEach(function(l){ if(l.name){ upsertCustomer(l); count++; } });
   db.completedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } });
   db.bookedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } });
   saveDB();
-  const status=document.getElementById('backfill-status');
-  if(status)status.textContent='✓ Done — '+db.customers.length+' customers built from '+count+' leads and jobs.';
-  showToast('✓ Customer database built — '+db.customers.length+' customers');
-  if(document.getElementById('page-customers').classList.contains('active'))renderCustomers();
+  if(!silent){
+    const status=document.getElementById('backfill-status');
+    if(status)status.textContent='✓ Done — '+db.customers.length+' customers built from '+count+' leads and jobs.';
+    showToast('✓ Customer database built — '+db.customers.length+' customers');
+    if(document.getElementById('page-customers').classList.contains('active'))renderCustomers();
+  }
 }
 function customerAutocomplete(val){
   const ac=document.getElementById('nl-name-ac');
@@ -4375,6 +4377,7 @@ window.deleteLead=deleteLead;
   document.getElementById('page-title').textContent='Loading…';
   document.getElementById('page-sub').textContent='Connecting to database…';
   await loadDB();
+  backfillCustomers(true);
   seedDemoData();
   renderDashboard();
   checkPendingLeads();
