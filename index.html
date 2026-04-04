@@ -1171,8 +1171,17 @@ function renderBooked(){
       <td><div style="display:flex;gap:5px">
         <button class="btn btn-secondary btn-sm" onclick="viewBookedJob('${j.id}')">View</button>
         <button class="btn btn-sm" style="background:var(--info-light,#e8f0fe);color:#1a56db;border-color:#a4c2f4" onclick="openComplete('${j.id}')">→ Close job</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBookedJob('${j.id}')">✕</button>
       </div></td>
     </tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">✓</div><div class="empty-title">No booked jobs</div></div></td></tr>`;
+}
+function deleteBookedJob(id){
+  if(!confirm('Delete this booked job? This cannot be undone.'))return;
+  const j=db.bookedJobs.find(x=>x.id===id);
+  if(j&&j.leadId){const l=db.leads.find(x=>x.id===j.leadId);if(l&&l.status==='Booked')l.status='New';}
+  db.bookedJobs=db.bookedJobs.filter(j=>j.id!==id);
+  saveDB();renderBooked();showToast('Booked job deleted');
+  if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
 function filterBooked(v){bookedFilter.text=v;renderBooked();}
 function filterBookedCrew(v){bookedFilter.crew=v;renderBooked();}
