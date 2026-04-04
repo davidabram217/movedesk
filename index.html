@@ -125,7 +125,7 @@ async function sbFetch(path,method,body){
 }
 async function loadDB(){
   try{
-    const [leads,bookedJobs,completedJobs,quotes,employees,payrollRows,transactions,settingsRows,customers]=await Promise.all([
+    const [leads,bookedJobs,completedJobs,quotes,employees,payrollRows,transactions,settingsRows]=await Promise.all([
       sbFetch('leads?select=id,data&order=created_at.desc'),
       sbFetch('booked_jobs?select=id,data&order=created_at.desc'),
       sbFetch('completed_jobs?select=id,data&order=created_at.desc'),
@@ -133,8 +133,7 @@ async function loadDB(){
       sbFetch('employees?select=id,data'),
       sbFetch('payroll_weeks?select=week_key,data'),
       sbFetch('cash_transactions?select=id,data&order=created_at.desc'),
-      sbFetch('settings?select=id,data'),
-      sbFetch('customers?select=id,data&order=created_at.desc')
+      sbFetch('settings?select=id,data')
     ]);
     db.leads=(leads||[]).map(r=>({...r.data,id:r.id}));
     db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id}));
@@ -144,7 +143,7 @@ async function loadDB(){
     db.weeklyPayroll={};
     (payrollRows||[]).forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});
     db.cashTransactions=(transactions||[]).map(r=>({...r.data,id:r.id}));
-    db.customers=(customers||[]).map(r=>({...r.data,id:r.id}));
+    db.customers=[];
     const s=settingsRows&&settingsRows[0];
     if(s&&s.data){db.settings={...db.settings,...s.data};}
     if(!db.settings.crew||!db.settings.crew.length)db.settings.crew=['John','Dave'];
@@ -186,7 +185,6 @@ async function syncToSupabase(){
     if(empRows.length)ops.push(sbFetch('employees','POST',empRows));
     if(weekRows.length)ops.push(sbFetch('payroll_weeks','POST',weekRows));
     if(txnRows.length)ops.push(sbFetch('cash_transactions','POST',txnRows));
-    if(customerRows.length)ops.push(sbFetch('customers','POST',customerRows));
     ops.push(sbFetch('settings','POST',[{id:'main',data:db.settings}]));
     await Promise.all(ops);
   }catch(e){console.error('Supabase sync error:',e);}
@@ -3498,16 +3496,9 @@ function openCustomerFromJob(jobId){
 function backfillCustomers(silent){
   if(!db.customers)db.customers=[];
   let count=0;
-  const before=db.customers.length;
-  db.leads.forEach(function(l){
-    if(l.name){ upsertCustomer(l); count++; }
-    else console.log('Lead skipped - no name:',JSON.stringify(l).slice(0,100));
-  });
-  db.completedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } else console.log('Job skipped - no name'); });
+  db.leads.forEach(function(l){ if(l.name){ upsertCustomer(l); count++; } });
+  db.completedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } });
   db.bookedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } });
-  console.log('Backfill: processed',count,'named leads,',db.leads.length,'total leads,',db.customers.length,'customers total (was',before,')');
-  console.log('Customer names:',db.customers.map(c=>c.name));
-  saveDB();
   if(!silent){
     const status=document.getElementById('backfill-status');
     if(status)status.textContent='✓ Done — '+db.customers.length+' customers built from '+count+' leads and jobs.';
