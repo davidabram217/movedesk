@@ -763,7 +763,7 @@ function confirmDidNotBook(){
   saveDB();closeModal('did-not-book');showToast('Logged as did not book — '+l.name);renderLeads();
 }
 let currentEstimateLeadId=null;
-function openSendEstimate(leadId){currentEstimateLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('estimate-lead-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;document.getElementById('se-type').value=l.estimateType||'';document.getElementById('se-date').value=new Date().toISOString().split('T')[0];document.getElementById('se-quote').value=l.estimateQuote||'';document.getElementById('se-notes').value=l.estimateNotes||'';document.getElementById('se-sent-by').value=l.estimateSentBy||'';openModal('send-estimate');}
+function openSendEstimate(leadId){currentEstimateLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('estimate-lead-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;document.getElementById('se-type').value=l.estimateType||'';document.getElementById('se-date').value=new Date().toISOString().split('T')[0];document.getElementById('se-quote').value=l.estimateQuote||'';document.getElementById('se-notes').value=l.estimateNotes||'';populateStaffSelect('se-sent-by',l.estimateSentBy||'');openModal('send-estimate');}
 function confirmEstimate(){const type=document.getElementById('se-type').value;if(!type){showToast('Please select an estimate type.');return;}const l=db.leads.find(x=>x.id===currentEstimateLeadId);if(!l)return;l.estimateType=type;l.estimateDate=document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=document.getElementById('se-sent-by').value||l.estimateSentBy||'';l.status='Estimate sent';nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast('✓ Estimate logged — '+type+' for '+l.name);renderLeads();}
 let currentScheduleEstimateLeadId=null;
 function openScheduleEstimate(leadId){
@@ -793,6 +793,7 @@ function confirmScheduleEstimate(){
   l.estimateScheduledTime=document.getElementById('sche-time').value;
   l.estimateNotes=document.getElementById('sche-notes').value;l.estimateOfficeNotes=document.getElementById('sche-office-notes')?.value||'';
   l.estimateSetupBy=document.getElementById('sche-setup-by').value;
+  if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
   window._estimateCalUrl=buildCalUrl(l,type,date);
   const sendEmail=document.getElementById('sche-send-email').checked;
   const addCal=document.getElementById('sche-add-cal').checked;
@@ -855,7 +856,11 @@ function markEstimateCalOpened(){
 }
 function finishScheduleEstimate(){
   const l=db.leads.find(x=>x.id===currentScheduleEstimateLeadId);
-  if(l){l.status='Estimate scheduled';saveDB();renderLeads();}
+  if(l){
+    l.status='Estimate scheduled';
+    if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
+    saveDB();renderLeads();
+  }
   nextStepSubModal=false;
   showToast('✓ Estimate scheduled — '+(l?.name||''));
 }
