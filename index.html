@@ -3498,9 +3498,15 @@ function openCustomerFromJob(jobId){
 function backfillCustomers(silent){
   if(!db.customers)db.customers=[];
   let count=0;
-  db.leads.forEach(function(l){ if(l.name){ upsertCustomer(l); count++; } });
-  db.completedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } });
+  const before=db.customers.length;
+  db.leads.forEach(function(l){
+    if(l.name){ upsertCustomer(l); count++; }
+    else console.log('Lead skipped - no name:',JSON.stringify(l).slice(0,100));
+  });
+  db.completedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } else console.log('Job skipped - no name'); });
   db.bookedJobs.forEach(function(j){ if(j.name){ upsertCustomer(j); } });
+  console.log('Backfill: processed',count,'named leads,',db.leads.length,'total leads,',db.customers.length,'customers total (was',before,')');
+  console.log('Customer names:',db.customers.map(c=>c.name));
   saveDB();
   if(!silent){
     const status=document.getElementById('backfill-status');
