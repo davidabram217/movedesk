@@ -2290,8 +2290,11 @@ function globalSearch(val){
     if(c.name?.toLowerCase().includes(q)||c.phone?.includes(q)||c.email?.toLowerCase().includes(q)){
       const phone=(c.phone||'').replace(/\D/g,'');
       const key=phone.length>=7?phone:(c.name||'').toLowerCase().trim();
-      if(key&&!customerMap[key]){
+      if(!key)return;
+      if(!customerMap[key]){
         customerMap[key]={name:c.name,phone:c.phone||'',email:c.email||'',leads:[],booked:[],completed:[],custId:c.id};
+      } else {
+        customerMap[key].custId=c.id;
       }
     }
   });
