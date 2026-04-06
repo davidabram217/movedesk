@@ -536,7 +536,10 @@ function nextStepAction(action){
 function renderDashboard(){
   const today=new Date().toISOString().split('T')[0];
   const tm=today.slice(0,7);
-  const comp=db.completedJobs.filter(j=>j.date&&j.date.startsWith(tm));
+  const weekSat=getSaturdayOfWeek();
+  const weekFri=new Date(weekSat+'T12:00:00');weekFri.setDate(weekFri.getDate()+6);
+  const weekFriStr=weekFri.toISOString().split('T')[0];
+  const comp=db.completedJobs.filter(j=>j.date&&j.date>=weekSat&&j.date<=weekFriStr);
   const rev=comp.reduce((s,j)=>s+(Number(j.paid)||0),0);
   const out=db.completedJobs.filter(j=>(Number(j.total)||0)>(Number(j.paid)||0));
   const owed=out.reduce((s,j)=>s+((Number(j.total)||0)-(Number(j.paid)||0)),0);
@@ -549,7 +552,7 @@ function renderDashboard(){
   document.getElementById('dash-stats').innerHTML=`
     <div class="stat-card"><div class="stat-label">Total leads</div><div class="stat-value">${db.leads.length}</div><div class="stat-sub">All time</div></div>
     <div class="stat-card"><div class="stat-label">Booked jobs</div><div class="stat-value">${db.bookedJobs.length}</div><div class="stat-sub">Upcoming</div></div>
-    <div class="stat-card"><div class="stat-label">Revenue this month</div><div class="stat-value">${fmtMoney(rev)}</div><div class="stat-sub">${comp.length} jobs</div></div>
+    <div class="stat-card"><div class="stat-label">Revenue this week</div><div class="stat-value">${fmtMoney(rev)}</div><div class="stat-sub">${comp.length} jobs</div></div>
     <div class="stat-card"><div class="stat-label">Outstanding</div><div class="stat-value ${owed>0?'owe-badge':''}">${fmtMoney(owed)}</div><div class="stat-sub">${out.length} jobs</div></div>
     <div class="stat-card" style="${followups.length>0?'border-color:var(--amber);background:var(--amber-light)':''}">
       <div class="stat-label">Follow-ups needed</div>
@@ -2121,22 +2124,26 @@ function renderActivityPatterns(){
   `:`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
   const today=new Date();
   const todayStr=today.toISOString().split('T')[0];
-  const thisWeekStart=new Date(today);thisWeekStart.setDate(today.getDate()-today.getDay());
+  const thisWeekSat=getSaturdayOfWeek();
+  const thisWeekFri=new Date(thisWeekSat+'T12:00:00');thisWeekFri.setDate(thisWeekFri.getDate()+6);
+  const thisWeekFriStr=thisWeekFri.toISOString().split('T')[0];
   const thisMonthStr=todayStr.slice(0,7);
   const thisYearStr=todayStr.slice(0,4);
   const leadsToday=db.leads.filter(l=>l.createdAt&&l.createdAt.startsWith(todayStr)).length;
-  const leadsThisWeek=db.leads.filter(l=>{if(!l.createdAt)return false;return new Date(l.createdAt+'T12:00:00')>=thisWeekStart;}).length;
+  const leadsThisWeek=db.leads.filter(l=>l.createdAt&&l.createdAt>=thisWeekSat&&l.createdAt<=thisWeekFriStr).length;
   const leadsThisMonth=db.leads.filter(l=>l.createdAt&&l.createdAt.startsWith(thisMonthStr)).length;
   const leadsThisYear=db.leads.filter(l=>l.createdAt&&l.createdAt.startsWith(thisYearStr)).length;
+  const jobsThisWeek=allJobs.filter(j=>j.date&&j.date>=thisWeekSat&&j.date<=thisWeekFriStr).length;
   const jobsThisMonth=allJobs.filter(j=>j.date&&j.date.startsWith(thisMonthStr)).length;
   const jobsThisYear=allJobs.filter(j=>j.date&&j.date.startsWith(thisYearStr)).length;
   const peakDowLeads=DAYS[leadsDow.indexOf(Math.max(...leadsDow))];
   const peakMonthJobs=MONTHS[jobsMonth.indexOf(Math.max(...jobsMonth))];
   document.getElementById('activity-stats').innerHTML=`
     <div class="stat-card"><div class="stat-label">Leads today</div><div class="stat-value">${leadsToday}</div></div>
-    <div class="stat-card"><div class="stat-label">Leads this week</div><div class="stat-value">${leadsThisWeek}</div></div>
+    <div class="stat-card"><div class="stat-label">Leads this week (Sat–Fri)</div><div class="stat-value">${leadsThisWeek}</div></div>
     <div class="stat-card"><div class="stat-label">Leads this month</div><div class="stat-value">${leadsThisMonth}</div></div>
     <div class="stat-card"><div class="stat-label">Leads this year</div><div class="stat-value">${leadsThisYear}</div></div>
+    <div class="stat-card"><div class="stat-label">Jobs this week (Sat–Fri)</div><div class="stat-value">${jobsThisWeek}</div></div>
     <div class="stat-card"><div class="stat-label">Jobs this month</div><div class="stat-value">${jobsThisMonth}</div></div>
     <div class="stat-card"><div class="stat-label">Jobs this year</div><div class="stat-value">${jobsThisYear}</div></div>
     <div class="stat-card"><div class="stat-label">Busiest lead day</div><div class="stat-value" style="font-size:16px">${peakDowLeads||'—'}</div></div>
