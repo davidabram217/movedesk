@@ -4,23 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Request a Free Quote - CareMore Moving and Storage</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --cream:#faf8f3;--cream2:#f3efe4;
-  --green:#2d5a3d;--green2:#234a31;
+  --cream:#faf8f3;--green:#2d5a3d;--green2:#234a31;
   --text:#1a1916;--text2:#6b6760;--text3:#9e9b94;
   --border:#e0dbd0;--border2:#ccc8bc;
   --amber:#b7860b;--amber-light:#fdf6e3;
   --radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08)
 }
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh}
-.header{background:#fff;border-bottom:1px solid #e0dbd0;padding:28px 20px;text-align:center}
-.logo-care{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1;display:block;margin-bottom:8px}
-.logo-line{display:block;width:100%;height:2.5px;background:#4a9e6b;margin:0 auto}
-.logo-moving{font-family:'Cormorant Garamond',serif;font-size:26px;font-style:italic;color:#1a1916;letter-spacing:.5px;display:block;margin-top:8px}
-.header-sub{display:none}
+.header{background:#fff;border-bottom:1px solid var(--border);padding:28px 20px;text-align:center}
+.logo-wrap{display:inline-block;text-align:center}
+.logo-care{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1;display:block}
+.logo-line{display:block;width:100%;height:2.5px;background:#4a9e6b;margin:8px 0}
+.logo-moving{font-family:'Cormorant Garamond',serif;font-size:26px;font-style:italic;color:#1a1916;letter-spacing:.5px;display:block}
+.logo-city{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9e9b94;margin-top:8px}
 .main{max-width:640px;margin:0 auto;padding:24px 20px 60px}
 .notice{background:var(--amber-light);border:1px solid #e8d090;border-radius:var(--radius);padding:12px 16px;margin-bottom:24px;font-size:13px;color:#7a5c08;display:flex;gap:10px;align-items:flex-start;line-height:1.5}
 .section{background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
@@ -43,14 +43,14 @@ textarea{resize:vertical;min-height:70px}
 .loc-badge.dropoff{background:#e8f0fb;color:#1a5276}
 .remove-loc-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);padding:2px 6px}
 .remove-loc-btn:hover{color:#c0392b}
-.add-loc-btn{background:none;border:1px dashed var(--border2);border-radius:var(--radius);padding:10px;width:100%;font-size:13px;color:var(--text3);cursor:pointer;margin-top:12px;transition:all .15s;display:block}
+.add-loc-btn{background:none;border:1px dashed var(--border2);border-radius:var(--radius);padding:10px;width:100%;font-size:13px;color:var(--text3);cursor:pointer;margin-top:12px;display:block;transition:all .15s}
 .add-loc-btn:hover{border-color:var(--green);color:var(--green)}
 .submit-btn{width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:14px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .15s}
 .submit-btn:hover{background:var(--green2)}
 .submit-btn:disabled{background:#aaa;cursor:not-allowed}
 #success-page{display:none}
 .success-check{width:64px;height:64px;border-radius:50%;background:var(--green);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
-.success-title{font-family:'Playfair Display',serif;font-size:26px;margin-bottom:8px}
+.success-title{font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:8px}
 @media(max-width:560px){.grid-2{grid-template-columns:1fr}}
 </style>
 </head>
@@ -58,12 +58,12 @@ textarea{resize:vertical;min-height:70px}
 
 <div id="form-page">
   <div class="header">
-    <div style="display:inline-block;text-align:center">
+    <div class="logo-wrap">
       <span class="logo-care">CareMore</span>
       <span class="logo-line"></span>
       <span class="logo-moving">Moving &amp; Storage</span>
     </div>
-    <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9e9b94;margin-top:8px">San Francisco, CA</div>
+    <div class="logo-city">San Francisco, CA</div>
   </div>
 
   <div class="main">
@@ -92,7 +92,7 @@ textarea{resize:vertical;min-height:70px}
         </div>
         <div class="field full" id="f-source">
           <label>How did you hear about us? *</label>
-          <select id="q-source" onchange="toggleSourceOther()">
+          <select id="q-source">
             <option value="">Select...</option>
             <option>Yelp</option>
             <option>Google</option>
@@ -225,15 +225,15 @@ textarea{resize:vertical;min-height:70px}
         </div>
       </div>
       <div id="q-extra-loads"></div>
-      <button type="button" class="add-loc-btn" onclick="addExtraLoad()">+ Add another pick-up location</button>
+      <button type="button" class="add-loc-btn" id="btn-add-load">+ Add another pick-up location</button>
     </div>
 
     <div class="section">
       <div class="section-title">Drop-off location(s)</div>
       <div class="grid-2">
         <div class="field full">
-          <label>Moving to CareMore Moving & Storage?</label>
-          <select id="q-storage" onchange="toggleStorage()">
+          <label>Moving to CareMore Moving &amp; Storage?</label>
+          <select id="q-storage">
             <option value="no">No</option>
             <option value="yes">Yes - moving to CareMore Storage</option>
           </select>
@@ -299,7 +299,7 @@ textarea{resize:vertical;min-height:70px}
         </div>
       </div>
       <div id="q-extra-unloads"></div>
-      <button type="button" class="add-loc-btn" onclick="addExtraUnload()">+ Add another drop-off location</button>
+      <button type="button" class="add-loc-btn" id="btn-add-unload">+ Add another drop-off location</button>
     </div>
 
     <div class="section">
@@ -310,18 +310,18 @@ textarea{resize:vertical;min-height:70px}
       </div>
     </div>
 
-    <button class="submit-btn" id="submit-btn" type="button" onclick="submitForm()">Submit Request</button>
+    <button class="submit-btn" id="submit-btn" type="button">Submit Request</button>
   </div>
 </div>
 
 <div id="success-page">
   <div class="header">
-    <div style="display:inline-block;text-align:center">
+    <div class="logo-wrap">
       <span class="logo-care">CareMore</span>
       <span class="logo-line"></span>
       <span class="logo-moving">Moving &amp; Storage</span>
     </div>
-    <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9e9b94;margin-top:8px">San Francisco, CA</div>
+    <div class="logo-city">San Francisco, CA</div>
   </div>
   <div style="max-width:520px;margin:0 auto;padding:48px 20px 60px;text-align:center">
     <div class="success-check">&#10003;</div>
@@ -331,11 +331,11 @@ textarea{resize:vertical;min-height:70px}
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Your submission</div>
       <div id="success-summary" style="font-size:13.5px;color:var(--text2);line-height:1.8"></div>
     </div>
-    <div style="font-size:13px;color:var(--text3)">Questions? Call us at <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> or email <a href="/cdn-cgi/l/email-protection#54393b22311437352631393b2631393b223d3a337a373b39" style="color:var(--green);font-weight:500"><span class="__cf_email__" data-cfemail="dbb6b4adbe9bb8baa9beb6b4a9beb6b4adb2b5bcf5b8b4b6">[email&#160;protected]</span></a></div>
+    <div style="font-size:13px;color:var(--text3)">Questions? Call us at <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> or email <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a></div>
   </div>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
 var extraLoadCount=0;
@@ -394,14 +394,12 @@ function makeLocBlock(id,badgeClass,badgeText){
 
 function addExtraLoad(){
   extraLoadCount++;
-  var id='q-extra-load-'+extraLoadCount;
-  document.getElementById('q-extra-loads').appendChild(makeLocBlock(id,'pickup','Pick-up '+(extraLoadCount+1)));
+  document.getElementById('q-extra-loads').appendChild(makeLocBlock('q-extra-load-'+extraLoadCount,'pickup','Pick-up '+(extraLoadCount+1)));
 }
 
 function addExtraUnload(){
   extraUnloadCount++;
-  var id='q-extra-unload-'+extraUnloadCount;
-  document.getElementById('q-extra-unloads').appendChild(makeLocBlock(id,'dropoff','Drop-off '+(extraUnloadCount+1)));
+  document.getElementById('q-extra-unloads').appendChild(makeLocBlock('q-extra-unload-'+extraUnloadCount,'dropoff','Drop-off '+(extraUnloadCount+1)));
 }
 
 function removeLoc(id){
@@ -411,7 +409,9 @@ function removeLoc(id){
 
 function getLocData(containerId){
   var results=[];
-  var blocks=document.getElementById(containerId).children;
+  var container=document.getElementById(containerId);
+  if(!container)return results;
+  var blocks=container.children;
   for(var i=0;i<blocks.length;i++){
     var id=blocks[i].id;
     var addrEl=document.getElementById(id+'-addr');
@@ -529,23 +529,32 @@ function showSuccess(d){
   document.getElementById('form-page').style.display='none';
   document.getElementById('success-page').style.display='block';
   document.getElementById('success-name').textContent=d.name.split(' ')[0];
-  var rows=[
-    ['Name',d.name],
-    ['Phone',d.phone],
-    ['Email',d.email],
-    d.date&&['Move date',d.date],
-    d.size&&['Home size',d.size],
-    d.from&&['Pick-up',d.from+(d.fromZip?' '+d.fromZip:'')]
-  ].filter(Boolean);
-  (d.extraLoads||[]).forEach(function(ex,i){
-    if(ex.address)rows.push(['Pick-up '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);
-  });
+  var rows=[['Name',d.name],['Phone',d.phone],['Email',d.email]];
+  if(d.date)rows.push(['Move date',d.date]);
+  if(d.size)rows.push(['Home size',d.size]);
+  if(d.from)rows.push(['Pick-up',d.from+(d.fromZip?' '+d.fromZip:'')]);
+  (d.extraLoads||[]).forEach(function(ex,i){if(ex.address)rows.push(['Pick-up '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);});
   if(d.to)rows.push(['Drop-off',d.to+(d.toZip?' '+d.toZip:'')]);
-  (d.extraUnloads||[]).forEach(function(ex,i){
-    if(ex.address)rows.push(['Drop-off '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);
-  });
+  (d.extraUnloads||[]).forEach(function(ex,i){if(ex.address)rows.push(['Drop-off '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);});
   if(d.packing&&d.packing!=='No')rows.push(['Packing',d.packing]);
   if(d.source)rows.push(['How you heard',d.source+(d.sourceDetail?' - '+d.sourceDetail:'')]);
   if(d.notes)rows.push(['Notes',d.notes]);
   document.getElementById('success-summary').innerHTML=rows.map(function(r){
-    return '<div style="display:flex;justify-content:space-between;gap:
+    return '<div style="display:flex;justify-content:space-between;gap:16px;padding:5px 0;border-bottom:1px solid #f0ede6">'
+      +'<span style="color:#9e9b94;flex-shrink:0">'+r[0]+'</span>'
+      +'<span style="text-align:right">'+r[1]+'</span></div>';
+  }).join('');
+  window.scrollTo(0,0);
+}
+
+// Wire up all event handlers after DOM is ready
+document.addEventListener('DOMContentLoaded',function(){
+  document.getElementById('q-storage').addEventListener('change',toggleStorage);
+  document.getElementById('q-source').addEventListener('change',toggleSourceOther);
+  document.getElementById('btn-add-load').addEventListener('click',addExtraLoad);
+  document.getElementById('btn-add-unload').addEventListener('click',addExtraUnload);
+  document.getElementById('submit-btn').addEventListener('click',submitForm);
+});
+</script>
+</body>
+</html>
