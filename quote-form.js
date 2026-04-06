@@ -1,10 +1,104 @@
 var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
+var GMAIL_CLIENT_ID='1056257621603-7sq4nk45fivr1sh1lk0ci0435qcm47vv.apps.googleusercontent.com';
+var GMAIL_SCOPE='https://www.googleapis.com/auth/gmail.send';
 var extraLoadCount=0;
 var extraUnloadCount=0;
+var _gmailToken=null;
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function v(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+
+// Load Google Identity Services
+function loadGoogleAuth(){
+  return new Promise(function(resolve){
+    if(window.google&&window.google.accounts){resolve();return;}
+    var s=document.createElement('script');
+    s.src='https://accounts.google.com/gsi/client';
+    s.onload=resolve;
+    document.head.appendChild(s);
+  });
+}
+
+function getGmailToken(){
+  return new Promise(function(resolve,reject){
+    loadGoogleAuth().then(function(){
+      var client=window.google.accounts.oauth2.initTokenClient({
+        client_id:GMAIL_CLIENT_ID,
+        scope:GMAIL_SCOPE,
+        callback:function(resp){
+          if(resp.error){reject(resp.error);return;}
+          _gmailToken=resp.access_token;
+          resolve(resp.access_token);
+        }
+      });
+      client.requestAccessToken({prompt:_gmailToken?'':'consent'});
+    });
+  });
+}
+
+function buildEmailBody(d){
+  var firstName=d.name.split(' ')[0];
+  var pickups=[];
+  pickups.push(d.from+(d.fromZip?' '+d.fromZip:'')+(d.accessLoad?'\nAccess: '+d.accessLoad:'')+(d.parkingLoad?'\nParking: '+d.parkingLoad:''));
+  (d.extraLoads||[]).forEach(function(ex,i){
+    if(ex.address)pickups.push('Pick-up '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+(ex.access?'\nAccess: '+ex.access:'')+(ex.parking?'\nParking: '+ex.parking:''));
+  });
+  var dropoffs=[];
+  dropoffs.push(d.to+(d.toZip?' '+d.toZip:'')+(d.accessUnload?'\nAccess: '+d.accessUnload:'')+(d.parkingUnload?'\nParking: '+d.parkingUnload:''));
+  (d.extraUnloads||[]).forEach(function(ex,i){
+    if(ex.address)dropoffs.push('Drop-off '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+(ex.access?'\nAccess: '+ex.access:'')+(ex.parking?'\nParking: '+ex.parking:''));
+  });
+
+  var body='Hi '+firstName+',\n\n';
+  body+='Thank you for reaching out to CareMore Moving & Storage! We\'ve received your move request and will be in touch shortly to go over the details and provide you with a quote.\n\n';
+  body+='Please note this is not a confirmation — your move is not booked until you receive a signed confirmation from us.\n\n';
+  body+='Here\'s a summary of what you submitted:\n';
+  body+='─────────────────────────────────\n';
+  if(d.date)body+='Move date: '+d.date+'\n';
+  if(d.size)body+='Home size: '+d.size+'\n';
+  if(d.moveType)body+='Type: '+d.moveType+'\n';
+  if(d.packing&&d.packing!=='No')body+='Packing: '+d.packing+'\n';
+  body+='\nPick-up:\n'+pickups.join('\n\n')+'\n';
+  body+='\nDrop-off:\n'+dropoffs.join('\n\n')+'\n';
+  if(d.notes)body+='\nAdditional notes:\n'+d.notes+'\n';
+  body+='─────────────────────────────────\n\n';
+  body+='We\'ll review your request and call or email you within 2 business days to confirm availability, go over rates and provide you with a quote.\n\n';
+  body+='If anything looks incorrect or you need to reach us sooner, please don\'t hesitate to get in touch:\n\n';
+  body+='📞 (415) 822-8547\n';
+  body+='✉ move@caremoremoving.com\n';
+  body+='🌐 www.caremoremoving.com\n\n';
+  body+='We look forward to helping with your move!\n\n';
+  body+='Sincerely,\nThe CareMore Team';
+  return body;
+}
+
+function sendGmailConfirmation(d){
+  return getGmailToken().then(function(token){
+    var to=d.email;
+    var subject='Thank you for your move request — CareMore Moving & Storage';
+    var body=buildEmailBody(d);
+    // Build RFC 2822 email
+    var email=[
+      'From: CareMore Moving & Storage <move@caremoremoving.com>',
+      'To: '+to,
+      'Subject: '+subject,
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      body
+    ].join('\r\n');
+    // Base64 URL encode
+    var encoded=btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+      method:'POST',
+      headers:{
+        'Authorization':'Bearer '+token,
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify({raw:encoded})
+    });
+  });
+}
 
 function toggleStorage(){
   var val=document.getElementById('q-storage').value;
@@ -166,6 +260,8 @@ function submitForm(){
   btn.disabled=true;
   btn.textContent='Submitting...';
   var data=collectData();
+
+  // Save to Supabase
   fetch(SUPABASE_URL+'/rest/v1/pending_leads',{
     method:'POST',
     headers:{
@@ -176,8 +272,19 @@ function submitForm(){
     },
     body:JSON.stringify([{id:uid(),data:data}])
   }).then(function(){
-    showSuccess(data);
+    // Send confirmation email via Gmail
+    if(data.email){
+      sendGmailConfirmation(data).then(function(){
+        showSuccess(data);
+      }).catch(function(){
+        // Email failed but form still submitted — show success anyway
+        showSuccess(data);
+      });
+    } else {
+      showSuccess(data);
+    }
   }).catch(function(){
+    // Supabase failed — use localStorage fallback
     try{
       var p=JSON.parse(localStorage.getItem('caremore-pending-leads')||'[]');
       p.push(data);
@@ -208,5 +315,3 @@ function showSuccess(d){
   }).join('');
   window.scrollTo(0,0);
 }
-
-// Wire up all event handlers after DOM is ready
