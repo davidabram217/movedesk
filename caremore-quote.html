@@ -5,6 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Request a Free Quote - CareMore Moving and Storage</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script>
+function initPlacesQuote(){
+  if(!window.google)return;
+  var fields=['q-from','q-to'];
+  fields.forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el)return;
+    var ac=new google.maps.places.Autocomplete(el,{types:['address'],componentRestrictions:{country:'us'}});
+    ac.addListener('place_changed',function(){
+      var place=ac.getPlace();
+      if(!place.address_components)return;
+      var zip=place.address_components.find(function(c){return c.types.includes('postal_code');});
+      if(zip){
+        var zipId=id==='q-from'?'q-from-zip':'q-to-zip';
+        var zipEl=document.getElementById(zipId);
+        if(zipEl)zipEl.value=zip.short_name;
+      }
+    });
+  });
+}
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMInpYFiq8TcphbW_lJXiNXil9hs2frMY&libraries=places&callback=initPlacesQuote" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -331,11 +353,11 @@ textarea{resize:vertical;min-height:70px}
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Your submission</div>
       <div id="success-summary" style="font-size:13.5px;color:var(--text2);line-height:1.8"></div>
     </div>
-    <div style="font-size:13px;color:var(--text3)">Questions? Call us at <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> or email <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a></div>
+    <div style="font-size:13px;color:var(--text3)">Questions? Call us at <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> or email <a href="/cdn-cgi/l/email-protection#f5989a8390b596948790989a8790989a839c9b92db969a98" style="color:var(--green);font-weight:500"><span class="__cf_email__" data-cfemail="d4b9bba2b194b7b5a6b1b9bba6b1b9bba2bdbab3fab7bbb9">[email&#160;protected]</span></a></div>
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
 var extraLoadCount=0;
@@ -551,10 +573,4 @@ function showSuccess(d){
 document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('q-storage').addEventListener('change',toggleStorage);
   document.getElementById('q-source').addEventListener('change',toggleSourceOther);
-  document.getElementById('btn-add-load').addEventListener('click',addExtraLoad);
-  document.getElementById('btn-add-unload').addEventListener('click',addExtraUnload);
-  document.getElementById('submit-btn').addEventListener('click',submitForm);
-});
-</script>
-</body>
-</html>
+  document.getElementById
