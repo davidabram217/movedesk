@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request a Free Quote - CareMore Moving and Storage</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cream:#faf8f3;--cream2:#f3efe4;
+  --green:#2d5a3d;--green2:#234a31;
+  --text:#1a1916;--text2:#6b6760;--text3:#9e9b94;
+  --border:#e0dbd0;--border2:#ccc8bc;
+  --amber:#b7860b;--amber-light:#fdf6e3;
+  --radius:8px;--shadow:0 1px 3px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh}
+.header{background:#fff;border-bottom:1px solid #e0dbd0;padding:28px 20px;text-align:center}
+.logo-care{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1;display:block;margin-bottom:8px}
+.logo-line{display:block;width:100%;height:2.5px;background:#4a9e6b;margin:0 auto}
+.logo-moving{font-family:'Cormorant Garamond',serif;font-size:26px;font-style:italic;color:#1a1916;letter-spacing:.5px;display:block;margin-top:8px}
+.header-sub{display:none}
+.main{max-width:640px;margin:0 auto;padding:24px 20px 60px}
+.notice{background:var(--amber-light);border:1px solid #e8d090;border-radius:var(--radius);padding:12px 16px;margin-bottom:24px;font-size:13px;color:#7a5c08;display:flex;gap:10px;align-items:flex-start;line-height:1.5}
+.section{background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+.field.full{grid-column:1/-1}
+label{font-size:12px;font-weight:500;color:var(--text2)}
+input,select,textarea{font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;border:1px solid var(--border2);border-radius:var(--radius);background:#fff;color:var(--text);outline:none;width:100%;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(45,90,61,.1)}
+textarea{resize:vertical;min-height:70px}
+.field-error{font-size:11.5px;color:#c0392b;display:none;margin-top:2px}
+.has-error input,.has-error select,.has-error textarea{border-color:#c0392b}
+.has-error .field-error{display:block}
+.loc-block{border:1px solid var(--border2);border-radius:var(--radius);padding:14px;margin-top:12px;background:var(--cream)}
+.loc-block-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.loc-badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.loc-badge.pickup{background:#e8f0ea;color:var(--green)}
+.loc-badge.dropoff{background:#e8f0fb;color:#1a5276}
+.remove-loc-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text3);padding:2px 6px}
+.remove-loc-btn:hover{color:#c0392b}
+.add-loc-btn{background:none;border:1px dashed var(--border2);border-radius:var(--radius);padding:10px;width:100%;font-size:13px;color:var(--text3);cursor:pointer;margin-top:12px;transition:all .15s;display:block}
+.add-loc-btn:hover{border-color:var(--green);color:var(--green)}
+.submit-btn{width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:14px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .15s}
+.submit-btn:hover{background:var(--green2)}
+.submit-btn:disabled{background:#aaa;cursor:not-allowed}
+#success-page{display:none}
+.success-check{width:64px;height:64px;border-radius:50%;background:var(--green);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.success-title{font-family:'Playfair Display',serif;font-size:26px;margin-bottom:8px}
+@media(max-width:560px){.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="form-page">
+  <div class="header">
+    <div style="display:inline-block;text-align:center">
+      <span class="logo-care">CareMore</span>
+      <span class="logo-line"></span>
+      <span class="logo-moving">Moving &amp; Storage</span>
+    </div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9e9b94;margin-top:8px">San Francisco, CA</div>
+  </div>
+
+  <div class="main">
+    <div class="notice">
+      <span>&#9888;</span>
+      <span>Please note that this is a <strong>non-binding move request form</strong>. Your move is not confirmed until you sign a confirmation via email. We always do our best to serve you, but sometimes we may be fully booked.</span>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Your contact information</div>
+      <div class="grid-2">
+        <div class="field full" id="f-name">
+          <label>Full Name *</label>
+          <input type="text" id="q-name" placeholder="Your full name">
+          <div class="field-error">Please enter your name</div>
+        </div>
+        <div class="field" id="f-phone">
+          <label>Phone Number *</label>
+          <input type="tel" id="q-phone" placeholder="(555) 000-0000">
+          <div class="field-error">Please enter your phone number</div>
+        </div>
+        <div class="field" id="f-email">
+          <label>Email Address *</label>
+          <input type="email" id="q-email" placeholder="email@example.com">
+          <div class="field-error">Please enter a valid email</div>
+        </div>
+        <div class="field full" id="f-source">
+          <label>How did you hear about us? *</label>
+          <select id="q-source" onchange="toggleSourceOther()">
+            <option value="">Select...</option>
+            <option>Yelp</option>
+            <option>Google</option>
+            <option>ChatGPT</option>
+            <option>Referral</option>
+            <option>Building</option>
+            <option>Realtor</option>
+            <option>Social media</option>
+            <option>Repeat customer</option>
+            <option>Other</option>
+          </select>
+          <div class="field-error">Please let us know how you heard about us</div>
+        </div>
+        <div class="field full" id="q-source-other-group" style="display:none">
+          <label id="q-source-other-label">Please specify</label>
+          <input type="text" id="q-source-other" placeholder="Tell us more...">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Move details</div>
+      <div class="grid-2">
+        <div class="field" id="f-date">
+          <label>Preferred Move Date *</label>
+          <input type="date" id="q-date">
+          <div class="field-error">Please select a date</div>
+        </div>
+        <div class="field">
+          <label>Home Size</label>
+          <select id="q-size">
+            <option value="">Select...</option>
+            <option>Studio</option>
+            <option>1 bedroom</option>
+            <option>2 bedroom</option>
+            <option>3 bedroom</option>
+            <option>4+ bedroom</option>
+            <option>Office/commercial</option>
+            <option>Storage unit</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Square Footage</label>
+          <input type="number" id="q-sqft" placeholder="e.g. 800">
+        </div>
+        <div class="field">
+          <label>Type of Move</label>
+          <select id="q-movetype">
+            <option value="">Select...</option>
+            <option>Move</option>
+            <option>Pack and move</option>
+            <option>Packing only</option>
+            <option>Move to storage</option>
+            <option>Move out of storage</option>
+            <option>Internal</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Packing Needed?</label>
+          <select id="q-packing">
+            <option value="No">No - just moving</option>
+            <option value="Partial">Partial packing</option>
+            <option value="Full">Full packing service</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Pick-up location(s)</div>
+      <div class="grid-2">
+        <div class="field full">
+          <label>Moving to CareMore Moving and Storage?</label>
+          <select id="q-storage" onchange="toggleStorage()">
+            <option value="no">No</option>
+            <option value="yes">Yes - moving to CareMore Storage</option>
+          </select>
+        </div>
+        <div class="field full" id="f-from">
+          <label>Pick-up Address *</label>
+          <input type="text" id="q-from" placeholder="Start typing address...">
+          <div class="field-error">Please enter the pick-up address</div>
+        </div>
+        <div class="field">
+          <label>Zip Code</label>
+          <input type="text" id="q-from-zip" placeholder="e.g. 94103" maxlength="5">
+        </div>
+        <div class="field">
+          <label>Unit / Suite #</label>
+          <input type="text" id="q-from-unit" placeholder="e.g. Apt 4B">
+        </div>
+        <div class="field">
+          <label>Location Type</label>
+          <select id="q-from-type">
+            <option value="">Select...</option>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Condo</option>
+            <option>Office</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Floor #</label>
+          <input type="text" id="q-from-floor" placeholder="e.g. 2">
+        </div>
+        <div class="field">
+          <label>Access at Pick-up</label>
+          <select id="q-access-load">
+            <option value="">Select...</option>
+            <option>Flat</option>
+            <option>Flat with long walk</option>
+            <option>A few steps</option>
+            <option>1 flight</option>
+            <option>2 flights</option>
+            <option>3 flights</option>
+            <option>4 flights</option>
+            <option>Elevator</option>
+            <option>Elevator with long walk</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Parking at Pick-up</label>
+          <select id="q-parking-load">
+            <option value="">Select...</option>
+            <option>Loading dock</option>
+            <option>Double parking</option>
+            <option>Save spots</option>
+            <option>Permits</option>
+            <option>Open parking</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Pick-up Location Notes</label>
+          <input type="text" id="q-from-notes" placeholder="Parking details, gate codes, access info...">
+        </div>
+      </div>
+      <div id="q-extra-loads"></div>
+      <button type="button" class="add-loc-btn" onclick="addExtraLoad()">+ Add another pick-up location</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Drop-off location(s)</div>
+      <div class="grid-2">
+        <div class="field full" id="f-to">
+          <label>Drop-off Address *</label>
+          <input type="text" id="q-to" placeholder="Start typing address...">
+          <div class="field-error">Please enter the drop-off address</div>
+        </div>
+        <div class="field">
+          <label>Zip Code</label>
+          <input type="text" id="q-to-zip" placeholder="e.g. 94121" maxlength="5">
+        </div>
+        <div class="field">
+          <label>Unit / Suite #</label>
+          <input type="text" id="q-to-unit" placeholder="e.g. Unit 2">
+        </div>
+        <div class="field">
+          <label>Location Type</label>
+          <select id="q-to-type">
+            <option value="">Select...</option>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Condo</option>
+            <option>Office</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Floor #</label>
+          <input type="text" id="q-to-floor" placeholder="e.g. 3">
+        </div>
+        <div class="field">
+          <label>Access at Drop-off</label>
+          <select id="q-access-unload">
+            <option value="">Select...</option>
+            <option>Flat</option>
+            <option>Flat with long walk</option>
+            <option>A few steps</option>
+            <option>1 flight</option>
+            <option>2 flights</option>
+            <option>3 flights</option>
+            <option>4 flights</option>
+            <option>Elevator</option>
+            <option>Elevator with long walk</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Parking at Drop-off</label>
+          <select id="q-parking-unload">
+            <option value="">Select...</option>
+            <option>Loading dock</option>
+            <option>Double parking</option>
+            <option>Save spots</option>
+            <option>Permits</option>
+            <option>Open parking</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Drop-off Location Notes</label>
+          <input type="text" id="q-to-notes" placeholder="Parking details, gate codes, access info...">
+        </div>
+      </div>
+      <div id="q-extra-unloads"></div>
+      <button type="button" class="add-loc-btn" onclick="addExtraUnload()">+ Add another drop-off location</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Anything else?</div>
+      <div class="field">
+        <label>Additional Notes</label>
+        <textarea id="q-notes" placeholder="Anything else we should know - special items, flexible dates, access details..."></textarea>
+      </div>
+    </div>
+
+    <button class="submit-btn" id="submit-btn" type="button" onclick="submitForm()">Submit Request</button>
+  </div>
+</div>
+
+<div id="success-page">
+  <div class="header">
+    <div style="display:inline-block;text-align:center">
+      <span class="logo-care">CareMore</span>
+      <span class="logo-line"></span>
+      <span class="logo-moving">Moving &amp; Storage</span>
+    </div>
+    <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9e9b94;margin-top:8px">San Francisco, CA</div>
+  </div>
+  <div style="max-width:520px;margin:0 auto;padding:48px 20px 60px;text-align:center">
+    <div class="success-check">&#10003;</div>
+    <div class="success-title">Request received!</div>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:28px;line-height:1.7">Thank you, <strong id="success-name"></strong>! We have received your move request and will be in touch shortly to go over the details and get you a quote. Please note this is a non-binding request - your move is not confirmed until you receive a signed confirmation from us.</p>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;text-align:left;margin-bottom:24px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Your submission</div>
+      <div id="success-summary" style="font-size:13.5px;color:var(--text2);line-height:1.8"></div>
+    </div>
+    <div style="font-size:13px;color:var(--text3)">Questions? Call us at <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> or email <a href="/cdn-cgi/l/email-protection#54393b22311437352631393b2631393b223d3a337a373b39" style="color:var(--green);font-weight:500"><span class="__cf_email__" data-cfemail="dbb6b4adbe9bb8baa9beb6b4a9beb6b4adb2b5bcf5b8b4b6">[email&#160;protected]</span></a></div>
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
+var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
+var extraLoadCount=0;
+var extraUnloadCount=0;
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function v(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+
+function toggleStorage(){
+  var val=document.getElementById('q-storage').value;
+  var toField=document.getElementById('q-to');
+  if(val==='yes'){
+    toField.value='925 Palou Ave, San Francisco, CA 94124';
+    document.getElementById('q-to-zip').value='94124';
+    toField.disabled=true;
+  } else {
+    if(toField.value==='925 Palou Ave, San Francisco, CA 94124'){
+      toField.value='';
+      document.getElementById('q-to-zip').value='';
+    }
+    toField.disabled=false;
+  }
+}
+
+function toggleSourceOther(){
+  var val=document.getElementById('q-source').value;
+  var grp=document.getElementById('q-source-other-group');
+  var lbl=document.getElementById('q-source-other-label');
+  var show=val==='Other'||val==='Referral'||val==='Google'||val==='ChatGPT';
+  grp.style.display=show?'flex':'none';
+  if(val==='Referral')lbl.textContent='Who referred you?';
+  else if(val==='Google'||val==='ChatGPT')lbl.textContent='What did you search for?';
+  else lbl.textContent='Please specify';
+}
+
+function makeLocBlock(id,badgeClass,badgeText){
+  var div=document.createElement('div');
+  div.className='loc-block';
+  div.id=id;
+  div.innerHTML='<div class="loc-block-header">'
+    +'<span class="loc-badge '+badgeClass+'">'+badgeText+'</span>'
+    +'<button type="button" class="remove-loc-btn" onclick="removeLoc(\''+id+'\')">x</button>'
+    +'</div>'
+    +'<div class="grid-2">'
+    +'<div class="field full"><label>Address</label><input type="text" id="'+id+'-addr" placeholder="Start typing address..."></div>'
+    +'<div class="field"><label>Zip Code</label><input type="text" id="'+id+'-zip" placeholder="e.g. 94103" maxlength="5"></div>'
+    +'<div class="field"><label>Unit / Suite #</label><input type="text" id="'+id+'-unit" placeholder="e.g. Apt 4B"></div>'
+    +'<div class="field"><label>Location Type</label><select id="'+id+'-type"><option value="">Select...</option><option>House</option><option>Apartment</option><option>Condo</option><option>Office</option><option>Storage unit</option><option>Other</option></select></div>'
+    +'<div class="field"><label>Floor #</label><input type="text" id="'+id+'-floor" placeholder="e.g. 2"></div>'
+    +'<div class="field"><label>Access</label><select id="'+id+'-access"><option value="">Select...</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>'
+    +'<div class="field"><label>Parking</label><select id="'+id+'-parking"><option value="">Select...</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option></select></div>'
+    +'<div class="field full"><label>Notes</label><input type="text" id="'+id+'-notes" placeholder="Parking details, gate codes, access info..."></div>'
+    +'</div>';
+  return div;
+}
+
+function addExtraLoad(){
+  extraLoadCount++;
+  var id='q-extra-load-'+extraLoadCount;
+  document.getElementById('q-extra-loads').appendChild(makeLocBlock(id,'pickup','Pick-up '+(extraLoadCount+1)));
+}
+
+function addExtraUnload(){
+  extraUnloadCount++;
+  var id='q-extra-unload-'+extraUnloadCount;
+  document.getElementById('q-extra-unloads').appendChild(makeLocBlock(id,'dropoff','Drop-off '+(extraUnloadCount+1)));
+}
+
+function removeLoc(id){
+  var el=document.getElementById(id);
+  if(el)el.parentNode.removeChild(el);
+}
+
+function getLocData(containerId){
+  var results=[];
+  var blocks=document.getElementById(containerId).children;
+  for(var i=0;i<blocks.length;i++){
+    var id=blocks[i].id;
+    var addrEl=document.getElementById(id+'-addr');
+    if(addrEl&&addrEl.value.trim()){
+      results.push({
+        address:addrEl.value.trim(),
+        zip:(document.getElementById(id+'-zip')||{value:''}).value.trim(),
+        unit:(document.getElementById(id+'-unit')||{value:''}).value.trim(),
+        locationType:(document.getElementById(id+'-type')||{value:''}).value,
+        floor:(document.getElementById(id+'-floor')||{value:''}).value.trim(),
+        access:(document.getElementById(id+'-access')||{value:''}).value,
+        parking:(document.getElementById(id+'-parking')||{value:''}).value,
+        notes:(document.getElementById(id+'-notes')||{value:''}).value.trim()
+      });
+    }
+  }
+  return results;
+}
+
+function getExtraLoads(){return getLocData('q-extra-loads');}
+function getExtraUnloads(){return getLocData('q-extra-unloads');}
+
+function validate(){
+  var ok=true;
+  function req(fid,iid){
+    var f=document.getElementById(fid);
+    var el=document.getElementById(iid);
+    if(!el||!el.value.trim()){if(f)f.classList.add('has-error');ok=false;}
+    else{if(f)f.classList.remove('has-error');}
+  }
+  req('f-name','q-name');
+  req('f-phone','q-phone');
+  req('f-email','q-email');
+  req('f-date','q-date');
+  req('f-from','q-from');
+  req('f-to','q-to');
+  req('f-source','q-source');
+  var email=v('q-email');
+  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    var f=document.getElementById('f-email');
+    if(f)f.classList.add('has-error');
+    ok=false;
+  }
+  return ok;
+}
+
+function collectData(){
+  return {
+    name:v('q-name'),
+    phone:v('q-phone'),
+    email:v('q-email'),
+    date:v('q-date'),
+    size:v('q-size'),
+    sqft:v('q-sqft'),
+    moveType:v('q-movetype'),
+    packing:v('q-packing'),
+    storage:document.getElementById('q-storage').value==='yes',
+    from:v('q-from'),
+    fromZip:v('q-from-zip'),
+    fromUnit:v('q-from-unit'),
+    fromType:v('q-from-type'),
+    fromFloor:v('q-from-floor'),
+    accessLoad:v('q-access-load'),
+    parkingLoad:v('q-parking-load'),
+    fromNotes:v('q-from-notes'),
+    extraLoads:getExtraLoads(),
+    to:v('q-to'),
+    toZip:v('q-to-zip'),
+    toUnit:v('q-to-unit'),
+    toType:v('q-to-type'),
+    toFloor:v('q-to-floor'),
+    accessUnload:v('q-access-unload'),
+    parkingUnload:v('q-parking-unload'),
+    toNotes:v('q-to-notes'),
+    extraUnloads:getExtraUnloads(),
+    source:v('q-source'),
+    sourceDetail:v('q-source-other'),
+    notes:v('q-notes'),
+    submittedAt:new Date().toISOString()
+  };
+}
+
+function submitForm(){
+  if(!validate()){
+    var err=document.querySelector('.has-error');
+    if(err)err.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  var btn=document.getElementById('submit-btn');
+  btn.disabled=true;
+  btn.textContent='Submitting...';
+  var data=collectData();
+  fetch(SUPABASE_URL+'/rest/v1/pending_leads',{
+    method:'POST',
+    headers:{
+      'apikey':SUPABASE_KEY,
+      'Authorization':'Bearer '+SUPABASE_KEY,
+      'Content-Type':'application/json',
+      'Prefer':'resolution=merge-duplicates'
+    },
+    body:JSON.stringify([{id:uid(),data:data}])
+  }).then(function(){
+    showSuccess(data);
+  }).catch(function(){
+    try{
+      var p=JSON.parse(localStorage.getItem('caremore-pending-leads')||'[]');
+      p.push(data);
+      localStorage.setItem('caremore-pending-leads',JSON.stringify(p));
+    }catch(e){}
+    showSuccess(data);
+  });
+}
+
+function showSuccess(d){
+  document.getElementById('form-page').style.display='none';
+  document.getElementById('success-page').style.display='block';
+  document.getElementById('success-name').textContent=d.name.split(' ')[0];
+  var rows=[
+    ['Name',d.name],
+    ['Phone',d.phone],
+    ['Email',d.email],
+    d.date&&['Move date',d.date],
+    d.size&&['Home size',d.size],
+    d.from&&['Pick-up',d.from+(d.fromZip?' '+d.fromZip:'')]
+  ].filter(Boolean);
+  (d.extraLoads||[]).forEach(function(ex,i){
+    if(ex.address)rows.push(['Pick-up '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);
+  });
+  if(d.to)rows.push(['Drop-off',d.to+(d.toZip?' '+d.toZip:'')]);
+  (d.extraUnloads||[]).forEach(function(ex,i){
+    if(ex.address)rows.push(['Drop-off '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);
+  });
+  if(d.packing&&d.packing!=='No')rows.push(['Packing',d.packing]);
+  if(d.source)rows.push(['How you heard',d.source+(d.sourceDetail?' - '+d.sourceDetail:'')]);
+  if(d.notes)rows.push(['Notes',d.notes]);
+  document.getElementById('success-summary').innerHTML=rows.map(function(r){
+    return '<div style="display:flex;justify-content:space-between;gap:
