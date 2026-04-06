@@ -164,13 +164,6 @@ textarea{resize:vertical;min-height:70px}
     <div class="section">
       <div class="section-title">Pick-up location(s)</div>
       <div class="grid-2">
-        <div class="field full">
-          <label>Moving to CareMore Moving and Storage?</label>
-          <select id="q-storage" onchange="toggleStorage()">
-            <option value="no">No</option>
-            <option value="yes">Yes - moving to CareMore Storage</option>
-          </select>
-        </div>
         <div class="field full" id="f-from">
           <label>Pick-up Address *</label>
           <input type="text" id="q-from" placeholder="Start typing address...">
@@ -238,6 +231,13 @@ textarea{resize:vertical;min-height:70px}
     <div class="section">
       <div class="section-title">Drop-off location(s)</div>
       <div class="grid-2">
+        <div class="field full">
+          <label>Moving to CareMore Moving & Storage?</label>
+          <select id="q-storage" onchange="toggleStorage()">
+            <option value="no">No</option>
+            <option value="yes">Yes - moving to CareMore Storage</option>
+          </select>
+        </div>
         <div class="field full" id="f-to">
           <label>Drop-off Address *</label>
           <input type="text" id="q-to" placeholder="Start typing address...">
