@@ -8,8 +8,7 @@
 <script>
 function initPlacesQuote(){
   if(!window.google)return;
-  var fields=['q-from','q-to'];
-  fields.forEach(function(id){
+  ['q-from','q-to'].forEach(function(id){
     var el=document.getElementById(id);
     if(!el)return;
     var ac=new google.maps.places.Autocomplete(el,{types:['address'],componentRestrictions:{country:'us'}});
@@ -247,7 +246,7 @@ textarea{resize:vertical;min-height:70px}
         </div>
       </div>
       <div id="q-extra-loads"></div>
-      <button type="button" class="add-loc-btn" id="btn-add-load" onclick="addExtraLoad()">+ Add another pick-up location</button>
+      <button type="button" class="add-loc-btn" onclick="addExtraLoad()">+ Add another pick-up location</button>
     </div>
 
     <div class="section">
@@ -321,7 +320,7 @@ textarea{resize:vertical;min-height:70px}
         </div>
       </div>
       <div id="q-extra-unloads"></div>
-      <button type="button" class="add-loc-btn" id="btn-add-unload" onclick="addExtraUnload()">+ Add another drop-off location</button>
+      <button type="button" class="add-loc-btn" onclick="addExtraUnload()">+ Add another drop-off location</button>
     </div>
 
     <div class="section">
@@ -348,7 +347,7 @@ textarea{resize:vertical;min-height:70px}
   <div style="max-width:520px;margin:0 auto;padding:48px 20px 60px;text-align:center">
     <div class="success-check">&#10003;</div>
     <div class="success-title">Request received!</div>
-    <p style="font-size:14px;color:var(--text2);margin-bottom:28px;line-height:1.7">Thank you, <strong id="success-name"></strong>! We have received your move request and will be in touch shortly to go over the details and get you a quote. Please note this is a non-binding request - your move is not confirmed until you receive a signed confirmation from us.</p>
+    <p style="font-size:14px;color:var(--text2);margin-bottom:28px;line-height:1.7">Thank you, <strong id="success-name"></strong>! We have received your move request and will be in touch shortly. Please note this is a non-binding request - your move is not confirmed until you receive a signed confirmation from us.</p>
     <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;text-align:left;margin-bottom:24px">
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Your submission</div>
       <div id="success-summary" style="font-size:13.5px;color:var(--text2);line-height:1.8"></div>
