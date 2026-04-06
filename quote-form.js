@@ -37,7 +37,7 @@ function getGmailToken(){
   });
 }
 
-function buildEmailBody(d){
+function buildEmailBody(d,isInternal){
   var firstName=d.name.split(' ')[0];
   var pickups=[];
   pickups.push(d.from+(d.fromZip?' '+d.fromZip:'')+(d.accessLoad?'\nAccess: '+d.accessLoad:'')+(d.parkingLoad?'\nParking: '+d.parkingLoad:''));
@@ -50,11 +50,27 @@ function buildEmailBody(d){
     if(ex.address)dropoffs.push('Drop-off '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+(ex.access?'\nAccess: '+ex.access:'')+(ex.parking?'\nParking: '+ex.parking:''));
   });
 
-  var body='Hi '+firstName+',\n\n';
-  body+='Thank you for reaching out to CareMore Moving & Storage! We\'ve received your move request and will be in touch shortly to go over the details and provide you with a quote.\n\n';
-  body+='Please note this is not a confirmation — your move is not booked until you receive a signed confirmation from us.\n\n';
-  body+='Here\'s a summary of what you submitted:\n';
-  body+='─────────────────────────────────\n';
+  var body='';
+  if(isInternal){
+    body='New quote form submission received!\n\n';
+    body+='CLIENT DETAILS\n';
+    body+='Name: '+d.name+'\n';
+    body+='Phone: '+d.phone+'\n';
+    body+='Email: '+d.email+'\n';
+    body+='Source: '+d.source+(d.sourceDetail?' - '+d.sourceDetail:'')+'\n';
+    body+='Submitted: '+new Date(d.submittedAt).toLocaleString()+'\n\n';
+  } else {
+    body='Hi '+firstName+',\n\n';
+    body+='Thank you for reaching out to CareMore Moving & Storage! We have received your move request and will be in touch shortly to go over the details and provide you with a quote.\n\n';
+    body+='Please note this is not a confirmation - your move is not booked until you receive a signed confirmation from us.\n\n';
+    body+='Here is a summary of what you submitted:\n';
+    body+='----------------------------------------------\n';
+    body+='Name: '+d.name+'\n';
+    body+='Phone: '+d.phone+'\n';
+    body+='Email: '+d.email+'\n';
+  }
+
+  body+='----------------------------------------------\n';
   if(d.date)body+='Move date: '+d.date+'\n';
   if(d.size)body+='Home size: '+d.size+'\n';
   if(d.moveType)body+='Type: '+d.moveType+'\n';
@@ -62,41 +78,56 @@ function buildEmailBody(d){
   body+='\nPick-up:\n'+pickups.join('\n\n')+'\n';
   body+='\nDrop-off:\n'+dropoffs.join('\n\n')+'\n';
   if(d.notes)body+='\nAdditional notes:\n'+d.notes+'\n';
-  body+='─────────────────────────────────\n\n';
-  body+='We\'ll review your request and call or email you within 2 business days to confirm availability, go over rates and provide you with a quote.\n\n';
-  body+='If anything looks incorrect or you need to reach us sooner, please don\'t hesitate to get in touch:\n\n';
-  body+='📞 (415) 822-8547\n';
-  body+='✉ move@caremoremoving.com\n';
-  body+='🌐 www.caremoremoving.com\n\n';
-  body+='We look forward to helping with your move!\n\n';
-  body+='Sincerely,\nThe CareMore Team';
+  body+='----------------------------------------------\n\n';
+
+  if(isInternal){
+    body+='Log in to MoveDesk to import this lead:\nhttps://davidabram217.github.io/movedesk';
+  } else {
+    body+='We will review your request and call or email you within 2 business days to confirm availability, go over rates and provide you with a quote.\n\n';
+    body+='If anything looks incorrect or you need to reach us sooner, please don\'t hesitate to get in touch:\n\n';
+    body+='Phone: (415) 822-8547\n';
+    body+='Email: move@caremoremoving.com\n';
+    body+='Web: www.caremoremoving.com\n\n';
+    body+='We look forward to helping with your move!\n\n';
+    body+='Sincerely,\nThe CareMore Team';
+  }
   return body;
+}
+
+function buildRawEmail(from,to,subject,body){
+  var msg=[
+    'From: '+from,
+    'To: '+to,
+    'Subject: '+subject,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=us-ascii',
+    '',
+    body
+  ].join('\r\n');
+  return btoa(msg).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function sendGmailMessage(token,from,to,subject,body){
+  var encoded=buildRawEmail(from,to,subject,body);
+  return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({raw:encoded})
+  });
 }
 
 function sendGmailConfirmation(d){
   return getGmailToken().then(function(token){
-    var to=d.email;
-    var subject='Thank you for your move request — CareMore Moving & Storage';
-    var body=buildEmailBody(d);
-    // Build RFC 2822 email
-    var email=[
-      'From: CareMore Moving & Storage <move@caremoremoving.com>',
-      'To: '+to,
-      'Subject: '+subject,
-      'Content-Type: text/plain; charset=utf-8',
-      '',
-      body
-    ].join('\r\n');
-    // Base64 URL encode
-    var encoded=btoa(unescape(encodeURIComponent(email))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-    return fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
-      method:'POST',
-      headers:{
-        'Authorization':'Bearer '+token,
-        'Content-Type':'application/json'
-      },
-      body:JSON.stringify({raw:encoded})
-    });
+    var from='CareMore Moving and Storage <move@caremoremoving.com>';
+    var customerSubject='Thank you for submitting your move request to CareMore Moving and Storage';
+    var internalSubject='New quote form submission - '+d.name+' ('+d.phone+')';
+    var customerBody=buildEmailBody(d,false);
+    var internalBody=buildEmailBody(d,true);
+    // Send both emails
+    return Promise.all([
+      sendGmailMessage(token,from,d.email,customerSubject,customerBody),
+      sendGmailMessage(token,from,'move@caremoremoving.com',internalSubject,internalBody)
+    ]);
   });
 }
 
