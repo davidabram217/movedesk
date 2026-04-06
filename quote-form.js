@@ -308,14 +308,14 @@ function submitForm(){
       sendGmailConfirmation(data).then(function(){
         showSuccess(data);
       }).catch(function(){
-        // Email failed but form still submitted — show success anyway
+        // Email failed but form still submitted -- show success anyway
         showSuccess(data);
       });
     } else {
       showSuccess(data);
     }
   }).catch(function(){
-    // Supabase failed — use localStorage fallback
+    // Supabase failed -- use localStorage fallback
     try{
       var p=JSON.parse(localStorage.getItem('caremore-pending-leads')||'[]');
       p.push(data);
