@@ -30,7 +30,10 @@ async function gasCall(payload){
   try{
     const params=encodeURIComponent(JSON.stringify(payload));
     const url=GAS_URL+'?payload='+params;
-    const res=await fetch(url,{method:'GET'});
+    const res=await fetch(url,{
+      method:'GET',
+      credentials:'include'
+    });
     const data=await res.json();
     return data;
   }catch(e){
@@ -864,41 +867,22 @@ async function confirmScheduleEstimate(){
   l.estimateOfficeNotes=document.getElementById('sche-office-notes')?.value||'';
   l.estimateSetupBy=setupBy;
   if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
-  l.status='Estimate scheduled';
-  saveDB();renderLeads();
+  saveDB();
   closeModal('schedule-estimate');
   const doEmail=document.getElementById('sche-send-email').checked;
   const doCal=document.getElementById('sche-add-cal').checked;
-  if(doEmail&&l.email){
+  if(doEmail){
     buildEstimateEmail(currentScheduleEstimateLeadId);
-    const to=document.getElementById('ee-to').value;
-    const subject=document.getElementById('ee-subject').value;
-    const body=document.getElementById('ee-body').value;
-    showToast('Sending estimate confirmation email...');
-    const sent=await sendEmail(to,OFFICE_EMAIL,subject,body);
-    if(sent)showToast('✓ Estimate confirmation email sent to '+to);
-    l.estimateEmailSent=true;
-    saveDB();
-  }
-  if(doCal){
-    const startDate=new Date(date+'T'+(l.estimateScheduledTime?convertTime12to24(l.estimateScheduledTime):'09:00')+':00');
-    const endDate=new Date(startDate.getTime()+60*60*1000); // 1 hour
-    const calTitle=type.toUpperCase()+' ESTIMATE - '+l.name;
-    const calDesc=buildCalUrl(l,type,date).replace(/.*text=/,'').split('&')[0]?decodeURIComponent(buildCalUrl(l,type,date).match(/text=([^&]*)/)?.[1]||''):
-      l.name+'\n'+l.phone+'\n'+(l.from||'')+' → '+(l.to||'');
-    showToast('Adding to Google Calendar...');
-    const eventId=await addCalendarEvent(calTitle,startDate,endDate,calDesc,l.from||'',false);
-    if(eventId){
-      l.estimateCalEventId=eventId;
-      l.calendarAdded=true;
-      saveDB();
-      showToast('✓ '+type+' estimate added to calendar for '+fmtDate(date));
-    }
-  }
-  if(!doEmail&&!doCal){
+    document.getElementById('modal-estimate-email').dataset.showCal=doCal?'1':'0';
+    openModal('estimate-email');
+  } else if(doCal){
+    showEstimateCalPrompt(currentScheduleEstimateLeadId);
+  } else {
+    l.status='Estimate scheduled';
+    saveDB();renderLeads();
     showToast('✓ Estimate scheduled — '+type+' on '+fmtDate(date));
+    nextStepSubModal=false;
   }
-  nextStepSubModal=false;
 }
 function convertTime12to24(time12){
   if(!time12)return'09:00';
@@ -911,13 +895,15 @@ function convertTime12to24(time12){
 }
 function doneEstimateEmail(){
   const showCal=document.getElementById('modal-estimate-email').dataset.showCal==='1';
+  const l=db.leads.find(x=>x.id===currentScheduleEstimateLeadId);
+  if(l){l.estimateEmailSent=true;saveDB();}
   closeModal('estimate-email');
   if(showCal){
     showEstimateCalPrompt(currentScheduleEstimateLeadId);
   } else {
-    const l=db.leads.find(x=>x.id===currentScheduleEstimateLeadId);
     if(l){l.status='Estimate scheduled';saveDB();renderLeads();}
-    finishScheduleEstimate();
+    showToast('✓ Estimate scheduled');
+    nextStepSubModal=false;
   }
 }
 function showEstimateCalPrompt(leadId){
