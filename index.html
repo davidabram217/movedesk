@@ -3482,22 +3482,99 @@ function resendQuoteConfirm(){
       <button class="btn btn-primary btn-sm" onclick="openQuoteGmail()">Yes, resend →</button>
     </div>`;
 }
+function buildQuotePlainText(){
+  const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
+  const t=calcQbTotals();
+  const isMulti=qbJobType==='multi';
+  const projectName=document.getElementById('qb-project-name').value.trim();
+  const desc=document.getElementById('qb-description').value.trim();
+  const cashDiscount=document.getElementById('qb-cash-discount').value.trim();
+  const stipulations=document.getElementById('qb-stipulations').value.trim();
+  const notes=document.getElementById('qb-notes').value.trim();
+  const d0=qbDays[0]||{};
+  let txt='';
+  txt+='CareMore Moving & Storage\n';
+  txt+='Cal-T #0190970\n';
+  txt+='925 Palou Ave, San Francisco, CA 94124\n';
+  txt+='(415) 822-8547 | move@caremoremoving.com\n';
+  txt+='----------------------------------------------\n\n';
+  txt+='MOVE ESTIMATE\n\n';
+  txt+='Dear '+(l?l.name:'Customer')+',\n\n';
+  txt+='Moving is hard. We\'re here to make your move go as smoothly as possible.\n\n';
+  if(notes)txt+=notes+'\n\n';
+  txt+='----------------------------------------------\n';
+  txt+='MOVE DETAILS\n';
+  txt+='----------------------------------------------\n';
+  if(isMulti){
+    qbDays.forEach((d,i)=>{
+      txt+='Day '+(i+1)+' Date: '+(d.date?fmtDate(d.date):'')+'\n';
+      txt+='Arrival: '+(d.arrivalStart||'')+(d.arrivalEnd?' - '+d.arrivalEnd:'')+'\n';
+      txt+='Pick-up: '+(d.from||'—')+(d.fromUnit?', '+d.fromUnit:'')+'\n';
+      if(d.fromAccess)txt+='Access: '+d.fromAccess+'\n';
+      txt+='Drop-off: '+(d.to||'—')+(d.toUnit?', '+d.toUnit:'')+'\n';
+      if(d.toAccess)txt+='Access: '+d.toAccess+'\n';
+      txt+='\n';
+    });
+  } else {
+    if(d0.date)txt+='Job Date: '+fmtDate(d0.date)+'\n';
+    txt+='Arrival: '+(d0.arrivalStart||'')+(d0.arrivalEnd?' - '+d0.arrivalEnd:'')+'\n';
+    (d0.loads||[{address:d0.from||'—',unit:d0.fromUnit||'',access:d0.fromAccess||''}]).forEach((loc,i)=>{
+      txt+=(i===0?'Pick-up':'Pick-up '+(i+1))+': '+(loc.address||'—')+(loc.unit?', '+loc.unit:'')+'\n';
+      if(loc.access)txt+='Access: '+loc.access+'\n';
+    });
+    (d0.unloads||[{address:d0.to||'—',unit:d0.toUnit||'',access:d0.toAccess||''}]).forEach((loc,i)=>{
+      txt+=(i===0?'Drop-off':'Drop-off '+(i+1))+': '+(loc.address||'—')+(loc.unit?', '+loc.unit:'')+'\n';
+      if(loc.access)txt+='Access: '+loc.access+'\n';
+    });
+  }
+  txt+='\n----------------------------------------------\n';
+  txt+='BILLING\n';
+  txt+='----------------------------------------------\n';
+  qbDays.forEach((d,i)=>{
+    const label=isMulti?'Day '+(i+1)+' - '+d.crew+' Movers':d.crew+' Movers';
+    txt+=label+': '+d.hrsMin+' - '+d.hrsMax+' hours @ $'+d.rate+'/hr\n';
+    txt+='  Range: '+fmtMoney(d.crew*d.hrsMin*d.rate)+' - '+fmtMoney(d.crew*d.hrsMax*d.rate)+'\n';
+  });
+  qbFees.filter(f=>f.included).forEach(f=>{
+    const amt=f.type==='range'?fmtMoney(f.hrsMin||0)+' - '+fmtMoney(f.hrsMax||0):fmtMoney(f.amount||0);
+    txt+=(f.label||'')+': '+amt+'\n';
+  });
+  txt+='\nESTIMATED TOTAL: '+fmtMoney(t.low)+' - '+fmtMoney(t.high)+'\n';
+  if(cashDiscount)txt+='Cash discount: '+cashDiscount+'\n';
+  if(t.depositAmount)txt+='Deposit: '+fmtMoney(t.depositAmount)+'\n';
+  txt+='\n----------------------------------------------\n';
+  txt+='TERMS & CONDITIONS\n';
+  txt+='----------------------------------------------\n';
+  txt+='- We accept cash, check, or credit card (NO AMEX). 3.5% surcharge for credit card payments.\n';
+  txt+='- 2 hour minimum applies.\n';
+  txt+='- $400 cancellation/rescheduling fee if cancelled within 7 days of move date.\n';
+  txt+='- Customer is responsible for any parking tickets incurred.\n';
+  txt+='- 10% yearly rate increase applies.\n';
+  if(stipulations)txt+='\n'+stipulations+'\n';
+  txt+='\n----------------------------------------------\n\n';
+  txt+='If you have any questions, please call us at (415) 822-8547 or reply to this email.\n\n';
+  txt+='We look forward to working with you!\n\n';
+  txt+='Sincerely,\nThe CareMore Team\nCareMore Moving & Storage\n(415) 822-8547\nwww.caremoremoving.com';
+  return txt;
+}
 async function openQuoteGmail(){
   const q=saveQuote('draft');
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const name=l?l.name.split(' ')[0]:'there';
   const to=q.customerEmail||l?.email||'';
   if(!to){showToast('No email address on file for this customer');return;}
-  const subject='Your move estimate — CareMore Moving & Storage';
-  const customerBody='Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage below.\n\nIf you have any questions please call us at (415) 822-8547 or reply to this email.\n\nThank you,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
-  showToast('Sending quote email...');
-  const sent=await sendEmail(to,OFFICE_EMAIL,subject,customerBody);
-  if(sent){
-    showToast('✓ Quote email sent to '+to);
-    sendQuote();
-    closeModal('quote-preview');
-    setTimeout(()=>openModal('quote-sent-confirm'),300);
-  }
+  const subject='Your Move Estimate — CareMore Moving & Storage';
+  const quoteText=buildQuotePlainText();
+  const body='Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage below.\n\nIf you have any questions please call us at (415) 822-8547 or reply to this email.\n\nThank you,\nThe CareMore Team\n\n\n'+quoteText;
+  const url='https://mail.google.com/mail/?view=cm'
+    +'&to='+encodeURIComponent(to)
+    +'&cc='+encodeURIComponent(OFFICE_EMAIL)
+    +'&su='+encodeURIComponent(subject)
+    +'&body='+encodeURIComponent(body);
+  window.open(url,'_blank');
+  showToast('Gmail opened with quote — send the email then click Mark as sent');
+  closeModal('quote-preview');
+  setTimeout(()=>openModal('quote-sent-confirm'),300);
 }
 function confirmQuoteSent(didSend){
   closeModal('quote-sent-confirm');
