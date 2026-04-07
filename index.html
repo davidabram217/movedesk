@@ -2352,6 +2352,30 @@ async function checkPendingLeads(){
     }
   }
 }
+async function checkAcceptedQuotes(){
+  try{
+    const rows=await sbFetch('quotes?select=id,data&order=created_at.desc');
+    if(!rows)return;
+    let changed=false;
+    rows.forEach(r=>{
+      const q=r.data;
+      if(!q||q.status!=='accepted')return;
+      const localQ=db.quotes.find(x=>x.id===r.id||x.publicId===q.publicId);
+      if(localQ&&localQ.status!=='accepted'){
+        localQ.status='accepted';
+        localQ.acceptedAt=q.acceptedAt;
+        const lead=db.leads.find(x=>x.id===localQ.leadId);
+        if(lead&&lead.status!=='Quote accepted'&&lead.status!=='Booked'&&lead.status!=='Completed'){
+          lead.status='Quote accepted';
+          changed=true;
+          showToast('🎉 '+localQ.customerName+' has accepted their quote!');
+        }
+        changed=true;
+      }
+    });
+    if(changed){saveDB();if(document.getElementById('page-leads').classList.contains('active'))renderLeads();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
+  }catch(e){console.log('checkAcceptedQuotes error:',e);}
+}
 function renderSettings(){document.getElementById('biz-name').value=db.settings.bizName||'';document.getElementById('biz-phone').value=db.settings.bizPhone||'';document.getElementById('biz-email').value=db.settings.bizEmail||'';document.getElementById('rate-base').value=db.settings.rateBase||140;document.getElementById('rate-packing').value=db.settings.ratePacking||40;renderCrewList();}
 function renderCrewList(){document.getElementById('crew-list').innerHTML=db.settings.crew.length?db.settings.crew.map((c,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:5px"><span style="font-size:12.5px">${c}</span><button class="btn btn-danger btn-sm" onclick="removeCrew(${i})">Remove</button></div>`).join(''):`<div style="font-size:12px;color:var(--text3);margin-bottom:10px">No crew leaders yet.</div>`;}
 function addCrew(){const v=document.getElementById('new-crew-input').value.trim();if(!v)return;db.settings.crew.push(v);document.getElementById('new-crew-input').value='';saveDB();renderCrewList();showToast('✓ '+v+' added');}
@@ -3409,12 +3433,7 @@ function buildQuoteHTML(){
   `;
   html+='<div style="margin-top:24px;text-align:center">'+
     '<div style="font-size:13.5px;color:#555;margin-bottom:12px">Ready to move forward? Click below to accept this quote and we will be in touch to confirm your booking.</div>'+
-    '<a href="mailto:move@caremoremoving.com?subject='+encodeURIComponent('Quote Accepted')+'%20%E2%80%94%20'+(l?encodeURIComponent(l.name):'Customer')+'&body=Hi+Johnathan%2C%0A%0AName%3A+'+(l?encodeURIComponent(l.name):'')+
-    '%0APhone%3A+'+(l?encodeURIComponent(l.phone||''):'')+
-    '%0AMove+date%3A+'+(d0.date?encodeURIComponent(fmtDate(d0.date)):'')+
-    '%0AQuote%3A+'+encodeURIComponent(fmtMoney(t.totalMin)+' - '+fmtMoney(t.totalMax))+
-    '%0A%0APlease+confirm+my+booking.'+
-    '" style="display:inline-block;background:#2d6a4f;color:#fff;text-align:center;padding:16px 40px;border-radius:6px;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:.3px">&#10003; Accept this quote</a>'+
+    '<a href="https://davidabram217.github.io/movedesk/quote.html?id='+(q?.publicId||'')+'" target="_blank" style="display:inline-block;background:#2d5a3d;color:#fff;text-align:center;padding:16px 40px;border-radius:6px;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:.3px">&#10003; Accept this quote</a>'+
     '<div style="margin-top:10px;font-size:12px;color:#888">Or call us at (415) 822-8547 &middot; move@caremoremoving.com</div>'+
     '</div>';
   if(q&&q.sentBy)html+='<div style="margin-top:16px;text-align:right;font-size:12px;color:#888">Quote prepared by '+escHtml(q.sentBy)+'</div>';
@@ -3425,8 +3444,13 @@ function saveQuote(status){
   if(!db.quotes)db.quotes=[];
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const t=calcQbTotals();
+  const existingQ=currentQuoteId?db.quotes.find(q=>q.id===currentQuoteId):null;
+  const publicId=existingQ?.publicId||('q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+  const expiresAt=existingQ?.expiresAt||(()=>{const d=new Date();d.setMonth(d.getMonth()+3);return d.toISOString().split('T')[0];})();
   const quote={
     id:currentQuoteId||uid(),
+    publicId,
+    expiresAt,
     leadId:currentQuoteLeadId,
     customerName:l?l.name:'',
     customerEmail:l?l.email:'',
@@ -3443,7 +3467,7 @@ function saveQuote(status){
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
     createdAt:new Date().toISOString().split('T')[0],
-    sentAt:status==='sent'?new Date().toISOString().split('T')[0]:''
+    sentAt:status==='sent'?new Date().toISOString().split('T')[0]:(existingQ?.sentAt||'')
   };
   if(currentQuoteId){const idx=db.quotes.findIndex(q=>q.id===currentQuoteId);if(idx>-1)db.quotes[idx]=quote;else db.quotes.push(quote);}
   else{db.quotes.push(quote);currentQuoteId=quote.id;}
@@ -3558,21 +3582,26 @@ function buildQuotePlainText(){
   return txt;
 }
 async function openQuoteGmail(){
-  const q=saveQuote('draft');
+  const q=saveQuote('sent');
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const name=l?l.name.split(' ')[0]:'there';
   const to=q.customerEmail||l?.email||'';
   if(!to){showToast('No email address on file for this customer');return;}
+  const quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+q.publicId;
   const subject='Your Move Estimate — CareMore Moving & Storage';
-  const quoteText=buildQuotePlainText();
-  const body='Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage below.\n\nIf you have any questions please call us at (415) 822-8547 or reply to this email.\n\nThank you,\nThe CareMore Team\n\n\n'+quoteText;
+  const body='Hi '+name+',\n\n'
+    +'Please find your move estimate from CareMore Moving & Storage at the link below.\n\n'
+    +'VIEW & ACCEPT YOUR QUOTE:\n'+quoteLink+'\n\n'
+    +'This link will remain active for 3 months. Once you\'re ready to move forward, simply click the Accept button on the quote page and we\'ll be in touch to confirm your booking.\n\n'
+    +'If you have any questions please call us at (415) 822-8547 or reply to this email.\n\n'
+    +'Thank you,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
   const url='https://mail.google.com/mail/?view=cm'
     +'&to='+encodeURIComponent(to)
     +'&cc='+encodeURIComponent(OFFICE_EMAIL)
     +'&su='+encodeURIComponent(subject)
     +'&body='+encodeURIComponent(body);
   window.open(url,'_blank');
-  showToast('Gmail opened with quote — send the email then click Mark as sent');
+  showToast('Gmail opened — send the email then click Mark as sent');
   closeModal('quote-preview');
   setTimeout(()=>openModal('quote-sent-confirm'),300);
 }
@@ -4711,6 +4740,8 @@ window.deleteLead=deleteLead;
   seedDemoData();
   renderDashboard();
   checkPendingLeads();
+  checkAcceptedQuotes();
+  setInterval(checkAcceptedQuotes, 2*60*1000);
   document.getElementById('page-title').textContent='Dashboard';
   document.getElementById('page-sub').textContent='Your business at a glance';
 })();</script></body></html>
