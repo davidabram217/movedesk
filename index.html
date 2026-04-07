@@ -30,11 +30,11 @@ async function gasCall(payload){
   try{
     const res=await fetch(GAS_URL,{
       method:'POST',
+      mode:'no-cors',
       headers:{'Content-Type':'text/plain'},
       body:JSON.stringify(payload)
     });
-    const data=await res.json();
-    return data;
+    return{success:true};
   }catch(e){
     console.error('GAS error:',e);
     return{success:false,error:e.toString()};
