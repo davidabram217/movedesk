@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Move Estimate — CareMore Moving & Storage</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#2d5a3d;--green2:#234a31;--green-light:#e8f0ea;
+  --text:#1a1916;--text2:#6b6760;--text3:#9e9b94;
+  --border:#e0dbd0;--cream:#faf8f3;
+  --radius:8px;--shadow:0 1px 4px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14px;line-height:1.6}
+.header{background:#fff;border-bottom:1px solid var(--border);padding:24px 20px;text-align:center}
+.logo-wrap{display:inline-block;text-align:center}
+.logo-care{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1;display:block}
+.logo-line{display:block;width:100%;height:2.5px;background:#4a9e6b;margin:7px 0}
+.logo-moving{font-family:'Cormorant Garamond',serif;font-size:24px;font-style:italic;color:#1a1916;letter-spacing:.5px;display:block}
+.logo-city{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);margin-top:7px}
+.main{max-width:680px;margin:0 auto;padding:32px 20px 60px}
+.loading{text-align:center;padding:60px 20px;color:var(--text3)}
+.expired{text-align:center;padding:60px 20px}
+.quote-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px}
+.quote-header{padding:28px 32px;border-bottom:1px solid var(--border);text-align:center}
+.quote-title{font-size:20px;font-weight:600;margin-bottom:4px}
+.quote-sub{font-size:13px;color:var(--text3)}
+.biz-info{font-size:12px;color:var(--text2);margin-top:12px;line-height:1.8}
+.section{padding:24px 32px;border-bottom:1px solid var(--border)}
+.section:last-child{border-bottom:none}
+.section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field-label{font-size:11px;color:var(--text3);margin-bottom:2px}
+.field-value{font-size:14px;color:var(--text)}
+.table{width:100%;border-collapse:collapse;font-size:13.5px}
+.table th{padding:8px;border-bottom:2px solid var(--border);text-align:left;color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.table th:not(:first-child){text-align:right}
+.table td{padding:10px 8px;border-bottom:1px solid var(--border)}
+.table td:not(:first-child){text-align:right}
+.table .total-row td{font-weight:600;font-size:15px;padding-top:14px;border-bottom:2px solid var(--border)}
+.terms{font-size:12.5px;color:var(--text2);line-height:1.8}
+.terms li{margin-bottom:4px}
+.accept-section{padding:32px;text-align:center;background:var(--green-light)}
+.accept-title{font-size:16px;font-weight:600;margin-bottom:8px}
+.accept-sub{font-size:13.5px;color:var(--text2);margin-bottom:24px;line-height:1.6}
+.accept-btn{background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:16px 48px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;transition:background .15s;display:inline-block}
+.accept-btn:hover{background:var(--green2)}
+.accept-btn:disabled{background:#aaa;cursor:not-allowed}
+.accepted-box{background:#fff;border:2px solid var(--green);border-radius:12px;padding:32px;text-align:center}
+.accepted-check{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.accepted-title{font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:8px}
+.contact-bar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;text-align:center;font-size:13px;color:var(--text2)}
+@media(max-width:560px){.section{padding:20px 18px}.accept-section{padding:24px 18px}.grid-2{grid-template-columns:1fr}.table{font-size:12.5px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-wrap">
+    <span class="logo-care">CareMore</span>
+    <span class="logo-line"></span>
+    <span class="logo-moving">Moving &amp; Storage</span>
+  </div>
+  <div class="logo-city">San Francisco, CA</div>
+</div>
+
+<div class="main">
+  <div id="loading" class="loading">Loading your quote...</div>
+  <div id="expired" class="expired" style="display:none">
+    <div style="font-size:48px;margin-bottom:16px">⏱</div>
+    <div style="font-size:20px;font-weight:600;margin-bottom:8px">This quote has expired</div>
+    <div style="color:var(--text3);margin-bottom:24px">Please contact us for an updated estimate.</div>
+    <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> &nbsp;·&nbsp;
+    <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a>
+  </div>
+  <div id="quote-content" style="display:none"></div>
+</div>
+
+<script>
+var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
+var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
+var GAS_URL='https://script.google.com/a/macros/caremoremoving.com/s/AKfycbweX_A7i3mpTpWP86RVe3i4QpHXEHS0tfwN53gMlXYjxLj8CoHSHmSnTGpEoWWV2CF8/exec';
+
+function fmtMoney(n){return'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtDate(d){if(!d)return'—';var dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+
+function getPublicId(){
+  var params=new URLSearchParams(window.location.search);
+  return params.get('id');
+}
+
+async function loadQuote(){
+  var publicId=getPublicId();
+  if(!publicId){
+    document.getElementById('loading').textContent='Invalid quote link.';
+    return;
+  }
+  try{
+    var res=await fetch(SUPABASE_URL+'/rest/v1/quotes?select=id,data&order=created_at.desc',{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    var rows=await res.json();
+    var row=rows.find(function(r){return r.data&&r.data.publicId===publicId;});
+    if(!row){
+      document.getElementById('loading').textContent='Quote not found. Please contact us.';
+      return;
+    }
+    var q=row.data;
+    q.id=row.id;
+    // Check expiry
+    if(q.expiresAt&&new Date(q.expiresAt)<new Date()){
+      document.getElementById('loading').style.display='none';
+      document.getElementById('expired').style.display='block';
+      return;
+    }
+    document.getElementById('loading').style.display='none';
+    document.getElementById('quote-content').style.display='block';
+    renderQuote(q);
+  }catch(e){
+    document.getElementById('loading').textContent='Error loading quote. Please try again or contact us.';
+  }
+}
+
+function renderQuote(q){
+  var isMulti=q.jobType==='multi';
+  var d0=q.days&&q.days[0]||{};
+  var isAccepted=q.status==='accepted';
+  var html='';
+
+  // Quote header card
+  html+='<div class="quote-card">';
+  html+='<div class="quote-header">';
+  html+='<div class="quote-title">Move Estimate</div>';
+  if(d0.date)html+='<div class="quote-sub">Prepared for '+esc(q.customerName||'')+'</div>';
+  html+='<div class="biz-info">CareMore Moving &amp; Storage &nbsp;·&nbsp; Cal-T #0190970<br>925 Palou Ave, San Francisco, CA 94124 &nbsp;·&nbsp; (415) 822-8547</div>';
+  html+='</div>';
+
+  // Personal note
+  if(q.notes){
+    html+='<div class="section">';
+    html+='<div style="font-size:14px;color:var(--text2);line-height:1.7">'+esc(q.notes)+'</div>';
+    html+='</div>';
+  }
+
+  // Move details
+  html+='<div class="section">';
+  html+='<div class="section-label">Move details</div>';
+  if(isMulti){
+    q.days.forEach(function(d,i){
+      html+='<div style="margin-bottom:14px"><div style="font-weight:600;margin-bottom:6px">Day '+(i+1)+'</div>';
+      html+='<div class="grid-2">';
+      if(d.date){html+='<div><div class="field-label">Date</div><div class="field-value">'+esc(fmtDate(d.date))+'</div></div>';}
+      if(d.arrivalStart){html+='<div><div class="field-label">Arrival</div><div class="field-value">'+esc(d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:''))+'</div></div>';}
+      if(d.from){html+='<div><div class="field-label">Pick-up</div><div class="field-value">'+esc(d.from+(d.fromUnit?', '+d.fromUnit:''))+'</div></div>';}
+      if(d.to){html+='<div><div class="field-label">Drop-off</div><div class="field-value">'+esc(d.to+(d.toUnit?', '+d.toUnit:''))+'</div></div>';}
+      html+='</div></div>';
+    });
+  } else {
+    html+='<div class="grid-2">';
+    if(d0.date){html+='<div><div class="field-label">Move date</div><div class="field-value">'+esc(fmtDate(d0.date))+'</div></div>';}
+    if(d0.arrivalStart){html+='<div><div class="field-label">Arrival window</div><div class="field-value">'+esc(d0.arrivalStart+(d0.arrivalEnd?' – '+d0.arrivalEnd:''))+'</div></div>';}
+    var loads=d0.loads&&d0.loads.length?d0.loads:[{address:d0.from,unit:d0.fromUnit,access:d0.fromAccess}];
+    loads.forEach(function(loc,i){
+      if(!loc.address)return;
+      html+='<div><div class="field-label">'+(i===0?'Pick-up':'Pick-up '+(i+1))+'</div><div class="field-value">'+esc(loc.address+(loc.unit?', '+loc.unit:''))+'</div>';
+      if(loc.access)html+='<div style="font-size:12px;color:var(--text3)">'+esc(loc.access)+'</div>';
+      html+='</div>';
+    });
+    var unloads=d0.unloads&&d0.unloads.length?d0.unloads:[{address:d0.to,unit:d0.toUnit,access:d0.toAccess}];
+    unloads.forEach(function(loc,i){
+      if(!loc.address)return;
+      html+='<div><div class="field-label">'+(i===0?'Drop-off':'Drop-off '+(i+1))+'</div><div class="field-value">'+esc(loc.address+(loc.unit?', '+loc.unit:''))+'</div>';
+      if(loc.access)html+='<div style="font-size:12px;color:var(--text3)">'+esc(loc.access)+'</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+
+  // Billing
+  html+='<div class="section">';
+  html+='<div class="section-label">Billing</div>';
+  html+='<table class="table"><thead><tr><th>Description</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead><tbody>';
+  q.days.forEach(function(d,i){
+    var label=isMulti?'Day '+(i+1)+' — '+d.crew+' Movers':d.crew+' Movers';
+    var range=fmtMoney(d.crew*d.hrsMin*d.rate)+' – '+fmtMoney(d.crew*d.hrsMax*d.rate);
+    html+='<tr><td>'+esc(label)+'</td><td>'+esc(d.hrsMin+' – '+d.hrsMax+' hrs')+'</td><td>'+fmtMoney(d.rate)+'/hr</td><td>'+esc(range)+'</td></tr>';
+  });
+  (q.fees||[]).filter(function(f){return f.included;}).forEach(function(f){
+    var amt=f.type==='range'?fmtMoney(f.hrsMin||0)+' – '+fmtMoney(f.hrsMax||0):fmtMoney(f.amount||0);
+    html+='<tr><td>'+esc(f.label||'')+'</td><td>—</td><td>—</td><td>'+esc(amt)+'</td></tr>';
+  });
+  html+='</tbody><tfoot><tr class="total-row"><td colspan="3">Estimated Total</td><td>'+fmtMoney(q.totalMin)+' – '+fmtMoney(q.totalMax)+'</td></tr></tfoot></table>';
+  if(q.cashDiscount)html+='<div style="margin-top:10px;font-size:13px;color:var(--green)">💵 Cash discount: '+esc(q.cashDiscount)+'</div>';
+  html+='</div>';
+
+  // Terms
+  html+='<div class="section">';
+  html+='<div class="section-label">Terms &amp; conditions</div>';
+  html+='<ul class="terms" style="padding-left:18px">';
+  html+='<li>We accept cash, check, or credit card (NO AMEX). A 3.5% surcharge applies to credit card payments.</li>';
+  html+='<li>2 hour minimum applies.</li>';
+  html+='<li>A $400 cancellation/rescheduling fee applies if cancelled within 7 days of the move date.</li>';
+  html+='<li>Customer is responsible for any parking tickets incurred during the move.</li>';
+  html+='<li>10% yearly rate increase applies.</li>';
+  if(q.stipulations)html+='<li>'+esc(q.stipulations)+'</li>';
+  html+='</ul>';
+  html+='</div>';
+
+  html+='</div>'; // end quote-card
+
+  // Accept section
+  if(isAccepted){
+    html+='<div class="accepted-box"><div class="accepted-check">✓</div>';
+    html+='<div class="accepted-title">Quote accepted!</div>';
+    html+='<p style="color:var(--text2);font-size:14px;margin-bottom:12px">Thank you, '+esc((q.customerName||'').split(' ')[0])+'! We\'ve received your acceptance and will be in touch within 1 business day to confirm your booking.</p>';
+    html+='<div style="font-size:13px;color:var(--text3)">(415) 822-8547 &nbsp;·&nbsp; move@caremoremoving.com</div>';
+    html+='</div>';
+  } else {
+    html+='<div class="accept-section">';
+    html+='<div class="accept-title">Ready to move forward?</div>';
+    html+='<div class="accept-sub">Click below to accept this quote. We\'ll be in touch within 1 business day to confirm your booking.<br><strong>Please note:</strong> this is not a binding contract until you receive a signed confirmation from us.</div>';
+    html+='<button class="accept-btn" id="accept-btn" onclick="acceptQuote(\''+q.id+'\',\''+q.publicId+'\')">&#10003;&nbsp; Accept this quote</button>';
+    html+='</div>';
+  }
+
+  // Contact bar
+  html+='<div class="contact-bar" style="margin-top:16px">Questions? Call <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> or email <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a></div>';
+
+  document.getElementById('quote-content').innerHTML=html;
+  window._currentQuote=q;
+}
+
+async function acceptQuote(quoteId, publicId){
+  var btn=document.getElementById('accept-btn');
+  if(btn){btn.disabled=true;btn.textContent='Accepting...';}
+  var q=window._currentQuote;
+  var acceptedAt=new Date().toISOString();
+  // Update quote in Supabase
+  var updated=Object.assign({},q,{status:'accepted',acceptedAt:acceptedAt});
+  try{
+    await fetch(SUPABASE_URL+'/rest/v1/quotes?id=eq.'+quoteId,{
+      method:'PATCH',
+      headers:{
+        'apikey':SUPABASE_KEY,
+        'Authorization':'Bearer '+SUPABASE_KEY,
+        'Content-Type':'application/json',
+        'Prefer':'return=minimal'
+      },
+      body:JSON.stringify({data:updated})
+    });
+    // Send notification email to CareMore via Apps Script
+    try{
+      var name=q.customerName||'Customer';
+      var phone=q.customerEmail||'';
+      var d0=q.days&&q.days[0]||{};
+      var subject='Quote accepted - '+name;
+      var body=''+name+' has accepted their move quote.\n\n'
+        +'Customer: '+name+'\n'
+        +'Email: '+(q.customerEmail||'—')+'\n'
+        +'Move date: '+(d0.date?fmtDate(d0.date):'—')+'\n'
+        +'Quote total: '+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+'\n'
+        +'Accepted at: '+new Date(acceptedAt).toLocaleString()+'\n\n'
+        +'Log in to MoveDesk to view and book:\nhttps://davidabram217.github.io/movedesk';
+      var params=encodeURIComponent(JSON.stringify({action:'sendEmail',to:'move@caremoremoving.com',subject:subject,body:body}));
+      await fetch(GAS_URL+'?payload='+params,{method:'GET',credentials:'include'});
+    }catch(e){console.log('Notification email failed:',e);}
+    // Show accepted state
+    window._currentQuote=updated;
+    renderQuote(updated);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='✓ Accept this quote';}
+    alert('Something went wrong. Please call us at (415) 822-8547.');
+  }
+}
+
+loadQuote();
+</script>
+</body>
+</html>
