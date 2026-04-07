@@ -28,13 +28,11 @@ const GAS_URL='https://script.google.com/a/macros/caremoremoving.com/s/AKfycbweX
 const OFFICE_EMAIL='move@caremoremoving.com';
 async function gasCall(payload){
   try{
-    const res=await fetch(GAS_URL,{
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify(payload)
-    });
-    return{success:true};
+    const params=encodeURIComponent(JSON.stringify(payload));
+    const url=GAS_URL+'?payload='+params;
+    const res=await fetch(url,{method:'GET'});
+    const data=await res.json();
+    return data;
   }catch(e){
     console.error('GAS error:',e);
     return{success:false,error:e.toString()};
