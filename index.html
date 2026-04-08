@@ -41,8 +41,10 @@ async function gasCall(payload){
     return{success:false,error:e.toString()};
   }
 }
-async function sendEmail(to,cc,subject,body){
-  const result=await gasCall({action:'sendEmail',to,cc,subject,body});
+async function sendEmail(to,cc,subject,body,htmlBody){
+  const payload={action:'sendEmail',to,cc,subject,body};
+  if(htmlBody)payload.htmlBody=htmlBody;
+  const result=await gasCall(payload);
   if(result.success){
     return true;
   } else {
@@ -3589,21 +3591,35 @@ async function openQuoteGmail(){
   if(!to){showToast('No email address on file for this customer');return;}
   const quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+q.publicId;
   const subject='Your Move Estimate — CareMore Moving & Storage';
-  const body='Hi '+name+',\n\n'
-    +'Please find your move estimate from CareMore Moving & Storage at the link below.\n\n'
-    +'VIEW & ACCEPT YOUR QUOTE:\n'+quoteLink+'\n\n'
-    +'This link will remain active for 3 months. Once you\'re ready to move forward, simply click the Accept button on the quote page and we\'ll be in touch to confirm your booking.\n\n'
+  const body='Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage at the link below.\n\n'
+    +quoteLink+'\n\n'
+    +'Once you are ready to move forward, click the Accept button on the quote page and we will be in touch to confirm your booking.\n\n'
     +'If you have any questions please call us at (415) 822-8547 or reply to this email.\n\n'
     +'Thank you,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
-  const url='https://mail.google.com/mail/?view=cm'
-    +'&to='+encodeURIComponent(to)
-    +'&cc='+encodeURIComponent(OFFICE_EMAIL)
-    +'&su='+encodeURIComponent(subject)
-    +'&body='+encodeURIComponent(body);
-  window.open(url,'_blank');
-  showToast('Gmail opened — send the email then click Mark as sent');
-  closeModal('quote-preview');
-  setTimeout(()=>openModal('quote-sent-confirm'),300);
+  const htmlBody='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;color:#1a1916">'
+    +'<div style="text-align:center;margin-bottom:28px">'
+    +'<div style="font-family:Georgia,serif;font-size:32px;font-weight:600;color:#1a1916">CareMore</div>'
+    +'<div style="width:80%;height:2px;background:#4a9e6b;margin:8px auto"></div>'
+    +'<div style="font-family:Georgia,serif;font-size:22px;font-style:italic;color:#1a1916">Moving &amp; Storage</div>'
+    +'<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9e9b94;margin-top:6px">San Francisco, CA</div>'
+    +'</div>'
+    +'<p style="font-size:15px;line-height:1.7;margin-bottom:12px">Hi '+name+',</p>'
+    +'<p style="font-size:14px;line-height:1.7;color:#444;margin-bottom:24px">Please find your move estimate from CareMore Moving &amp; Storage at the link below. Once you are ready to move forward, simply click the button to accept and we will be in touch to confirm your booking.</p>'
+    +'<div style="text-align:center;margin:32px 0">'
+    +'<a href="'+quoteLink+'" style="display:inline-block;background:#2d5a3d;color:#ffffff;text-decoration:none;padding:16px 48px;border-radius:8px;font-size:16px;font-weight:600;letter-spacing:.3px">View &amp; Accept Your Quote</a>'
+    +'</div>'
+    +'<p style="font-size:13px;color:#888;text-align:center;margin-bottom:24px">Or copy this link into your browser:<br><a href="'+quoteLink+'" style="color:#2d5a3d;word-break:break-all">'+quoteLink+'</a></p>'
+    +'<hr style="border:none;border-top:1px solid #e0dbd0;margin:24px 0">'
+    +'<p style="font-size:13px;color:#6b6760;line-height:1.7">If you have any questions please call us at <strong>(415) 822-8547</strong> or reply to this email.</p>'
+    +'<p style="font-size:13px;color:#6b6760;margin-top:16px">Thank you,<br><strong>The CareMore Team</strong><br>CareMore Moving &amp; Storage<br>(415) 822-8547 &nbsp;|&nbsp; www.caremoremoving.com</p>'
+    +'</div>';
+  showToast('Sending quote email...');
+  const sent=await sendEmail(to,OFFICE_EMAIL,subject,body,htmlBody);
+  if(sent){
+    showToast('✓ Quote email sent to '+to);
+    closeModal('quote-preview');
+    setTimeout(()=>openModal('quote-sent-confirm'),300);
+  }
 }
 function confirmQuoteSent(didSend){
   closeModal('quote-sent-confirm');
