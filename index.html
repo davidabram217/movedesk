@@ -744,9 +744,9 @@ function sendConfirmationEmail(){
       l.status='Confirmation sent';
     }
   }
-  const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
+  const j=db.bookedJobs.find(x=>x.id===(typeof currentBookedJobId!=='undefined'?currentBookedJobId:null));
   if(j){j.confirmEmailSent=true;}
-  if(window._currentDayId&&j){
+  if(typeof currentBookedJobId!=='undefined'&&window._currentDayId&&j){
     const day=(j.extraDays||[]).find(d=>d.id===window._currentDayId);
     if(day){day.emailSent=true;}
   }
@@ -764,9 +764,9 @@ function sendConfirmationEmail(){
       }
     });
   }
-  if(currentBookedJobId&&!window._currentDayId){
+  if(typeof currentBookedJobId!=='undefined'&&currentBookedJobId&&!window._currentDayId){
     setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
-  } else if(currentBookedJobId&&window._currentDayId){
+  } else if(typeof currentBookedJobId!=='undefined'&&currentBookedJobId&&window._currentDayId){
     const job=db.bookedJobs.find(x=>x.id===currentBookedJobId);
     const day=job?(job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
     if(job&&day)setTimeout(()=>showDayNextSteps(job,day),300);
