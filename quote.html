@@ -95,17 +95,24 @@ function getPublicId(){
 async function loadQuote(){
   var publicId=getPublicId();
   if(!publicId){
-    document.getElementById('loading').textContent='Invalid quote link.';
+    document.getElementById('loading').textContent='Invalid quote link. Please contact us at (415) 822-8547.';
     return;
   }
   try{
     var res=await fetch(SUPABASE_URL+'/rest/v1/quotes?select=id,data&order=created_at.desc',{
       headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
     });
+    if(!res.ok){
+      var err=await res.text();
+      console.error('Supabase error:',res.status,err);
+      document.getElementById('loading').textContent='Unable to load quote (error '+res.status+'). Please contact us at (415) 822-8547.';
+      return;
+    }
     var rows=await res.json();
+    console.log('Quotes loaded:',rows.length,'Looking for publicId:',publicId);
     var row=rows.find(function(r){return r.data&&r.data.publicId===publicId;});
     if(!row){
-      document.getElementById('loading').textContent='Quote not found. Please contact us.';
+      document.getElementById('loading').textContent='Quote not found. It may have been updated — please contact us at (415) 822-8547.';
       return;
     }
     var q=row.data;
@@ -120,7 +127,8 @@ async function loadQuote(){
     document.getElementById('quote-content').style.display='block';
     renderQuote(q);
   }catch(e){
-    document.getElementById('loading').textContent='Error loading quote. Please try again or contact us.';
+    console.error('loadQuote error:',e);
+    document.getElementById('loading').textContent='Error loading quote. Please contact us at (415) 822-8547.';
   }
 }
 
@@ -223,7 +231,7 @@ function renderQuote(q){
     html+='<div class="accept-section">';
     html+='<div class="accept-title">Ready to move forward?</div>';
     html+='<div class="accept-sub">Click below to accept this quote. We\'ll be in touch within 1 business day to confirm your booking.<br><strong>Please note:</strong> this is not a binding contract until you receive a signed confirmation from us.</div>';
-    html+='<button class="accept-btn" id="accept-btn" onclick="acceptQuote(\''+q.id+'\',\''+q.publicId+'\')">&#10003;&nbsp; Accept this quote</button>';
+    html+='<button class="accept-btn" id="accept-btn" onclick="acceptQuote(\''+q.id+'\',\''+q.publicId+'\')">&#10003;&nbsp; Accept Quote</button>';
     html+='</div>';
   }
 
