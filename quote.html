@@ -73,12 +73,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);
     <div style="font-size:20px;font-weight:600;margin-bottom:8px">This quote has expired</div>
     <div style="color:var(--text3);margin-bottom:24px">Please contact us for an updated estimate.</div>
     <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> &nbsp;·&nbsp;
-    <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a>
+    <a href="/cdn-cgi/l/email-protection#84e9ebf2e1c4e7e5f6e1e9ebf6e1e9ebf2edeae3aae7ebe9" style="color:var(--green);font-weight:500"><span class="__cf_email__" data-cfemail="036e6c756643606271666e6c71666e6c756a6d642d606c6e">[email&#160;protected]</span></a>
   </div>
   <div id="quote-content" style="display:none"></div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
 var GAS_URL='https://script.google.com/a/macros/caremoremoving.com/s/AKfycbweX_A7i3mpTpWP86RVe3i4QpHXEHS0tfwN53gMlXYjxLj8CoHSHmSnTGpEoWWV2CF8/exec';
@@ -252,32 +252,32 @@ async function acceptQuote(quoteId, publicId){
       },
       body:JSON.stringify({data:updated})
     });
-    // Send notification email to CareMore via Apps Script
+    // Send notification email to CareMore via EmailJS
     try{
-      var name=q.customerName||'Customer';
-      var phone=q.customerEmail||'';
-      var d0=q.days&&q.days[0]||{};
-      var subject='Quote accepted - '+name;
-      var body=''+name+' has accepted their move quote.\n\n'
-        +'Customer: '+name+'\n'
-        +'Email: '+(q.customerEmail||'—')+'\n'
-        +'Move date: '+(d0.date?fmtDate(d0.date):'—')+'\n'
-        +'Quote total: '+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+'\n'
-        +'Accepted at: '+new Date(acceptedAt).toLocaleString()+'\n\n'
-        +'Log in to MoveDesk to view and book:\nhttps://davidabram217.github.io/movedesk';
-      var params=encodeURIComponent(JSON.stringify({action:'sendEmail',to:'move@caremoremoving.com',subject:subject,body:body}));
-      await fetch(GAS_URL+'?payload='+params,{method:'GET',credentials:'include'});
+      var ejsScript=document.createElement('script');
+      ejsScript.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+      ejsScript.onload=function(){
+        emailjs.init({publicKey:'76y89yZYC-kcq82ol'});
+        var name=q.customerName||'Customer';
+        var d0=q.days&&q.days[0]||{};
+        var notifyBody=''+name+' has accepted their move quote.\n\n'
+          +'Customer: '+name+'\n'
+          +'Email: '+(q.customerEmail||'--')+'\n'
+          +'Move date: '+(d0.date?fmtDate(d0.date):'--')+'\n'
+          +'Quote total: '+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+'\n'
+          +'Accepted at: '+new Date(acceptedAt).toLocaleString()+'\n\n'
+          +'Log in to MoveDesk to view and book:\nhttps://davidabram217.github.io/movedesk';
+        emailjs.send('service_nakq8tb','template_nr2plwp',{
+          to_email:'move@caremoremoving.com',
+          to_name:'CareMore Moving and Storage',
+          from_name:'CareMore Moving and Storage',
+          reply_to:'move@caremoremoving.com',
+          subject:'Quote accepted - '+name+' ('+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+')',
+          message:notifyBody,
+          html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+notifyBody+'</pre>'
+        });
+      };
+      document.head.appendChild(ejsScript);
     }catch(e){console.log('Notification email failed:',e);}
     // Show accepted state
-    window._currentQuote=updated;
-    renderQuote(updated);
-  }catch(e){
-    if(btn){btn.disabled=false;btn.textContent='✓ Accept this quote';}
-    alert('Something went wrong. Please call us at (415) 822-8547.');
-  }
-}
-
-loadQuote();
-</script>
-</body>
-</html>
+    window.
