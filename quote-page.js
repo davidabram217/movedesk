@@ -125,7 +125,7 @@ function renderQuote(q){
   if(isAccepted){
     html+='<div class="accepted-box"><div class="accepted-check">&#10003;</div>';
     html+='<div class="accepted-title">Quote accepted!</div>';
-    html+='<p style="color:var(--text2);font-size:14px;margin-bottom:12px">Thank you, '+esc((q.customerName||'').split(' ')[0])+'! We have received your acceptance and will be in touch within 1 business day to confirm your booking.</p>';
+    html+='<p style="color:var(--text2);font-size:14px;margin-bottom:12px">Thank you, '+esc((q.customerName||'').split(' ')[0])+'! We have received your acceptance and we will be in touch within 2 business days to confirm what dates are available for your move.</p>';
     html+='<div style="font-size:13px;color:var(--text3)">(415) 822-8547 &nbsp;&middot;&nbsp; move@caremoremoving.com</div>';
     html+='</div>';
   } else {
