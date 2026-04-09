@@ -116,16 +116,11 @@ function renderQuote(q){
   if(q.cashDiscount)html+='<div style="margin-top:10px;font-size:13px;color:var(--green)">Cash discount: '+esc(q.cashDiscount)+'</div>';
   html+='</div>';
 
-  html+='<div class="section"><div class="section-label">Terms &amp; conditions</div>';
-  html+='<ul class="terms" style="padding-left:18px">';
-  html+='<li>We accept cash, check, or credit card (NO AMEX). A 3.5% surcharge applies to credit card payments.</li>';
-  html+='<li>2 hour minimum applies.</li>';
-  html+='<li>A $400 cancellation/rescheduling fee applies if cancelled within 7 days of the move date.</li>';
-  html+='<li>Customer is responsible for any parking tickets incurred during the move.</li>';
-  html+='<li>10% yearly rate increase applies.</li>';
-  if(q.stipulations)html+='<li>'+esc(q.stipulations)+'</li>';
-  html+='</ul></div>';
-  html+='</div>';
+  if(q.stipulations){
+    html+='<div class="section"><div class="section-label">Terms &amp; conditions</div>';
+    html+='<div style="font-size:13px;color:var(--text2);line-height:1.8;white-space:pre-wrap">'+esc(q.stipulations)+'</div>';
+    html+='</div>';
+  }
 
   if(isAccepted){
     html+='<div class="accepted-box"><div class="accepted-check">&#10003;</div>';
@@ -136,7 +131,7 @@ function renderQuote(q){
   } else {
     html+='<div class="accept-section">';
     html+='<div class="accept-title">Ready to move forward?</div>';
-    html+='<div class="accept-sub">Click below to accept this quote. We will be in touch within 1 business day to confirm your booking.<br><strong>Please note:</strong> this is not a binding contract until you receive a signed confirmation from us.</div>';
+    html+='<div class="accept-sub">Click below to accept this quote. We will be in touch within 2 business days to confirm your booking. Please note: the move is not confirmed until we confirm that the date(s) are available and we send you a confirmation email.</div>';
     html+='<button class="accept-btn" id="accept-btn" onclick="acceptQuote(\''+q.id+'\',\''+q.publicId+'\')">&#10003;&nbsp; Accept Quote</button>';
     html+='</div>';
   }
