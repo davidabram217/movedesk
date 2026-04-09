@@ -26,29 +26,47 @@ const SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
 const GAS_URL='https://script.google.com/a/macros/caremoremoving.com/s/AKfycbweX_A7i3mpTpWP86RVe3i4QpHXEHS0tfwN53gMlXYjxLj8CoHSHmSnTGpEoWWV2CF8/exec';
 const OFFICE_EMAIL='move@caremoremoving.com';
-async function gasCall(payload){
-  try{
-    const params=encodeURIComponent(JSON.stringify(payload));
-    const url=GAS_URL+'?payload='+params;
-    const res=await fetch(url,{
-      method:'GET',
-      credentials:'include'
-    });
-    const data=await res.json();
-    return data;
-  }catch(e){
-    console.error('GAS error:',e);
-    return{success:false,error:e.toString()};
-  }
+const EJS_SERVICE='service_nakq8tb';
+const EJS_QUOTE_TEMPLATE='template_62a5o7u';
+const EJS_NOTIFY_TEMPLATE='template_nr2plwp';
+const EJS_PUBLIC_KEY='76y89yZYC-kcq82ol';
+function loadEmailJS(){
+  if(window.emailjs)return Promise.resolve();
+  return new Promise(resolve=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
+    s.onload=()=>{emailjs.init({publicKey:EJS_PUBLIC_KEY});resolve();};
+    document.head.appendChild(s);
+  });
 }
 async function sendEmail(to,cc,subject,body,htmlBody){
-  const payload={action:'sendEmail',to,cc,subject,body};
-  if(htmlBody)payload.htmlBody=htmlBody;
-  const result=await gasCall(payload);
-  if(result.success){
+  try{
+    await loadEmailJS();
+    const template=htmlBody?EJS_QUOTE_TEMPLATE:EJS_NOTIFY_TEMPLATE;
+    const params={
+      to_email:to,
+      to_name:to,
+      from_name:'CareMore Moving and Storage',
+      reply_to:OFFICE_EMAIL,
+      subject:subject,
+      message:body,
+      html_content:htmlBody||('<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>')
+    };
+    await emailjs.send(EJS_SERVICE,template,params);
+    if(cc&&cc!==to){
+      await emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{
+        to_email:cc,
+        to_name:'CareMore Moving and Storage',
+        from_name:'CareMore Moving and Storage',
+        reply_to:OFFICE_EMAIL,
+        subject:'[CC] '+subject,
+        message:body,
+        html_content:htmlBody||('<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>')
+      });
+    }
     return true;
-  } else {
-    console.warn('GAS email failed, falling back to Gmail window:',result.error);
+  }catch(e){
+    console.warn('EmailJS failed, falling back to Gmail window:',e);
     const mailto='https://mail.google.com/mail/?view=cm'
       +'&to='+encodeURIComponent(to||'')
       +(cc?'&cc='+encodeURIComponent(cc):'')
@@ -56,6 +74,36 @@ async function sendEmail(to,cc,subject,body,htmlBody){
       +'&body='+encodeURIComponent(body);
     window.open(mailto,'_blank');
     return false;
+  }
+}
+async function sendInternalEmail(subject,body){
+  try{
+    await loadEmailJS();
+    await emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{
+      to_email:OFFICE_EMAIL,
+      to_name:'CareMore Moving and Storage',
+      from_name:'CareMore Moving and Storage',
+      reply_to:OFFICE_EMAIL,
+      subject:subject,
+      message:body,
+      html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>'
+    });
+    return true;
+  }catch(e){
+    console.warn('Internal email failed:',e);
+    return false;
+  }
+}
+async function gasCall(payload){
+  try{
+    const params=encodeURIComponent(JSON.stringify(payload));
+    const url=GAS_URL+'?payload='+params;
+    const res=await fetch(url,{method:'GET',credentials:'include'});
+    const data=await res.json();
+    return data;
+  }catch(e){
+    console.error('GAS error:',e);
+    return{success:false,error:e.toString()};
   }
 }
 async function addCalendarEvent(title,start,end,description,location,allDay){
