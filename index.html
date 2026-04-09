@@ -751,6 +751,19 @@ function sendConfirmationEmail(){
     if(day){day.emailSent=true;}
   }
   saveDB();closeModal('confirm-email');showToast('✓ Confirmation email ready to send');renderLeads();
+  if(l&&l.date&&!currentBookedJobId){
+    const start=new Date(l.date+'T08:30:00');
+    const end=new Date(l.date+'T17:00:00');
+    const title='MOVE - '+l.name;
+    const desc=l.phone+'\n'+(l.from||'')+(l.to?' -> '+l.to:'');
+    addCalendarEvent(title,start,end,desc,l.from||'',false).then(function(eventId){
+      if(eventId){
+        l.calendarEventId=eventId;l.calendarAdded=true;
+        saveDB();
+        showToast('✓ Added to Google Calendar for '+fmtDate(l.date));
+      }
+    });
+  }
   if(currentBookedJobId&&!window._currentDayId){
     setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
   } else if(currentBookedJobId&&window._currentDayId){
@@ -1213,7 +1226,7 @@ function renderBookingChecklist(){
           <div style="font-weight:500;font-size:13px;color:${emailDone?'var(--accent)':'var(--text)'}">${emailDone?'✓ Confirmation email sent':'✉ Send confirmation email'}</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${emailDone?'Done':'Opens a pre-written booking confirmation email'}</div>
         </div>
-        ${!emailDone?`<button class="btn btn-secondary btn-sm" onclick="bookingOpenEmail()">Send →</button>`:''}
+        ${!emailDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingOpenEmail()">Send →</button><button class="btn btn-secondary btn-sm" onclick="markJobEmailSent('${j.id}')" style="font-size:11px">✓ Mark sent</button></div>`:''}
       </div>
     </div>
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${calDone?'var(--accent)':'var(--border2)'};background:${calDone?'var(--accent-light)':'var(--surface)'}">
@@ -1222,7 +1235,7 @@ function renderBookingChecklist(){
           <div style="font-weight:500;font-size:13px;color:${calDone?'var(--accent)':'var(--text)'}">${calDone?'✓ Added to Google Calendar':'📅 Add to Google Calendar'}</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${calDone?'Done':'Opens Google Calendar with the job pre-filled'}</div>
         </div>
-        ${!calDone?`<a href="${window._bookingCalUrl||'#'}" target="_blank" rel="noopener" onclick="bookingCalDone()" class="btn btn-secondary btn-sm" style="text-decoration:none">Open →</a>`:''}
+        ${!calDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingCalDone()">Add to calendar →</button><button class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')" style="font-size:11px">✓ Mark done</button></div>`:''}
       </div>
     </div>`;
   const btn=document.getElementById('bk-confirm-btn');
@@ -1262,19 +1275,34 @@ async function bookingCalDone(){
   const date=j.date;
   const timeStr=j.time?j.time.split('–')[0].trim():'08:30';
   const start=new Date(date+'T'+convertTime12to24(timeStr)+':00');
-  const end=new Date(start.getTime()+4*60*60*1000); // default 4 hours
+  const end=new Date(start.getTime()+4*60*60*1000);
   const title='MOVE - '+j.name+(j.crew?' ('+j.crew+')':'');
   const desc=buildJobCalDesc(j);
   showToast('Adding job to Google Calendar...');
   const eventId=await addCalendarEvent(title,start,end,desc,j.from||'',false);
-  if(eventId){
-    j.calendarAdded=true;
-    j.calendarEventId=eventId;
-    j.calendarAddedDate=new Date().toISOString().split('T')[0];
-    saveDB();
-    showToast('✓ Job added to calendar for '+fmtDate(date));
-    renderBookingChecklist();
-  }
+  j.calendarAdded=true;
+  if(eventId){j.calendarEventId=eventId;}
+  j.calendarAddedDate=new Date().toISOString().split('T')[0];
+  saveDB();
+  showToast(eventId?'✓ Job added to calendar for '+fmtDate(date):'✓ Calendar step complete');
+  renderBookingChecklist();
+}
+function markJobCalAdded(jobId){
+  const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
+  if(!j)return;
+  j.calendarAdded=true;
+  j.calendarAddedDate=new Date().toISOString().split('T')[0];
+  saveDB();
+  renderBookingChecklist();
+  showToast('✓ Calendar marked as done');
+}
+function markJobEmailSent(jobId){
+  const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
+  if(!j)return;
+  j.confirmEmailSent=true;
+  saveDB();
+  renderBookingChecklist();
+  showToast('✓ Email marked as sent');
 }
 function buildJobCalDesc(j){
   const lines=[];
