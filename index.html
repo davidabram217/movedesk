@@ -984,8 +984,10 @@ function showEstimateCalPrompt(leadId){
   const date=l.estimateScheduledDate||new Date().toISOString().split('T')[0];
   const fmtD=fmtDate(date);
   const time=l.estimateScheduledTime?'at '+l.estimateScheduledTime:'';
+  const isReschedule=l.status==='Estimate scheduled'&&!l.estimateCalendarAdded;
   document.getElementById('estimate-cal-summary').innerHTML=
-    `<strong>${l.name}</strong><br>${type} estimate · ${fmtD} ${time}<br><span style="color:var(--text3)">${l.from||'—'}</span>`;
+    `<strong>${l.name}</strong><br>${type} estimate · ${fmtD} ${time}<br><span style="color:var(--text3)">${l.from||'—'}</span>`
+    +(isReschedule?'<div style="margin-top:10px;padding:8px 12px;background:#fff3cd;border-radius:6px;border:1px solid #f0d080;font-size:12px;color:#856404">⚠️ You rescheduled this estimate — please delete the old calendar event first, then add the new date below.</div>':'');
   try{
     const url=window._estimateCalUrl||buildCalUrl(l,type,date);
     window._estimateCalUrl=url;
@@ -1004,6 +1006,8 @@ function showEstimateCalPrompt(leadId){
   }
 }
 function markEstimateCalOpened(){
+  const l=db.leads.find(x=>x.id===currentScheduleEstimateLeadId);
+  if(l){l.estimateCalendarAdded=true;saveDB();}
   setTimeout(()=>{
     const btn=document.getElementById('est-cal-open-btn');
     if(btn){btn.innerHTML='✓ Opened — click Done when saved in Calendar';btn.style.background='var(--surface2)';btn.style.color='var(--accent)';btn.style.borderColor='var(--accent)';}
@@ -1011,13 +1015,21 @@ function markEstimateCalOpened(){
 }
 function finishScheduleEstimate(){
   const l=db.leads.find(x=>x.id===currentScheduleEstimateLeadId);
+  const wasScheduled=l&&l.status==='Estimate scheduled'&&l.estimateCalendarAdded;
   if(l){
     l.status='Estimate scheduled';
+    if(wasScheduled){
+      l.estimateCalendarAdded=false;
+    }
     if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
     saveDB();renderLeads();
   }
   nextStepSubModal=false;
-  showToast('✓ Estimate scheduled — '+(l?.name||''));
+  if(wasScheduled){
+    showToast('✓ Estimate updated — please delete the old calendar event and add the new date');
+  } else {
+    showToast('✓ Estimate scheduled — '+(l?.name||''));
+  }
 }
 function buildCalUrl(l,type,date){
   if(!date)date=l.estimateScheduledDate||new Date().toISOString().split('T')[0];
