@@ -2482,27 +2482,22 @@ async function checkAcceptedQuotes(){
   try{
     const rows=await sbFetch('quotes?select=id,data&order=created_at.desc');
     if(!rows)return;
-    console.log('checkAcceptedQuotes: fetched',rows.length,'quotes from Supabase');
-    const accepted=rows.filter(r=>r.data&&r.data.status==='accepted');
-    console.log('checkAcceptedQuotes: found',accepted.length,'accepted quotes');
-    accepted.forEach(r=>console.log('  accepted:',r.id,r.data?.publicId));
-    console.log('checkAcceptedQuotes: local quotes:',db.quotes.map(q=>({id:q.id,publicId:q.publicId,status:q.status})));
     let changed=false;
     rows.forEach(r=>{
       const q=r.data;
       if(!q||q.status!=='accepted')return;
       const localQ=db.quotes.find(x=>x.id===r.id||x.publicId===q.publicId);
-      console.log('checkAcceptedQuotes: matching',r.id,'→ localQ found:',!!localQ,localQ?.status);
-      if(localQ&&localQ.status!=='accepted'){
+      if(!localQ)return;
+      if(localQ.status!=='accepted'){
         localQ.status='accepted';
         localQ.acceptedAt=q.acceptedAt;
-        const lead=db.leads.find(x=>x.id===localQ.leadId);
-        if(lead&&lead.status!=='Quote accepted'&&lead.status!=='Booked'&&lead.status!=='Completed'){
-          lead.status='Quote accepted';
-          changed=true;
-          showToast('🎉 '+localQ.customerName+' has accepted their quote!');
-        }
         changed=true;
+      }
+      const lead=db.leads.find(x=>x.id===localQ.leadId);
+      if(lead&&lead.status!=='Quote accepted'&&lead.status!=='Confirmation sent'&&lead.status!=='Booked'&&lead.status!=='Completed'){
+        lead.status='Quote accepted';
+        changed=true;
+        showToast('🎉 '+localQ.customerName+' has accepted their quote!');
       }
     });
     if(changed){saveDB();if(document.getElementById('page-leads').classList.contains('active'))renderLeads();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
