@@ -50,7 +50,7 @@ async function sendEmail(to,cc,subject,body,htmlBody){
       reply_to:OFFICE_EMAIL,
       subject:subject,
       message:body,
-      html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">&#11088; Check out our Yelp reviews</a></p></div>')
+      html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>')
     };
     await emailjs.send(EJS_SERVICE,template,params);
     if(cc&&cc!==to){
@@ -61,7 +61,7 @@ async function sendEmail(to,cc,subject,body,htmlBody){
         reply_to:OFFICE_EMAIL,
         subject:'[CC] '+subject,
         message:body,
-        html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">&#11088; Check out our Yelp reviews</a></p></div>')
+        html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>')
       });
     }
     return true;
@@ -1226,8 +1226,7 @@ function renderBookingChecklist(){
           <div style="font-weight:500;font-size:13px;color:${emailDone?'var(--accent)':'var(--text)'}">${emailDone?'✓ Confirmation email sent':'✉ Send confirmation email'}</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${emailDone?'Done':'Opens a pre-written booking confirmation email'}</div>
         </div>
-        ${!emailDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingOpenEmail()">Send →</button><button class="btn btn-secondary btn-sm" onclick="markJobEmailSent('${j.id}')" style="font-size:11px">✓ Mark sent</button></div>`:''}
-      </div>
+        ${!emailDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingOpenEmail()">Send →</button><button class="btn btn-secondary btn-sm" onclick="markJobEmailSent('${j.id}')" style="font-size:11px">✓ Mark sent</button></div>`:''}      </div>
     </div>
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${calDone?'var(--accent)':'var(--border2)'};background:${calDone?'var(--accent-light)':'var(--surface)'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1259,15 +1258,13 @@ async function bookingOpenEmail(){
   if(!to){showToast('No email on file — open lead to add email');return;}
   const firstName=(j.name||'').split(' ')[0];
   const subject='Move Confirmation — '+fmtDate(j.date);
-  const body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:\n\nWhen: '+fmtDate(j.date)+(j.time?', '+j.time:'')+'\n\nPick-up:\n'+fmtLoadLocations(j)+'\n\nDrop-off:\n'+fmtUnloadLocations(j)+'\n\n*Customer responsible for any parking tickets should they be incurred\n'+(j.packing&&j.packing!=='No'?'*'+j.packing+' packing included\n':'')+'\n'+(j.movers||'3')+' men @ $'+(j.rateRegular||'225')+'.00 Per Hour ($'+(j.rateCash||'210')+'.00 If Paid Cash)\n2 hour minimum\n'+(j.feeMaterials?'$'+j.feeMaterials+' Material Fee\n':'')+''+(j.feeFuel?'$'+j.feeFuel+' Fuel Fee\n':'')+'Return drive time back to warehouse at completion\n(30 Minute Minimum)\n(10% yearly increase / 3.5% CC Fee)\n\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nIf you have any questions feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to seeing you soon!\n\nSincerely,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
-  showToast('Sending confirmation email...');
-  const sent=await sendEmail(to,OFFICE_EMAIL,subject,body);
-  if(sent){
-    j.confirmEmailSent=true;
-    saveDB();
-    showToast('✓ Confirmation email sent to '+to);
-    renderBookingChecklist();
-  }
+  const body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:\n\nWhen: '+fmtDate(j.date)+(j.time?', '+j.time:'')+'\n\nPick-up:\n'+fmtLoadLocations(j)+'\n\nDrop-off:\n'+fmtUnloadLocations(j)+'\n\n*Customer responsible for any parking tickets should they be incurred\n'+(j.packing&&j.packing!=='No'?'*'+j.packing+' packing included\n':'')+'\n'+(j.movers||'3')+' men @ $'+(j.rateRegular||'225')+'.00 Per Hour ($'+(j.rateCash||'210')+'.00 If Paid Cash)\n2 hour minimum\n'+(j.feeMaterials?'$'+j.feeMaterials+' Material Fee\n':'')+''+(j.feeFuel?'$'+j.feeFuel+' Fuel Fee\n':'')+'Return drive time back to warehouse at completion\n(30 Minute Minimum)\n(10% yearly increase / 3.5% CC Fee)\n\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the following important documents before your move:\n\nInsurance Options Form 2026:\nhttps://drive.google.com/file/d/1iDk5QAJ_avsMmhRyoXMy9F-iY_IvljtJ/view?usp=drive_link\n\nMove Confirmation Letter 2026:\nhttps://drive.google.com/file/d/1V_SwNhJvjnimoCWm8z4OPp3UOgLF0aIc/view?usp=drive_link\n\nPlease let us know your insurance option choice prior to your move.\n\nIf you have any questions feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to seeing you soon!\n\nSincerely,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
+  currentConfirmEmailLeadId=j.leadId||null;
+  document.getElementById('ce-to').value=to;
+  document.getElementById('ce-subject').value=subject;
+  document.getElementById('ce-body').value=body;
+  closeModal('booking-next');
+  setTimeout(()=>openModal('confirm-email'),200);
 }
 async function bookingCalDone(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
@@ -1324,11 +1321,15 @@ async function sendConfirmEmailViaEJS(){
       reply_to:OFFICE_EMAIL,
       subject:subject,
       message:body,
-      html_content:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><div style=\"font-family:Arial,sans-serif;font-size:13px;color:#444;margin-bottom:16px\"><strong>Important documents:</strong></div><div style=\"display:flex;flex-direction:column;gap:10px;margin-bottom:20px\"><a href=\"https://drive.google.com/file/d/1iDk5QAJ_avsMmhRyoXMy9F-iY_IvljtJ/view?usp=drive_link\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Insurance Options Form 2026 — Please review and let us know your choice before your move</a><a href=\"https://drive.google.com/file/d/1V_SwNhJvjnimoCWm8z4OPp3UOgLF0aIc/view?usp=drive_link\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Move Confirmation Letter 2026</a></div><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">&#11088; Check out our Yelp reviews</a></p></div>'
+      html_content:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><div style=\"font-family:Arial,sans-serif;font-size:13px;color:#444;margin-bottom:16px\"><strong>Important documents:</strong></div><div style=\"display:flex;flex-direction:column;gap:10px;margin-bottom:20px\"><a href=\"https://drive.google.com/file/d/1iDk5QAJ_avsMmhRyoXMy9F-iY_IvljtJ/view?usp=drive_link\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Insurance Options Form 2026 — Please review and let us know your choice before your move</a><a href=\"https://drive.google.com/file/d/1V_SwNhJvjnimoCWm8z4OPp3UOgLF0aIc/view?usp=drive_link\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Move Confirmation Letter 2026</a></div><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>'
     });
     console.log('sendConfirmEmailViaEJS: success',result);
     showToast('✓ Confirmation email sent to '+to);
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
+    if(typeof currentBookedJobId!=='undefined'&&currentBookedJobId){
+      const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
+      if(j){j.confirmEmailSent=true;saveDB();}
+    }
     sendConfirmationEmail();
   }catch(e){
     console.error('sendConfirmEmailViaEJS FAILED:',e,JSON.stringify(e));
@@ -2484,11 +2485,17 @@ async function checkAcceptedQuotes(){
   try{
     const rows=await sbFetch('quotes?select=id,data&order=created_at.desc');
     if(!rows)return;
+    console.log('checkAcceptedQuotes: fetched',rows.length,'quotes from Supabase');
+    const accepted=rows.filter(r=>r.data&&r.data.status==='accepted');
+    console.log('checkAcceptedQuotes: found',accepted.length,'accepted quotes');
+    accepted.forEach(r=>console.log('  accepted:',r.id,r.data?.publicId));
+    console.log('checkAcceptedQuotes: local quotes:',db.quotes.map(q=>({id:q.id,publicId:q.publicId,status:q.status})));
     let changed=false;
     rows.forEach(r=>{
       const q=r.data;
       if(!q||q.status!=='accepted')return;
       const localQ=db.quotes.find(x=>x.id===r.id||x.publicId===q.publicId);
+      console.log('checkAcceptedQuotes: matching',r.id,'→ localQ found:',!!localQ,localQ?.status);
       if(localQ&&localQ.status!=='accepted'){
         localQ.status='accepted';
         localQ.acceptedAt=q.acceptedAt;
@@ -3177,7 +3184,7 @@ function openQuoteBuilder(leadId){
     if(existing){currentQuoteId=existing.id;loadQuoteIntoBuilder(existing);openModal('quote-builder');return;}
   }
   const rate=db.settings.rateBase||225;
-  qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toType:l?l.toType:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
+  qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromParking:l?l.parkingLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toParking:l?l.parkingUnload||'':'',toType:l?l.toType:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
   qbFees=[{id:uid(),label:'Fuel Fee',amount:75,included:true},{id:uid(),label:'Standard Material Fee',amount:40,included:true}];
   if(l&&l.packing&&l.packing!=='No — just moving')qbFees.push({id:uid(),label:'Packing Materials',amount:0,included:true});
   document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
