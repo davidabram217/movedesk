@@ -737,6 +737,7 @@ function openConfirmEmail(leadId){currentConfirmEmailLeadId=leadId;const l=db.le
 function sendConfirmationEmail(){
   const to=document.getElementById('ce-to').value.trim();
   if(!to){showToast('Please enter a recipient email.');return;}
+  const bookedJobId=(typeof currentBookedJobId!=='undefined')?currentBookedJobId:null;
   const l=db.leads.find(x=>x.id===currentConfirmEmailLeadId);
   if(l){
     l.emailConfirmationSent=true;
@@ -744,30 +745,26 @@ function sendConfirmationEmail(){
       l.status='Confirmation sent';
     }
   }
-  const j=db.bookedJobs.find(x=>x.id===(typeof currentBookedJobId!=='undefined'?currentBookedJobId:null));
+  const j=db.bookedJobs.find(x=>x.id===bookedJobId);
   if(j){j.confirmEmailSent=true;}
-  if(typeof currentBookedJobId!=='undefined'&&window._currentDayId&&j){
+  if(bookedJobId&&window._currentDayId&&j){
     const day=(j.extraDays||[]).find(d=>d.id===window._currentDayId);
     if(day){day.emailSent=true;}
   }
-  saveDB();closeModal('confirm-email');showToast('✓ Confirmation email ready to send');renderLeads();
-  if(l&&l.date&&!currentBookedJobId){
+  saveDB();closeModal('confirm-email');showToast('✓ Confirmation email sent');renderLeads();
+  if(l&&l.date&&!bookedJobId){
     const start=new Date(l.date+'T08:30:00');
     const end=new Date(l.date+'T17:00:00');
     const title='MOVE - '+l.name;
     const desc=l.phone+'\n'+(l.from||'')+(l.to?' -> '+l.to:'');
     addCalendarEvent(title,start,end,desc,l.from||'',false).then(function(eventId){
-      if(eventId){
-        l.calendarEventId=eventId;l.calendarAdded=true;
-        saveDB();
-        showToast('✓ Added to Google Calendar for '+fmtDate(l.date));
-      }
+      if(eventId){l.calendarEventId=eventId;l.calendarAdded=true;saveDB();showToast('✓ Added to Google Calendar for '+fmtDate(l.date));}
     });
   }
-  if(typeof currentBookedJobId!=='undefined'&&currentBookedJobId&&!window._currentDayId){
+  if(bookedJobId&&!window._currentDayId){
     setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
-  } else if(typeof currentBookedJobId!=='undefined'&&currentBookedJobId&&window._currentDayId){
-    const job=db.bookedJobs.find(x=>x.id===currentBookedJobId);
+  } else if(bookedJobId&&window._currentDayId){
+    const job=db.bookedJobs.find(x=>x.id===bookedJobId);
     const day=job?(job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
     if(job&&day)setTimeout(()=>showDayNextSteps(job,day),300);
   }
