@@ -306,38 +306,58 @@ function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt
 function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Need to send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Confirmation sent':['pill-green','Confirmation sent'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
 function fmtLoadLocations(l){
   const locs=[];
-  if(l.from){
-    let s=l.from+(l.fromZip?' '+l.fromZip:'');
-    if(l.accessLoad)s+='\nAccess: '+l.accessLoad;
-    if(l.parkingLoad)s+='\nParking: '+l.parkingLoad;
-    locs.push(s);
-  }
-  (l.extraLoads||[]).forEach((ex,i)=>{
-    if(ex.address){
-      let s=`Pickup ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`;
-      if(ex.access)s+='\nAccess: '+ex.access;
-      if(ex.parking)s+='\nParking: '+ex.parking;
+  if(l.loads&&l.loads.length){
+    l.loads.forEach((loc,i)=>{
+      if(!loc.address)return;
+      let s=(i===0?'':'\nPickup '+(i+1)+': ')+loc.address+(loc.zip?' '+loc.zip:'');
+      if(loc.access)s+='\nAccess: '+loc.access;
+      if(loc.parking)s+='\nParking: '+loc.parking;
+      locs.push(s);
+    });
+  } else {
+    if(l.from){
+      let s=l.from+(l.fromZip?' '+l.fromZip:'');
+      if(l.accessLoad)s+='\nAccess: '+l.accessLoad;
+      if(l.parkingLoad)s+='\nParking: '+l.parkingLoad;
       locs.push(s);
     }
-  });
+    (l.extraLoads||[]).forEach((ex,i)=>{
+      if(ex.address){
+        let s=`Pickup ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`;
+        if(ex.access)s+='\nAccess: '+ex.access;
+        if(ex.parking)s+='\nParking: '+ex.parking;
+        locs.push(s);
+      }
+    });
+  }
   return locs.join('\n\n')||'TBD';
 }
 function fmtUnloadLocations(l){
   const locs=[];
-  if(l.to){
-    let s=l.to+(l.toZip?' '+l.toZip:'');
-    if(l.accessUnload)s+='\nAccess: '+l.accessUnload;
-    if(l.parkingUnload)s+='\nParking: '+l.parkingUnload;
-    locs.push(s);
-  }
-  (l.extraUnloads||[]).forEach((ex,i)=>{
-    if(ex.address){
-      let s=`Drop-off ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`;
-      if(ex.access)s+='\nAccess: '+ex.access;
-      if(ex.parking)s+='\nParking: '+ex.parking;
+  if(l.unloads&&l.unloads.length){
+    l.unloads.forEach((loc,i)=>{
+      if(!loc.address)return;
+      let s=(i===0?'':'\nDrop-off '+(i+1)+': ')+loc.address+(loc.zip?' '+loc.zip:'');
+      if(loc.access)s+='\nAccess: '+loc.access;
+      if(loc.parking)s+='\nParking: '+loc.parking;
+      locs.push(s);
+    });
+  } else {
+    if(l.to){
+      let s=l.to+(l.toZip?' '+l.toZip:'');
+      if(l.accessUnload)s+='\nAccess: '+l.accessUnload;
+      if(l.parkingUnload)s+='\nParking: '+l.parkingUnload;
       locs.push(s);
     }
-  });
+    (l.extraUnloads||[]).forEach((ex,i)=>{
+      if(ex.address){
+        let s=`Drop-off ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`;
+        if(ex.access)s+='\nAccess: '+ex.access;
+        if(ex.parking)s+='\nParking: '+ex.parking;
+        locs.push(s);
+      }
+    });
+  }
   return locs.join('\n\n')||'TBD';
 }
 function hasExtraLocations(l){
@@ -1265,7 +1285,7 @@ function confirmBooking(){
     return;
   }
   const l=db.leads.find(x=>x.id===currentBookingLeadId);
-  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0]};
+  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0]};
   db.bookedJobs.push(job);
   if(l)l.status='Quote accepted';
   saveDB();closeModal('book-job');renderLeads();
