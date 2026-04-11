@@ -879,7 +879,11 @@ function markSummarySent(){
   renderLeads();
 }
 let currentDNBLeadId=null;
-function openDidNotBook(leadId){currentDNBLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('dnb-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${sourceBadge(l.source,l.sourceDetail)}</span><br><span style="font-size:11.5px;color:var(--text3)">Current status: ${l.status}</span>`;document.getElementById('dnb-stage').selectedIndex=0;document.getElementById('dnb-reason').selectedIndex=0;document.getElementById('dnb-notes').value='';openModal('did-not-book');}
+function openDidNotBook(leadId){currentDNBLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('dnb-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${sourceBadge(l.source,l.sourceDetail)}</span><br><span style="font-size:11.5px;color:var(--text3)">Current status: ${l.status}</span>`;
+const stageMap={'New':'after-call','Need to follow up':'after-call','Need to send summary':'after-call','Summary sent':'after-summary','Estimate scheduled':'after-estimate-scheduled','Need to send estimate':'after-estimate-scheduled','Estimate sent':'after-quote','Quote accepted':'after-quote','Confirmation sent':'after-quote','Need to follow up':'after-followup'};
+const autoStage=stageMap[l.status]||'';
+document.getElementById('dnb-stage').value=autoStage;
+document.getElementById('dnb-reason').selectedIndex=0;document.getElementById('dnb-notes').value='';openModal('did-not-book');}
 function confirmDidNotBook(){
   const l=db.leads.find(x=>x.id===currentDNBLeadId);if(!l)return;
   const stage=document.getElementById('dnb-stage').value;
