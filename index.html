@@ -3596,9 +3596,22 @@ function setJobType(type){
 }
 function addQuoteDay(){
   const last=qbDays[qbDays.length-1]||{};
-  const newDay={id:uid(),date:'',from:'',to:'',crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,rate:last.rate||db.settings.rateBase||225,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM',fromUnit:'',fromFloor:'',fromAccess:'',fromType:'',toUnit:'',toFloor:'',toAccess:'',toType:''};
-  newDay.loads=[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}];
-  newDay.unloads=[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}];
+  const newDay={
+    id:uid(),date:'',from:last.from||'',to:last.to||'',
+    crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,
+    rate:last.rate||db.settings.rateBase||225,
+    arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM',
+    fromUnit:last.fromUnit||'',fromFloor:last.fromFloor||'',
+    fromAccess:last.fromAccess||'',fromType:last.fromType||'',
+    toUnit:last.toUnit||'',toFloor:last.toFloor||'',
+    toAccess:last.toAccess||'',toType:last.toType||''
+  };
+  newDay.loads=(last.loads&&last.loads.length)
+    ?last.loads.map(l=>({...l}))
+    :[{address:last.from||'',unit:last.fromUnit||'',floor:last.fromFloor||'',access:last.fromAccess||'',locType:last.fromType||'',parking:last.fromParking||''}];
+  newDay.unloads=(last.unloads&&last.unloads.length)
+    ?last.unloads.map(l=>({...l}))
+    :[{address:last.to||'',unit:last.toUnit||'',floor:last.toFloor||'',access:last.toAccess||'',locType:last.toType||'',parking:last.toParking||''}];
   newDay.locations=true;
   qbDays.push(newDay);
   renderQbDays();
