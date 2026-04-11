@@ -1399,7 +1399,11 @@ function confirmBooking(){
     return;
   }
   const l=db.leads.find(x=>x.id===currentBookingLeadId);
-  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0]};
+  const leadQuote=(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId&&(q.status==='accepted'||q.status==='sent'));
+  const isMultiDayQuote=leadQuote&&leadQuote.jobType==='multi'&&leadQuote.days&&leadQuote.days.length>1;
+  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
+    multiDay:isMultiDayQuote,quoteDays:isMultiDayQuote?leadQuote.days:[],quoteFees:leadQuote?leadQuote.fees||[]:[]
+  };
   db.bookedJobs.push(job);
   if(l)l.status='Quote accepted';
   saveDB();closeModal('book-job');renderLeads();
@@ -1438,12 +1442,80 @@ function openBookingChecklist(){
   renderBookingChecklist();
   openModal('booking-next');
 }
+function buildDayCalUrl(j,day,dayNum){
+  const dateStr=day.date||j.date||'';
+  const d=dateStr.replace(/-/g,'');
+  let startHour='0830',endHour='1730';
+  if(day.arrivalStart){
+    const m=day.arrivalStart.match(/(\d+)[:.]?(\d*)\s*(am|pm)?/i);
+    if(m){let h=parseInt(m[1]);const mins=m[2]?m[2].padEnd(2,'0'):'00';if(m[3]&&m[3].toLowerCase()==='pm'&&h!==12)h+=12;if(m[3]&&m[3].toLowerCase()==='am'&&h===12)h=0;startHour=String(h).padStart(2,'0')+mins;endHour=String(Math.min(h+9,23)).padStart(2,'0')+mins;}
+  }
+  const loads=day.loads&&day.loads.length?day.loads:[{address:day.from||''}];
+  const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:day.to||''}];
+  const firstLoad=loads.find(l=>l.address)||{};
+  const dayLabel=j.name+' — Day '+dayNum+' | '+(day.crew||'?')+' movers | '+( firstLoad.address||'');
+  const lines=[];
+  if(j.officeNotes){lines.push('🔒 OFFICE NOTES: '+j.officeNotes);lines.push('');}
+  lines.push(j.name+' · '+j.phone);
+  lines.push('Day '+dayNum+' of '+(j.quoteDays||[]).length);
+  lines.push('Crew: '+(day.crew||'?')+' movers · '+( day.hrsMin||'?')+'–'+(day.hrsMax||'?')+' hrs @ $'+(day.rate||'?')+'/hr');
+  lines.push('');
+  loads.filter(l=>l.address).forEach((l,i)=>{lines.push((i===0?'📦 Pick-up':'📦 Pickup '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));if(l.access)lines.push('   Access: '+l.access);if(l.parking)lines.push('   Parking: '+l.parking);});
+  lines.push('');
+  unloads.filter(l=>l.address).forEach((l,i)=>{lines.push((i===0?'🏠 Drop-off':'🏠 Drop-off '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));if(l.access)lines.push('   Access: '+l.access);if(l.parking)lines.push('   Parking: '+l.parking);});
+  if(j.scope){lines.push('');lines.push('Scope: '+j.scope);}
+  if(j.crewNotes){lines.push('');lines.push('Crew notes: '+j.crewNotes);}
+  const desc=encodeURIComponent(lines.join('\n'));
+  const loc=encodeURIComponent(firstLoad.address||'');
+  return`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(dayLabel)}&dates=${d}T${startHour}00/${d}T${endHour}00&details=${desc}&location=${loc}`;
+}
 function renderBookingChecklist(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
   if(!j)return;
   const emailDone=j.confirmEmailSent;
-  const calDone=j.calendarAdded;
-  const bothDone=calDone&&(emailDone||!j.email);
+  const isMulti=j.multiDay&&j.quoteDays&&j.quoteDays.length>1;
+  let calRows='';
+  if(isMulti){
+    j.quoteDays.forEach((day,i)=>{
+      const dayNum=i+1;
+      const calKey='calDay'+dayNum+'Added';
+      const done=j[calKey];
+      const url=buildDayCalUrl(j,day,dayNum);
+      calRows+=`
+      <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${done?'var(--accent)':'var(--border2)'};background:${done?'var(--accent-light)':'var(--surface)'}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:500;font-size:13px;color:${done?'var(--accent)':'var(--text)'}">${done?'✓':' 📅'} Day ${dayNum} — ${fmtDate(day.date)} · ${day.crew||'?'} movers</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${done?'Added to calendar':'Add Day '+dayNum+' calendar entry'}</div>
+          </div>
+          ${!done?`<div style="display:flex;gap:6px">
+            <a href="${url}" target="_blank" class="btn btn-secondary btn-sm" onclick="markDayCalAdded('${j.id}','${calKey}')">Open →</a>
+            <button class="btn btn-secondary btn-sm" onclick="markDayCalAdded('${j.id}','${calKey}')" style="font-size:11px">✓ Mark done</button>
+          </div>`:''}
+        </div>
+      </div>`;
+    });
+  } else {
+    const calDone=j.calendarAdded;
+    const url=window._bookingCalUrl||buildJobCalUrl(j);
+    calRows=`
+    <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${calDone?'var(--accent)':'var(--border2)'};background:${calDone?'var(--accent-light)':'var(--surface)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:500;font-size:13px;color:${calDone?'var(--accent)':'var(--text)'}">${calDone?'✓ Added to Google Calendar':'📅 Add to Google Calendar'}</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${calDone?'Done':'Opens Google Calendar with the job pre-filled'}</div>
+        </div>
+        ${!calDone?`<div style="display:flex;gap:6px"><a href="${url}" target="_blank" class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')">Add to calendar →</a><button class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')" style="font-size:11px">✓ Mark done</button></div>`:''}
+      </div>
+    </div>`;
+  }
+  let allCalDone=false;
+  if(isMulti){
+    allCalDone=j.quoteDays.every((_,i)=>j['calDay'+(i+1)+'Added']);
+  } else {
+    allCalDone=!!j.calendarAdded;
+  }
+  const bothDone=allCalDone&&(emailDone||!j.email);
   document.getElementById('booking-checklist').innerHTML=`
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${emailDone?'var(--accent)':'var(--border2)'};background:${emailDone?'var(--accent-light)':'var(--surface)'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1451,29 +1523,31 @@ function renderBookingChecklist(){
           <div style="font-weight:500;font-size:13px;color:${emailDone?'var(--accent)':'var(--text)'}">${emailDone?'✓ Confirmation email sent':'✉ Send confirmation email'}</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${emailDone?'Done':'Opens a pre-written booking confirmation email'}</div>
         </div>
-        ${!emailDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingOpenEmail()">Send →</button><button class="btn btn-secondary btn-sm" onclick="markJobEmailSent('${j.id}')" style="font-size:11px">✓ Mark sent</button></div>`:''}      </div>
-    </div>
-    <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${calDone?'var(--accent)':'var(--border2)'};background:${calDone?'var(--accent-light)':'var(--surface)'}">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div style="font-weight:500;font-size:13px;color:${calDone?'var(--accent)':'var(--text)'}">${calDone?'✓ Added to Google Calendar':'📅 Add to Google Calendar'}</div>
-          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${calDone?'Done':'Opens Google Calendar with the job pre-filled'}</div>
-        </div>
-        ${!calDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingCalDone()">Add to calendar →</button><button class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')" style="font-size:11px">✓ Mark done</button></div>`:''}
+        ${!emailDone?`<div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="bookingOpenEmail()">Send →</button><button class="btn btn-secondary btn-sm" onclick="markJobEmailSent('${j.id}')" style="font-size:11px">✓ Mark sent</button></div>`:''}
       </div>
-    </div>`;
+    </div>
+    ${isMulti?`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">📅 Calendar entries — one per day</div>`:''}
+    ${calRows}`;
   const btn=document.getElementById('bk-confirm-btn');
   const sub=document.getElementById('bk-confirm-sub');
   if(bothDone){
     if(btn){btn.style.opacity='1';btn.style.pointerEvents='auto';}
-    if(sub)sub.textContent='Both steps done — click to confirm booking';
+    if(sub)sub.textContent='All steps done — click to confirm booking';
   } else {
     if(btn){btn.style.opacity='0.4';btn.style.pointerEvents='none';}
     const missing=[];
     if(!emailDone&&j.email)missing.push('email');
-    if(!calDone)missing.push('calendar');
+    if(!allCalDone)missing.push(isMulti?'calendar entries':'calendar');
     if(sub)sub.textContent='Still need: '+missing.join(' & ');
   }
+}
+function markDayCalAdded(jobId,calKey){
+  const j=db.bookedJobs.find(x=>x.id===jobId);
+  if(!j)return;
+  j[calKey]=true;
+  saveDB();
+  setTimeout(()=>renderBookingChecklist(),300);
+  showToast('✓ Marked as added to calendar');
 }
 async function bookingOpenEmail(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
