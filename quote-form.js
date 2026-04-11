@@ -167,7 +167,7 @@ function makeLocBlock(id,badgeClass,badgeText){
     +'<button type="button" class="remove-loc-btn" onclick="removeLoc(\''+id+'\')">x</button>'
     +'</div>'
     +'<div class="grid-2">'
-    +'<div class="field full"><label>Address</label><input type="text" id="'+id+'-addr" placeholder="Start typing address..."></div>'
+    +'<div class="field full"><label>Address</label><input type="text" id="'+id+'-addr" placeholder="Start typing address..." autocomplete="off"></div>'
     +'<div class="field"><label>Zip Code</label><input type="text" id="'+id+'-zip" placeholder="e.g. 94103" maxlength="5"></div>'
     +'<div class="field"><label>Unit / Suite #</label><input type="text" id="'+id+'-unit" placeholder="e.g. Apt 4B"></div>'
     +'<div class="field"><label>Location Type</label><select id="'+id+'-type"><option value="">Select...</option><option>House</option><option>Apartment</option><option>Condo</option><option>Office</option><option>Storage unit</option><option>Other</option></select></div>'
@@ -176,6 +176,22 @@ function makeLocBlock(id,badgeClass,badgeText){
     +'<div class="field"><label>Parking</label><select id="'+id+'-parking"><option value="">Select...</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option></select></div>'
     +'<div class="field full"><label>Notes</label><input type="text" id="'+id+'-notes" placeholder="Parking details, gate codes, access info..."></div>'
     +'</div>';
+  // Attach Places autocomplete after DOM insertion (setTimeout so element exists)
+  setTimeout(function(){
+    var addrEl=document.getElementById(id+'-addr');
+    if(addrEl&&window.google&&window.google.maps&&window.google.maps.places){
+      var ac=new google.maps.places.Autocomplete(addrEl,{types:['address'],componentRestrictions:{country:'us'}});
+      ac.addListener('place_changed',function(){
+        var place=ac.getPlace();
+        if(!place||!place.address_components)return;
+        var zip=place.address_components.find(function(c){return c.types.includes('postal_code');});
+        if(zip){
+          var zipEl=document.getElementById(id+'-zip');
+          if(zipEl&&!zipEl.value)zipEl.value=zip.short_name;
+        }
+      });
+    }
+  },100);
   return div;
 }
 
