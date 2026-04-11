@@ -3715,36 +3715,55 @@ function renderQbDays(){
   }
   document.getElementById('qb-days').innerHTML=qbDays.map((d,i)=>{
     if(!d.locations){
-      d.loads=[{address:d.from||'',unit:d.fromUnit||'',floor:d.fromFloor||'',access:d.fromAccess||'',locType:d.fromType||'',parking:''},...(d.extraLoads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
-      d.unloads=[{address:d.to||'',unit:d.toUnit||'',floor:d.toFloor||'',access:d.toAccess||'',locType:d.toType||'',parking:''},...(d.extraUnloads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
+      d.loads=[{address:d.from||'',unit:d.fromUnit||'',floor:d.fromFloor||'',access:d.fromAccess||'',locType:d.fromType||'',parking:d.fromParking||''},...(d.extraLoads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
+      d.unloads=[{address:d.to||'',unit:d.toUnit||'',floor:d.toFloor||'',access:d.toAccess||'',locType:d.toType||'',parking:d.toParking||''},...(d.extraUnloads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
       d.locations=true;
     }
+    const dayLabel=isMulti?`Day ${i+1}`:'Move Details';
+    const dayColor=isMulti?'#2d5a3d':'var(--text2)';
     return`
-    <div style="border:1px solid var(--border2);border-radius:var(--radius);padding:14px;margin-bottom:14px;background:var(--surface2)">
-      ${isMulti?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:13px;font-weight:600;color:var(--text2)">Day ${i+1}</div>
-        ${qbDays.length>1?`<button class="btn btn-danger btn-sm" onclick="removeQuoteDay('${d.id}')">Remove day</button>`:''}
-      </div>`:''}
-      <div class="form-grid form-grid-2" style="margin-bottom:12px">
-        <div class="form-group"><label>Date</label><input type="date" value="${d.date||''}" oninput="updateQbDay('${d.id}','date',this.value)"></div>
-        <div class="form-group"><label>Crew size</label><input type="number" value="${d.crew||2}" min="1" max="10" oninput="updateQbDay('${d.id}','crew',this.value)"></div>
-        <div class="form-group"><label>Arrival window start</label><input type="text" value="${escHtml(d.arrivalStart||'')}" oninput="updateQbDay('${d.id}','arrivalStart',this.value)" placeholder="e.g. 8:00 AM"></div>
-        <div class="form-group"><label>Arrival window end</label><input type="text" value="${escHtml(d.arrivalEnd||'')}" oninput="updateQbDay('${d.id}','arrivalEnd',this.value)" placeholder="e.g. 9:00 AM"></div>
-        <div class="form-group"><label>Hours min</label><input type="number" value="${d.hrsMin||2}" min="2" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
-        <div class="form-group"><label>Hours max</label><input type="number" value="${d.hrsMax||4}" min="2" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
-        <div class="form-group full"><label>Hourly rate ($/hr per crew)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
+    <div style="border:2px solid ${isMulti?'#2d5a3d':'var(--border2)'};border-radius:var(--radius);margin-bottom:20px;overflow:hidden">
+      <!-- Day header -->
+      <div style="background:${isMulti?'#2d5a3d':'var(--surface2)'};padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:15px;font-weight:700;color:${isMulti?'#fff':'var(--text2)'}">📅 ${dayLabel}</div>
+          ${d.date?`<div style="font-size:12.5px;color:${isMulti?'rgba(255,255,255,.8)':'var(--text3)'}">${new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>`:''}
+        </div>
+        ${isMulti&&qbDays.length>1?`<button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:11px" onclick="removeQuoteDay('${d.id}')">✕ Remove</button>`:''}
       </div>
-      <div style="margin-bottom:6px">
-        ${d.loads.map((loc,li)=>locCard(d.id,'load',li,loc,d.loads.length,li===0)).join('')}
-        <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:2px" onclick="addQbLocation('${d.id}','load')">➕ Add another pick-up</button>
-      </div>
-      <div style="margin-top:14px;margin-bottom:6px">
-        ${d.unloads.map((loc,li)=>locCard(d.id,'unload',li,loc,d.unloads.length,li===0)).join('')}
-        <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:2px" onclick="addQbLocation('${d.id}','unload')">➕ Add another drop-off</button>
-      </div>
-      <div style="margin-top:8px;padding:8px 12px;background:var(--accent-light);border-radius:var(--radius);font-size:12.5px">
-        Day ${i+1}: <strong>${fmtMoney(d.crew*(d.hrsMin||0)*d.rate)}</strong> — <strong>${fmtMoney(d.crew*(d.hrsMax||0)*d.rate)}</strong>
-        <span style="color:var(--text3);margin-left:6px">(${d.crew} crew × ${d.hrsMin}–${d.hrsMax} hrs × $${d.rate}/hr)</span>
+      <div style="padding:14px">
+        <!-- Schedule & crew -->
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Schedule & Crew</div>
+        <div class="form-grid form-grid-2" style="margin-bottom:16px">
+          <div class="form-group"><label>Date *</label><input type="date" value="${d.date||''}" oninput="updateQbDay('${d.id}','date',this.value);renderQbDays()"></div>
+          <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+          <div class="form-group"><label>Arrival start</label><input type="text" value="${escHtml(d.arrivalStart||'')}" oninput="updateQbDay('${d.id}','arrivalStart',this.value)" placeholder="e.g. 8:00 AM"></div>
+          <div class="form-group"><label>Arrival end</label><input type="text" value="${escHtml(d.arrivalEnd||'')}" oninput="updateQbDay('${d.id}','arrivalEnd',this.value)" placeholder="e.g. 9:00 AM"></div>
+        </div>
+        <!-- Hours & rate -->
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Hours & Rate</div>
+        <div class="form-grid form-grid-2" style="margin-bottom:16px">
+          <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMin||2}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
+          <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMax||4}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
+          <div class="form-group full"><label>Hourly rate ($ per hour total)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
+        </div>
+        <!-- Day subtotal -->
+        <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:13px">
+          <strong>${dayLabel} estimate:</strong> ${fmtMoney(d.crew*(d.hrsMin||0)*d.rate)} – ${fmtMoney(d.crew*(d.hrsMax||0)*d.rate)}
+          <span style="color:var(--text3);font-size:11.5px;margin-left:6px">(${d.crew} movers × ${d.hrsMin}–${d.hrsMax} hrs × $${d.rate}/hr)</span>
+        </div>
+        <!-- Pickup locations -->
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📦 Pick-up location(s)</div>
+        <div style="margin-bottom:8px">
+          ${d.loads.map((loc,li)=>locCard(d.id,'load',li,loc,d.loads.length,li===0)).join('')}
+          <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:4px" onclick="addQbLocation('${d.id}','load')">➕ Add another pick-up</button>
+        </div>
+        <!-- Dropoff locations -->
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;margin-top:14px">🏠 Drop-off location(s)</div>
+        <div>
+          ${d.unloads.map((loc,li)=>locCard(d.id,'unload',li,loc,d.unloads.length,li===0)).join('')}
+          <button type="button" class="btn btn-secondary btn-sm" style="width:100%;margin-top:4px" onclick="addQbLocation('${d.id}','unload')">➕ Add another drop-off</button>
+        </div>
       </div>
     </div>`;
   }).join('');
