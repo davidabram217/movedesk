@@ -3583,11 +3583,24 @@ function setJobType(type){
   document.getElementById('qb-single-btn').className='btn btn-sm '+(type==='single'?'btn-primary':'btn-secondary');
   document.getElementById('qb-multi-btn').className='btn btn-sm '+(type==='multi'?'btn-primary':'btn-secondary');
   document.getElementById('qb-add-day-btn').style.display=type==='multi'?'':'none';
+  qbDays.forEach(d=>{
+    if(!d.loads||!d.loads.length){
+      d.loads=[{address:d.from||'',unit:d.fromUnit||'',floor:d.fromFloor||'',access:d.fromAccess||'',locType:d.fromType||'',parking:d.fromParking||''},...(d.extraLoads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
+    }
+    if(!d.unloads||!d.unloads.length){
+      d.unloads=[{address:d.to||'',unit:d.toUnit||'',floor:d.toFloor||'',access:d.toAccess||'',locType:d.toType||'',parking:d.toParking||''},...(d.extraUnloads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
+    }
+    d.locations=true;
+  });
   renderQbDays();
 }
 function addQuoteDay(){
   const last=qbDays[qbDays.length-1]||{};
-  qbDays.push({id:uid(),date:'',from:'',to:'',crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,rate:last.rate||db.settings.rateBase||225,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM',fromUnit:'',fromFloor:'',fromAccess:'',fromType:'',toUnit:'',toFloor:'',toAccess:'',toType:''});
+  const newDay={id:uid(),date:'',from:'',to:'',crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,rate:last.rate||db.settings.rateBase||225,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM',fromUnit:'',fromFloor:'',fromAccess:'',fromType:'',toUnit:'',toFloor:'',toAccess:'',toType:''};
+  newDay.loads=[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}];
+  newDay.unloads=[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}];
+  newDay.locations=true;
+  qbDays.push(newDay);
   renderQbDays();
   qbAutoSave();
 }
