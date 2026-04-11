@@ -3815,19 +3815,17 @@ function buildQuoteHTML(){
           ? qbDays.map((d,i)=>`
             <br><strong>Day ${i+1}</strong><br>
             Arrival Time: ${escHtml(d.arrivalStart||'')}${d.arrivalEnd?' - '+escHtml(d.arrivalEnd):''}<br>
-            Pick-up: ${escHtml(d.from||'—')}${d.fromUnit?', '+escHtml(d.fromUnit):''}<br>
-            ${d.fromAccess?'Access at load: '+escHtml(d.fromAccess)+'<br>':''}
-            Drop-off: ${escHtml(d.to||'—')}${d.toUnit?', '+escHtml(d.toUnit):''}<br>
-            ${d.toAccess?'Access at unload: '+escHtml(d.toAccess):''}
+            ${(d.loads&&d.loads.length?d.loads:[{address:d.from||'—',unit:d.fromUnit||'',access:d.fromAccess||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Pick-up':'Pickup '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}`).join('')}
+            ${(d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'—',unit:d.toUnit||'',access:d.toAccess||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Drop-off':'Drop-off '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}`).join('')}
           `).join('')
           : `Arrival Time: ${escHtml(d0.arrivalStart||'')}${d0.arrivalEnd?' - '+escHtml(d0.arrivalEnd):''}<br>
             ${(()=>{
-              const loads=d0.loads&&d0.loads.length?d0.loads:[{address:d0.from||'—',unit:d0.fromUnit||'',access:d0.fromAccess||'',parking:d0.fromParking||''},...(d0.extraLoads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',access:ex.access||'',parking:ex.parking||''}))];
-              return loads.map((loc,i)=>`${i===0?'Pick-up':'Pickup '+(i+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('');
+              const loads=d0.loads&&d0.loads.length?d0.loads:[{address:d0.from||'—',unit:d0.fromUnit||'',access:d0.fromAccess||'',parking:d0.fromParking||''}];
+              return loads.filter(l=>l.address).map((loc,i)=>`${i===0?'Pick-up':'Pickup '+(i+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('');
             })()}
             ${(()=>{
-              const unloads=d0.unloads&&d0.unloads.length?d0.unloads:[{address:d0.to||'—',unit:d0.toUnit||'',access:d0.toAccess||'',parking:d0.toParking||''},...(d0.extraUnloads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',access:ex.access||'',parking:ex.parking||''}))];
-              return unloads.map((loc,i)=>`${i===0?'Drop-off':'Drop-off '+(i+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('');
+              const unloads=d0.unloads&&d0.unloads.length?d0.unloads:[{address:d0.to||'—',unit:d0.toUnit||'',access:d0.toAccess||'',parking:d0.toParking||''}];
+              return unloads.filter(l=>l.address).map((loc,i)=>`${i===0?'Drop-off':'Drop-off '+(i+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('');
             })()}`
         }      </div>
     </div>
