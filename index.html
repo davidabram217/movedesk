@@ -782,9 +782,20 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
       ${isPending?`<button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent);padding:6px 14px;font-size:12.5px" onclick="acceptQuote('${l.id}')">✓ Mark as quote accepted</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="closeModal('view');openDidNotBook('${l.id}')">✕ Did not book</button>
     </div>`;
-const footerBtnRight=isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openConfirmEmail('${l.id}')">✉ Send confirmation email →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const footerBtnRight=isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
-document.getElementById('view-modal-footer').innerHTML=`<button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button><button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>${viewQuoteBtn}${l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:''}  <button class="btn btn-sm" style="color:#c0392b;border-color:#c0392b" onclick="window.deleteLead('${l.id}')">🗑 Delete</button> ${footerBtnRight}`;
+const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
+document.getElementById('view-modal-footer').innerHTML=`
+  <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
+      <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>
+      <button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>
+      ${viewQuoteBtn}${mapBtn}
+      <button class="btn btn-secondary" style="color:#c0392b;border-color:#c0392b" onclick="window.deleteLead('${l.id}')">🗑 Delete</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
+  </div>`;
 openModal('view');}
 function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
 let currentConfirmEmailLeadId=null;
@@ -822,9 +833,33 @@ function openConfirmEmail(leadId){
         moveDetailsSection+='\n💰 Day '+(i+1)+' estimate: $'+minCost.toLocaleString()+' – $'+maxCost.toLocaleString()+' ('+d.crew+' movers × '+d.hrsMin+'–'+d.hrsMax+' hrs @ $'+d.rate+'/hr)';
       }
     });
+    const includedFees=(q.fees||[]).filter(function(f){return f.included&&f.label;});
+    if(includedFees.length){
+      moveDetailsSection+='\n\nAdditional fees:';
+      includedFees.forEach(function(f){
+        if(f.type==='range'){
+          moveDetailsSection+='\n  '+f.label+': $'+(f.hrsMin||0)+' – $'+(f.hrsMax||0);
+        } else {
+          moveDetailsSection+='\n  '+f.label+(f.amount?': $'+Number(f.amount).toLocaleString():'');
+        }
+      });
+    }
   } else {
     const moveDate=fmtDate(l.date);
     moveDetailsSection='\nWhen: '+moveDate+', arriving between 8:30–9:30am\n📦 From:\n'+fmtLoadLocations(l)+'\n\n🏠 To:\n'+fmtUnloadLocations(l);
+    if(q){
+      const includedFees=(q.fees||[]).filter(function(f){return f.included&&f.label;});
+      if(includedFees.length){
+        moveDetailsSection+='\n\nAdditional fees:';
+        includedFees.forEach(function(f){
+          if(f.type==='range'){
+            moveDetailsSection+='\n  '+f.label+': $'+(f.hrsMin||0)+' – $'+(f.hrsMax||0);
+          } else {
+            moveDetailsSection+='\n  '+f.label+(f.amount?': $'+Number(f.amount).toLocaleString():'');
+          }
+        });
+      }
+    }
   }
   const subject=isMulti?'Multi-Day Move Confirmation — '+(q.days[0]?fmtDate(q.days[0].date):fmtDate(l.date)):'Move Confirmation — '+fmtDate(l.date);
   const body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:'
