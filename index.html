@@ -304,6 +304,7 @@ function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Need to send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Confirmation sent':['pill-green','Confirmation sent'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
+const CAREMORE_STORAGE_ADDR='CareMore Moving & Storage (925 Palou Ave, San Francisco CA 94124)';
 function fmtLoadLocations(l){
   const locs=[];
   if(l.loads&&l.loads.length){
@@ -334,17 +335,20 @@ function fmtLoadLocations(l){
 }
 function fmtUnloadLocations(l){
   const locs=[];
+  const storageLabel=CAREMORE_STORAGE_ADDR;
   if(l.unloads&&l.unloads.length){
     l.unloads.forEach((loc,i)=>{
       if(!loc.address)return;
-      let s=(i===0?'':'\nDrop-off '+(i+1)+': ')+loc.address+(loc.zip?' '+loc.zip:'');
+      const addr=l.storage&&i===0?storageLabel:loc.address+(loc.zip?' '+loc.zip:'');
+      let s=(i===0?'':'\nDrop-off '+(i+1)+': ')+addr+(loc.unit&&!(l.storage&&i===0)?' #'+loc.unit:'');
       if(loc.access)s+='\nAccess: '+loc.access;
       if(loc.parking)s+='\nParking: '+loc.parking;
       locs.push(s);
     });
   } else {
     if(l.to){
-      let s=l.to+(l.toZip?' '+l.toZip:'');
+      const addr=l.storage?storageLabel:l.to+(l.toZip?' '+l.toZip:'');
+      let s=addr;
       if(l.accessUnload)s+='\nAccess: '+l.accessUnload;
       if(l.parkingUnload)s+='\nParking: '+l.parkingUnload;
       locs.push(s);
@@ -824,7 +828,7 @@ function openConfirmEmail(leadId){
         if(loc.parking)moveDetailsSection+=' · '+loc.parking;
       });
       unloads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
-        moveDetailsSection+='\n'+(li===0?'🏠 Drop-off':'🏠 Drop-off '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
+        const unloadAddr=(l.storage&&li===0&&loc.address&&loc.address.includes('Palou'))?CAREMORE_STORAGE_ADDR:(loc.address+(loc.unit?' #'+loc.unit:''));moveDetailsSection+='\n'+(li===0?'🏠 Drop-off':'🏠 Drop-off '+(li+1))+': '+unloadAddr;
         if(loc.access)moveDetailsSection+=' · '+loc.access;
         if(loc.parking)moveDetailsSection+=' · '+loc.parking;
       });
