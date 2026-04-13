@@ -1207,7 +1207,10 @@
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Crew leader</label><input type="text" id="ecj-crew" placeholder="e.g. John" list="ecj-crew-list"><datalist id="ecj-crew-list"><option value="John"><option value="Dave"></datalist></div>
         <div class="form-group"><label>Source of job</label><select id="ecj-source"><option value="">Select…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>Other</option></select></div>
-        <div class="form-group"><label>Hours worked</label><input type="number" id="ecj-hours" placeholder="0.0" step="0.5"></div>
+        <div class="form-group"><label>Move hours <span style="font-size:11px;color:var(--text3);font-weight:400">— movers only</span></label><input type="number" id="ecj-hours" placeholder="0.0" step="0.5"></div>
+        <div class="form-group"><label>No. of movers</label><select id="ecj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+        <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="ecj-pack-hours" placeholder="0.0" step="0.5"></div>
+        <div class="form-group"><label>No. of packers</label><select id="ecj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
         <div class="form-group"><label>Payment method</label><select id="ecj-payment"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
         <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="ecj-rate" placeholder="e.g. 145"></div>
       </div>
@@ -1216,6 +1219,7 @@
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Labour total ($)</label><input type="number" id="ecj-labour" placeholder="0.00"></div>
         <div class="form-group"><label>Materials fee ($)</label><input type="number" id="ecj-materials" placeholder="0.00"></div>
+        <div class="form-group"><label>Packing materials ($)</label><input type="number" id="ecj-pack-materials" placeholder="0.00"></div>
         <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="ecj-fuel" placeholder="0.00"></div>
         <div class="form-group"><label>Parking permits ($)</label><input type="number" id="ecj-parking-fee" placeholder="0.00"></div>
         <div class="form-group"><label>COI fee ($)</label><input type="number" id="ecj-coi" placeholder="0.00"></div>
@@ -4341,9 +4345,13 @@ function openEditCompletedJob(jobId){
   document.getElementById('ecj-source').value=j.source||'';
   // All other fields
   document.getElementById('ecj-hours').value=j.hours||'';
+  if(document.getElementById('ecj-movers'))document.getElementById('ecj-movers').value=j.moveMen||'';
+  if(document.getElementById('ecj-pack-hours'))document.getElementById('ecj-pack-hours').value=j.packHoursActual||'';
+  if(document.getElementById('ecj-pack-movers'))document.getElementById('ecj-pack-movers').value=j.packMen||'';
   document.getElementById('ecj-rate').value=j.hourlyRateCharged||'';
   document.getElementById('ecj-labour').value=j.feeLabour||'';
   document.getElementById('ecj-materials').value=j.feeMaterials||'';
+  if(document.getElementById('ecj-pack-materials'))document.getElementById('ecj-pack-materials').value=j.feePackMaterials||'';
   document.getElementById('ecj-fuel').value=j.feeFuel||'';
   document.getElementById('ecj-parking-fee').value=j.feeParkingPermit||'';
   document.getElementById('ecj-coi').value=j.feeCOI||'';
@@ -4368,11 +4376,15 @@ function saveEditedCompletedJob(){
   j.crew=document.getElementById('ecj-crew').value;
   j.source=document.getElementById('ecj-source').value;
   j.hours=document.getElementById('ecj-hours').value;
+  j.moveMen=document.getElementById('ecj-movers')?.value||j.moveMen||'';
+  j.packHoursActual=document.getElementById('ecj-pack-hours')?.value||j.packHoursActual||'';
+  j.packMen=document.getElementById('ecj-pack-movers')?.value||j.packMen||'';
   j.hourlyRateCharged=document.getElementById('ecj-rate').value||null;
   j.ratePerHour=labour>0&&hrs>0?Math.round(labour/hrs):j.ratePerHour;
   j.payment=document.getElementById('ecj-payment').value;
   j.feeLabour=document.getElementById('ecj-labour').value;
   j.feeMaterials=document.getElementById('ecj-materials').value;
+  j.feePackMaterials=document.getElementById('ecj-pack-materials')?.value||j.feePackMaterials||'';
   j.feeFuel=document.getElementById('ecj-fuel').value;
   j.feeParkingPermit=document.getElementById('ecj-parking-fee').value;
   j.feeCOI=document.getElementById('ecj-coi').value;
