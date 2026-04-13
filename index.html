@@ -305,6 +305,14 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Need to send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Confirmation sent':['pill-green','Confirmation sent'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
 const CAREMORE_STORAGE_ADDR='CareMore Moving & Storage (925 Palou Ave, San Francisco CA 94124)';
+function fmtCrewDesc(d){
+  if(d.crewLoadDiff)return(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers';
+  return(d.crew||'?')+' movers';
+}
+function fmtPackDesc(d){
+  if(!d.packCrew||!d.packRate)return'';
+  return'\n  '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' @ '+d.packRate+'/hr · '+(d.packHrsMin||'?')+'–'+(d.packHrsMax||'?')+' hrs (packing)';
+}
 function fmtLoadLocations(l){
   const locs=[];
   if(l.loads&&l.loads.length){
@@ -741,7 +749,7 @@ const quoteDaysBlock=quote&&quote.days&&quote.days.length?`
   ${quote.days.map((d,i)=>`
   <div style="border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;background:var(--surface2)">
     ${quote.days.length>1?`<div style="font-size:11.5px;font-weight:600;margin-bottom:8px;color:var(--text2)">Day ${i+1} — ${fmtDate(d.date)}</div>`:''}
-    <div style="font-size:12px;color:var(--text3);margin-bottom:4px">Arrival: ${d.arrivalStart||'—'}${d.arrivalEnd?' – '+d.arrivalEnd:''} · ${d.crew} movers · ${d.hrsMin}–${d.hrsMax} hrs</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:4px">Arrival: ${d.arrivalStart||'—'}${d.arrivalEnd?' – '+d.arrivalEnd:''} · ${fmtCrewDesc(d)} · ${d.hrsMin}–${d.hrsMax} hrs</div>
     ${(d.loads&&d.loads.length?d.loads:[{address:d.from,unit:d.fromUnit,access:d.fromAccess,parking:d.fromParking}]).filter(loc=>loc&&loc.address).map((loc,li)=>`
     <div style="margin-top:6px;font-size:12.5px">
       <span style="font-size:10.5px;color:var(--text3)">📦 ${li===0?'Pick-up':'Pickup '+(li+1)}</span><br>
@@ -822,7 +830,7 @@ function openConfirmEmail(leadId){
       const arrival=d.arrivalStart?(', arriving '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'')):'';
       moveDetailsSection+=dayLabel;
       if(!isMulti)moveDetailsSection+='\nWhen: '+fmtDate(d.date)+arrival;
-      else moveDetailsSection+='\nArrival: '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'')+' · '+d.crew+' movers';
+      else moveDetailsSection+='\nArrival: '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'')+' · '+fmtCrewDesc(d);
       loads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
         moveDetailsSection+='\n'+(li===0?'📦 Pick-up':'📦 Pickup '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
         if(loc.access)moveDetailsSection+=' · '+loc.access;
@@ -836,7 +844,7 @@ function openConfirmEmail(leadId){
       });
     });
     moveDetailsSection+='\n';
-    if(d0q.rate)moveDetailsSection+='\n'+(d0q.crew||'?')+' movers @ $'+d0q.rate+'.00 per hour';
+    if(d0q.rate)moveDetailsSection+='\n'+fmtCrewDesc(d0q)+' @ $'+d0q.rate+'.00 per hour'+fmtPackDesc(d0q);
     const includedFees=(q.fees||[]).filter(function(f){return f.included!==false&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
     includedFees.forEach(function(f){
       const lbl=f.label||f.name||'';
@@ -1453,12 +1461,13 @@ function buildDayCalUrl(j,day,dayNum){
   const loads=day.loads&&day.loads.length?day.loads:[{address:day.from||''}];
   const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:day.to||''}];
   const firstLoad=loads.find(l=>l.address)||{};
-  const dayLabel=j.name+' — Day '+dayNum+' | '+(day.crew||'?')+' movers | '+( firstLoad.address||'');
+  const dayLabel=j.name+' — Day '+dayNum+' | '+fmtCrewDesc(day)+' | '+(firstLoad.address||'');
   const lines=[];
   if(j.officeNotes){lines.push('🔒 OFFICE NOTES: '+j.officeNotes);lines.push('');}
   lines.push(j.name+' · '+j.phone);
   lines.push('Day '+dayNum+' of '+(j.quoteDays||[]).length);
-  lines.push('Crew: '+(day.crew||'?')+' movers · '+( day.hrsMin||'?')+'–'+(day.hrsMax||'?')+' hrs @ $'+(day.rate||'?')+'/hr');
+  lines.push('Crew: '+fmtCrewDesc(day)+' · '+(day.hrsMin||'?')+'–'+(day.hrsMax||'?')+' hrs @ $'+(day.rate||'?')+'/hr');
+  if(day.packCrew&&day.packRate)lines.push('Packing crew: '+(day.packCrewSize||1)+' packer(s) · '+(day.packHrsMin||'?')+'–'+(day.packHrsMax||'?')+' hrs @ $'+day.packRate+'/hr');
   lines.push('');
   loads.filter(l=>l.address).forEach((l,i)=>{lines.push((i===0?'📦 Pick-up':'📦 Pickup '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));if(l.access)lines.push('   Access: '+l.access);if(l.parking)lines.push('   Parking: '+l.parking);});
   lines.push('');
@@ -1485,7 +1494,7 @@ function renderBookingChecklist(){
       <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${done?'var(--accent)':'var(--border2)'};background:${done?'var(--accent-light)':'var(--surface)'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
-            <div style="font-weight:500;font-size:13px;color:${done?'var(--accent)':'var(--text)'}">${done?'✓':' 📅'} Day ${dayNum} — ${fmtDate(day.date)} · ${day.crew||'?'} movers</div>
+            <div style="font-weight:500;font-size:13px;color:${done?'var(--accent)':'var(--text)'}">${done?'✓':' 📅'} Day ${dayNum} — ${fmtDate(day.date)} · ${fmtCrewDesc(day)}</div>
             <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${done?'Added to calendar':'Add Day '+dayNum+' calendar entry'}</div>
           </div>
           ${!done?`<div style="display:flex;gap:6px">
@@ -2090,8 +2099,8 @@ function compRow(label,quotedVal,actualVal,isAddon,isDiscount){
 const qDay=quote&&quote.days&&quote.days[0]?quote.days[0]:null;
 const qHrsMin=qDay?qDay.hrsMin:null;
 const qHrsMax=qDay?qDay.hrsMax:null;
-const qLabourMin=qDay&&qHrsMin?qDay.crew*qHrsMin*qDay.rate:null;
-const qLabourMax=qDay&&qHrsMax?qDay.crew*qHrsMax*qDay.rate:null;
+const qLabourMin=qDay&&qHrsMin?qHrsMin*qDay.rate+(qDay.packCrew&&qDay.packRate?(qDay.packHrsMin||0)*qDay.packRate:0):null;
+const qLabourMax=qDay&&qHrsMax?qHrsMax*qDay.rate+(qDay.packCrew&&qDay.packRate?(qDay.packHrsMax||0)*qDay.packRate:0):null;
 const qFuelFee=quote?quote.fees&&quote.fees.find(f=>f.label&&f.label.toLowerCase().includes('fuel'))?.amount:null;
 const qMatFee=quote?quote.fees&&quote.fees.find(f=>f.label&&f.label.toLowerCase().includes('material'))?.amount:null;
 const qTotalMin=quote?quote.totalMin:null;
@@ -3795,6 +3804,18 @@ function removeQuoteDay(id){
   renderQbDays();
   qbAutoSave();
 }
+function toggleQbCrewDiff(dayId,checked){
+  const d=qbDays.find(x=>x.id===dayId);if(!d)return;
+  d.crewLoadDiff=checked;
+  if(checked){d.crewLoad=d.crewLoad||d.crew;d.crewUnload=d.crewUnload||d.crew;}
+  renderQbDays();qbAutoSave();
+}
+function toggleQbPackCrew(dayId,checked){
+  const d=qbDays.find(x=>x.id===dayId);if(!d)return;
+  d.packCrew=checked;
+  if(checked){d.packCrewSize=d.packCrewSize||1;d.packRate=d.packRate||0;d.packHrsMin=d.packHrsMin||0;d.packHrsMax=d.packHrsMax||0;}
+  renderQbDays();qbAutoSave();
+}
 function addQbLocation(dayId,type){
   const day=qbDays.find(d=>d.id===dayId);if(!day)return;
   const arr=type==='load'?day.loads:day.unloads;
@@ -3904,25 +3925,73 @@ function renderQbDays(){
         ${isMulti&&qbDays.length>1?`<button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:11px" onclick="removeQuoteDay('${d.id}')">✕ Remove</button>`:''}
       </div>
       <div style="padding:14px">
-        <!-- Schedule & crew -->
-        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Schedule & Crew</div>
+        <!-- Schedule -->
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Schedule</div>
         <div class="form-grid form-grid-2" style="margin-bottom:16px">
           <div class="form-group"><label>Date *</label><input type="date" value="${d.date||''}" oninput="updateQbDay('${d.id}','date',this.value);renderQbDays()"></div>
-          <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
           <div class="form-group"><label>Arrival start</label><input type="text" value="${escHtml(d.arrivalStart||'')}" oninput="updateQbDay('${d.id}','arrivalStart',this.value)" placeholder="e.g. 8:00 AM"></div>
           <div class="form-group"><label>Arrival end</label><input type="text" value="${escHtml(d.arrivalEnd||'')}" oninput="updateQbDay('${d.id}','arrivalEnd',this.value)" placeholder="e.g. 9:00 AM"></div>
         </div>
-        <!-- Hours & rate -->
-        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Hours & Rate</div>
-        <div class="form-grid form-grid-2" style="margin-bottom:16px">
-          <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMin||2}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
-          <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMax||4}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
-          <div class="form-group full"><label>Hourly rate ($ per hour total)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
+        <!-- Crew breakdown -->
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Crew & Rate</div>
+        <div style="border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden;margin-bottom:16px">
+          <!-- Move crew (always shown) -->
+          <div style="padding:10px 12px;background:var(--surface)">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">🚛 Move crew</div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+              <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
+              <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMin||2}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
+              <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMax||4}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
+            </div>
+            ${(d.crewLoadDiff)?`<div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius);font-size:11.5px;color:var(--text3)">Load: ${d.crewLoad||d.crew} movers · Unload: ${d.crewUnload||d.crew} movers</div>`:''}
+          </div>
+          <!-- Different load/unload crew toggle -->
+          <div style="padding:8px 12px;border-top:1px solid var(--border2);background:var(--surface2)">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px">
+              <input type="checkbox" ${d.crewLoadDiff?'checked':''} onchange="toggleQbCrewDiff('${d.id}',this.checked)" style="accent-color:var(--accent)">
+              Different crew size for load vs unload
+            </label>
+          </div>
+          ${d.crewLoadDiff?`
+          <div style="padding:10px 12px;border-top:1px solid var(--border2);background:var(--surface)">
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>Load crew</label><select oninput="updateQbDay('${d.id}','crewLoad',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${(d.crewLoad||d.crew)==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+              <div class="form-group"><label>Unload crew</label><select oninput="updateQbDay('${d.id}','crewUnload',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${(d.crewUnload||d.crew)==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+            </div>
+          </div>`:''}
+          <!-- Packing crew toggle -->
+          <div style="padding:8px 12px;border-top:1px solid var(--border2);background:var(--surface2)">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px">
+              <input type="checkbox" ${d.packCrew?'checked':''} onchange="toggleQbPackCrew('${d.id}',this.checked)" style="accent-color:var(--accent)">
+              Add packing crew (separate rate/hours)
+            </label>
+          </div>
+          ${d.packCrew?`
+          <div style="padding:10px 12px;border-top:1px solid var(--border2);background:var(--surface)">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">📦 Packing crew</div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>No. of packers</label><select oninput="updateQbDay('${d.id}','packCrewSize',this.value)">${[1,2,3,4,5,6].map(n=>`<option value="${n}"${(d.packCrewSize||1)==n?' selected':''}>${n} packer${n>1?'s':''}</option>`).join('')}</select></div>
+              <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.packRate||''}" oninput="updateQbDay('${d.id}','packRate',this.value)" placeholder="e.g. 180"></div>
+              <div class="form-group"><label>Min hours</label><input type="number" value="${d.packHrsMin||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','packHrsMin',this.value)" placeholder="e.g. 2"></div>
+              <div class="form-group"><label>Max hours</label><input type="number" value="${d.packHrsMax||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','packHrsMax',this.value)" placeholder="e.g. 4"></div>
+            </div>
+          </div>`:''}
         </div>
         <!-- Day subtotal -->
         <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:13px">
-          <strong>${dayLabel} estimate:</strong> ${fmtMoney((d.hrsMin||0)*d.rate)} – ${fmtMoney((d.hrsMax||0)*d.rate)}
-          <span style="color:var(--text3);font-size:11.5px;margin-left:6px">(${d.crew} movers × ${d.hrsMin}–${d.hrsMax} hrs × $${d.rate}/hr)</span>
+          ${(()=>{
+            const moveMin=(d.hrsMin||0)*d.rate;
+            const moveMax=(d.hrsMax||0)*d.rate;
+            const packMin=d.packCrew&&d.packRate&&d.packHrsMin?(d.packHrsMin||0)*d.packRate:0;
+            const packMax=d.packCrew&&d.packRate&&d.packHrsMax?(d.packHrsMax||0)*d.packRate:0;
+            const crewDesc=d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} movers`;
+            let out=`<strong>${dayLabel} estimate:</strong> ${fmtMoney(moveMin+packMin)} – ${fmtMoney(moveMax+packMax)}`;
+            out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${d.hrsMin}–${d.hrsMax} hrs · $${d.rate}/hr`;
+            if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
+            out+='</div>';
+            return out;
+          })()}
         </div>
         <!-- Pickup locations -->
         <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📦 Pick-up location(s)</div>
@@ -3981,7 +4050,14 @@ function renderQbFees(){
 }
 function calcQbTotals(){
   let laborMin=0,laborMax=0,fees=0,feesMax=0;
-  qbDays.forEach(d=>{laborMin+=(d.hrsMin||0)*d.rate;laborMax+=(d.hrsMax||0)*d.rate;});
+  qbDays.forEach(d=>{
+    laborMin+=(d.hrsMin||0)*d.rate;
+    laborMax+=(d.hrsMax||0)*d.rate;
+    if(d.packCrew&&d.packRate){
+      laborMin+=(d.packHrsMin||0)*d.packRate;
+      laborMax+=(d.packHrsMax||0)*d.packRate;
+    }
+  });
   qbFees.filter(f=>f.included).forEach(f=>{
     if(f.type==='range'){fees+=f.hrsMin||0;feesMax+=f.hrsMax||0;}
     else{fees+=f.amount||0;feesMax+=f.amount||0;}
@@ -4012,7 +4088,8 @@ function buildQuoteHTML(){
   const q=currentQuoteId?db.quotes&&db.quotes.find(x=>x.id===currentQuoteId):null;
   let billingRows='';
   qbDays.forEach((d,i)=>{
-    const dayLabel=isMulti?`Day ${i+1} — ${d.crew} Movers`:`${d.crew} Movers`;
+    const crewDesc=d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:d.crew+' Movers';
+    const dayLabel=isMulti?`Day ${i+1} — ${crewDesc}`:`${crewDesc}`;
     const hrsLabel=`${d.hrsMin} - ${d.hrsMax} hours`;
     const rateLabel=`$${d.rate}.00 / hour`;
     const totalLabel=`${fmtMoney(d.hrsMin*d.rate)} - ${fmtMoney(d.hrsMax*d.rate)}`;
@@ -4022,6 +4099,18 @@ function buildQuoteHTML(){
       <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${rateLabel}</td>
       <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${totalLabel}</td>
     </tr>`;
+    if(d.packCrew&&d.packRate){
+      const packLabel=(isMulti?`Day ${i+1} — `:'')+(d.packCrewSize||1)+' Packer'+(( d.packCrewSize||1)>1?'s':'');
+      const packHrs=`${d.packHrsMin||'?'} - ${d.packHrsMax||'?'} hours`;
+      const packRate=`$${d.packRate}.00 / hour`;
+      const packTotal=`${fmtMoney((d.packHrsMin||0)*d.packRate)} - ${fmtMoney((d.packHrsMax||0)*d.packRate)}`;
+      billingRows+=`<tr>
+        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${packLabel}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">${packHrs}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${packRate}</td>
+        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${packTotal}</td>
+      </tr>`;
+    }
   });
   qbFees.filter(f=>f.included).forEach(f=>{
     const amt=f.type==='range'?`${fmtMoney(f.hrsMin||0)} - ${fmtMoney(f.hrsMax||0)}`:fmtMoney(f.amount||0);
@@ -4274,7 +4363,7 @@ function buildQuotePlainText(){
   txt+='BILLING\n';
   txt+='----------------------------------------------\n';
   qbDays.forEach((d,i)=>{
-    const label=isMulti?'Day '+(i+1)+' - '+d.crew+' Movers':d.crew+' Movers';
+    const label=isMulti?'Day '+(i+1)+' - '+fmtCrewDesc(d):fmtCrewDesc(d);
     txt+=label+': '+d.hrsMin+' - '+d.hrsMax+' hours @ $'+d.rate+'/hr\n';
     txt+='  Range: '+fmtMoney(d.hrsMin*d.rate)+' - '+fmtMoney(d.hrsMax*d.rate)+'\n';
   });
