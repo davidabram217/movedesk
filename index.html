@@ -785,13 +785,14 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
 const footerBtnRight=isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
+const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
 document.getElementById('view-modal-footer').innerHTML=`
   <div style="display:flex;flex-direction:column;gap:8px;width:100%">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>
-      ${viewQuoteBtn}${mapBtn}
+      ${summaryBtn}${viewQuoteBtn}${mapBtn}
       <button class="btn btn-secondary" style="color:#c0392b;border-color:#c0392b" onclick="window.deleteLead('${l.id}')">🗑 Delete</button>
     </div>
     <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
