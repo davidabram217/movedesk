@@ -1008,15 +1008,18 @@ function openCallSummaryEmail(leadId){
     if(rq.rate)rqSection+=' @ $'+rq.rate+'/hr';
     if(rq.hrsMin||rq.hrsMax){
       rqSection+='\n  Est. '+(rq.hrsMin||'?')+(rq.hrsMax&&rq.hrsMax!==rq.hrsMin?'–'+rq.hrsMax:'')+' hours';
-      if(rq.movers&&rq.rate&&rq.hrsMin){
-        const mn=Number(rq.movers)*Number(rq.rate)*Number(rq.hrsMin);
-        const mx=rq.hrsMax?Number(rq.movers)*Number(rq.rate)*Number(rq.hrsMax):mn;
-        rqSection+=' (est. $'+mn.toLocaleString()+(mx!==mn?' – $'+mx.toLocaleString():'')+')';
-      }
     }
     if(rq.fuel)rqSection+='\n  Fuel fee: $'+rq.fuel;
     if(rq.materials)rqSection+='\n  Material fee: $'+rq.materials;
     if(rq.other)rqSection+='\n  '+rq.other;
+    if(rq.movers&&rq.rate&&rq.hrsMin){
+      const labour_min=Number(rq.rate)*Number(rq.hrsMin);
+      const labour_max=rq.hrsMax?Number(rq.rate)*Number(rq.hrsMax):labour_min;
+      const fees=(Number(rq.fuel)||0)+(Number(rq.materials)||0);
+      const total_min=labour_min+fees;
+      const total_max=labour_max+fees;
+      rqSection+='\n\n  Estimated total: $'+total_min.toLocaleString()+(total_max!==total_min?' – $'+total_max.toLocaleString():'');
+    }
     rqSection+='\n\n*Please note this is a rough estimate based on our phone discussion. The final cost may vary and we will confirm exact pricing once we have had a chance to review all the details.';
   }
   document.getElementById('cs-body').value='Hi '+firstName+',\n\nThank you for calling in today! I just wanted to send over a quick summary of what we discussed so we\'re both on the same page.\n\nHere\'s what I have noted:\n\nMove date: '+fmtDate(l.date)+'\nHome size: '+(l.size||'TBD')+'\nPacking needed: '+(l.packing||'No')+'\n\n📦 Moving from:\n'+fmtLoadLocations(l)+'\n\n🏠 Moving to:\n'+fmtUnloadLocations(l)+rqSection+(l.notes?'\nAdditional notes:\n'+l.notes:'')+'\n\n'+(l.estimateType?'Next steps: We will be following up with your '+l.estimateType+' estimate shortly.\n\nPlease review the above and let me know if anything needs to be corrected or if you have any questions. We look forward to helping with your move!':'Please review the above and let me know if anything needs to be corrected, if you have any questions or would like to schedule a free onsite, face time or video estimate. We look forward to helping with your move!')+'\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
