@@ -11,7 +11,7 @@
           ✓ Done — added to calendar
         </button><button class="btn btn-secondary" style="padding:10px 16px;font-size:12px;color:var(--text3)" onclick="closeModal('estimate-cal');finishScheduleEstimate()">
           Skip — I'll add it manually
-        </button></div></div></div></div><div class="modal-bg" id="modal-send-estimate"><div class="modal" style="max-width:460px"><div class="modal-header"><div class="modal-title">Log estimate</div><button class="modal-close" onclick="cancelSubModal('send-estimate')">✕</button></div><div class="modal-body"><div id="estimate-lead-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div><div class="form-grid form-grid-2"><div class="form-group full"><label>How was the estimate done? *</label><select id="se-type"><option value="">Select estimate type…</option><option>Unseen</option><option>Video</option><option>FaceTime</option><option>Onsite</option></select><div class="form-hint">Tracked in analytics for close rate reporting</div></div><div class="form-group"><label>Estimate date</label><input type="date" id="se-date"></div><div class="form-group"><label>Quoted amount ($)</label><input type="number" id="se-quote" placeholder="0.00"></div><div class="form-group"><label>Sent by</label><input type="text" id="se-sent-by" placeholder="e.g. John" list="se-sent-by-list"><datalist id="se-sent-by-list"><option value="John"><option value="Dave"></datalist></div><div class="form-group full"><label>Notes</label><textarea id="se-notes" placeholder="Details about the estimate…" style="min-height:55px"></textarea></div></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="cancelSubModal('send-estimate')">← Back to options</button><button class="btn btn-primary" onclick="confirmEstimate()">Save estimate</button></div></div></div><div class="modal-bg" id="modal-book-job"><div class="modal" style="max-width:640px"><div class="modal-header"><div class="modal-title">Book this job</div><button class="modal-close" onclick="closeModal('book-job')">✕</button></div><div class="modal-body"><div id="book-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Schedule & crew</div><div class="form-grid form-grid-2" style="margin-bottom:12px"><div class="form-group"><label>Confirmed date *</label><input type="date" id="bj-date"></div><div class="form-group"><label>Arrival window</label><input type="text" id="bj-time" placeholder="e.g. 8:30–9:30am"></div><div class="form-group"><label>No. of movers</label><select id="bj-movers"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div></div><div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0"><input type="checkbox" id="bj-crew-diff" onchange="toggleBjCrewDiff()" style="accent-color:var(--accent)">
+        </button></div></div></div></div><div class="modal-bg" id="modal-send-estimate"><div class="modal" style="max-width:460px"><div class="modal-header"><div class="modal-title">Log estimate</div><button class="modal-close" onclick="cancelSubModal('send-estimate')">✕</button></div><div class="modal-body"><div id="estimate-lead-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div><div class="form-grid form-grid-2"><div class="form-group full"><label>How was the estimate done? *</label><select id="se-type"><option value="">Select estimate type…</option><option>Unseen</option><option>Video</option><option>FaceTime</option><option>Onsite</option></select><div class="form-hint">Tracked in analytics for close rate reporting</div></div><div class="form-group"><label>Estimate date</label><input type="date" id="se-date"></div><div class="form-group"><label>Quoted amount ($)</label><input type="number" id="se-quote" placeholder="0.00"></div><div class="form-group"><label>Sent by</label><input type="text" id="se-sent-by" placeholder="e.g. John" list="se-sent-by-list"><datalist id="se-sent-by-list"><option value="John"><option value="Dave"></datalist></div><div class="form-group full"><label>Notes</label><textarea id="se-notes" placeholder="Details about the estimate…" style="min-height:55px"></textarea></div></div></div><div class="modal-footer"><button class="btn btn-secondary" onclick="cancelSubModal('send-estimate')">← Back to options</button><button class="btn btn-primary" onclick="confirmEstimate()">Save estimate</button></div></div></div><div class="modal-bg" id="modal-book-job"><div class="modal" style="max-width:640px"><div class="modal-header"><div class="modal-title">Book this job</div><button class="modal-close" onclick="closeModal('book-job')">✕</button></div><div class="modal-body" oninput="bjAutoSave()" onchange="bjAutoSave()"><div id="book-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div><div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Schedule & crew</div><div class="form-grid form-grid-2" style="margin-bottom:12px"><div class="form-group"><label>Confirmed date *</label><input type="date" id="bj-date"></div><div class="form-group"><label>Arrival window</label><input type="text" id="bj-time" placeholder="e.g. 8:30–9:30am"></div><div class="form-group"><label>No. of movers</label><select id="bj-movers"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div></div><div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0"><input type="checkbox" id="bj-crew-diff" onchange="toggleBjCrewDiff()" style="accent-color:var(--accent)">
           Different crew size for load vs unload
         </label><div id="bj-crew-diff-fields" style="display:none;margin-top:10px"><div class="form-grid form-grid-2"><div class="form-group"><label>Load crew</label><select id="bj-crew-load"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div><div class="form-group"><label>Unload crew</label><select id="bj-crew-unload"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div></div></div></div><div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:16px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0"><input type="checkbox" id="bj-pack-crew" onchange="toggleBjPackCrew()" style="accent-color:var(--accent)">
           Add packing crew (separate rate)
@@ -1298,6 +1298,33 @@ function toggleBjPackCrew(){
   const checked=document.getElementById('bj-pack-crew').checked;
   document.getElementById('bj-pack-crew-fields').style.display=checked?'block':'none';
 }
+let _bjAutoSaveTimer=null;
+function bjAutoSave(){
+  if(!editingBookedJobId)return;
+  clearTimeout(_bjAutoSaveTimer);
+  _bjAutoSaveTimer=setTimeout(function(){
+    const j=db.bookedJobs.find(x=>x.id===editingBookedJobId);
+    if(!j)return;
+    j.date=document.getElementById('bj-date').value;
+    j.time=document.getElementById('bj-time').value;
+    j.movers=document.getElementById('bj-movers').value;
+    j.rateRegular=document.getElementById('bj-rate-regular').value;
+    j.rateCash=document.getElementById('bj-rate-cash').value;
+    j.feeMaterials=document.getElementById('bj-fee-materials').value;
+    j.packMatMin=document.getElementById('bj-pack-mat-min')?.value||'';
+    j.packMatMax=document.getElementById('bj-pack-mat-max')?.value||'';
+    j.feeFuel=document.getElementById('bj-fee-fuel').value;
+    j.quote=document.getElementById('bj-quote').value;
+    j.deposit=document.getElementById('bj-deposit').value;
+    j.insuranceType=document.getElementById('bj-insurance-type').value;
+    j.volume=document.getElementById('bj-volume').value;
+    j.scope=document.getElementById('bj-scope').value;
+    j.crewNotes=document.getElementById('bj-crew-notes').value;
+    j.emailNote=document.getElementById('bj-email-note').value;
+    j.officeNotes=document.getElementById('bj-office-notes')?.value||'';
+    saveDB();
+  },800);
+}
 function openBooking(leadId){
   currentBookingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
@@ -1621,15 +1648,6 @@ function resetJobCal(jobId){
   renderBookingChecklist();
   showToast('↩ Calendar reset — add again');
 }
-function markJobCalAdded(jobId){
-  const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
-  if(!j)return;
-  j.calendarAdded=true;
-  j.calendarAddedDate=new Date().toISOString().split('T')[0];
-  saveDB();
-  renderBookingChecklist();
-  showToast('✓ Calendar marked as done');
-}
 function autoSaveConfirmEmail(){
   const l=db.leads.find(x=>x.id===currentConfirmEmailLeadId);
   if(!l)return;
@@ -1940,11 +1958,12 @@ function editBookedJob(jobId){
   setTimeout(()=>openModal('book-job'),200);
 }
 function markJobCalAdded(jobId){
-  const j=db.bookedJobs.find(x=>x.id===jobId);
+  const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
   if(!j)return;
   j.calendarAdded=true;j.calendarAddedDate=new Date().toISOString().split('T')[0];
   saveDB();
-  setTimeout(()=>renderBooked(),300);
+  if(document.getElementById('modal-booking-next')?.classList.contains('open'))renderBookingChecklist();
+  else setTimeout(()=>renderBooked(),300);
   showToast('✓ Marked as added to calendar');
 }
 let currentCancelJobId=null;
