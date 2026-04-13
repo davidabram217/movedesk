@@ -1324,7 +1324,7 @@ function buildJobCalUrl(j){
   const title=`${j.name} | ${j.movers||'?'} men | ${j.from||''}`;
   const lines=[];
   if(j.officeNotes){lines.push('🔒 OFFICE NOTES ONLY');lines.push(j.officeNotes.toUpperCase());lines.push('');}
-  if(j.insuranceType){lines.push(j.insuranceType.toUpperCase());lines.push('');}
+  if(j.insuranceType){lines.push(`Insurance: ${j.insuranceType}`);lines.push('');}
   if(j.scope){lines.push('Scope of Work:');lines.push(j.scope);lines.push('');}
   if(j.crewNotes){lines.push('Note for Crew:');lines.push(j.crewNotes);lines.push('');}
   if(j.emailNote){lines.push('Additional notes:');lines.push(j.emailNote);lines.push('');}
@@ -1740,7 +1740,7 @@ function viewBookedJob(id){const j=db.bookedJobs.find(x=>x.id===id);if(!j)return
 document.getElementById('view-modal-title').textContent=j.name;
 const calLines=[];
 if(j.officeNotes){calLines.push('🔒 OFFICE NOTES ONLY',j.officeNotes.toUpperCase(),'');}
-if(j.insuranceType){calLines.push(j.insuranceType.toUpperCase(),'');}
+if(j.insuranceType){calLines.push('Insurance: '+j.insuranceType,'');}
 if(j.scope){calLines.push('Scope of Work:',j.scope,'');}
 if(j.crewNotes){calLines.push('Note for Crew:',j.crewNotes,'');}
 if(j.emailNote){calLines.push('Additional notes:',j.emailNote,'');}
