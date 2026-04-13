@@ -833,8 +833,8 @@ function openConfirmEmail(leadId){
         if(loc.parking)moveDetailsSection+=' · '+loc.parking;
       });
       if(d.crew&&d.rate){
-        const minCost=d.crew*(d.hrsMin||2)*d.rate;
-        const maxCost=d.crew*(d.hrsMax||4)*d.rate;
+        const minCost=(d.hrsMin||2)*d.rate;
+        const maxCost=(d.hrsMax||4)*d.rate;
         moveDetailsSection+='\n💰 Day '+(i+1)+' estimate: $'+minCost.toLocaleString()+' – $'+maxCost.toLocaleString()+' ('+d.crew+' movers × '+d.hrsMin+'–'+d.hrsMax+' hrs @ $'+d.rate+'/hr)';
       }
     });
@@ -3944,7 +3944,7 @@ function renderQbDays(){
         </div>
         <!-- Day subtotal -->
         <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:13px">
-          <strong>${dayLabel} estimate:</strong> ${fmtMoney(d.crew*(d.hrsMin||0)*d.rate)} – ${fmtMoney(d.crew*(d.hrsMax||0)*d.rate)}
+          <strong>${dayLabel} estimate:</strong> ${fmtMoney((d.hrsMin||0)*d.rate)} – ${fmtMoney((d.hrsMax||0)*d.rate)}
           <span style="color:var(--text3);font-size:11.5px;margin-left:6px">(${d.crew} movers × ${d.hrsMin}–${d.hrsMax} hrs × $${d.rate}/hr)</span>
         </div>
         <!-- Pickup locations -->
@@ -4004,7 +4004,7 @@ function renderQbFees(){
 }
 function calcQbTotals(){
   let laborMin=0,laborMax=0,fees=0,feesMax=0;
-  qbDays.forEach(d=>{laborMin+=d.crew*(d.hrsMin||0)*d.rate;laborMax+=d.crew*(d.hrsMax||0)*d.rate;});
+  qbDays.forEach(d=>{laborMin+=(d.hrsMin||0)*d.rate;laborMax+=(d.hrsMax||0)*d.rate;});
   qbFees.filter(f=>f.included).forEach(f=>{
     if(f.type==='range'){fees+=f.hrsMin||0;feesMax+=f.hrsMax||0;}
     else{fees+=f.amount||0;feesMax+=f.amount||0;}
@@ -4038,7 +4038,7 @@ function buildQuoteHTML(){
     const dayLabel=isMulti?`Day ${i+1} — ${d.crew} Movers`:`${d.crew} Movers`;
     const hrsLabel=`${d.hrsMin} - ${d.hrsMax} hours`;
     const rateLabel=`$${d.rate}.00 / hour`;
-    const totalLabel=`${fmtMoney(d.crew*d.hrsMin*d.rate)} - ${fmtMoney(d.crew*d.hrsMax*d.rate)}`;
+    const totalLabel=`${fmtMoney(d.hrsMin*d.rate)} - ${fmtMoney(d.hrsMax*d.rate)}`;
     billingRows+=`<tr>
       <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${dayLabel}</td>
       <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">${hrsLabel}</td>
@@ -4299,7 +4299,7 @@ function buildQuotePlainText(){
   qbDays.forEach((d,i)=>{
     const label=isMulti?'Day '+(i+1)+' - '+d.crew+' Movers':d.crew+' Movers';
     txt+=label+': '+d.hrsMin+' - '+d.hrsMax+' hours @ $'+d.rate+'/hr\n';
-    txt+='  Range: '+fmtMoney(d.crew*d.hrsMin*d.rate)+' - '+fmtMoney(d.crew*d.hrsMax*d.rate)+'\n';
+    txt+='  Range: '+fmtMoney(d.hrsMin*d.rate)+' - '+fmtMoney(d.hrsMax*d.rate)+'\n';
   });
   qbFees.filter(f=>f.included).forEach(f=>{
     const amt=f.type==='range'?fmtMoney(f.hrsMin||0)+' - '+fmtMoney(f.hrsMax||0):fmtMoney(f.amount||0);
