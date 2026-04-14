@@ -1362,6 +1362,35 @@
       </div>
 
       
+      <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="form-group">
+          <label>Type of move</label>
+          <select id="qb-move-type" oninput="qbAutoSave()">
+            <option value="">Select…</option>
+            <option>Move</option>
+            <option>Pack and move</option>
+            <option>Packing only</option>
+            <option>Move to storage</option>
+            <option>Pack and move to storage</option>
+            <option>Move out of storage</option>
+            <option>Internal</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Packing needed?</label>
+          <select id="qb-packing" oninput="qbAutoSave()">
+            <option value="">Select…</option>
+            <option>No — just moving</option>
+            <option>Full pack</option>
+            <option>Partial pack</option>
+            <option>Fragiles only</option>
+            <option>Kitchen pack</option>
+            <option>Unpack only</option>
+          </select>
+        </div>
+      </div>
+
+      
       <div class="form-group" style="margin-bottom:16px">
         <label>Project description <span style="font-size:11px;color:var(--text3)">(shown on quote — describe the scope of work)</span></label>
         <textarea id="qb-description" style="min-height:60px" placeholder="e.g. Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF." oninput="qbAutoSave()"></textarea>
@@ -6109,6 +6138,8 @@ function openQuoteBuilder(leadId){
   qbFees=[{id:uid(),label:'Fuel Fee',amount:75,included:true},{id:uid(),label:'Standard Material Fee',amount:40,included:true}];
   if(l&&l.packing&&l.packing!=='No — just moving')qbFees.push({id:uid(),label:'Packing Materials',amount:0,included:true});
   document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
+  if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=l?.moveType||'';
+  if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=l?.packing||'';
   document.getElementById('qb-description').value='Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF.';
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
@@ -6136,7 +6167,7 @@ function loadQuoteIntoBuilder(q){
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
   document.getElementById('qb-stipulations').value=q.stipulations||'';
   document.getElementById('qb-notes').value=q.notes||'';
-  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';
+  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';
   setJobType(qbJobType);
 }
 
@@ -6694,7 +6725,7 @@ function saveQuote(status){
     jobType:qbJobType,
     days:[...qbDays],
     fees:[...qbFees],
-    projectName:document.getElementById('qb-project-name').value,
+    projectName:document.getElementById('qb-project-name').value,moveType:document.getElementById('qb-move-type')?.value||'',packing:document.getElementById('qb-packing')?.value||'',
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
     stipulations:document.getElementById('qb-stipulations').value,
