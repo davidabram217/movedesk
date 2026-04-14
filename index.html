@@ -1405,6 +1405,12 @@
       </div>
 
       
+      <div class="form-group" style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
+        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">🔒 Office notes only <span style="font-size:10px;font-weight:400;color:var(--text3)">— never shown to customer</span></label>
+        <textarea id="qb-office-notes" style="min-height:55px;width:100%" placeholder="Internal notes — pricing flags, special considerations, anything not for the client…" oninput="qbAutoSave()"></textarea>
+      </div>
+
+      
       <div id="qb-total-bar" style="background:var(--surface2);border-radius:var(--radius);padding:14px 16px;margin-top:12px"></div>
     </div>
     <div class="modal-footer">
@@ -6107,7 +6113,7 @@ function loadQuoteIntoBuilder(q){
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
   document.getElementById('qb-stipulations').value=q.stipulations||'';
   document.getElementById('qb-notes').value=q.notes||'';
-  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';
+  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';
   setJobType(qbJobType);
 }
 
@@ -6669,7 +6675,7 @@ function saveQuote(status){
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
     stipulations:document.getElementById('qb-stipulations').value,
-    notes:document.getElementById('qb-notes').value,
+    notes:document.getElementById('qb-notes').value,officeNotes:document.getElementById('qb-office-notes')?.value||'',
     sentBy:document.getElementById('qb-sent-by')?.value||'',
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
