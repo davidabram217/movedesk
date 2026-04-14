@@ -2461,6 +2461,22 @@ function setIncomeTabAnalytics(period,btn){
 }
 
 function renderDashboard(){
+  // Clean up draft jobs and duplicates
+  const completedJobIds=new Set((db.completedJobs||[]).map(j=>j.bookedJobId).filter(Boolean));
+  const seen=new Set();
+  let cleaned=false;
+  db.bookedJobs=(db.bookedJobs||[]).filter(j=>{
+    // Remove if it was completed
+    if(completedJobIds.has(j.id)){cleaned=true;return false;}
+    // Remove orphaned drafts (draft with no date set means never confirmed)
+    if(j._draft){cleaned=true;return false;}
+    // Remove duplicates — keep first occurrence per leadId+date combo
+    const key=j.leadId+'|'+j.date+'|'+j.name;
+    if(seen.has(key)&&!j.pendingConfirmation===false){cleaned=true;return false;}
+    seen.add(key);
+    return true;
+  });
+  if(cleaned)saveDB();
   const today=new Date().toISOString().split('T')[0];
   const tm=today.slice(0,7);
   // Week runs Saturday to Friday
@@ -3271,6 +3287,8 @@ function bjWriteFields(j){
 }
 
 function openBooking(leadId){
+  // Clear any stale drafts for this lead before opening
+  db.bookedJobs=(db.bookedJobs||[]).filter(j=>!(j.leadId===leadId&&j._draft));
   currentBookingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
