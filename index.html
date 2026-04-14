@@ -2903,6 +2903,7 @@ function viewSummaryEmail(leadId){
   const l=db.leads.find(x=>x.id===leadId);
   if(!l||!l.summaryEmailBody){showToast('No saved summary found — open the summary email first to generate it');return;}
   currentCallSummaryLeadId=leadId;
+  document.getElementById('cs-to').value=l.summaryEmailTo||l.email||'';
   document.getElementById('cs-subject').value=l.summaryEmailSubject||'';
   document.getElementById('cs-body').value=l.summaryEmailBody;
   openModal('call-summary');
@@ -2910,7 +2911,7 @@ function viewSummaryEmail(leadId){
 
 function markSummarySent(){
   const l=db.leads.find(x=>x.id===currentCallSummaryLeadId);
-  if(l){l.status='Summary sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];l.summaryEmailBody=document.getElementById('cs-body').value;l.summaryEmailSubject=document.getElementById('cs-subject')?.value||'';saveDB();}
+  if(l){l.status='Summary sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];l.summaryEmailTo=document.getElementById('cs-to')?.value||l.email||'';l.summaryEmailBody=document.getElementById('cs-body').value;l.summaryEmailSubject=document.getElementById('cs-subject')?.value||'';saveDB();}
   nextStepSubModal=false;
   closeModal('call-summary');
   showToast('✓ Summary marked as sent');
