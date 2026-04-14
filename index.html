@@ -2358,7 +2358,7 @@ function nextStepAction(action){
     setTimeout(()=>openQuoteBuilder(currentNextStepLeadId),200);
   } else if(action==='summary'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){l.status='Need to send summary';saveDB();renderLeads();}
+    if(l){l.status='Need to send summary';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
     nextStepSubModal=true;
     setTimeout(()=>openCallSummaryEmail(currentNextStepLeadId),200);
   } else if(action==='estimate'){
@@ -2368,7 +2368,7 @@ function nextStepAction(action){
     setTimeout(()=>openScheduleEstimate(currentNextStepLeadId),200);
   } else if(action==='followup'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){l.status='Need to follow up';saveDB();renderLeads();}
+    if(l){l.status='Need to follow up';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
     showToast('✓ Flagged for follow-up — '+l?.name);
   } else {
     showToast('✓ Lead saved — '+db.leads.find(x=>x.id===currentNextStepLeadId)?.name);
@@ -2476,15 +2476,22 @@ function renderDashboard(){
   const today2=new Date().toISOString().split('T')[0];
   const activeStatuses=['New','Need to send summary','Summary sent','Need to send estimate'];
   let autoUpdated=false;
-  db.leads.filter(l=>activeStatuses.includes(l.status)&&l.createdAt).forEach(l=>{
-    const days=Math.floor((new Date(today2)-new Date(l.createdAt+'T12:00:00'))/(1000*60*60*24));
-    if(days>=3){l.status='Need to follow up';autoUpdated=true;}
+  db.leads.filter(l=>activeStatuses.includes(l.status)&&(l.statusUpdatedAt||l.createdAt)).forEach(l=>{
+    const since=l.statusUpdatedAt||l.createdAt;
+    const days=Math.floor((new Date(today2)-new Date(since+'T12:00:00'))/(1000*60*60*24));
+    if(days>=3){l.status='Need to follow up';l.statusUpdatedAt=today2;autoUpdated=true;}
   });
   if(autoUpdated)saveDB();
 
-  // Follow-up leads
+  // Follow-up leads — only show if status has been unchanged for 3+ days
   const followupStatuses=['Need to follow up','Need to send summary','Need to send estimate','Summary sent','Estimate sent'];
-  const followups=db.leads.filter(l=>followupStatuses.includes(l.status))
+  const followups=db.leads.filter(l=>{
+    if(!followupStatuses.includes(l.status))return false;
+    const since=l.statusUpdatedAt||l.createdAt;
+    if(!since)return true;
+    const days=Math.floor((new Date(today2)-new Date(since+'T12:00:00'))/(1000*60*60*24));
+    return days>=3;
+  })
     .map(l=>({...l,daysSince:l.createdAt?Math.floor((new Date(today)-new Date(l.createdAt+'T12:00:00'))/(1000*60*60*24)):0}))
     .sort((a,b)=>b.daysSince-a.daysSince);
 
@@ -2740,7 +2747,7 @@ function saveEstimateSent(id){
   const quote=document.getElementById('est-quick-quote-'+id)?.value||'';
   const doneBy=document.getElementById('est-done-by-'+id)?.value||'';
   const sentBy=document.getElementById('est-sent-by-'+id)?.value||'';
-  l.status='Estimate sent';
+  if(!sentBy){showToast('Please fill in who sent the estimate (Sent by ★).');return;}
   l.estimateType=type;
   l.estimateDate=new Date().toISOString().split('T')[0];
   if(quote)l.estimateQuote=quote;
@@ -2810,7 +2817,7 @@ function handleStatusClick(id,status){
   updateLeadStatus(id,status);
 }
 
-function updateLeadStatus(id,status){const l=db.leads.find(x=>x.id===id);if(l){l.status=status;saveDB();showToast('Status: '+status);closeModal('view');renderLeads();}}
+function updateLeadStatus(id,status){const l=db.leads.find(x=>x.id===id);if(l){l.status=status;l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();showToast('Status: '+status);closeModal('view');renderLeads();}}
 
 let currentCallSummaryLeadId=null;
 function openCallSummaryEmail(leadId){
@@ -2868,7 +2875,7 @@ function viewSummaryEmail(leadId){
 
 function markSummarySent(){
   const l=db.leads.find(x=>x.id===currentCallSummaryLeadId);
-  if(l){l.status='Summary sent';l.summaryEmailBody=document.getElementById('cs-body').value;l.summaryEmailSubject=document.getElementById('cs-subject')?.value||'';saveDB();}
+  if(l){l.status='Summary sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];l.summaryEmailBody=document.getElementById('cs-body').value;l.summaryEmailSubject=document.getElementById('cs-subject')?.value||'';saveDB();}
   nextStepSubModal=false;
   closeModal('call-summary');
   showToast('✓ Summary marked as sent');
@@ -2902,7 +2909,7 @@ function confirmEstimate(){
   if(!type){showToast('Please select an estimate type.');return;}
   if(!sentBy){showToast('Please fill in who sent the estimate.');return;}
   const l=db.leads.find(x=>x.id===currentEstimateLeadId);if(!l)return;
-  l.estimateType=type;l.estimateDate=document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=sentBy;l.status='Estimate sent';nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast('✓ Estimate logged — '+type+' for '+l.name);renderLeads();
+  l.estimateType=type;l.estimateDate=document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=sentBy;l.status='Estimate sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast('✓ Estimate logged — '+type+' for '+l.name);renderLeads();
 }
 
 // ── SCHEDULE ESTIMATE ──
@@ -4095,7 +4102,7 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
   // Pre-fill vaults from booking volume — extract max number from text like "4–5 vaults"
   if(j.volume){const nums=(j.volume.match(/[\d.]+/g)||[]).map(Number);if(nums.length)document.getElementById('cj-vaults').value=Math.max(...nums);}
   calcTotal();calcBalance();openModal('complete-job');}
-function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;const paid=document.getElementById('cj-paid').value;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
+function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;const paid=document.getElementById('cj-paid').value;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
   const vaults=document.getElementById('cj-vaults').value;
   // Find the original quote for this job
   const lead=j?db.leads.find(l=>l.id===j.leadId):null;
@@ -6787,6 +6794,8 @@ function buildQuotePlainText(){
 }
 
 async function openQuoteGmail(){
+  const sentBy=document.getElementById('qb-sent-by')?.value?.trim();
+  if(!sentBy){showToast('Please fill in who is sending this quote (Sent by field).');return;}
   const q=saveQuote('draft');
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const name=l?l.name.split(' ')[0]:'there';
