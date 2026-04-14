@@ -6548,7 +6548,7 @@ function buildQuoteHTML(){
 
     <p style="font-size:14px;line-height:1.7;margin-bottom:8px">Dear ${escHtml(l?l.name:'Customer')},</p>
     <p style="font-size:14px;line-height:1.7;margin-bottom:16px">Moving is hard. We're here to make your move go as smoothly as possible.</p>
-    <p style="font-size:13.5px;line-height:1.7;color:#444;margin-bottom:8px">${escHtml(notes)}</p>
+    <p style="font-size:13.5px;line-height:1.7;color:#444;margin-bottom:8px">${escHtml(notes).replace(/\n/g,'<br>')}</p>
 
     <!-- Contact Information -->
     <div style="margin:20px 0">
