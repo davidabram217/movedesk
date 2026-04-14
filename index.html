@@ -2576,11 +2576,24 @@ function renderArchivedLeads(){
       <td>${l.estimateType?estBadge(l.estimateType):'—'}</td>
       <td><span class="badge pill-gray" style="font-size:11px">${l.dnbStage?stageLabels[l.dnbStage]||l.dnbStage:'—'}</span></td>
       <td style="font-size:12px;color:var(--text2)">${l.dnbReason||'—'}</td>
-      <td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td>
+      <td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-secondary btn-sm" style="color:var(--accent);border-color:var(--accent)" onclick="reactivateLead('${l.id}')">↩ Reactivate</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td>
     </tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-title">No archived leads</div><div class="empty-sub">Leads marked "Did not book" will appear here</div></div></td></tr>`;
 }
 function filterArchived(v){archivedFilter.text=v;renderArchivedLeads();}
 function filterArchivedSource(v){archivedFilter.source=v;renderArchivedLeads();}
+
+function reactivateLead(id){
+  const l=db.leads.find(x=>x.id===id);
+  if(!l)return;
+  l.status='Need to follow up';
+  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  // Clear did-not-book fields so it's a clean reactivation
+  delete l.dnbStage;delete l.dnbReason;delete l.dnbNotes;delete l.dnbDate;
+  saveDB();
+  renderArchivedLeads();
+  renderLeads();
+  showToast('↩ '+l.name+' reactivated — marked as Need to follow up');
+}
 
 function viewLead(id){const l=db.leads.find(x=>x.id===id);if(!l)return;document.getElementById('view-modal-title').textContent=l.name;
 document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
@@ -7204,15 +7217,38 @@ function checkRepeatByPhone(val){
     showToast('👋 Repeat customer found — '+cust.name);
     return;
   }
+  // Check if there's a Did not book lead with this phone
+  const dnbLead=(db.leads||[]).find(l=>l.status==='Did not book'&&l.phone&&l.phone.replace(/\D/g,'')===clean);
+  if(dnbLead){
+    const nameEl=document.getElementById('nl-name');
+    const emailEl=document.getElementById('nl-email');
+    if(nameEl&&!nameEl.value)nameEl.value=dnbLead.name||'';
+    if(emailEl&&!emailEl.value)emailEl.value=dnbLead.email||'';
+    const srcEl=document.getElementById('nl-source');
+    if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
+    // Show reactivate prompt
+    showToast('⚠ This customer previously did not book — you can reactivate their lead');
+    const body=document.getElementById('nl-repeat-customer-body');
+    const panel=document.getElementById('nl-repeat-customer-panel');
+    if(body&&panel){
+      body.innerHTML=`<div style="padding:10px 12px;background:var(--amber-light);border-radius:var(--radius);border:1px solid #f0d080;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">⚠ Previously did not book</div>
+          <div style="font-size:12px;color:var(--text2)">${dnbLead.dnbReason?'Reason: '+dnbLead.dnbReason:''} ${dnbLead.size?'· '+dnbLead.size:''} · ${fmtDate(dnbLead.date)||'No date'}</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="color:var(--accent);border-color:var(--accent);white-space:nowrap;margin-left:10px" onclick="reactivateLead('${dnbLead.id}');document.getElementById('nl-repeat-customer-panel').style.display='none'">↩ Reactivate old lead</button>
+      </div>`;
+      panel.style.display='block';
+    }
+    return;
+  }
   // Also check completed jobs by phone
   const job=(db.completedJobs||[]).find(j=>j.phone&&j.phone.replace(/\D/g,'')===clean);
   if(job){
-    // Pre-fill name/email if not already set
     const nameEl=document.getElementById('nl-name');
     const emailEl=document.getElementById('nl-email');
     if(nameEl&&!nameEl.value)nameEl.value=job.name||'';
     if(emailEl&&!emailEl.value)emailEl.value=job.email||'';
-    // Set source to repeat customer
     const srcEl=document.getElementById('nl-source');
     if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
     showToast('👋 Previous customer found — '+job.name);
@@ -7257,8 +7293,16 @@ function selectCustomerForLead(custId){
   const totalSpent=hist.completed.reduce((s,j)=>s+(Number(j.paid)||0),0);
   const lastJob=hist.completed.sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
   const lastLead=hist.leads.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))[0];
+  const dnbLead=hist.leads.find(l=>l.status==='Did not book');
 
   body.innerHTML=`
+    ${dnbLead?`<div style="margin-bottom:12px;padding:10px 12px;background:var(--amber-light);border-radius:var(--radius);border:1px solid #f0d080;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">⚠ Previously did not book</div>
+        <div style="font-size:12px;color:var(--text2)">${dnbLead.dnbReason?'Reason: '+dnbLead.dnbReason:''} ${dnbLead.dnbStage?'· Lost after '+dnbLead.dnbStage.replace('after-',''):''}</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" style="color:var(--accent);border-color:var(--accent);white-space:nowrap;margin-left:10px" onclick="reactivateLead('${dnbLead.id}');document.getElementById('nl-name-ac').style.display='none'">↩ Reactivate</button>
+    </div>`:''}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
       <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;text-align:center">
         <div style="font-size:18px;font-weight:700;color:var(--accent)">${hist.jobs.length}</div>
