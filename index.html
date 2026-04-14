@@ -330,6 +330,13 @@
           <div class="card-body" id="repeat-customer-chart"></div>
         </div>
       </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin:20px 0 12px;padding-top:16px;border-top:1px solid var(--border)">💰 Hourly Rate Analysis</div>
+      <div style="margin-bottom:16px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">💰 Hourly rate success</div><div style="font-size:11.5px;color:var(--text3)">Quote acceptance rate by hourly rate — which rates convert best</div></div>
+          <div class="card-body" id="rate-success-chart"></div>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
           <div class="card-header"><div class="card-title">Peak moving periods</div><div style="font-size:11.5px;color:var(--text3)">Jobs by month of year</div></div>
@@ -5127,6 +5134,58 @@ function renderActivityPatterns(){
     </div>
     <div style="font-size:12px;color:var(--text3)">${qSent.length} quote${qSent.length!==1?'s':''} sent · ${qAccepted.length} accepted · ${qPending} awaiting response</div>`
     :`<div class="empty-state"><div class="empty-title">No quotes sent yet</div></div>`;
+
+  // ── Rate success chart ──
+  const rateGroups={};
+  // Use quotes data — group by rate, track sent vs accepted
+  (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted').forEach(q=>{
+    const rate=q.days&&q.days[0]?Math.round(Number(q.days[0].rate||q.days[0].rateBase)||0):Math.round(Number(q.rate)||0);
+    if(!rate)return;
+    const bucket='$'+Math.round(rate/5)*5+'/hr';
+    if(!rateGroups[bucket])rateGroups[bucket]={sent:0,accepted:0,rate:Math.round(rate/5)*5};
+    rateGroups[bucket].sent++;
+    if(q.status==='accepted')rateGroups[bucket].accepted++;
+  });
+  // Also pull from completed jobs (actual rate charged)
+  allJobs.forEach(j=>{
+    const rate=Math.round(Number(j.hourlyRateCharged||j.ratePerHour)||0);
+    if(!rate)return;
+    const bucket='$'+Math.round(rate/5)*5+'/hr';
+    if(!rateGroups[bucket])rateGroups[bucket]={sent:0,accepted:0,rate:Math.round(rate/5)*5};
+    // Only count if not already counted via quote
+    rateGroups[bucket].accepted++;
+    rateGroups[bucket].sent++;
+  });
+  const rateEntries=Object.entries(rateGroups).sort((a,b)=>a[1].rate-b[1].rate);
+  document.getElementById('rate-success-chart').innerHTML=rateEntries.length?`
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Quoted</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Accepted</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+        <th style="padding:7px 10px;border-bottom:2px solid var(--border);min-width:120px"></th>
+      </tr></thead>
+      <tbody>
+        ${rateEntries.map(([bucket,d])=>{
+          const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
+          const color=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--danger)';
+          return`<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${bucket}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${color}">${d.accepted}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${color}">${pct}%</td>
+            <td style="padding:8px 10px;border-bottom:1px solid var(--border)">
+              <div style="background:var(--surface2);border-radius:3px;height:8px">
+                <div style="height:100%;border-radius:3px;background:${color};width:${pct}%;transition:width .5s"></div>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:11.5px;color:var(--text3);margin-top:10px">Green = 70%+ acceptance · Amber = 50–69% · Red = under 50%</div>`
+    :`<div class="empty-state"><div class="empty-title">No rate data yet</div><div class="empty-sub">Send quotes with hourly rates to see which convert best</div></div>`;
 
   // ── 2. Peak moving periods ──
   const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
