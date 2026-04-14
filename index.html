@@ -2615,7 +2615,7 @@ const footerBtnRight=isAccepted?`<button class="btn btn-primary" onclick="closeM
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
-const viewSummaryBtn=l.status==='Summary sent'&&l.summaryEmailBody?`<button class="btn btn-secondary" onclick="viewSummaryEmail('${l.id}')">👁 View summary</button>`:'';
+const viewSummaryBtn=l.status==='Summary sent'?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
 document.getElementById('view-modal-footer').innerHTML=`
   <div style="display:flex;flex-direction:column;gap:8px;width:100%">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
