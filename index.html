@@ -2472,6 +2472,16 @@ function renderDashboard(){
   const out=db.completedJobs.filter(j=>(Number(j.total)||0)>(Number(j.paid)||0));
   const owed=out.reduce((s,j)=>s+((Number(j.total)||0)-(Number(j.paid)||0)),0);
 
+  // Auto-flag leads as needing follow up after 3 days of no action
+  const today2=new Date().toISOString().split('T')[0];
+  const activeStatuses=['New','Need to send summary','Summary sent','Need to send estimate'];
+  let autoUpdated=false;
+  db.leads.filter(l=>activeStatuses.includes(l.status)&&l.createdAt).forEach(l=>{
+    const days=Math.floor((new Date(today2)-new Date(l.createdAt+'T12:00:00'))/(1000*60*60*24));
+    if(days>=3){l.status='Need to follow up';autoUpdated=true;}
+  });
+  if(autoUpdated)saveDB();
+
   // Follow-up leads
   const followupStatuses=['Need to follow up','Need to send summary','Need to send estimate','Summary sent','Estimate sent'];
   const followups=db.leads.filter(l=>followupStatuses.includes(l.status))
