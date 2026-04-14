@@ -3204,39 +3204,16 @@ async function openInGmail(toId,subjectId,bodyId){
   const body=document.getElementById(bodyId)?.value||'';
   if(!to){showToast('Please enter a recipient email address');return;}
   showToast('Sending email...');
-  // Use quote template so to_email is respected (notify template sends to office only)
   try{
     await loadEmailJS();
-    const params={
-      to_email:to,
-      to_name:to,
-      from_name:'CareMore Moving and Storage',
-      reply_to:OFFICE_EMAIL,
-      subject:subject,
-      message:body,
-      html_content:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style="border:none;border-top:1px solid #e0dbd0;margin:20px 0"><p style="font-size:12px;color:#888;text-align:center"><a href="https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco" style="color:#d32323;font-weight:600;text-decoration:none">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>'
-    };
-    await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,params);
-    // Also send a copy to the office
-    await emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{
-      to_email:OFFICE_EMAIL,
-      to_name:'CareMore Moving and Storage',
-      from_name:'CareMore Moving and Storage',
-      reply_to:OFFICE_EMAIL,
-      subject:'[Copy] '+subject,
-      message:body,
-      html_content:params.html_content
-    });
+    const htmlContent='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style="border:none;border-top:1px solid #e0dbd0;margin:20px 0"><p style="font-size:12px;color:#888;text-align:center"><a href="https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco" style="color:#d32323;font-weight:600;text-decoration:none">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>';
+    await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,{to_email:to,to_name:to,from_name:'CareMore Moving and Storage',reply_to:OFFICE_EMAIL,subject:subject,message:body,html_content:htmlContent});
+    await emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{to_email:OFFICE_EMAIL,to_name:'CareMore Moving and Storage',from_name:'CareMore Moving and Storage',reply_to:OFFICE_EMAIL,subject:'[Copy] '+subject,message:body,html_content:htmlContent});
     showToast('✓ Email sent to '+to);
   }catch(e){
     console.warn('EmailJS failed, falling back to Gmail:',e);
-    const mailto='https://mail.google.com/mail/?view=cm'
-      +'&to='+encodeURIComponent(to)
-      +'&cc='+encodeURIComponent(OFFICE_EMAIL)
-      +'&su='+encodeURIComponent(subject)
-      +'&body='+encodeURIComponent(body);
-    window.open(mailto,'_blank');
-    showToast('Gmail opened — send the email and click Mark as sent');
+    window.open('https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(to)+'&cc='+encodeURIComponent(OFFICE_EMAIL)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
+    showToast('Gmail opened — send the email then click Mark as sent');
   }
 }
 
@@ -6881,7 +6858,12 @@ async function openQuoteGmail(){
   document.getElementById('qe-subject').value=draft?.subject||subject;
   document.getElementById('qe-body').value=draft?.body||body;
   closeModal('quote-preview');
-  setTimeout(()=>openModal('quote-email'),200);
+  setTimeout(()=>{
+    // Reset button state in case previous send failed
+    const btn=document.querySelector('#modal-quote-email .btn-primary');
+    if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
+    openModal('quote-email');
+  },200);
 }
 
 async function sendQuoteEmail(){
