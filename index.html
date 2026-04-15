@@ -709,7 +709,7 @@
           </div>
           <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor" placeholder="e.g. 2"></div>
           <div class="form-group"><label>Access at load</label><select id="nl-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-          <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option></select></div>
+          <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
           <div class="form-group full"><label>Load location notes</label><input type="text" id="nl-from-notes" placeholder="Parking details, gate codes, access info…"></div>
         </div>
       </div>
@@ -736,7 +736,7 @@
         </div>
         <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor" placeholder="e.g. 3"></div>
         <div class="form-group"><label>Access at unload</label><select id="nl-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-        <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option></select></div>
+        <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
         <div class="form-group full"><label>Unload location notes</label><input type="text" id="nl-to-notes" placeholder="Parking details, gate codes, access info…"></div>
       </div>
       
@@ -757,6 +757,7 @@
           <div class="form-grid form-grid-2">
             <div class="form-group"><label>No. of movers</label><select id="nl-rq-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
             <div class="form-group"><label>Hourly rate ($)</label><input type="number" id="nl-rq-rate" placeholder="e.g. 225"></div>
+            <div class="form-group"><label>Cash rate ($ if paid in cash)</label><input type="number" id="nl-rq-cash-rate" placeholder="e.g. 210"></div>
             <div class="form-group"><label>Est. hours (min)</label><input type="number" id="nl-rq-hrs-min" placeholder="e.g. 3"></div>
             <div class="form-group"><label>Est. hours (max)</label><input type="number" id="nl-rq-hrs-max" placeholder="e.g. 5"></div>
             <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="nl-rq-fuel" placeholder="e.g. 75"></div>
@@ -2305,7 +2306,7 @@ function openEditLead(leadId){
   if(storSel){storSel.value=l.storage?'yes':'no';}
   document.getElementById('nl-storage').checked=!!l.storage;
   document.getElementById('nl-notes').value=l.notes||'';
-  document.getElementById('nl-office-notes').value=l.officeNotes||'';const rq=l.roughQuote||{};['nl-rq-movers','nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=rq[id.replace('nl-rq-','').replace('-','')]||rq[id.replace('nl-rq-','')]||'';});if(document.getElementById('nl-rq-movers'))document.getElementById('nl-rq-movers').value=rq.movers||'';if(document.getElementById('nl-rq-pack-mat-min'))document.getElementById('nl-rq-pack-mat-min').value=rq.packMatMin||'';if(document.getElementById('nl-rq-pack-mat-max'))document.getElementById('nl-rq-pack-mat-max').value=rq.packMatMax||'';
+  document.getElementById('nl-office-notes').value=l.officeNotes||'';const rq=l.roughQuote||{};['nl-rq-movers','nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=rq[id.replace('nl-rq-','').replace('-','')]||rq[id.replace('nl-rq-','')]||'';});if(document.getElementById('nl-rq-movers'))document.getElementById('nl-rq-movers').value=rq.movers||'';if(document.getElementById('nl-rq-pack-mat-min'))document.getElementById('nl-rq-pack-mat-min').value=rq.packMatMin||'';if(document.getElementById('nl-rq-pack-mat-max'))document.getElementById('nl-rq-pack-mat-max').value=rq.packMatMax||'';if(document.getElementById('nl-rq-cash-rate'))document.getElementById('nl-rq-cash-rate').value=rq.cashRate||'';
   populateStaffSelect('nl-taken-by',l.takenBy||'');
   document.getElementById('modal-new-lead').classList.add('open');
 }
@@ -2354,7 +2355,7 @@ function saveLead(){
       l.packing=document.getElementById('nl-packing').value;
       l.sqft=document.getElementById('nl-sqft').value;
       l.storage=(document.getElementById('nl-storage-select')&&document.getElementById('nl-storage-select').value==='yes');
-      l.notes=document.getElementById('nl-notes').value.trim();l.officeNotes=document.getElementById('nl-office-notes').value.trim();l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
+      l.notes=document.getElementById('nl-notes').value.trim();l.officeNotes=document.getElementById('nl-office-notes').value.trim();l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',cashRate:document.getElementById('nl-rq-cash-rate')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
       l.takenBy=document.getElementById('nl-taken-by').value;
     }
     editingLeadId=null;
@@ -2906,7 +2907,7 @@ function openCallSummaryEmail(leadId){
   if(hasRQ){
     rqSection='\n\nRough estimate discussed on call:';
     if(rq.movers)rqSection+='\n  '+rq.movers+' movers';
-    if(rq.rate)rqSection+=' @ $'+rq.rate+'/hr';
+    if(rq.rate)rqSection+=' @ $'+rq.rate+'/hr'+(rq.cashRate?' or $'+rq.cashRate+' if paid in cash':'');
     if(rq.hrsMin||rq.hrsMax){
       rqSection+='\n  Est. '+(rq.hrsMin||'?')+(rq.hrsMax&&rq.hrsMax!==rq.hrsMin?'–'+rq.hrsMax:'')+' hours';
     }
@@ -2921,7 +2922,9 @@ function openCallSummaryEmail(leadId){
       const fees=(Number(rq.fuel)||0)+(Number(rq.materials)||0);
       const total_min=labour_min+fees;
       const total_max=labour_max+fees;
-      rqSection+='\n\n  Estimated total: $'+total_min.toLocaleString()+(total_max!==total_min?' – $'+total_max.toLocaleString():'');
+      let totalLine='\n\n  Estimated total: $'+total_min.toLocaleString()+(total_max!==total_min?' \u2013 $'+total_max.toLocaleString():'');
+      if(rq.cashRate){const cashLabourMin=Number(rq.cashRate)*Number(rq.hrsMin);const cashLabourMax=rq.hrsMax?Number(rq.cashRate)*Number(rq.hrsMax):cashLabourMin;const cashTotalMin=cashLabourMin+fees;const cashTotalMax=cashLabourMax+fees;totalLine+=' or $'+cashTotalMin.toLocaleString()+(cashTotalMax!==cashTotalMin?' \u2013 $'+cashTotalMax.toLocaleString():'')+' if paid in cash';}
+      rqSection+=totalLine;
     }
     rqSection+='\n\n*Please note this is a rough estimate based on our phone discussion. The final cost may vary and we will confirm exact pricing once we have had a chance to review all the details.';
   }
@@ -6362,7 +6365,7 @@ function accessOpts(cur){
     .map(v=>`<option value="${v}"${cur===v?' selected':''}>${v||'Select…'}</option>`).join('');
 }
 function parkingOpts(cur){
-  return ['','Loading dock','Double parking','Save spots','Permits','Open parking']
+  return ['','Loading dock','Double parking','Save spots','Permits','Open parking','Not sure yet']
     .map(v=>`<option value="${v}"${cur===v?' selected':''}>${v||'Select…'}</option>`).join('');
 }
 
@@ -8130,7 +8133,7 @@ function addLoadLocation(){
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-from-unit-extra-${id}" placeholder="e.g. Apt 4B"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor-extra-${id}" placeholder="e.g. 2"></div>
       <div class="form-group"><label>Access</label><select id="nl-access-load-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-      <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option></select></div>
+      <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-from-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
   document.getElementById('nl-extra-loads').appendChild(div);
@@ -8163,7 +8166,7 @@ function addUnloadLocation(){
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-to-unit-extra-${id}" placeholder="e.g. Unit 2"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor-extra-${id}" placeholder="e.g. 3"></div>
       <div class="form-group"><label>Access</label><select id="nl-access-unload-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-      <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option></select></div>
+      <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-to-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
   document.getElementById('nl-extra-unloads').appendChild(div);
