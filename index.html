@@ -2637,7 +2637,7 @@ document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.st
 const isPending=l.estimateType&&l.status==='Estimate sent';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
 // Find associated quote for multi-day/extra location display
-const quote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'));
+const quote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'))||(l.status==='Did not book'?(db.quotes||[]).filter(q=>q.leadId===l.id).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0]:null);
 const quoteHasMultiDay=quote&&quote.days&&quote.days.length>1;
 const quoteDaysBlock=quote&&quote.days&&quote.days.length?`
 <div style="margin-top:14px">
@@ -6999,7 +6999,7 @@ async function sendQuoteEmail(){
     const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
     if(q){q.status='sent';q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
     const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
-    if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
+    if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];const _q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;if(_q&&_q.sentBy&&!l.estimateSentBy)l.estimateSentBy=_q.sentBy;saveDB();renderLeads();}
     showToast('✓ Quote email sent to '+to);
     closeModal('quote-email');
   }catch(e){
@@ -7055,7 +7055,7 @@ async function sendQuote(){
   const q=saveQuote('sent');
   if(q){q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
-  if(l){l.status='Estimate sent';saveDB();}
+  if(l){l.status='Estimate sent';if(q&&q.sentBy&&!l.estimateSentBy)l.estimateSentBy=q.sentBy;saveDB();}
   showToast('✓ Quote marked as sent — '+( l?l.name:'customer'));
   renderLeads();
   if(document.getElementById('page-quotes').classList.contains('active'))renderQuotes();
