@@ -709,7 +709,7 @@
           </div>
           <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor" placeholder="e.g. 2"></div>
           <div class="form-group"><label>Access at load</label><select id="nl-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-          <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+          <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
           <div class="form-group full"><label>Load location notes</label><input type="text" id="nl-from-notes" placeholder="Parking details, gate codes, access info…"></div>
         </div>
       </div>
@@ -736,7 +736,7 @@
         </div>
         <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor" placeholder="e.g. 3"></div>
         <div class="form-group"><label>Access at unload</label><select id="nl-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-        <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+        <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
         <div class="form-group full"><label>Unload location notes</label><input type="text" id="nl-to-notes" placeholder="Parking details, gate codes, access info…"></div>
       </div>
       
@@ -3211,7 +3211,7 @@ function buildEstimateEmail(leadId){
   const time=l.estimateScheduledTime?'at '+l.estimateScheduledTime:'';
   document.getElementById('ee-to').value=l.email||'';
   document.getElementById('ee-subject').value=`Your ${type} Estimate — ${date}`;
-  document.getElementById('ee-body').value=`Hi ${firstName},\n\nGreat speaking with you! I wanted to confirm that we have scheduled your ${type} estimate for ${date}${time?', '+time:''}.\n\nHere are the details we have on file:\n\nMove date: ${fmtDate(l.date)}\nHome size: ${l.size||'TBD'}\n\n📦 Moving from:\n${fmtLoadLocations(l)}\n\n🏠 Moving to:\n${fmtUnloadLocations(l)}\n${l.estimateNotes?'\nNotes: '+l.estimateNotes:''}\n\nIf you have any questions or need to reschedule, feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to speaking with you!\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com`;
+  document.getElementById('ee-body').value=`Hi ${firstName},\n\nGreat speaking with you! I wanted to confirm that we have scheduled your ${type} estimate for ${date}${time?', '+time:''}.\n\nHere are the details we have on file:\n\nMove date: ${fmtDate(l.date)}\nHome size: ${l.size||'TBD'}${l.moveType?'\nType of move: '+l.moveType:''}${l.packing&&l.packing!=='No — just moving'?'\nPacking: '+l.packing:''}\n\n📦 Moving from:\n${fmtLoadLocations(l)}\n\n🏠 Moving to:\n${fmtUnloadLocations(l)}\n${l.estimateNotes?'\nNotes: '+l.estimateNotes:''}\n\nIf you have any questions or need to reschedule, feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to speaking with you!\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com`;
 }
 
 function copyEstimateEmail(){
@@ -6371,7 +6371,7 @@ function accessOpts(cur){
     .map(v=>`<option value="${v}"${cur===v?' selected':''}>${v||'Select…'}</option>`).join('');
 }
 function parkingOpts(cur){
-  return ['','Loading dock','Double parking','Save spots','Permits','Open parking','Not sure yet']
+  return ['','Loading dock','Double parking','Street parking','Save spots','Permits','Open parking','Not sure yet']
     .map(v=>`<option value="${v}"${cur===v?' selected':''}>${v||'Select…'}</option>`).join('');
 }
 
@@ -8139,7 +8139,7 @@ function addLoadLocation(){
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-from-unit-extra-${id}" placeholder="e.g. Apt 4B"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor-extra-${id}" placeholder="e.g. 2"></div>
       <div class="form-group"><label>Access</label><select id="nl-access-load-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-      <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+      <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-from-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
   document.getElementById('nl-extra-loads').appendChild(div);
@@ -8172,7 +8172,7 @@ function addUnloadLocation(){
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-to-unit-extra-${id}" placeholder="e.g. Unit 2"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor-extra-${id}" placeholder="e.g. 3"></div>
       <div class="form-group"><label>Access</label><select id="nl-access-unload-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-      <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+      <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-to-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
   document.getElementById('nl-extra-unloads').appendChild(div);
