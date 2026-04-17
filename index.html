@@ -1445,10 +1445,22 @@
         <textarea id="qb-notes" style="min-height:60px" placeholder="e.g. Please note this is our best estimate based on the information provided..." oninput="qbAutoSave()"></textarea>
       </div>
 
-      <div class="form-group">
-        <label>Quote sent by</label>
-        <input type="text" id="qb-sent-by" placeholder="e.g. John" list="qb-sent-by-list" oninput="qbAutoSave()">
-        <datalist id="qb-sent-by-list"><option value="John"><option value="Dave"></datalist>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label>Quote sent by</label>
+          <input type="text" id="qb-sent-by" placeholder="e.g. John" list="qb-sent-by-list" oninput="qbAutoSave()">
+          <datalist id="qb-sent-by-list"><option value="John"><option value="Dave"></datalist>
+        </div>
+        <div class="form-group">
+          <label>Estimate type <span style="font-size:11px;color:var(--text3)">(logs to lead)</span></label>
+          <select id="qb-estimate-type" oninput="qbAutoSave()">
+            <option value="">Select…</option>
+            <option>Unseen</option>
+            <option>Video</option>
+            <option>FaceTime</option>
+            <option>Onsite</option>
+          </select>
+        </div>
       </div>
 
       
@@ -6423,7 +6435,7 @@ function openQuoteBuilder(leadId){
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
   document.getElementById('qb-notes').value='Please note this is our best estimate based on the information provided. The final price may differ from the estimate unless an onsite or video estimate has already been performed. If you would like to request one or if you have any questions please give us a call on 415-822-8547.\n\nPlease review your information and follow the prompt at the bottom to continue.';
-  const _qbEv=document.getElementById('qb-estimated-vaults');if(_qbEv)_qbEv.value='';const _qbCr=document.getElementById('qb-cash-rate');if(_qbCr)_qbCr.value='';
+  const _qbEv=document.getElementById('qb-estimated-vaults');if(_qbEv)_qbEv.value='';const _qbCr=document.getElementById('qb-cash-rate');if(_qbCr)_qbCr.value='';const _qbEt=document.getElementById('qb-estimate-type');if(_qbEt)_qbEt.value=l?.estimateType||'';
   setJobType('single');
   openModal('quote-builder');
 }
@@ -6447,7 +6459,7 @@ function loadQuoteIntoBuilder(q){
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
   document.getElementById('qb-stipulations').value=q.stipulations||'';
   document.getElementById('qb-notes').value=q.notes||'';
-  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';const crEl=document.getElementById('qb-cash-rate');if(crEl)crEl.value=q.cashRate||'';
+  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const etEl=document.getElementById('qb-estimate-type');if(etEl)etEl.value=q.estimateType||l?.estimateType||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';const crEl=document.getElementById('qb-cash-rate');if(crEl)crEl.value=q.cashRate||'';
   setJobType(qbJobType);
 }
 
@@ -7012,7 +7024,7 @@ function saveQuote(status){
     cashDiscount:document.getElementById('qb-cash-discount').value,
     stipulations:document.getElementById('qb-stipulations').value,
     notes:document.getElementById('qb-notes').value,officeNotes:document.getElementById('qb-office-notes')?.value||'',estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
-    sentBy:document.getElementById('qb-sent-by')?.value||'',
+    sentBy:document.getElementById('qb-sent-by')?.value||'',estimateType:document.getElementById('qb-estimate-type')?.value||'',
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
     createdAt:new Date().toISOString().split('T')[0],
@@ -7215,7 +7227,7 @@ async function sendQuoteEmail(){
     const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
     if(q){q.status='sent';q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
     const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
-    if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];const _q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;if(_q&&_q.sentBy&&!l.estimateSentBy)l.estimateSentBy=_q.sentBy;saveDB();renderLeads();}
+    if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];const _q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;if(_q&&_q.sentBy&&!l.estimateSentBy)l.estimateSentBy=_q.sentBy;if(_q&&_q.estimateType)l.estimateType=_q.estimateType;saveDB();renderLeads();}
     showToast('✓ Quote email sent to '+to);
     closeModal('quote-email');
   }catch(e){
@@ -7271,7 +7283,7 @@ async function sendQuote(){
   const q=saveQuote('sent');
   if(q){q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
-  if(l){l.status='Estimate sent';if(q&&q.sentBy&&!l.estimateSentBy)l.estimateSentBy=q.sentBy;saveDB();}
+  if(l){l.status='Estimate sent';if(q&&q.sentBy&&!l.estimateSentBy)l.estimateSentBy=q.sentBy;if(q&&q.estimateType)l.estimateType=q.estimateType;saveDB();}
   showToast('✓ Quote marked as sent — '+( l?l.name:'customer'));
   renderLeads();
   if(document.getElementById('page-quotes').classList.contains('active'))renderQuotes();
