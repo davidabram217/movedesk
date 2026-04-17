@@ -3395,27 +3395,43 @@ function openBooking(leadId){
     const day=quote.days&&quote.days[0];
     if(day){
       if(day.rate)document.getElementById('bj-rate-regular').value=day.rate;
-      if(day.crew)document.getElementById('bj-movers').value=day.crew;
+      if(quote.cashRate)document.getElementById('bj-rate-cash').value=quote.cashRate;
+      if(day.crew){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=day.crew;}
+      if(day.hrsMin||day.hrsMax){
+        const d=document.getElementById('bj-date');
+        if(day.date&&!d.value)d.value=day.date;
+      }
+      if(day.arrivalStart)document.getElementById('bj-time').value=day.arrivalStart+(day.arrivalEnd?' – '+day.arrivalEnd:'');
     }
     if(quote.totalMin)document.getElementById('bj-quote').value=quote.totalMax||quote.totalMin;
+    if(quote.estimatedVaults)document.getElementById('bj-volume').value=quote.estimatedVaults+' vaults';
+    // Fees — use label field
+    if(quote.fees){
+      const fuel=quote.fees.find(f=>(f.label||f.name||'').toLowerCase().includes('fuel'));
+      if(fuel&&fuel.amount)document.getElementById('bj-fee-fuel').value=fuel.amount;
+      const materials=quote.fees.find(f=>(f.label||f.name||'').toLowerCase().includes('material')&&!(f.label||f.name||'').toLowerCase().includes('packing'));
+      if(materials&&materials.amount)document.getElementById('bj-fee-materials').value=materials.amount;
+      const packMat=quote.fees.find(f=>(f.label||f.name||'').toLowerCase().includes('packing'));
+      if(packMat){
+        if(packMat.hrsMin)document.getElementById('bj-pack-mat-min').value=packMat.hrsMin;
+        if(packMat.hrsMax)document.getElementById('bj-pack-mat-max').value=packMat.hrsMax;
+      }
+    }
     // Build scope from quote days
     const scopeParts=[];
     if(quote.days&&quote.days.length){
       quote.days.forEach((d,i)=>{
         const parts=[];
-        if(d.hoursMin&&d.hoursMax)parts.push(`Est. ${d.hoursMin}–${d.hoursMax} hrs`);
+        if(d.hrsMin&&d.hrsMax)parts.push(`Est. ${d.hrsMin}–${d.hrsMax} hrs`);
+        else if(d.hrsMin)parts.push(`Est. ${d.hrsMin}+ hrs`);
         if(d.rate)parts.push(`$${d.rate}/hr`);
+        if(d.crew)parts.push(`${d.crew} movers`);
         if(d.from)parts.push(`${d.from} → ${d.to||''}`);
         if(parts.length)scopeParts.push(quote.days.length>1?`Day ${i+1}: `+parts.join(', '):parts.join(', '));
       });
     }
     if(scopeParts.length)document.getElementById('bj-scope').value=scopeParts.join('\n');
-    if(quote.fees){
-      const fuel=quote.fees.find(f=>f.name&&f.name.toLowerCase().includes('fuel'));
-      if(fuel&&fuel.amount)document.getElementById('bj-fee-fuel').value=fuel.amount;
-      const materials=quote.fees.find(f=>f.name&&f.name.toLowerCase().includes('material'));
-      if(materials&&materials.amount)document.getElementById('bj-fee-materials').value=materials.amount;
-    }
+    if(quote.officeNotes)document.getElementById('bj-office-notes').value=quote.officeNotes;
   } else {
     // Fall back to estimate quote
     document.getElementById('bj-quote').value=l.estimateQuote||'';
@@ -3456,34 +3472,69 @@ function buildJobCalUrl(j){
   if(j.source)lines.push(`Source: ${j.source}${j.sourceDetail?' — '+j.sourceDetail:''}`);
   lines.push('');
 
-  // 7. Job details
+  // 8. Job details
   if(j.size)lines.push(`Home size: ${j.size}`);
   if(j.volume)lines.push(`Est. volume: ${j.volume}`);
   if(j.packing&&j.packing!=='No')lines.push(`Packing: ${j.packing}`);
   lines.push('');
 
-  // 8. Access & parking
-  lines.push(`Access at load: ${j.accessLoad||'—'}`);
-  if(j.parkingLoad)lines.push(`Parking at load: ${j.parkingLoad}`);
-  lines.push(`Access at unload: ${j.accessUnload||'—'}`);
-  if(j.parkingUnload)lines.push(`Parking at unload: ${j.parkingUnload}`);
-  lines.push('');
-
-  // 9. When / From / To
+  // 9. When / From / To — with access & parking per location
   lines.push(`When: ${fmtDate(j.date)}, arriving ${j.time||'TBD'}`);
-  lines.push(`From: ${j.from||'TBD'}${j.fromZip?' '+j.fromZip:''}`);
-  (j.extraLoads||[]).forEach((ex,i)=>{if(ex.address)lines.push(`Pickup ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`);});
-  lines.push(`To: ${j.to||'TBD'}${j.toZip?' '+j.toZip:''}`);
-  (j.extraUnloads||[]).forEach((ex,i)=>{if(ex.address)lines.push(`Drop-off ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`);});
+  // If we have quote days with full location detail, use those
+  const calDays=j.quoteDays&&j.quoteDays.length?j.quoteDays:null;
+  if(calDays){
+    calDays.forEach((day,di)=>{
+      if(calDays.length>1)lines.push(`--- Day ${di+1} — ${fmtDate(day.date)} ---`);
+      const loads=day.loads&&day.loads.length?day.loads:[{address:day.from||'',access:day.fromAccess||'',parking:day.fromParking||'',unit:day.fromUnit||''}];
+      const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:day.to||'',access:day.toAccess||'',parking:day.toParking||'',unit:day.toUnit||''}];
+      loads.filter(loc=>loc.address).forEach((loc,i)=>{
+        lines.push(`${i===0?'📦 From':'📦 Pickup '+(i+1)}: ${loc.address}${loc.unit?' #'+loc.unit:''}`);
+        if(loc.access)lines.push(`   Access: ${loc.access}`);
+        if(loc.parking)lines.push(`   Parking: ${loc.parking}`);
+      });
+      unloads.filter(loc=>loc.address).forEach((loc,i)=>{
+        lines.push(`${i===0?'🏠 To':'🏠 Drop-off '+(i+1)}: ${loc.address}${loc.unit?' #'+loc.unit:''}`);
+        if(loc.access)lines.push(`   Access: ${loc.access}`);
+        if(loc.parking)lines.push(`   Parking: ${loc.parking}`);
+      });
+    });
+  } else {
+    lines.push(`From: ${j.from||'TBD'}${j.fromZip?' '+j.fromZip:''}`);
+    if(j.accessLoad)lines.push(`   Access: ${j.accessLoad}`);
+    if(j.parkingLoad)lines.push(`   Parking: ${j.parkingLoad}`);
+    (j.extraLoads||[]).forEach((ex,i)=>{if(ex.address){lines.push(`Pickup ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`);if(ex.access)lines.push(`   Access: ${ex.access}`);if(ex.parking)lines.push(`   Parking: ${ex.parking}`);}});
+    lines.push(`To: ${j.to||'TBD'}${j.toZip?' '+j.toZip:''}`);
+    if(j.accessUnload)lines.push(`   Access: ${j.accessUnload}`);
+    if(j.parkingUnload)lines.push(`   Parking: ${j.parkingUnload}`);
+    (j.extraUnloads||[]).forEach((ex,i)=>{if(ex.address){lines.push(`Drop-off ${i+2}: ${ex.address}${ex.zip?' '+ex.zip:''}`);if(ex.access)lines.push(`   Access: ${ex.access}`);if(ex.parking)lines.push(`   Parking: ${ex.parking}`);}});
+  }
   lines.push('');
 
-  // 10. Rates & fees
-  if(j.rateRegular)lines.push(`Rate: $${j.rateRegular}/hr${j.rateCash?' ($'+j.rateCash+' cash)':''}`);
-  if(j.feeMaterials)lines.push(`Materials: $${j.feeMaterials}`);
-  if(j.packMatMin||j.packMatMax)lines.push(`Packing materials: $${j.packMatMin||'?'} – $${j.packMatMax||'?'}`);
-  if(j.feeFuel)lines.push(`Fuel: $${j.feeFuel}`);
+  // 10. Rates & fees — formatted like confirmation email
+  if(j.rateRegular){
+    const crewDesc=j.crewDiff
+      ?(j.crewLoad||j.movers||'?')+' load / '+(j.crewUnload||j.movers||'?')+' unload movers'
+      :(j.movers||'?')+' movers';
+    const cashStr=j.rateCash?` ($${Number(j.rateCash).toFixed(2)} If Paid Cash)`:'';
+    lines.push(`${crewDesc} @ $${Number(j.rateRegular).toFixed(2)} Per Hour${cashStr}`);
+  }
+  // Min hours
+  const calDay0=j.quoteDays&&j.quoteDays[0];
+  if(calDay0&&calDay0.hrsMin)lines.push(`${calDay0.hrsMin} hour minimum`);
+  if(j.feeMaterials)lines.push(`$${Number(j.feeMaterials).toFixed(2)} Material Fee`);
+  if(j.feeFuel)lines.push(`$${Number(j.feeFuel).toFixed(2)} Fuel Fee`);
+  // Packing materials
+  const hasPacking=j.packing&&j.packing!=='No — just moving';
+  if(j.packMatMin||j.packMatMax){
+    lines.push(`Packing Materials: $${j.packMatMin||'?'} – $${j.packMatMax||'?'}`);
+  } else if(hasPacking){
+    lines.push('Packing Materials Used - TBD');
+  }
   if(j.driveTo)lines.push(`Drive to job: ${j.driveTo}`);
   if(j.driveReturn)lines.push(`Return drive: ${j.driveReturn}`);
+  else lines.push('Return drive time back to warehouse at completion (30 min minimum)');
+  // Storage note
+  if(j.storage)lines.push('Storage Costs $200 per month');
   lines.push('');
 
   // 11. Disclaimer
@@ -3922,6 +3973,7 @@ function deleteBookedJob(id){
 function filterBooked(v){bookedFilter.text=v;renderBooked();}
 function filterBookedCrew(v){bookedFilter.crew=v;renderBooked();}
 function viewBookedJob(id){const j=db.bookedJobs.find(x=>x.id===id);if(!j)return;
+const bookedQuote=j.leadId?(db.quotes||[]).find(q=>q.leadId===j.leadId&&(q.status==='accepted'||q.status==='sent'))||(db.quotes||[]).filter(q=>q.leadId===j.leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0]:null;
 document.getElementById('view-modal-title').textContent=j.name;
 
 // Build calendar entry text
@@ -3946,16 +3998,29 @@ calLines.push(`Access at unload: ${j.accessUnload||'—'}`);
 if(j.parkingUnload)calLines.push(`Parking at unload: ${j.parkingUnload}`);
 calLines.push('');
 calLines.push(`When: ${fmtDate(j.date)}, arriving ${j.time||'TBD'}`);
-calLines.push(`From: ${j.from||'TBD'}`);
-(j.extraLoads||[]).forEach((ex,i)=>{if(ex.address)calLines.push(`Pickup ${i+2}: ${ex.address}`);});
-calLines.push(`To: ${j.to||'TBD'}`);
-(j.extraUnloads||[]).forEach((ex,i)=>{if(ex.address)calLines.push(`Drop-off ${i+2}: ${ex.address}`);});
+calLines.push(`From: ${j.from||'TBD'}${j.fromZip?' '+j.fromZip:''}`);
+if(j.accessLoad)calLines.push(`   Access: ${j.accessLoad}`);
+if(j.parkingLoad)calLines.push(`   Parking: ${j.parkingLoad}`);
+(j.extraLoads||[]).forEach((ex,i)=>{if(ex.address){calLines.push(`Pickup ${i+2}: ${ex.address}`);if(ex.access)calLines.push(`   Access: ${ex.access}`);if(ex.parking)calLines.push(`   Parking: ${ex.parking}`);}});
+calLines.push(`To: ${j.to||'TBD'}${j.toZip?' '+j.toZip:''}`);
+if(j.accessUnload)calLines.push(`   Access: ${j.accessUnload}`);
+if(j.parkingUnload)calLines.push(`   Parking: ${j.parkingUnload}`);
+(j.extraUnloads||[]).forEach((ex,i)=>{if(ex.address){calLines.push(`Drop-off ${i+2}: ${ex.address}`);if(ex.access)calLines.push(`   Access: ${ex.access}`);if(ex.parking)calLines.push(`   Parking: ${ex.parking}`);}});
 calLines.push('');
-if(j.rateRegular)calLines.push(`Rate: $${j.rateRegular}/hr${j.rateCash?' ($'+j.rateCash+' cash)':''}`);
-if(j.feeMaterials)calLines.push(`Materials: $${j.feeMaterials}`);
-if(j.feeFuel)calLines.push(`Fuel: $${j.feeFuel}`);
+if(j.rateRegular){
+  const cDesc=j.crewDiff?(j.crewLoad||j.movers||'?')+' load / '+(j.crewUnload||j.movers||'?')+' unload movers':(j.movers||'?')+' movers';
+  calLines.push(`${cDesc} @ $${Number(j.rateRegular).toFixed(2)} Per Hour${j.rateCash?' ($'+Number(j.rateCash).toFixed(2)+' If Paid Cash)':''}`);
+}
+const calDay0q=j.quoteDays&&j.quoteDays[0];
+if(calDay0q&&calDay0q.hrsMin)calLines.push(`${calDay0q.hrsMin} hour minimum`);
+if(j.feeMaterials)calLines.push(`$${Number(j.feeMaterials).toFixed(2)} Material Fee`);
+if(j.feeFuel)calLines.push(`$${Number(j.feeFuel).toFixed(2)} Fuel Fee`);
+if(j.packMatMin||j.packMatMax)calLines.push(`Packing Materials: $${j.packMatMin||'?'} – $${j.packMatMax||'?'}`);
+else if(j.packing&&j.packing!=='No — just moving')calLines.push('Packing Materials Used - TBD');
 if(j.driveTo)calLines.push(`Drive to job: ${j.driveTo}`);
 if(j.driveReturn)calLines.push(`Return drive: ${j.driveReturn}`);
+else calLines.push('Return drive time back to warehouse at completion (30 min minimum)');
+if(j.storage)calLines.push('Storage Costs $200 per month');
 calLines.push('');
 calLines.push('*Customer responsible for any parking tickets');
 const calText=calLines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
@@ -4050,6 +4115,7 @@ document.getElementById('view-modal-footer').innerHTML=`
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
+      ${bookedQuote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${bookedQuote.id}')">📄 View quote</button>`:''}
       ${j.from&&j.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(j.from+(j.fromZip?' '+j.fromZip:'')).replace(/'/g,"\\'")}','${(j.to+(j.toZip?' '+j.toZip:'')).replace(/'/g,"\\'")}','${j.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:''}
       <button class="btn btn-secondary" onclick="editBookedJob('${j.id}')">✏️ Edit</button>
       <button class="btn btn-secondary" style="color:var(--error);border-color:var(--error)" onclick="cancelJob('${j.id}')">Cancel job</button>
