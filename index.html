@@ -6775,7 +6775,7 @@ function buildQuoteHTML(){
         Project: ${escHtml(projectName||quoteNum)}<br>
         Project Type: Local Move${moveType?' · '+escHtml(moveType):''}<br>
         Project Size: ${escHtml(l?l.size||'':'')}
-        ${desc?`<br>Project Description: ${escHtml(desc)}`:''}
+        ${desc?`<br>Project Description:<br>${escHtml(desc).replace(/\n/g,'<br>')}`:''}
       </div>
     </div>
 
