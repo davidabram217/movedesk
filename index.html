@@ -2515,6 +2515,15 @@ function setIncomeTabAnalytics(period,btn){
 }
 
 function renderDashboard(){
+  // Mark quotes for Did not book leads as declined (backfill)
+  if(db.quotes&&db.leads){
+    let fixed=false;
+    const dnbIds=new Set(db.leads.filter(l=>l.status==='Did not book').map(l=>l.id));
+    db.quotes.filter(q=>q.status==='sent'&&dnbIds.has(q.leadId)).forEach(q=>{
+      q.status='declined';q.declinedAt=q.declinedAt||new Date().toISOString().split('T')[0];fixed=true;
+    });
+    if(fixed)saveDB();
+  }
   // Clean up draft jobs and duplicates
   const completedJobIds=new Set((db.completedJobs||[]).map(j=>j.bookedJobId).filter(Boolean));
   const seen=new Set();
@@ -2725,7 +2734,11 @@ document.getElementById('view-modal-footer').innerHTML=`
   </div>`;
 openModal('view');}
 
-function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
+function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+// Also mark the linked quote as accepted
+const q=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')||(db.quotes||[]).find(qt=>qt.leadId===leadId);
+if(q){q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];}
+saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
 
 let currentConfirmEmailLeadId=null;
 function openConfirmEmail(leadId){
@@ -3000,6 +3013,13 @@ function confirmDidNotBook(){
   l.dnbReason=document.getElementById('dnb-reason').value;
   l.dnbNotes=document.getElementById('dnb-notes').value;
   l.dnbDate=new Date().toISOString().split('T')[0];
+  // Mark any sent quotes for this lead as declined
+  if(db.quotes){
+    db.quotes.filter(q=>q.leadId===l.id&&q.status==='sent').forEach(q=>{
+      q.status='declined';
+      q.declinedAt=new Date().toISOString().split('T')[0];
+    });
+  }
   saveDB();closeModal('did-not-book');showToast('Logged as did not book — '+l.name);renderLeads();
 }
 
@@ -5214,10 +5234,11 @@ function renderActivityPatterns(){
   const sentQuotes=allQuotes.filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='draft');
   const acceptedQuotes=allQuotes.filter(q=>q.status==='accepted');
   const qTotal=sentQuotes.length+acceptedQuotes.filter(q=>!sentQuotes.find(s=>s.id===q.id)).length;
-  const qSent=allQuotes.filter(q=>q.status==='sent'||q.status==='accepted');
+  const qSent=allQuotes.filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined');
   const qAccepted=allQuotes.filter(q=>q.status==='accepted');
+  const qDeclined=allQuotes.filter(q=>q.status==='declined').length;
   const qRate=qSent.length?Math.round(qAccepted.length/qSent.length*100):0;
-  const qPending=qSent.length-qAccepted.length;
+  const qPending=qSent.length-qAccepted.length-qDeclined;
   document.getElementById('quote-acceptance-chart').innerHTML=qSent.length?`
     <div style="display:flex;gap:24px;align-items:center;margin-bottom:16px">
       <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--accent)">${qRate}%</div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Acceptance rate</div></div>
@@ -5228,13 +5249,13 @@ function renderActivityPatterns(){
         <div style="background:var(--surface2);border-radius:4px;height:10px"><div style="height:100%;border-radius:4px;background:var(--amber);width:${qSent.length?Math.round(qPending/qSent.length*100):0}%"></div></div>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--text3)">${qSent.length} quote${qSent.length!==1?'s':''} sent · ${qAccepted.length} accepted · ${qPending} awaiting response</div>`
+    <div style="font-size:12px;color:var(--text3)">${qSent.length} quote${qSent.length!==1?'s':''} sent · ${qAccepted.length} accepted · ${qDeclined} declined · ${qPending} awaiting response</div>`
     :`<div class="empty-state"><div class="empty-title">No quotes sent yet</div></div>`;
 
   // ── Rate success chart ──
   const rateGroups={};
   // Use quotes data — group by rate, track sent vs accepted
-  (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted').forEach(q=>{
+  (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined').forEach(q=>{
     const rate=q.days&&q.days[0]?Math.round(Number(q.days[0].rate||q.days[0].rateBase)||0):Math.round(Number(q.rate)||0);
     if(!rate)return;
     const bucket='$'+Math.round(rate/5)*5+'/hr';
