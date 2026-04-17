@@ -1688,6 +1688,7 @@
           <option>Price — went with cheaper option</option>
           <option>Went with another mover</option>
           <option>Price too high — no alternative found</option>
+          <option>Dates did not work</option>
           <option>Ghosted — no response</option>
           <option>Move cancelled</option>
           <option>Move postponed</option>
@@ -6696,7 +6697,8 @@ function buildQuoteHTML(){
   const notes=document.getElementById('qb-notes').value.trim();
   const quoteNum=l?('Q'+new Date().getFullYear()+'-'+String(db.quotes?db.quotes.length+1:1).padStart(3,'0')):'Q001';
   const d0=qbDays[0]||{};
-  const q=currentQuoteId?db.quotes&&db.quotes.find(x=>x.id===currentQuoteId):null;
+  const moveType=document.getElementById('qb-move-type')?.value||l?.moveType||'';
+  const packingType=document.getElementById('qb-packing')?.value||l?.packing||'';
 
   // Build billing rows
   let billingRows='';
@@ -6770,7 +6772,7 @@ function buildQuoteHTML(){
       <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Project Information</div>
       <div style="font-size:14px;line-height:1.9">
         Project: ${escHtml(projectName||quoteNum)}<br>
-        Project Type: Local Move<br>
+        Project Type: Local Move${moveType?' · '+escHtml(moveType):''}<br>
         Project Size: ${escHtml(l?l.size||'':'')}
         ${desc?`<br>Project Description: ${escHtml(desc)}`:''}
       </div>
@@ -6781,7 +6783,7 @@ function buildQuoteHTML(){
       <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Move Information</div>
       <div style="font-size:14px;line-height:1.9">
         ${isMulti?qbDays.map((d,i)=>`Day ${i+1} Date: ${d.date?fmtDate(d.date):''}`).join('<br>'):`Job Date: ${d0.date?fmtDate(d0.date):''}`}<br>
-        Job Type: Move<br>
+        Job Type: ${escHtml(moveType||'Move')}${packingType&&packingType!=='No — just moving'?' · '+escHtml(packingType):''}<br>
         ${isMulti
           ? qbDays.map((d,i)=>`
             <br><strong>Day ${i+1}</strong><br>
