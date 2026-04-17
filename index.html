@@ -6697,6 +6697,7 @@ function buildQuoteHTML(){
   const notes=document.getElementById('qb-notes').value.trim();
   const quoteNum=l?('Q'+new Date().getFullYear()+'-'+String(db.quotes?db.quotes.length+1:1).padStart(3,'0')):'Q001';
   const d0=qbDays[0]||{};
+  const q=currentQuoteId?db.quotes&&db.quotes.find(x=>x.id===currentQuoteId):null;
   const moveType=document.getElementById('qb-move-type')?.value||l?.moveType||'';
   const packingType=document.getElementById('qb-packing')?.value||l?.packing||'';
 
