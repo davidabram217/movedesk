@@ -6891,6 +6891,7 @@ function saveQuote(status){
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
     createdAt:new Date().toISOString().split('T')[0],
+    savedAt:new Date().toISOString(),
     sentAt:status==='sent'?new Date().toISOString().split('T')[0]:(existingQ?.sentAt||'')
   };
   if(currentQuoteId){const idx=db.quotes.findIndex(q=>q.id===currentQuoteId);if(idx>-1)db.quotes[idx]=quote;else db.quotes.push(quote);}
@@ -6919,6 +6920,7 @@ function viewAcceptedQuote(quoteId){
 }
 
 function previewQuote(){
+  if(!qbDays||!qbDays.length){showToast('Please add at least one day to the quote.');return;}
   saveQuote('draft');
   document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
   closeModal('quote-builder');
