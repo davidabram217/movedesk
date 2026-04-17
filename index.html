@@ -326,8 +326,18 @@
           <div class="card-body" id="quote-acceptance-chart"></div>
         </div>
         <div class="card">
+          <div class="card-header"><div class="card-title">Quote success by team member</div><div style="font-size:11.5px;color:var(--text3)">Sent → accepted rate per person</div></div>
+          <div class="card-body" id="staff-quote-chart"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card">
           <div class="card-header"><div class="card-title">Repeat customer rate</div><div style="font-size:11.5px;color:var(--text3)">New vs returning customers</div></div>
           <div class="card-body" id="repeat-customer-chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Success by estimate type</div><div style="font-size:11.5px;color:var(--text3)">Onsite vs video vs unseen acceptance rate</div></div>
+          <div class="card-body" id="estimate-type-chart"></div>
         </div>
       </div>
       <div style="font-size:13px;font-weight:600;color:var(--text);margin:20px 0 12px;padding-top:16px;border-top:1px solid var(--border)">💰 Hourly Rate Analysis</div>
@@ -5251,6 +5261,92 @@ function renderActivityPatterns(){
     </div>
     <div style="font-size:12px;color:var(--text3)">${qSent.length} quote${qSent.length!==1?'s':''} sent · ${qAccepted.length} accepted · ${qDeclined} declined · ${qPending} awaiting response</div>`
     :`<div class="empty-state"><div class="empty-title">No quotes sent yet</div></div>`;
+
+  // ── Staff quote success chart ──
+  const staffAliases={'johnathan':'John','jonathan':'John','jon':'John'};
+  const staffFilter=new Set(['John','Dave']);
+  const staffQuotes={};
+  (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined').forEach(q=>{
+    const raw=(q.sentBy||'').trim();
+    const norm=raw.replace(/\b\w/g,c=>c.toUpperCase());
+    const name=staffAliases[norm.toLowerCase()]||norm;
+    if(!staffFilter.has(name))return;
+    if(!staffQuotes[name])staffQuotes[name]={sent:0,accepted:0,declined:0};
+    staffQuotes[name].sent++;
+    if(q.status==='accepted')staffQuotes[name].accepted++;
+    if(q.status==='declined')staffQuotes[name].declined++;
+  });
+  const staffQEntries=Object.entries(staffQuotes).sort((a,b)=>b[1].sent-a[1].sent);
+  document.getElementById('staff-quote-chart').innerHTML=staffQEntries.length?`
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Person</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Accepted</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Declined</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+      </tr></thead>
+      <tbody>${staffQEntries.map(([name,d])=>{
+        const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
+        const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
+        return`<tr>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${name}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.accepted}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--error)">${d.declined}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col}">${pct}%</td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table>`
+    :`<div class="empty-state"><div class="empty-title">No quote data yet</div></div>`;
+
+  // ── Estimate type success chart — broken down by person ──
+  const estByPerson={};
+  db.leads.filter(l=>l.estimateType&&l.estimateSentBy&&['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
+    const raw=(l.estimateSentBy||'').trim();
+    const norm=raw.replace(/\b\w/g,c=>c.toUpperCase());
+    const name=staffAliases[norm.toLowerCase()]||norm;
+    if(!staffFilter.has(name))return;
+    const t=l.estimateType;
+    if(!estByPerson[name])estByPerson[name]={};
+    if(!estByPerson[name][t])estByPerson[name][t]={sent:0,accepted:0,dnb:0};
+    estByPerson[name][t].sent++;
+    if(['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status))estByPerson[name][t].accepted++;
+    if(l.status==='Did not book')estByPerson[name][t].dnb++;
+  });
+  const estPersonNames=Object.keys(estByPerson).sort();
+  const allEstTypes=[...new Set(db.leads.filter(l=>l.estimateType).map(l=>l.estimateType))].sort();
+  document.getElementById('estimate-type-chart').innerHTML=estPersonNames.length?estPersonNames.map(name=>{
+    const types=estByPerson[name];
+    const rows=allEstTypes.filter(t=>types[t]).map(t=>{
+      const d=types[t];
+      const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
+      const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
+      return`<tr>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--border);padding-left:20px;color:var(--text2)">${t}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.accepted}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--error)">${d.dnb}</td>
+        <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col}">${pct}%</td>
+      </tr>`;
+    }).join('');
+    const total=Object.values(types).reduce((s,d)=>({sent:s.sent+d.sent,accepted:s.accepted+d.accepted,dnb:s.dnb+d.dnb}),{sent:0,accepted:0,dnb:0});
+    const totalPct=total.sent>0?Math.round(total.accepted/total.sent*100):0;
+    const totalCol=totalPct>=70?'var(--accent)':totalPct>=50?'var(--amber)':'var(--error)';
+    return`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px">
+      <thead><tr>
+        <th colspan="5" style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-size:11px;color:var(--text);font-weight:700;background:var(--surface2)">${name} — ${totalPct}% overall <span style="color:${totalCol}">▪</span></th>
+      </tr><tr>
+        <th style="text-align:left;padding:6px 10px 6px 20px;font-size:10.5px;color:var(--text3);font-weight:500">Estimate type</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Booked</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Lost</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }).join('')
+    :`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
 
   // ── Rate success chart ──
   const rateGroups={};
