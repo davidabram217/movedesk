@@ -105,7 +105,7 @@ function renderQuote(q){
   html+='<table class="table"><thead><tr><th>Description</th><th>Hours</th><th>Rate</th><th>Amount</th></tr></thead><tbody>';
   (q.days||[]).forEach(function(d,i){
     var label=isMulti?'Day '+(i+1)+' - '+d.crew+' Movers':d.crew+' Movers';
-    var range=fmtMoney(d.crew*d.hrsMin*d.rate)+' - '+fmtMoney(d.crew*d.hrsMax*d.rate);
+    var range=fmtMoney(d.hrsMin*d.rate)+' - '+fmtMoney(d.hrsMax*d.rate);
     html+='<tr><td>'+esc(label)+'</td><td>'+esc(d.hrsMin+' - '+d.hrsMax+' hrs')+'</td><td>'+fmtMoney(d.rate)+'/hr</td><td>'+esc(range)+'</td></tr>';
   });
   (q.fees||[]).filter(function(f){return f.included;}).forEach(function(f){
