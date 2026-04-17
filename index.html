@@ -4147,6 +4147,7 @@ document.getElementById('view-modal-footer').innerHTML=`
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
       ${bookedQuote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${bookedQuote.id}')">📄 View quote</button>`:''}
+      <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${j.leadId}')">✏ Edit lead</button>
       ${j.from&&j.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(j.from+(j.fromZip?' '+j.fromZip:'')).replace(/'/g,"\\'")}','${(j.to+(j.toZip?' '+j.toZip:'')).replace(/'/g,"\\'")}','${j.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:''}
       <button class="btn btn-secondary" onclick="editBookedJob('${j.id}')">✏️ Edit</button>
       <button class="btn btn-secondary" style="color:var(--error);border-color:var(--error)" onclick="cancelJob('${j.id}')">Cancel job</button>
