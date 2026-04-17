@@ -1449,6 +1449,10 @@
             <label style="font-size:11.5px">Estimated vaults</label>
             <input type="number" id="qb-estimated-vaults" placeholder="e.g. 3" step="0.5" oninput="qbAutoSave()" style="font-size:13px">
           </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:11.5px">Cash rate ($/hr if paid in cash)</label>
+            <input type="number" id="qb-cash-rate" placeholder="e.g. 450" oninput="qbAutoSave()" style="font-size:13px">
+          </div>
         </div>
         <textarea id="qb-office-notes" style="min-height:55px;width:100%" placeholder="Internal notes — pricing flags, special considerations, anything not for the client…" oninput="qbAutoSave()"></textarea>
       </div>
@@ -2758,13 +2762,23 @@ function openConfirmEmail(leadId){
     });
     // Rate line then fees — no headers, just clean lines
     moveDetailsSection+='\n';
-    if(d0q.rate)moveDetailsSection+='\n'+fmtCrewDesc(d0q)+' @ $'+d0q.rate+'.00 per hour'+fmtPackDesc(d0q);
+    if(d0q.rate){
+      const rateStr=fmtCrewDesc(d0q)+' @ $'+Number(d0q.rate).toFixed(2)+' Per Hour';
+      const cashRateStr=q.cashRate?'($'+Number(q.cashRate).toFixed(2)+' If Paid Cash)':'';
+      moveDetailsSection+='\n'+rateStr+(cashRateStr?' '+cashRateStr:'');
+    }
+    if(d0q.hrsMin)moveDetailsSection+='\n'+d0q.hrsMin+' Hour Minimum';
     const includedFees=(q.fees||[]).filter(function(f){return f.included!==false&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
     includedFees.forEach(function(f){
       const lbl=f.label||f.name||'';
-      if(f.type==='range'){moveDetailsSection+='\n'+lbl+': $'+(f.hrsMin||0)+' – $'+(f.hrsMax||0);}
-      else{moveDetailsSection+='\n'+lbl+': $'+Number(f.amount||0).toLocaleString();}
+      if(f.type==='range'){moveDetailsSection+='\n$'+(f.hrsMin||0)+' – $'+(f.hrsMax||0)+' '+lbl;}
+      else{moveDetailsSection+='\n$'+Number(f.amount||0).toFixed(2)+' '+lbl;}
     });
+    // Check if packing is included
+    const hasPacking=l.packing&&l.packing!=='No — just moving';
+    const packFee=(q.fees||[]).find(f=>(f.label||f.name||'').toLowerCase().includes('packing'));
+    if(hasPacking||packFee)moveDetailsSection+='\nPacking Materials Used - '+(packFee&&packFee.amount?'$'+Number(packFee.amount).toFixed(2):'TBD');
+    moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
     if(isMulti&&q)moveDetailsSection+='\n\nTotal estimate: $'+Number(q.totalMin||0).toLocaleString()+' – $'+Number(q.totalMax||0).toLocaleString()+' (all days combined, before additional fees)';
   } else {
     const moveDate=fmtDate(l.date);
@@ -6218,7 +6232,7 @@ function openQuoteBuilder(leadId){
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
   document.getElementById('qb-notes').value='Please note this is our best estimate based on the information provided. The final price may differ from the estimate unless an onsite or video estimate has already been performed. If you would like to request one or if you have any questions please give us a call on 415-822-8547.\n\nPlease review your information and follow the prompt at the bottom to continue.';
-  const _qbEv=document.getElementById('qb-estimated-vaults');if(_qbEv)_qbEv.value='';
+  const _qbEv=document.getElementById('qb-estimated-vaults');if(_qbEv)_qbEv.value='';const _qbCr=document.getElementById('qb-cash-rate');if(_qbCr)_qbCr.value='';
   setJobType('single');
   openModal('quote-builder');
 }
@@ -6242,7 +6256,7 @@ function loadQuoteIntoBuilder(q){
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
   document.getElementById('qb-stipulations').value=q.stipulations||'';
   document.getElementById('qb-notes').value=q.notes||'';
-  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';
+  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||'';const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';const crEl=document.getElementById('qb-cash-rate');if(crEl)crEl.value=q.cashRate||'';
   setJobType(qbJobType);
 }
 
@@ -6804,7 +6818,7 @@ function saveQuote(status){
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
     stipulations:document.getElementById('qb-stipulations').value,
-    notes:document.getElementById('qb-notes').value,officeNotes:document.getElementById('qb-office-notes')?.value||'',estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',
+    notes:document.getElementById('qb-notes').value,officeNotes:document.getElementById('qb-office-notes')?.value||'',estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
     sentBy:document.getElementById('qb-sent-by')?.value||'',
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
