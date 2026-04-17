@@ -5267,8 +5267,10 @@ function renderActivityPatterns(){
   const staffFilter=new Set(['John','Dave']);
   const staffQuotes={};
   (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined').forEach(q=>{
-    const raw=(q.sentBy||'').trim();
-    const norm=raw.replace(/\b\w/g,c=>c.toUpperCase());
+    // Use quote sentBy, fall back to lead estimateSentBy
+    const lead=(db.leads||[]).find(l=>l.id===q.leadId);
+    const rawName=(q.sentBy||lead?.estimateSentBy||'').trim();
+    const norm=rawName.replace(/\b\w/g,c=>c.toUpperCase());
     const name=staffAliases[norm.toLowerCase()]||norm;
     if(!staffFilter.has(name))return;
     if(!staffQuotes[name])staffQuotes[name]={sent:0,accepted:0,declined:0};
@@ -5302,8 +5304,12 @@ function renderActivityPatterns(){
 
   // ── Estimate type success chart — broken down by person ──
   const estByPerson={};
-  db.leads.filter(l=>l.estimateType&&l.estimateSentBy&&['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
-    const raw=(l.estimateSentBy||'').trim();
+  db.leads.filter(l=>l.estimateType&&['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
+    // Use estimateSentBy, fall back to linked quote sentBy
+    const linkedQuote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
+    const rawName=l.estimateSentBy||linkedQuote?.sentBy||'';
+    const raw=rawName.trim();
+    if(!raw)return;
     const norm=raw.replace(/\b\w/g,c=>c.toUpperCase());
     const name=staffAliases[norm.toLowerCase()]||norm;
     if(!staffFilter.has(name))return;
