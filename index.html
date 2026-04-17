@@ -6448,6 +6448,7 @@ function openQuoteBuilder(leadId){
 }
 
 function loadQuoteIntoBuilder(q){
+  const l=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
   qbJobType=q.jobType||'single';
   qbDays=q.days||[];
   // Ensure each day has loads/unloads arrays initialized
@@ -7309,7 +7310,7 @@ function renderQuotes(){
   const statusBadgeQ=(s)=>{const m={draft:'pill-gray',sent:'pill-green',accepted:'pill-green',declined:'pill-red'};return`<span class="badge ${m[s]||'pill-gray'}">${s}</span>`;};
   document.getElementById('quotes-tbody').innerHTML=db.quotes.length
     ?[...db.quotes].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(q=>`<tr>
-      <td style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:500;cursor:pointer" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));openModal('quote-builder')">${q.customerName||'—'}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:500;cursor:pointer" onclick="openQuoteFromList('${q.id}')">${q.customerName||'—'}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${fmtDate(q.moveDate)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><span class="badge pill-gray">${q.jobType==='multi'?'Multi-day':'Single day'}</span></td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${fmtMoney(q.totalMin)} — ${fmtMoney(q.totalMax)}</td>
@@ -7317,13 +7318,37 @@ function renderQuotes(){
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${statusBadgeQ(q.status)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">
         <div style="display:flex;gap:6px">
-          <button class="btn btn-secondary btn-sm" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));openModal('quote-builder')">Edit</button>
-          <button class="btn btn-secondary btn-sm" onclick="currentQuoteId='${q.id}';currentQuoteLeadId='${q.leadId||''}';loadQuoteIntoBuilder(db.quotes.find(x=>x.id==='${q.id}'));saveQuote('draft');document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();openModal('quote-preview')">Preview</button>
+          <button class="btn btn-secondary btn-sm" onclick="openQuoteFromList('${q.id}')">Edit</button>
+          <button class="btn btn-secondary btn-sm" onclick="previewQuoteFromList('${q.id}')">Preview</button>
           <button class="btn btn-danger btn-sm" onclick="deleteQuote('${q.id}')">✕</button>
         </div>
       </td>
     </tr>`).join('')
     :`<tr><td colspan="7"><div class="empty-state"><div class="empty-title">No quotes yet</div><div class="empty-sub">Open a lead and click "Build quote"</div></div></td></tr>`;
+}
+
+function openQuoteFromList(quoteId){
+  const q=db.quotes.find(x=>x.id===quoteId);
+  if(!q)return;
+  currentQuoteId=quoteId;
+  currentQuoteLeadId=q.leadId||null;
+  loadQuoteIntoBuilder(q);
+  openModal('quote-builder');
+}
+
+function previewQuoteFromList(quoteId){
+  const q=db.quotes.find(x=>x.id===quoteId);
+  if(!q)return;
+  currentQuoteId=quoteId;
+  currentQuoteLeadId=q.leadId||null;
+  loadQuoteIntoBuilder(q);
+  document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
+  const footer=document.getElementById('quote-preview-footer');
+  if(footer){
+    const link=q.publicId?`<a href="https://davidabram217.github.io/movedesk/quote.html?id=${q.publicId}" target="_blank" class="btn btn-secondary" style="text-decoration:none">🔗 Open customer link</a>`:'';
+    footer.innerHTML=`<button class="btn btn-secondary" onclick="closeModal('quote-preview')">← Close</button><button class="btn btn-secondary" onclick="closeModal('quote-preview');openModal('quote-builder')">← Edit</button>${link}`;
+  }
+  openModal('quote-preview');
 }
 
 // ── CUSTOMERS ──
