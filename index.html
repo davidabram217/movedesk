@@ -4016,7 +4016,14 @@ function deleteBookedJob(id){
 function filterBooked(v){bookedFilter.text=v;renderBooked();}
 function filterBookedCrew(v){bookedFilter.crew=v;renderBooked();}
 function viewBookedJob(id){const j=db.bookedJobs.find(x=>x.id===id);if(!j)return;
-const bookedQuote=j.leadId?(db.quotes||[]).find(q=>q.leadId===j.leadId&&(q.status==='accepted'||q.status==='sent'))||(db.quotes||[]).filter(q=>q.leadId===j.leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0]:null;
+const bookedQuote=j.leadId?(
+  (db.quotes||[]).find(q=>q.leadId===j.leadId&&q.status==='accepted')||
+  (db.quotes||[]).find(q=>q.leadId===j.leadId&&q.status==='sent')||
+  (db.quotes||[]).find(q=>q.leadId===j.leadId&&q.status==='declined')||
+  (db.quotes||[]).filter(q=>q.leadId===j.leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0]
+):
+  (db.quotes||[]).find(q=>q.customerName===j.name&&(q.status==='accepted'||q.status==='sent'))||
+  (db.quotes||[]).filter(q=>q.customerName===j.name).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0]||null;
 document.getElementById('view-modal-title').textContent=j.name;
 
 // Build calendar entry text
