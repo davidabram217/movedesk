@@ -5324,7 +5324,7 @@ function renderActivityPatterns(){
 
   // ── Estimate type success chart — broken down by person ──
   const estByPerson={};
-  db.leads.filter(l=>l.estimateType&&['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
+  db.leads.filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
     // Use estimateSentBy, fall back to linked quote sentBy
     const linkedQuote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
     const rawName=l.estimateSentBy||linkedQuote?.sentBy||'';
@@ -5333,7 +5333,9 @@ function renderActivityPatterns(){
     const norm=raw.replace(/\b\w/g,c=>c.toUpperCase());
     const name=staffAliases[norm.toLowerCase()]||norm;
     if(!staffFilter.has(name))return;
-    const t=l.estimateType;
+    // Use lead estimateType, fall back to quote estimateType
+    const t=l.estimateType||linkedQuote?.estimateType||'';
+    if(!t)return;
     if(!estByPerson[name])estByPerson[name]={};
     if(!estByPerson[name][t])estByPerson[name][t]={sent:0,accepted:0,dnb:0};
     estByPerson[name][t].sent++;
@@ -5341,7 +5343,10 @@ function renderActivityPatterns(){
     if(l.status==='Did not book')estByPerson[name][t].dnb++;
   });
   const estPersonNames=Object.keys(estByPerson).sort();
-  const allEstTypes=[...new Set(db.leads.filter(l=>l.estimateType).map(l=>l.estimateType))].sort();
+  const allEstTypes=[...new Set([
+    ...db.leads.filter(l=>l.estimateType).map(l=>l.estimateType),
+    ...(db.quotes||[]).filter(q=>q.estimateType).map(q=>q.estimateType)
+  ])].sort();
   document.getElementById('estimate-type-chart').innerHTML=estPersonNames.length?estPersonNames.map(name=>{
     const types=estByPerson[name];
     const rows=allEstTypes.filter(t=>types[t]).map(t=>{
@@ -7178,6 +7183,8 @@ function buildQuotePlainText(){
 async function openQuoteGmail(){
   const sentBy=document.getElementById('qb-sent-by')?.value?.trim();
   if(!sentBy){showToast('Please fill in who is sending this quote (Sent by field).');return;}
+  const estType=document.getElementById('qb-estimate-type')?.value;
+  if(!estType){showToast('Please select an estimate type (Onsite, Video, FaceTime, or Unseen).');return;}
   const q=saveQuote('draft');
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const name=l?l.name.split(' ')[0]:'there';
