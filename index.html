@@ -5301,29 +5301,14 @@ function renderActivityPatterns(){
     <div style="font-size:12px;color:var(--text3)">${qSent.length} quote${qSent.length!==1?'s':''} sent · ${qAccepted.length} accepted · ${qDeclined} declined · ${qPending} awaiting response</div>`
     :`<div class="empty-state"><div class="empty-title">No quotes sent yet</div></div>`;
 
-  // ── Staff quote success chart ──
+  // ── Staff quote success chart — use leads as source of truth ──
   const staffAliases={'johnathan':'John','jonathan':'John','jon':'John'};
   const staffFilter=new Set(['John','Dave']);
   const staffQuotes={};
-  // Count from quotes (sent/accepted/declined)
-  (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined').forEach(q=>{
-    const lead=(db.leads||[]).find(l=>l.id===q.leadId);
-    const rawName=(q.sentBy||lead?.estimateSentBy||'').trim();
-    const norm=rawName.replace(/\b\w/g,c=>c.toUpperCase());
-    const name=staffAliases[norm.toLowerCase()]||norm;
-    if(!staffFilter.has(name))return;
-    if(!staffQuotes[name])staffQuotes[name]={sent:0,accepted:0,declined:0};
-    staffQuotes[name].sent++;
-    if(q.status==='accepted')staffQuotes[name].accepted++;
-    if(q.status==='declined'||lead?.status==='Did not book')staffQuotes[name].declined++;
-  });
-  // Also count leads where estimate was sent but no quote exists in system
-  (db.leads||[]).filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)&&l.estimateSentBy).forEach(l=>{
-    const hasQuote=(db.quotes||[]).some(q=>q.leadId===l.id);
-    if(hasQuote)return; // already counted above
-    const rawName=(l.estimateSentBy||'').trim();
-    const norm=rawName.replace(/\b\w/g,c=>c.toUpperCase());
-    const name=staffAliases[norm.toLowerCase()]||norm;
+  db.leads.filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
+    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
+    const rawName=(l.estimateSentBy||linkedQ?.sentBy||'').trim();
+    const name=_sNorm(rawName);
     if(!staffFilter.has(name))return;
     if(!staffQuotes[name])staffQuotes[name]={sent:0,accepted:0,declined:0};
     staffQuotes[name].sent++;
@@ -5357,15 +5342,10 @@ function renderActivityPatterns(){
   // ── Estimate type success chart — broken down by person ──
   const estByPerson={};
   db.leads.filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
-    // Use estimateSentBy, fall back to linked quote sentBy
     const linkedQuote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
     const rawName=l.estimateSentBy||linkedQuote?.sentBy||'';
-    const raw=rawName.trim();
-    if(!raw)return;
-    const norm=raw.replace(/\b\w/g,c=>c.toUpperCase());
-    const name=staffAliases[norm.toLowerCase()]||norm;
+    const name=_sNorm(rawName);
     if(!staffFilter.has(name))return;
-    // Use lead estimateType, fall back to quote estimateType
     const t=l.estimateType||linkedQuote?.estimateType||'';
     if(!t)return;
     if(!estByPerson[name])estByPerson[name]={};
