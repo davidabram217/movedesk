@@ -4,7 +4,7 @@ var EJS_SERVICE='service_nakq8tb';
 var EJS_NOTIFY_TEMPLATE='template_nr2plwp';
 var EJS_PUBLIC_KEY='76y89yZYC-kcq82ol';
 
-function fmtMoney(n){return'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtMoney(n){return'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 function fmtDate(d){if(!d)return'--';var dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 
