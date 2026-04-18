@@ -4733,6 +4733,10 @@ function getAnalyticsJobs(){
   });
 }
 function renderAnalytics(){
+  // ── Shared name helpers used across ALL analytics charts ──
+  const _sAliases={'johnathan':'John','jonathan':'John','jon':'John'};
+  const _sNorm=n=>{if(!n)return'';const t=n.trim().replace(/\b\w/g,c=>c.toUpperCase());return _sAliases[t.toLowerCase()]||t;};
+  const staffFilter=new Set(['John','Dave']);
   // Populate year selector
   const yrSel=document.getElementById('analytics-year');
   if(yrSel){
@@ -4890,8 +4894,6 @@ function renderAnalytics(){
     </div>`:`<div class="empty-state"><div class="empty-title">No payment data yet</div></div>`;
 
   // Staff performance — normalise names, keyed by canonical name
-  const _sAliases={'johnathan':'John','jonathan':'John','jon':'John'};
-  const _sNorm=n=>{if(!n)return'';const t=n.trim().replace(/\b\w/g,c=>c.toUpperCase());return _sAliases[t.toLowerCase()]||t;};
   const staffData={};
   db.leads.forEach(l=>{
     // Get the sent-by name from lead or linked quote
@@ -5302,8 +5304,6 @@ function renderActivityPatterns(){
     :`<div class="empty-state"><div class="empty-title">No quotes sent yet</div></div>`;
 
   // ── Staff quote success chart — use leads as source of truth ──
-  const staffAliases={'johnathan':'John','jonathan':'John','jon':'John'};
-  const staffFilter=new Set(['John','Dave']);
   const staffQuotes={};
   db.leads.filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
     const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
