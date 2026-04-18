@@ -2544,6 +2544,11 @@ function renderDashboard(){
     db.quotes.filter(q=>q.status==='sent'&&dnbIds.has(q.leadId)).forEach(q=>{
       q.status='declined';q.declinedAt=q.declinedAt||new Date().toISOString().split('T')[0];fixed=true;
     });
+    // Auto-accept sent quotes for booked/completed leads
+    const bookedIds=new Set(db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)).map(l=>l.id));
+    db.quotes.filter(q=>q.status==='sent'&&bookedIds.has(q.leadId)).forEach(q=>{
+      q.status='accepted';q.acceptedAt=q.acceptedAt||new Date().toISOString().split('T')[0];fixed=true;
+    });
     if(fixed)saveDB();
   }
   // Clean up draft jobs and duplicates
@@ -3653,6 +3658,12 @@ function confirmBooking(){
   job.quoteFees=leadQuote?leadQuote.fees||[]:[];
   delete job._draft;
   if(l)l.status='Quote accepted';
+  // Auto-accept any sent quotes linked to this lead
+  if(db.quotes&&currentBookingLeadId){
+    db.quotes.filter(q=>q.leadId===currentBookingLeadId&&q.status==='sent').forEach(q=>{
+      q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];
+    });
+  }
   saveDB();closeModal('book-job');renderLeads();
   currentBookedJobId=job.id;
   window._bookingCalUrl=buildJobCalUrl(job);
