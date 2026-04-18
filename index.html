@@ -7261,6 +7261,11 @@ async function sendQuoteEmail(){
     console.error('sendQuoteEmail error:',e);
     showToast('Failed to send — opening Gmail as backup');
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
+    // Mark quote as sent since we're opening Gmail
+    const _fq=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+    if(_fq){_fq.status='sent';_fq.sentAt=new Date().toISOString().split('T')[0];saveDB();}
+    const _fl=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
+    if(_fl){_fl.status='Estimate sent';_fl.estimateDate=new Date().toISOString().split('T')[0];if(_fq&&_fq.sentBy&&!_fl.estimateSentBy)_fl.estimateSentBy=_fq.sentBy;if(_fq&&_fq.estimateType)_fl.estimateType=_fq.estimateType;saveDB();renderLeads();}
     const url='https://mail.google.com/mail/?view=cm'
       +'&to='+encodeURIComponent(to)
       +'&cc='+encodeURIComponent(OFFICE_EMAIL)
@@ -7339,11 +7344,31 @@ function renderQuotes(){
         <div style="display:flex;gap:6px">
           <button class="btn btn-secondary btn-sm" onclick="openQuoteFromList('${q.id}')">Edit</button>
           <button class="btn btn-secondary btn-sm" onclick="previewQuoteFromList('${q.id}')">Preview</button>
+          ${q.status==='draft'?`<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--accent);border-color:var(--accent)" onclick="markQuoteSent('${q.id}')">✓ Mark sent</button>`:''}
           <button class="btn btn-danger btn-sm" onclick="deleteQuote('${q.id}')">✕</button>
         </div>
       </td>
     </tr>`).join('')
     :`<tr><td colspan="7"><div class="empty-state"><div class="empty-title">No quotes yet</div><div class="empty-sub">Open a lead and click "Build quote"</div></div></td></tr>`;
+}
+
+function markQuoteSent(quoteId){
+  const q=db.quotes.find(x=>x.id===quoteId);
+  if(!q)return;
+  q.status='sent';
+  q.sentAt=q.sentAt||new Date().toISOString().split('T')[0];
+  // Also update lead status
+  const l=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
+  if(l){
+    if(!['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)){
+      l.status='Estimate sent';
+      l.estimateDate=l.estimateDate||q.sentAt;
+    }
+    if(q.sentBy&&!l.estimateSentBy)l.estimateSentBy=q.sentBy;
+    if(q.estimateType&&!l.estimateType)l.estimateType=q.estimateType;
+  }
+  saveDB();renderQuotes();renderLeads();
+  showToast('✓ Quote marked as sent — '+q.customerName);
 }
 
 function openQuoteFromList(quoteId){
