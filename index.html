@@ -4894,25 +4894,24 @@ function renderAnalytics(){
   const _sNorm=n=>{if(!n)return'';const t=n.trim().replace(/\b\w/g,c=>c.toUpperCase());return _sAliases[t.toLowerCase()]||t;};
   const staffData={};
   db.leads.forEach(l=>{
-    const person=_sNorm(l.estimateSentBy||l.takenBy);
+    // Get the sent-by name from lead or linked quote
+    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
+    const rawSentBy=l.estimateSentBy||linkedQ?.sentBy||'';
+    const person=_sNorm(rawSentBy);
     if(!person)return;
     if(!staffData[person])staffData[person]={sent:0,booked:0,completed:0,revenue:0,byType:{}};
-    const sentEstimate=['Estimate sent','Quote accepted','Booked','Completed','Did not book'].includes(l.status)&&l.estimateSentBy;
-    if(sentEstimate||l.estimateSentBy){
-      const normPerson=_sNorm(l.estimateSentBy);
-      if(normPerson===person){
-        staffData[person].sent++;
+    if(['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)&&rawSentBy){
+      staffData[person].sent++;
+      if(l.estimateType){
+        if(!staffData[person].byType[l.estimateType])staffData[person].byType[l.estimateType]={sent:0,closed:0};
+        staffData[person].byType[l.estimateType].sent++;
+      }
+      // Count booked as closed
+      if(['Quote accepted','Booked','Completed','Confirmation sent'].includes(l.status)){
+        staffData[person].booked++;
         if(l.estimateType){
           if(!staffData[person].byType[l.estimateType])staffData[person].byType[l.estimateType]={sent:0,closed:0};
-          staffData[person].byType[l.estimateType].sent++;
-        }
-        // Count booked as closed
-        if(['Quote accepted','Booked','Completed','Confirmation sent'].includes(l.status)){
-          staffData[person].booked++;
-          if(l.estimateType){
-            if(!staffData[person].byType[l.estimateType])staffData[person].byType[l.estimateType]={sent:0,closed:0};
-            staffData[person].byType[l.estimateType].closed++;
-          }
+          staffData[person].byType[l.estimateType].closed++;
         }
       }
     }
