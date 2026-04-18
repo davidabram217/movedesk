@@ -4735,7 +4735,7 @@ function getAnalyticsJobs(){
 // ── Name normalisation helpers (shared across analytics) ──
 const _sAliases={'johnathan':'John','jonathan':'John','jon':'John'};
 const _sNorm=n=>{if(!n)return'';const t=n.trim().replace(/\b\w/g,c=>c.toUpperCase());return _sAliases[t.toLowerCase()]||t;};
-const _staffFilter=new Set(['John','Dave']);
+const staffFilter=new Set(['John','Dave']);
 
 function renderAnalytics(){
   // Populate year selector
@@ -5395,26 +5395,22 @@ function renderActivityPatterns(){
     <div class="stat-card"><div class="stat-label">Busiest move month</div><div class="stat-value" style="font-size:16px">${peakMonthJobs||'—'}</div></div>`;
   renderIncomeCard('analytics-income-body',_incomeTabAnalytics);
 
-  // ── Rate success chart ──
+  // ── Rate success chart — use quotes as source of truth ──
   const rateGroups={};
-  // Use quotes data — group by rate, track sent vs accepted
+  // Each quote = one sent estimate; status on linked lead determines outcome
   (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined').forEach(q=>{
-    const rate=q.days&&q.days[0]?Math.round(Number(q.days[0].rate||q.days[0].rateBase)||0):Math.round(Number(q.rate)||0);
+    // Get rate from first day of quote
+    const rate=q.days&&q.days[0]?Math.round(Number(q.days[0].rate||0)):Math.round(Number(q.rate)||0);
     if(!rate)return;
-    const bucket='$'+Math.round(rate/5)*5+'/hr';
-    if(!rateGroups[bucket])rateGroups[bucket]={sent:0,accepted:0,rate:Math.round(rate/5)*5};
+    const bucket='$'+rate+'/hr';
+    if(!rateGroups[bucket])rateGroups[bucket]={sent:0,accepted:0,rate};
     rateGroups[bucket].sent++;
-    if(q.status==='accepted')rateGroups[bucket].accepted++;
-  });
-  // Also pull from completed jobs (actual rate charged)
-  allJobs.forEach(j=>{
-    const rate=Math.round(Number(j.hourlyRateCharged||j.ratePerHour)||0);
-    if(!rate)return;
-    const bucket='$'+Math.round(rate/5)*5+'/hr';
-    if(!rateGroups[bucket])rateGroups[bucket]={sent:0,accepted:0,rate:Math.round(rate/5)*5};
-    // Only count if not already counted via quote
-    rateGroups[bucket].accepted++;
-    rateGroups[bucket].sent++;
+    // Check lead status for outcome
+    const lead=(db.leads||[]).find(l=>l.id===q.leadId);
+    const leadStatus=lead?.status||'';
+    if(q.status==='accepted'||['Quote accepted','Confirmation sent','Booked','Completed'].includes(leadStatus)){
+      rateGroups[bucket].accepted++;
+    }
   });
   const rateEntries=Object.entries(rateGroups).sort((a,b)=>a[1].rate-b[1].rate);
   document.getElementById('rate-success-chart').innerHTML=rateEntries.length?`
