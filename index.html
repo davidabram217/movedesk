@@ -4748,6 +4748,37 @@ const _sAliases={'johnathan':'John','jonathan':'John','jon':'John'};
 const _sNorm=n=>{if(!n)return'';const t=n.trim().replace(/\b\w/g,c=>c.toUpperCase());return _sAliases[t.toLowerCase()]||t;};
 const staffFilter=new Set(['John','Dave']);
 
+// ══════════════════════════════════════════════════════════
+// SHARED ANALYTICS DATA — single source of truth
+// Every estimate/quote chart uses getEstimateEvents()
+// ══════════════════════════════════════════════════════════
+function getEstimateEvents(){
+  // Returns array of {name, estimateType, status, rate, leadStatus, quoteStatus}
+  // for every lead that had an estimate sent
+  const BOOKED=['Quote accepted','Confirmation sent','Booked','Completed'];
+  const SENT=['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
+  const events=[];
+  db.leads.forEach(l=>{
+    if(!SENT.includes(l.status))return;
+    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&
+      (q.status==='sent'||q.status==='accepted'||q.status==='declined'));
+    // Resolve sent-by name
+    const rawName=(l.estimateSentBy||linkedQ?.sentBy||'').trim();
+    const name=_sNorm(rawName);
+    // Resolve estimate type
+    const estimateType=l.estimateType||linkedQ?.estimateType||'';
+    // Resolve rate from first day of quote
+    const rate=linkedQ?.days?.[0]?.rate?Math.round(Number(linkedQ.days[0].rate)):0;
+    // Resolve outcome
+    const booked=BOOKED.includes(l.status);
+    const lost=l.status==='Did not book';
+    const pending=!booked&&!lost;
+    events.push({name,estimateType,rate,booked,lost,pending,leadId:l.id,leadStatus:l.status,quoteStatus:linkedQ?.status||''});
+  });
+  return events;
+}
+
+
 function renderAnalytics(){
   // Populate year selector
   const yrSel=document.getElementById('analytics-year');
@@ -4786,7 +4817,15 @@ function renderAnalytics(){
     const detailHtml=details&&Object.keys(details).length?`<div style="margin-left:16px;margin-top:4px;margin-bottom:6px">${Object.entries(details).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);padding:2px 0"><span style="width:8px;height:8px;border-radius:50%;background:${sc[s]||'#888'};display:inline-block;flex-shrink:0;opacity:0.5"></span><span style="flex:1">${d}</span><span style="font-weight:500;color:var(--text2)">${n}</span></div>`).join('')}</div>`:'';
     return`<div class="bar-row"><div class="bar-label">${s}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c/maxS*100)}%;background:${sc[s]||'#888'}">${c}</div></div><div class="bar-value">${c}</div></div>${detailHtml}`;
   }).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
-  const et=['Unseen','Video','FaceTime','Onsite'];const ec={'Unseen':'#888','Video':'#1a5276','FaceTime':'#6c3483','Onsite':'#b7860b'};const ed=et.map(t=>{const tot=db.leads.filter(l=>l.estimateType===t&&['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).length;const cl=db.leads.filter(l=>l.estimateType===t&&['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)).length;return{type:t,tot,cl,rate:tot?Math.round(cl/tot*100):0};}).filter(x=>x.tot>0);document.getElementById('estimate-chart').innerHTML=ed.length?`<div class="bar-chart">${ed.map(e=>`<div class="bar-row"><div class="bar-label">${e.type}</div><div class="bar-track"><div class="bar-fill" style="width:${e.rate}%;background:${ec[e.type]}">${e.rate}%</div></div><div class="bar-value">${e.cl}/${e.tot}</div></div>`).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
+  // ── Estimate close rates bar chart ──
+  const _ec2={'Unseen':'#888','Video':'#1a5276','FaceTime':'#6c3483','Onsite':'#b7860b'};
+  const _etTypes=['Unseen','Video','FaceTime','Onsite'];
+  const _ev2=getEstimateEvents();
+  const _ed2=_etTypes.map(t=>{
+    const rows=_ev2.filter(e=>e.estimateType===t);
+    return{type:t,tot:rows.length,cl:rows.filter(e=>e.booked).length,rate:rows.length?Math.round(rows.filter(e=>e.booked).length/rows.length*100):0};
+  }).filter(x=>x.tot>0);
+  document.getElementById('estimate-chart').innerHTML=_ed2.length?`<div class="bar-chart">${_ed2.map(e=>`<div class="bar-row"><div class="bar-label">${e.type}</div><div class="bar-track"><div class="bar-fill" style="width:${e.rate}%;background:${_ec2[e.type]}">${e.rate}%</div></div><div class="bar-value">${e.cl}/${e.tot}</div></div>`).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
   const rbm={};filteredJobs.forEach(j=>{if(j.date){const m=j.date.slice(0,7);rbm[m]=(rbm[m]||0)+(Number(j.paid)||0);}});const mos=Object.keys(rbm).sort();const maxR=Math.max(...Object.values(rbm),1);document.getElementById('revenue-chart').innerHTML=mos.length?`<div class="bar-chart">${mos.map(m=>{const lbl=new Date(m+'-15').toLocaleDateString('en-US',{month:'short',year:'2-digit'});return`<div class="bar-row"><div class="bar-label">${lbl}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(rbm[m]/maxR*100)}%;background:var(--accent)">${fmtMoney(rbm[m])}</div></div></div>`;}).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No revenue data yet</div></div>`;
   const crewAliases={'johnathan':'John','jonathan':'John','jon':'John'};
   const crewFilter=new Set(['John','Dave']);
@@ -4905,40 +4944,31 @@ function renderAnalytics(){
       </div>
     </div>`:`<div class="empty-state"><div class="empty-title">No payment data yet</div></div>`;
 
-  // Staff performance — normalise names, keyed by canonical name
-  const staffData={};
-  db.leads.forEach(l=>{
-    // Get the sent-by name from lead or linked quote
-    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
-    const rawSentBy=l.estimateSentBy||linkedQ?.sentBy||'';
-    const person=_sNorm(rawSentBy);
-    if(!person)return;
-    if(!staffData[person])staffData[person]={sent:0,booked:0,completed:0,revenue:0,byType:{}};
-    if(['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)&&rawSentBy){
-      staffData[person].sent++;
-      if(l.estimateType){
-        if(!staffData[person].byType[l.estimateType])staffData[person].byType[l.estimateType]={sent:0,closed:0};
-        staffData[person].byType[l.estimateType].sent++;
-      }
-      // Count booked as closed
-      if(['Quote accepted','Booked','Completed','Confirmation sent'].includes(l.status)){
-        staffData[person].booked++;
-        if(l.estimateType){
-          if(!staffData[person].byType[l.estimateType])staffData[person].byType[l.estimateType]={sent:0,closed:0};
-          staffData[person].byType[l.estimateType].closed++;
-        }
-      }
+    // Staff performance — built from getEstimateEvents()
+  const _spEv=getEstimateEvents();
+  const _spd={};
+  _spEv.forEach(e=>{
+    if(!e.name)return;
+    if(!_spd[e.name])_spd[e.name]={sent:0,booked:0,completed:0,revenue:0,byType:{}};
+    _spd[e.name].sent++;
+    if(e.booked)_spd[e.name].booked++;
+    if(e.estimateType){
+      if(!_spd[e.name].byType[e.estimateType])_spd[e.name].byType[e.estimateType]={sent:0,closed:0};
+      _spd[e.name].byType[e.estimateType].sent++;
+      if(e.booked)_spd[e.name].byType[e.estimateType].closed++;
     }
   });
-  // Count revenue from completed jobs
   filteredJobs.forEach(j=>{
     const lead=db.leads.find(l=>db.bookedJobs.find(b=>b.id===j.bookedJobId&&b.leadId===l.id));
-    const person=_sNorm(lead?.estimateSentBy);
-    if(!person)return;
-    if(!staffData[person])staffData[person]={sent:0,booked:0,completed:0,revenue:0,byType:{}};
-    staffData[person].completed++;
-    staffData[person].revenue+=Number(j.paid)||0;
+    const lQ=(db.quotes||[]).find(q=>q.leadId===lead?.id&&(q.status==='sent'||q.status==='accepted'));
+    const name=_sNorm((lead?.estimateSentBy||lQ?.sentBy||'').trim());
+    if(!name)return;
+    if(!_spd[name])_spd[name]={sent:0,booked:0,completed:0,revenue:0,byType:{}};
+    _spd[name].completed++;
+    _spd[name].revenue+=Number(j.paid)||0;
   });
+  // Alias _spd as staffData for the existing table render below
+  const staffData=_spd;
   const staffEntries=Object.entries(staffData);
   document.getElementById('staff-performance').innerHTML=staffEntries.length?`
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
@@ -5177,44 +5207,40 @@ function renderAnalytics(){
   }
 
 
-  // ── New analytics charts ──
-  // ── 1. Quote acceptance rate ──
-  const allQuotes=db.quotes||[];
-  const sentQuotes=allQuotes.filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='draft');
-  const acceptedQuotes=allQuotes.filter(q=>q.status==='accepted');
-  const qTotal=sentQuotes.length+acceptedQuotes.filter(q=>!sentQuotes.find(s=>s.id===q.id)).length;
-  const qSent=allQuotes.filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined');
-  const qAccepted=allQuotes.filter(q=>q.status==='accepted');
-  const qDeclined=allQuotes.filter(q=>q.status==='declined').length;
-  const qRate=qSent.length?Math.round(qAccepted.length/qSent.length*100):0;
-  const qPending=qSent.length-qAccepted.length-qDeclined;
-  document.getElementById('quote-acceptance-chart').innerHTML=qSent.length?`
+  
+  // ── Quote/estimate analytics — all use getEstimateEvents() ──
+  const _ev=getEstimateEvents();
+
+  // 1. Quote acceptance rate
+  const _evSent=_ev.length;
+  const _evBooked=_ev.filter(e=>e.booked).length;
+  const _evLost=_ev.filter(e=>e.lost).length;
+  const _evPending=_ev.filter(e=>e.pending).length;
+  const _qRate=_evSent?Math.round(_evBooked/_evSent*100):0;
+  document.getElementById('quote-acceptance-chart').innerHTML=_evSent?`
     <div style="display:flex;gap:24px;align-items:center;margin-bottom:16px">
-      <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--accent)">${qRate}%</div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Acceptance rate</div></div>
+      <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:var(--accent)">${_qRate}%</div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Acceptance rate</div></div>
       <div style="flex:1">
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Accepted</span><span style="font-weight:600;color:var(--accent)">${qAccepted.length}</span></div>
-        <div style="background:var(--surface2);border-radius:4px;height:10px;margin-bottom:8px"><div style="height:100%;border-radius:4px;background:var(--accent);width:${qRate}%"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Pending</span><span style="font-weight:600;color:var(--amber)">${qPending}</span></div>
-        <div style="background:var(--surface2);border-radius:4px;height:10px"><div style="height:100%;border-radius:4px;background:var(--amber);width:${qSent.length?Math.round(qPending/qSent.length*100):0}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Accepted</span><span style="font-weight:600;color:var(--accent)">${_evBooked}</span></div>
+        <div style="background:var(--surface2);border-radius:4px;height:10px;margin-bottom:8px"><div style="height:100%;border-radius:4px;background:var(--accent);width:${_qRate}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px"><span>Pending</span><span style="font-weight:600;color:var(--amber)">${_evPending}</span></div>
+        <div style="background:var(--surface2);border-radius:4px;height:10px"><div style="height:100%;border-radius:4px;background:var(--amber);width:${_evSent?Math.round(_evPending/_evSent*100):0}%"></div></div>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--text3)">${qSent.length} quote${qSent.length!==1?'s':''} sent · ${qAccepted.length} accepted · ${qDeclined} declined · ${qPending} awaiting response</div>`
-    :`<div class="empty-state"><div class="empty-title">No quotes sent yet</div></div>`;
+    <div style="font-size:12px;color:var(--text3)">${_evSent} estimate${_evSent!==1?'s':''} sent · ${_evBooked} booked · ${_evLost} declined · ${_evPending} awaiting response</div>`
+    :`<div class="empty-state"><div class="empty-title">No estimates sent yet</div></div>`;
 
-  // ── Staff quote success chart — use leads as source of truth ──
-  const staffQuotes={};
-  db.leads.filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
-    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
-    const rawName=(l.estimateSentBy||linkedQ?.sentBy||'').trim();
-    const name=_sNorm(rawName);
-    if(!staffFilter.has(name))return;
-    if(!staffQuotes[name])staffQuotes[name]={sent:0,accepted:0,declined:0};
-    staffQuotes[name].sent++;
-    if(['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status))staffQuotes[name].accepted++;
-    if(l.status==='Did not book')staffQuotes[name].declined++;
+  // 2. Staff quote success
+  const _sq={};
+  _ev.forEach(e=>{
+    if(!e.name||!staffFilter.has(e.name))return;
+    if(!_sq[e.name])_sq[e.name]={sent:0,accepted:0,declined:0};
+    _sq[e.name].sent++;
+    if(e.booked)_sq[e.name].accepted++;
+    if(e.lost)_sq[e.name].declined++;
   });
-  const staffQEntries=Object.entries(staffQuotes).sort((a,b)=>b[1].sent-a[1].sent);
-  document.getElementById('staff-quote-chart').innerHTML=staffQEntries.length?`
+  const _sqEntries=Object.entries(_sq).sort((a,b)=>b[1].sent-a[1].sent);
+  document.getElementById('staff-quote-chart').innerHTML=_sqEntries.length?`
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
         <th style="text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Person</th>
@@ -5223,7 +5249,7 @@ function renderAnalytics(){
         <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Declined</th>
         <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
       </tr></thead>
-      <tbody>${staffQEntries.map(([name,d])=>{
+      <tbody>${_sqEntries.map(([name,d])=>{
         const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
         const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
         return`<tr>
@@ -5232,34 +5258,26 @@ function renderAnalytics(){
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.accepted}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--error)">${d.declined}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col}">${pct}%</td>
-        </tr>`;}).join('')}
+        </tr>`}).join('')}
       </tbody>
     </table>`
     :`<div class="empty-state"><div class="empty-title">No quote data yet</div></div>`;
 
-  // ── Estimate type success chart — broken down by person ──
-  const estByPerson={};
-  db.leads.filter(l=>['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'].includes(l.status)).forEach(l=>{
-    const linkedQuote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'||q.status==='declined'));
-    const rawName=l.estimateSentBy||linkedQuote?.sentBy||'';
-    const name=_sNorm(rawName);
-    if(!staffFilter.has(name))return;
-    const t=l.estimateType||linkedQuote?.estimateType||'';
-    if(!t)return;
-    if(!estByPerson[name])estByPerson[name]={};
-    if(!estByPerson[name][t])estByPerson[name][t]={sent:0,accepted:0,dnb:0};
-    estByPerson[name][t].sent++;
-    if(['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status))estByPerson[name][t].accepted++;
-    if(l.status==='Did not book')estByPerson[name][t].dnb++;
+  // 3. Estimate type by person
+  const _ep={};
+  _ev.forEach(e=>{
+    if(!e.name||!staffFilter.has(e.name)||!e.estimateType)return;
+    if(!_ep[e.name])_ep[e.name]={};
+    if(!_ep[e.name][e.estimateType])_ep[e.name][e.estimateType]={sent:0,accepted:0,dnb:0};
+    _ep[e.name][e.estimateType].sent++;
+    if(e.booked)_ep[e.name][e.estimateType].accepted++;
+    if(e.lost)_ep[e.name][e.estimateType].dnb++;
   });
-  const estPersonNames=Object.keys(estByPerson).sort();
-  const allEstTypes=[...new Set([
-    ...db.leads.filter(l=>l.estimateType).map(l=>l.estimateType),
-    ...(db.quotes||[]).filter(q=>q.estimateType).map(q=>q.estimateType)
-  ])].sort();
-  document.getElementById('estimate-type-chart').innerHTML=estPersonNames.length?estPersonNames.map(name=>{
-    const types=estByPerson[name];
-    const rows=allEstTypes.filter(t=>types[t]).map(t=>{
+  const _epNames=Object.keys(_ep).sort();
+  const _allEt=[...new Set(_ev.filter(e=>e.estimateType).map(e=>e.estimateType))].sort();
+  document.getElementById('estimate-type-chart').innerHTML=_epNames.length?_epNames.map(name=>{
+    const types=_ep[name];
+    const rows=_allEt.filter(t=>types[t]).map(t=>{
       const d=types[t];
       const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
       const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
@@ -5271,12 +5289,12 @@ function renderAnalytics(){
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col}">${pct}%</td>
       </tr>`;
     }).join('');
-    const total=Object.values(types).reduce((s,d)=>({sent:s.sent+d.sent,accepted:s.accepted+d.accepted,dnb:s.dnb+d.dnb}),{sent:0,accepted:0,dnb:0});
-    const totalPct=total.sent>0?Math.round(total.accepted/total.sent*100):0;
-    const totalCol=totalPct>=70?'var(--accent)':totalPct>=50?'var(--amber)':'var(--error)';
+    const tot=Object.values(types).reduce((s,d)=>({sent:s.sent+d.sent,accepted:s.accepted+d.accepted,dnb:s.dnb+d.dnb}),{sent:0,accepted:0,dnb:0});
+    const totPct=tot.sent>0?Math.round(tot.accepted/tot.sent*100):0;
+    const totCol=totPct>=70?'var(--accent)':totPct>=50?'var(--amber)':'var(--error)';
     return`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px">
       <thead><tr>
-        <th colspan="5" style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-size:11px;color:var(--text);font-weight:700;background:var(--surface2)">${name} — ${totalPct}% overall <span style="color:${totalCol}">▪</span></th>
+        <th colspan="5" style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-size:11px;color:var(--text);font-weight:700;background:var(--surface2)">${name} — ${totPct}% overall</th>
       </tr><tr>
         <th style="text-align:left;padding:6px 10px 6px 20px;font-size:10.5px;color:var(--text3);font-weight:500">Estimate type</th>
         <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
@@ -5406,25 +5424,18 @@ function renderActivityPatterns(){
     <div class="stat-card"><div class="stat-label">Busiest move month</div><div class="stat-value" style="font-size:16px">${peakMonthJobs||'—'}</div></div>`;
   renderIncomeCard('analytics-income-body',_incomeTabAnalytics);
 
-  // ── Rate success chart — use quotes as source of truth ──
-  const rateGroups={};
-  // Each quote = one sent estimate; status on linked lead determines outcome
-  (db.quotes||[]).filter(q=>q.status==='sent'||q.status==='accepted'||q.status==='declined').forEach(q=>{
-    // Get rate from first day of quote
-    const rate=q.days&&q.days[0]?Math.round(Number(q.days[0].rate||0)):Math.round(Number(q.rate)||0);
-    if(!rate)return;
-    const bucket='$'+rate+'/hr';
-    if(!rateGroups[bucket])rateGroups[bucket]={sent:0,accepted:0,rate};
-    rateGroups[bucket].sent++;
-    // Check lead status for outcome
-    const lead=(db.leads||[]).find(l=>l.id===q.leadId);
-    const leadStatus=lead?.status||'';
-    if(q.status==='accepted'||['Quote accepted','Confirmation sent','Booked','Completed'].includes(leadStatus)){
-      rateGroups[bucket].accepted++;
-    }
+  // ── Hourly rate success ──
+  const _rv=getEstimateEvents();
+  const _rg={};
+  _rv.forEach(e=>{
+    if(!e.rate)return;
+    const bucket='$'+e.rate+'/hr';
+    if(!_rg[bucket])_rg[bucket]={sent:0,accepted:0,rate:e.rate};
+    _rg[bucket].sent++;
+    if(e.booked)_rg[bucket].accepted++;
   });
-  const rateEntries=Object.entries(rateGroups).sort((a,b)=>a[1].rate-b[1].rate);
-  document.getElementById('rate-success-chart').innerHTML=rateEntries.length?`
+  const _rgEntries=Object.entries(_rg).sort((a,b)=>a[1].rate-b[1].rate);
+  document.getElementById('rate-success-chart').innerHTML=_rgEntries.length?`
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
         <th style="text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
@@ -5433,22 +5444,20 @@ function renderActivityPatterns(){
         <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
         <th style="padding:7px 10px;border-bottom:2px solid var(--border);min-width:120px"></th>
       </tr></thead>
-      <tbody>
-        ${rateEntries.map(([bucket,d])=>{
-          const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
-          const color=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--danger)';
-          return`<tr>
-            <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${bucket}</td>
-            <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
-            <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${color}">${d.accepted}</td>
-            <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${color}">${pct}%</td>
-            <td style="padding:8px 10px;border-bottom:1px solid var(--border)">
-              <div style="background:var(--surface2);border-radius:3px;height:8px">
-                <div style="height:100%;border-radius:3px;background:${color};width:${pct}%;transition:width .5s"></div>
-              </div>
-            </td>
-          </tr>`;
-        }).join('')}
+      <tbody>${_rgEntries.map(([bucket,d])=>{
+        const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
+        const color=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
+        return`<tr>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${bucket}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${color}">${d.accepted}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${color}">${pct}%</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border)">
+            <div style="background:var(--surface2);border-radius:3px;height:8px">
+              <div style="height:100%;border-radius:3px;background:${color};width:${pct}%;transition:width .5s"></div>
+            </div>
+          </td>
+        </tr>`}).join('')}
       </tbody>
     </table>
     <div style="font-size:11.5px;color:var(--text3);margin-top:10px">Green = 70%+ acceptance · Amber = 50–69% · Red = under 50%</div>`
