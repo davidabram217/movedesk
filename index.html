@@ -2568,7 +2568,12 @@ function renderDashboard(){
     return true;
   });
   if(cleaned)saveDB();
-  // Recover leads marked Booked but with no booked job record — reset to Quote accepted
+  // Clear stuck pendingConfirmation flags — any job with a date set should be fully booked
+  if(db.bookedJobs){
+    let stuck=false;
+    db.bookedJobs.filter(j=>j.pendingConfirmation&&j.date).forEach(j=>{j.pendingConfirmation=false;stuck=true;});
+    if(stuck)saveDB();
+  }
   if(db.leads){
     let recovered=false;
     const bookedLeadIds=new Set((db.bookedJobs||[]).map(j=>j.leadId).filter(Boolean));
@@ -3994,7 +3999,7 @@ function renderBooked(){
   const crewSel=document.getElementById('crew-filter');
   const uc=[...new Set(db.bookedJobs.map(j=>j.crew).filter(Boolean))];
   crewSel.innerHTML='<option value="">All crew</option>'+uc.map(c=>`<option>${c}</option>`).join('');
-  let jobs=db.bookedJobs.filter(j=>!j.pendingConfirmation);
+  let jobs=db.bookedJobs;
   if(bookedFilter.text)jobs=jobs.filter(j=>j.name.toLowerCase().includes(bookedFilter.text.toLowerCase()));
   if(bookedFilter.crew)jobs=jobs.filter(j=>j.crew===bookedFilter.crew);
   jobs=[...jobs].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
