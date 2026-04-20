@@ -2554,12 +2554,14 @@ function renderDashboard(){
   }
   // Clean up draft jobs and duplicates
   const completedJobIds=new Set((db.completedJobs||[]).map(j=>j.bookedJobId).filter(Boolean));
+  const completedNames=new Set((db.completedJobs||[]).map(j=>(j.name||'').toLowerCase().trim()).filter(Boolean));
   const seen=new Set();
   let cleaned=false;
   db.bookedJobs=(db.bookedJobs||[]).filter(j=>{
-    // Remove if it was completed
+    // Remove if it was completed (by ID or by name match)
     if(completedJobIds.has(j.id)){cleaned=true;return false;}
-    // Remove orphaned drafts (draft with no date set means never confirmed)
+    if(!j._draft&&completedNames.has((j.name||'').toLowerCase().trim())&&(db.completedJobs||[]).find(c=>c.name===j.name&&c.date===j.date)){cleaned=true;return false;}
+    // Remove orphaned drafts
     if(j._draft){cleaned=true;return false;}
     // Remove duplicates — keep first occurrence per leadId+date combo
     const key=j.leadId+'|'+j.date+'|'+j.name;
