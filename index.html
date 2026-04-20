@@ -6980,8 +6980,8 @@ function buildQuoteHTML(){
           ? qbDays.map((d,i)=>`
             <br><strong>Day ${i+1}</strong><br>
             Arrival Time: ${escHtml(d.arrivalStart||'')}${d.arrivalEnd?' - '+escHtml(d.arrivalEnd):''}<br>
-            ${(d.loads&&d.loads.length?d.loads:[{address:d.from||'—',unit:d.fromUnit||'',access:d.fromAccess||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Pick-up':'Pickup '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}`).join('')}
-            ${(d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'—',unit:d.toUnit||'',access:d.toAccess||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Drop-off':'Drop-off '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}`).join('')}
+            ${(d.loads&&d.loads.length?d.loads:[{address:d.from||'—',unit:d.fromUnit||'',access:d.fromAccess||'',parking:d.fromParking||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Pick-up':'Pickup '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('')}
+            ${(d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'—',unit:d.toUnit||'',access:d.toAccess||'',parking:d.toParking||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Drop-off':'Drop-off '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('')}
           `).join('')
           : `Arrival Time: ${escHtml(d0.arrivalStart||'')}${d0.arrivalEnd?' - '+escHtml(d0.arrivalEnd):''}<br>
             ${(()=>{
