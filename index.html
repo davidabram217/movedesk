@@ -2563,11 +2563,20 @@ function renderDashboard(){
     if(j._draft){cleaned=true;return false;}
     // Remove duplicates — keep first occurrence per leadId+date combo
     const key=j.leadId+'|'+j.date+'|'+j.name;
-    if(seen.has(key)&&!j.pendingConfirmation===false){cleaned=true;return false;}
+    if(seen.has(key)){cleaned=true;return false;}
     seen.add(key);
     return true;
   });
   if(cleaned)saveDB();
+  // Recover leads marked Booked but with no booked job record — reset to Quote accepted
+  if(db.leads){
+    let recovered=false;
+    const bookedLeadIds=new Set((db.bookedJobs||[]).map(j=>j.leadId).filter(Boolean));
+    db.leads.filter(l=>l.status==='Booked'&&!bookedLeadIds.has(l.id)).forEach(l=>{
+      l.status='Quote accepted';recovered=true;
+    });
+    if(recovered)saveDB();
+  }
   const today=new Date().toISOString().split('T')[0];
   const tm=today.slice(0,7);
   // Week runs Saturday to Friday
