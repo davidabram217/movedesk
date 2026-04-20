@@ -6886,171 +6886,157 @@ function buildQuoteHTML(){
   const cashDiscount=document.getElementById('qb-cash-discount').value.trim();
   const stipulations=document.getElementById('qb-stipulations').value.trim();
   const notes=document.getElementById('qb-notes').value.trim();
-  const quoteNum=l?('Q'+new Date().getFullYear()+'-'+String(db.quotes?db.quotes.length+1:1).padStart(3,'0')):'Q001';
   const d0=qbDays[0]||{};
   const q=currentQuoteId?db.quotes&&db.quotes.find(x=>x.id===currentQuoteId):null;
   const moveType=document.getElementById('qb-move-type')?.value||l?.moveType||'';
   const packingType=document.getElementById('qb-packing')?.value||l?.packing||'';
+  const customerName=l?l.name:'';
+  const customerEmail=l?l.email:'';
+  const customerPhone=l?l.phone:'';
+  const isAccepted=q&&q.status==='accepted';
 
-  // Build billing rows
-  let billingRows='';
+  // ── Use same HTML structure as customer-facing quote-page.js ──
+  const fmtD=d=>{if(!d)return'--';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});};
+
+  let html='';
+  html+=`<div style="font-family:'DM Sans',sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto;padding:0">`;
+
+  // Header
+  html+=`<div style="text-align:center;padding:32px 24px 20px;border-bottom:1px solid #e8e4dc">
+    <div style="font-family:Georgia,serif;font-size:28px;font-weight:600;color:#1a1a1a">CareMore</div>
+    <div style="width:60px;height:2px;background:#4a9e6b;margin:6px auto"></div>
+    <div style="font-family:Georgia,serif;font-size:18px;font-style:italic;color:#2d5a3d">Moving &amp; Storage</div>
+    <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9e9b94;margin-top:4px">San Francisco, CA</div>
+    <div style="margin-top:16px;font-size:22px;font-weight:700">Move Estimate</div>
+    ${customerName?`<div style="font-size:14px;color:#6b6860;margin-top:4px">Prepared for ${escHtml(customerName)}</div>`:''}
+    <div style="font-size:12px;color:#9e9b94;margin-top:6px">CareMore Moving &amp; Storage &nbsp;·&nbsp; Cal-T #0190970<br>925 Palou Ave, San Francisco, CA 94124 &nbsp;·&nbsp; (415) 822-8547</div>
+  </div>`;
+
+  // Notes (shown to customer)
+  if(notes){
+    html+=`<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">
+      <div style="font-size:14px;color:#555;line-height:1.7">${escHtml(notes).replace(/\n/g,'<br>')}</div>
+    </div>`;
+  }
+
+  // Project info
+  html+=`<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">
+    <div style="font-size:10.5px;font-weight:600;color:#9e9b94;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Project Information</div>
+    <div style="font-size:14px;line-height:2">
+      ${projectName?`Project: ${escHtml(projectName)}<br>`:''}
+      Project Type: Local Move${moveType?' · '+escHtml(moveType):''}<br>
+      Project Size: ${escHtml(l?l.size||'':'')}<br>
+      ${desc?`Project Description:<br>${escHtml(desc).replace(/\n/g,'<br>')}`:''}`+`
+    </div>
+  </div>`;
+
+  // Move details
+  html+=`<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">
+    <div style="font-size:10.5px;font-weight:600;color:#9e9b94;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Move Details</div>`;
+
+  if(isMulti){
+    qbDays.forEach((d,i)=>{
+      const loads=d.loads&&d.loads.length?d.loads:[{address:d.from||'',unit:d.fromUnit||'',access:d.fromAccess||'',parking:d.fromParking||''}];
+      const unloads=d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'',unit:d.toUnit||'',access:d.toAccess||'',parking:d.toParking||''}];
+      html+=`<div style="margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #f0ece4">
+        <div style="font-weight:700;font-size:15px;color:#2d5a3d;margin-bottom:10px">Day ${i+1}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13.5px">
+          ${d.date?`<div><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">Date</div><div style="font-weight:500">${fmtD(d.date)}</div></div>`:''}
+          ${d.arrivalStart?`<div><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">Arrival</div><div style="font-weight:500">${escHtml(d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:''))}</div></div>`:''}
+          ${loads.filter(loc=>loc.address).map((loc,li)=>`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">${li===0?'Pick-up':'Pick-up '+(li+1)}</div><div style="font-weight:500">${escHtml(loc.address+(loc.unit?', '+loc.unit:''))}</div>${loc.access?`<div style="font-size:12px;color:#6b6860">Access: ${escHtml(loc.access)}</div>`:''}${loc.parking?`<div style="font-size:12px;color:#6b6860">Parking: ${escHtml(loc.parking)}</div>`:''}</div>`).join('')}
+          ${unloads.filter(loc=>loc.address).map((loc,li)=>`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">${li===0?'Drop-off':'Drop-off '+(li+1)}</div><div style="font-weight:500">${escHtml(loc.address+(loc.unit?', '+loc.unit:''))}</div>${loc.access?`<div style="font-size:12px;color:#6b6860">Access: ${escHtml(loc.access)}</div>`:''}${loc.parking?`<div style="font-size:12px;color:#6b6860">Parking: ${escHtml(loc.parking)}</div>`:''}</div>`).join('')}
+        </div>
+      </div>`;
+    });
+  } else {
+    const loads=d0.loads&&d0.loads.length?d0.loads:[{address:d0.from||'',unit:d0.fromUnit||'',access:d0.fromAccess||'',parking:d0.fromParking||''}];
+    const unloads=d0.unloads&&d0.unloads.length?d0.unloads:[{address:d0.to||'',unit:d0.toUnit||'',access:d0.toAccess||'',parking:d0.toParking||''}];
+    html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13.5px">
+      ${d0.date?`<div><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">Move date</div><div style="font-weight:500">${fmtD(d0.date)}</div></div>`:''}
+      ${d0.arrivalStart?`<div><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">Arrival window</div><div style="font-weight:500">${escHtml(d0.arrivalStart+(d0.arrivalEnd?' – '+d0.arrivalEnd:''))}</div></div>`:''}
+      ${loads.filter(loc=>loc.address).map((loc,li)=>`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">${li===0?'Pick-up':'Pick-up '+(li+1)}</div><div style="font-weight:500">${escHtml(loc.address+(loc.unit?', '+loc.unit:''))}</div>${loc.access?`<div style="font-size:12px;color:#6b6860">Access: ${escHtml(loc.access)}</div>`:''}${loc.parking?`<div style="font-size:12px;color:#6b6860">Parking: ${escHtml(loc.parking)}</div>`:''}</div>`).join('')}
+      ${unloads.filter(loc=>loc.address).map((loc,li)=>`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:#9e9b94;margin-bottom:2px">${li===0?'Drop-off':'Drop-off '+(li+1)}</div><div style="font-weight:500">${escHtml(loc.address+(loc.unit?', '+loc.unit:''))}</div>${loc.access?`<div style="font-size:12px;color:#6b6860">Access: ${escHtml(loc.access)}</div>`:''}${loc.parking?`<div style="font-size:12px;color:#6b6860">Parking: ${escHtml(loc.parking)}</div>`:''}</div>`).join('')}
+    </div>`;
+  }
+  html+=`</div>`;
+
+  // Billing
+  html+=`<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">
+    <div style="font-size:10.5px;font-weight:600;color:#9e9b94;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Billing</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px">
+      <thead><tr style="border-bottom:2px solid #e8e4dc">
+        <th style="text-align:left;padding:8px;font-size:10.5px;color:#9e9b94;font-weight:500">Description</th>
+        <th style="text-align:right;padding:8px;font-size:10.5px;color:#9e9b94;font-weight:500">Hours</th>
+        <th style="text-align:right;padding:8px;font-size:10.5px;color:#9e9b94;font-weight:500">Rate</th>
+        <th style="text-align:right;padding:8px;font-size:10.5px;color:#9e9b94;font-weight:500">Amount</th>
+      </tr></thead>
+      <tbody>`;
+
   qbDays.forEach((d,i)=>{
     const crewDesc=d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:d.crew+' Movers';
-    const dayLabel=isMulti?`Day ${i+1} — ${crewDesc}`:`${crewDesc}`;
-    const hrsLabel=`${d.hrsMin} - ${d.hrsMax} hours`;
-    const rateLabel=`$${d.rate}.00 / hour`;
-    const totalLabel=`${fmtMoney(d.hrsMin*d.rate)} - ${fmtMoney(d.hrsMax*d.rate)}`;
-    billingRows+=`<tr>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${dayLabel}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">${hrsLabel}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${rateLabel}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${totalLabel}</td>
+    const label=isMulti?`Day ${i+1} – ${crewDesc}`:crewDesc;
+    html+=`<tr style="border-bottom:1px solid #f0ece4">
+      <td style="padding:10px 8px">${escHtml(label)}</td>
+      <td style="padding:10px 8px;text-align:right">${d.hrsMin} – ${d.hrsMax} hrs</td>
+      <td style="padding:10px 8px;text-align:right">${fmtMoney(d.rate)}/hr</td>
+      <td style="padding:10px 8px;text-align:right;font-weight:500">${fmtMoney(d.hrsMin*d.rate)} – ${fmtMoney(d.hrsMax*d.rate)}</td>
     </tr>`;
-    // Add packing crew row if set
     if(d.packCrew&&d.packRate){
-      const packLabel=(isMulti?`Day ${i+1} — `:'')+(d.packCrewSize||1)+' Packer'+(( d.packCrewSize||1)>1?'s':'');
-      const packHrs=`${d.packHrsMin||'?'} - ${d.packHrsMax||'?'} hours`;
-      const packRate=`$${d.packRate}.00 / hour`;
-      const packTotal=`${fmtMoney((d.packHrsMin||0)*d.packRate)} - ${fmtMoney((d.packHrsMax||0)*d.packRate)}`;
-      billingRows+=`<tr>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${packLabel}</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">${packHrs}</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${packRate}</td>
-        <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${packTotal}</td>
+      const packLabel=(isMulti?`Day ${i+1} – `:'')+(d.packCrewSize||1)+' Packer'+((d.packCrewSize||1)>1?'s':'');
+      html+=`<tr style="border-bottom:1px solid #f0ece4">
+        <td style="padding:10px 8px">${escHtml(packLabel)}</td>
+        <td style="padding:10px 8px;text-align:right">${d.packHrsMin||'?'} – ${d.packHrsMax||'?'} hrs</td>
+        <td style="padding:10px 8px;text-align:right">${fmtMoney(d.packRate)}/hr</td>
+        <td style="padding:10px 8px;text-align:right;font-weight:500">${fmtMoney((d.packHrsMin||0)*d.packRate)} – ${fmtMoney((d.packHrsMax||0)*d.packRate)}</td>
       </tr>`;
     }
   });
+
   qbFees.filter(f=>f.included).forEach(f=>{
-    const amt=f.type==='range'?`${fmtMoney(f.hrsMin||0)} - ${fmtMoney(f.hrsMax||0)}`:fmtMoney(f.amount||0);
-    billingRows+=`<tr>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${escHtml(f.label||'')}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:center">1</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right">${f.type==='range'?'':fmtMoney(f.amount||0)}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${amt}</td>
+    const amt=f.type==='range'?`${fmtMoney(f.hrsMin||0)} – ${fmtMoney(f.hrsMax||0)}`:fmtMoney(f.amount||0);
+    html+=`<tr style="border-bottom:1px solid #f0ece4">
+      <td style="padding:10px 8px">${escHtml(f.label||'')}</td>
+      <td style="padding:10px 8px;text-align:right;color:#9e9b94">--</td>
+      <td style="padding:10px 8px;text-align:right;color:#9e9b94">--</td>
+      <td style="padding:10px 8px;text-align:right;font-weight:500">${amt}</td>
     </tr>`;
   });
 
-  let html=`<div style="font-family:'DM Sans',sans-serif;color:#1a1a1a;padding:32px;max-width:640px;margin:0 auto">
-    <!-- Header -->
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="display:inline-block;text-align:center">
-        <div style="font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1">CareMore</div>
-        <div style="width:100%;height:2.5px;background:#4a9e6b;margin:8px 0"></div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:26px;font-style:italic;color:#1a1916;letter-spacing:.5px">Moving &amp; Storage</div>
-      </div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#9e9b94;margin-top:6px">San Francisco, CA</div>
-      <div style="margin-top:12px;font-size:13px;color:#555;line-height:1.7">
-        <strong>CareMore Moving & Storage</strong><br>
-        Cal-T #0190970<br>
-        925 Palou Ave, San Francisco, CA 94124<br>
-        (415) 822-8547
-      </div>
-    </div>
+  html+=`</tbody>
+      <tfoot><tr style="border-top:2px solid #e8e4dc">
+        <td colspan="3" style="padding:12px 8px;font-weight:700;font-size:14px">Estimated Total</td>
+        <td style="padding:12px 8px;text-align:right;font-weight:700;font-size:15px;color:#2d5a3d">${fmtMoney(t.totalMin)} – ${fmtMoney(t.totalMax)}</td>
+      </tr></tfoot>
+    </table>
+    ${cashDiscount?`<div style="margin-top:10px;font-size:13px;color:#2d5a3d">Cash discount: ${escHtml(cashDiscount)}</div>`:''}
+  </div>`;
 
-    <h2 style="font-size:18px;font-weight:700;text-align:center;margin-bottom:20px">Review Your Quote</h2>
+  // Stipulations
+  if(stipulations){
+    html+=`<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">
+      <div style="font-size:10.5px;font-weight:600;color:#9e9b94;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Terms &amp; Conditions</div>
+      <div style="font-size:13px;color:#555;line-height:1.8;white-space:pre-wrap">${escHtml(stipulations)}</div>
+    </div>`;
+  }
 
-    <p style="font-size:14px;line-height:1.7;margin-bottom:8px">Dear ${escHtml(l?l.name:'Customer')},</p>
-    <p style="font-size:14px;line-height:1.7;margin-bottom:16px">Moving is hard. We're here to make your move go as smoothly as possible.</p>
-    <p style="font-size:13.5px;line-height:1.7;color:#444;margin-bottom:8px">${escHtml(notes).replace(/\n/g,'<br>')}</p>
+  // Accept section (preview only — shows what customer will see)
+  html+=`<div style="padding:24px;text-align:center;background:#f9f7f4">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">Ready to move forward?</div>
+    <div style="font-size:13px;color:#6b6860;margin-bottom:16px;line-height:1.6">The customer will see an Accept Quote button here.</div>
+    <div style="font-size:12px;color:#9e9b94">Questions? (415) 822-8547 · move@caremoremoving.com</div>
+  </div>`;
 
-    <!-- Contact Information -->
-    <div style="margin:20px 0">
-      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Contact Information</div>
-      <div style="font-size:14px">${escHtml(l?l.name:'')} ${escHtml(l?l.email||'':'')} ${escHtml(l?l.phone||'':'')}</div>
-    </div>
+  html+=`</div>`;
 
-    <!-- Project Information -->
-    <div style="margin:20px 0">
-      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Project Information</div>
-      <div style="font-size:14px;line-height:1.9">
-        Project: ${escHtml(projectName||quoteNum)}<br>
-        Project Type: Local Move${moveType?' · '+escHtml(moveType):''}<br>
-        Project Size: ${escHtml(l?l.size||'':'')}
-        ${desc?`<br>Project Description:<br>${escHtml(desc).replace(/\n/g,'<br>')}`:''}
-      </div>
-    </div>
+  // Append public link if quote exists
+  if(q&&q.publicId){
+    html+=`<div style="margin-top:16px;padding:12px 16px;background:var(--surface2);border-radius:var(--radius);font-size:12.5px;color:var(--text3)">
+      🔗 Customer link: <a href="https://davidabram217.github.io/movedesk/quote.html?id=${q.publicId}" target="_blank" style="color:var(--accent)">https://davidabram217.github.io/movedesk/quote.html?id=${q.publicId}</a>
+    </div>`;
+  }
 
-    <!-- Move Information -->
-    <div style="margin:20px 0">
-      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Move Information</div>
-      <div style="font-size:14px;line-height:1.9">
-        ${isMulti?qbDays.map((d,i)=>`Day ${i+1} Date: ${d.date?fmtDate(d.date):''}`).join('<br>'):`Job Date: ${d0.date?fmtDate(d0.date):''}`}<br>
-        Job Type: ${escHtml(moveType||'Move')}${packingType&&packingType!=='No — just moving'?' · '+escHtml(packingType):''}<br>
-        ${isMulti
-          ? qbDays.map((d,i)=>`
-            <br><strong>Day ${i+1}</strong><br>
-            Arrival Time: ${escHtml(d.arrivalStart||'')}${d.arrivalEnd?' - '+escHtml(d.arrivalEnd):''}<br>
-            ${(d.loads&&d.loads.length?d.loads:[{address:d.from||'—',unit:d.fromUnit||'',access:d.fromAccess||'',parking:d.fromParking||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Pick-up':'Pickup '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('')}
-            ${(d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'—',unit:d.toUnit||'',access:d.toAccess||'',parking:d.toParking||''}]).filter(l=>l.address).map((loc,li)=>`${li===0?'Drop-off':'Drop-off '+(li+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('')}
-          `).join('')
-          : `Arrival Time: ${escHtml(d0.arrivalStart||'')}${d0.arrivalEnd?' - '+escHtml(d0.arrivalEnd):''}<br>
-            ${(()=>{
-              const loads=d0.loads&&d0.loads.length?d0.loads:[{address:d0.from||'—',unit:d0.fromUnit||'',access:d0.fromAccess||'',parking:d0.fromParking||''}];
-              return loads.filter(l=>l.address).map((loc,i)=>`${i===0?'Pick-up':'Pickup '+(i+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('');
-            })()}
-            ${(()=>{
-              const unloads=d0.unloads&&d0.unloads.length?d0.unloads:[{address:d0.to||'—',unit:d0.toUnit||'',access:d0.toAccess||'',parking:d0.toParking||''}];
-              return unloads.filter(l=>l.address).map((loc,i)=>`${i===0?'Drop-off':'Drop-off '+(i+1)}: ${escHtml(loc.address||'—')}${loc.unit?', '+escHtml(loc.unit):''}<br>${loc.access?'Access: '+escHtml(loc.access)+'<br>':''}${loc.parking?'Parking: '+escHtml(loc.parking)+'<br>':''}`).join('');
-            })()}`
-        }      </div>
-    </div>
+  if(q&&q.sentBy)html+=`<div style="margin-top:8px;text-align:right;font-size:12px;color:var(--text3)">Quote prepared by ${escHtml(q.sentBy)}</div>`;
 
-    <!-- Billing Information -->
-    <div style="margin:20px 0">
-      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Billing Information</div>
-      <div style="background:#f5f5f5;border-radius:4px;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#555">
-        ${d0.date?fmtDate(d0.date).split(',')[0]+' '+fmtDate(d0.date).split(',')[1]:''}
-        ${isMulti?'· Multi-day':'· Move'}
-      </div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Moving Services</div>
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr style="border-bottom:2px solid #ddd">
-          <th style="padding:8px;text-align:left;font-size:12px;color:#555;font-weight:500">Service</th>
-          <th style="padding:8px;text-align:center;font-size:12px;color:#555;font-weight:500">Hours</th>
-          <th style="padding:8px;text-align:right;font-size:12px;color:#555;font-weight:500">Rate</th>
-          <th style="padding:8px;text-align:right;font-size:12px;color:#555;font-weight:500">Total</th>
-        </tr></thead>
-        <tbody>${billingRows}</tbody>
-      </table>
-      <div style="display:flex;justify-content:flex-end;padding:12px 8px;border-top:2px solid #ddd;margin-top:4px">
-        <span style="font-size:14px;font-weight:700;margin-right:32px">Total Moving Services</span>
-        <span style="font-size:14px;font-weight:700">${fmtMoney(t.totalMin)} - ${fmtMoney(t.totalMax)}</span>
-      </div>
-    </div>
-
-    ${cashDiscount?`<div style="background:#f5f5f5;border-radius:4px;padding:12px 14px;margin-bottom:12px"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Cash Discount</div><div style="font-size:13px;color:#555">${escHtml(cashDiscount)}</div></div>`:''}
-    ${stipulations?`<div style="background:#f5f5f5;border-radius:4px;padding:12px 14px;margin-bottom:12px"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Stipulations</div><div style="font-size:13px;color:#555;white-space:pre-line">${escHtml(stipulations)}</div></div>`:''}
-
-    <!-- Grand Total -->
-    <div style="display:flex;justify-content:flex-end;padding:12px 8px;border-top:2px solid #ddd">
-      <span style="font-size:15px;font-weight:700;margin-right:32px">Grand Total</span>
-      <span style="font-size:15px;font-weight:700">${fmtMoney(t.totalMin)} - ${fmtMoney(t.totalMax)}</span>
-    </div>
-
-    <!-- Payments -->
-    <div style="margin:16px 0">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:16px">💳</span>
-        <span style="font-size:14px;font-weight:600">Payments</span>
-      </div>
-      <div style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;padding:12px 0;font-size:13px;color:#e67e22">
-        No payments have been recorded for this project
-      </div>
-      <div style="display:flex;justify-content:flex-end;padding:12px 8px;border-bottom:2px solid #ddd">
-        <span style="font-size:14px;font-weight:700;margin-right:32px">Balance Due</span>
-        <span style="font-size:14px;font-weight:700">${fmtMoney(t.totalMin)} - ${fmtMoney(t.totalMax)}</span>
-      </div>
-    </div>
-
-    <!-- Accept quote button -->
-  `;
-  html+='<div style="margin-top:24px;text-align:center">'+
-    '<div style="font-size:13.5px;color:#555;margin-bottom:12px">Ready to move forward? Click below to accept this quote and we will be in touch to confirm your booking.</div>'+
-    '<a href="https://davidabram217.github.io/movedesk/quote.html?id='+(q?.publicId||'')+'" target="_blank" style="display:inline-block;background:#2d5a3d;color:#fff;text-align:center;padding:16px 40px;border-radius:6px;font-size:15px;font-weight:600;text-decoration:none;letter-spacing:.3px">&#10003; Accept this quote</a>'+
-    '<div style="margin-top:10px;font-size:12px;color:#888">Or call us at (415) 822-8547 &middot; move@caremoremoving.com</div>'+
-    '</div>';
-  if(q&&q.sentBy)html+='<div style="margin-top:16px;text-align:right;font-size:12px;color:#888">Quote prepared by '+escHtml(q.sentBy)+'</div>';
-  html+='</div>';
   return html;
 }
 
