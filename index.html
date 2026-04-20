@@ -6549,17 +6549,27 @@ function setJobType(type){
 function addQuoteDay(){
   const last=qbDays[qbDays.length-1]||{};
   const newDay={
-    id:uid(),date:'',from:'',to:'',
-    crew:last.crew||2,hrsMin:last.hrsMin||2,hrsMax:last.hrsMax||4,
+    id:uid(),
+    date:'',
+    crew:last.crew||2,
+    hrsMin:last.hrsMin||2,
+    hrsMax:last.hrsMax||4,
     rate:last.rate||db.settings.rateBase||225,
-    arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM',
-    fromUnit:'',fromFloor:'',fromAccess:'',fromType:'',fromParking:'',
-    toUnit:'',toFloor:'',toAccess:'',toType:'',toParking:''
+    arrivalStart:last.arrivalStart||'8:00 AM',
+    arrivalEnd:last.arrivalEnd||'9:00 AM',
+    crewLoadDiff:last.crewLoadDiff||false,
+    crewLoad:last.crewLoad||'',
+    crewUnload:last.crewUnload||'',
+    packCrew:last.packCrew||false,
+    packCrewSize:last.packCrewSize||'',
+    packRate:last.packRate||'',
+    packHrsMin:last.packHrsMin||'',
+    packHrsMax:last.packHrsMax||'',
+    // Copy locations from last day
+    loads:JSON.parse(JSON.stringify(last.loads||[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}])),
+    unloads:JSON.parse(JSON.stringify(last.unloads||[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}])),
+    locations:true
   };
-  // Start with blank addresses — just copy crew/rate from last day
-  newDay.loads=[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}];
-  newDay.unloads=[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}];
-  newDay.locations=true;
   qbDays.push(newDay);
   renderQbDays();
   qbAutoSave();
