@@ -340,6 +340,16 @@
           <div class="card-body" id="estimate-type-chart"></div>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Rough quote conversion</div><div style="font-size:11.5px;color:var(--text3)">Summary only vs summary + rough quote</div></div>
+          <div class="card-body" id="rough-quote-chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📊 Rough quote by person</div><div style="font-size:11.5px;color:var(--text3)">John & Dave — rough quote conversion rate</div></div>
+          <div class="card-body" id="rough-quote-person-chart"></div>
+        </div>
+      </div>
       <div style="font-size:13px;font-weight:600;color:var(--text);margin:20px 0 12px;padding-top:16px;border-top:1px solid var(--border)">💰 Hourly Rate Analysis</div>
       <div style="margin-bottom:16px">
         <div class="card">
@@ -1686,6 +1696,37 @@
 </div>
 
 
+<div class="modal-bg" id="modal-rough-quote-prompt">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header"><div class="modal-title">Summary + Rough Quote</div><button class="modal-close" onclick="closeModal('rough-quote-prompt')">×</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Sent by</label>
+        <input type="text" id="rq-sent-by" placeholder="e.g. John" list="rq-sent-by-list">
+        <datalist id="rq-sent-by-list"><option value="John"><option value="Dave"></datalist>
+      </div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label>Rough quote min ($)</label>
+          <input type="number" id="rq-amount-min" placeholder="e.g. 1200">
+        </div>
+        <div class="form-group">
+          <label>Rough quote max ($)</label>
+          <input type="number" id="rq-amount-max" placeholder="e.g. 1800">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes <span style="font-size:11px;color:var(--text3)">(optional)</span></label>
+        <textarea id="rq-notes" style="min-height:60px" placeholder="e.g. Based on 2 bed, no stairs..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('rough-quote-prompt')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmRoughQuote()">✓ Mark as sent</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-did-not-book">
   <div class="modal" style="max-width:440px">
     <div class="modal-header"><div class="modal-title">Did not book</div><button class="modal-close" onclick="closeModal('did-not-book')">✕</button></div>
@@ -2150,7 +2191,7 @@ function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt
 function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Need to send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Confirmation sent':['pill-green','Confirmation sent'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
+function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Summary + rough quote':['pill-green','Summary + rough quote'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Need to send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Confirmation sent':['pill-green','Confirmation sent'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
 // Helper: format crew description from a quote day
 const CAREMORE_STORAGE_ADDR='CareMore Moving & Storage (925 Palou Ave, San Francisco CA 94124)';
 function fmtCrewDesc(d){
@@ -2545,9 +2586,9 @@ function renderDashboard(){
     db.quotes.filter(q=>q.status==='sent'&&dnbIds.has(q.leadId)).forEach(q=>{
       q.status='declined';q.declinedAt=q.declinedAt||new Date().toISOString().split('T')[0];fixed=true;
     });
-    // Auto-accept sent quotes for booked/completed leads
+    // Auto-accept sent/draft quotes for booked/completed leads
     const bookedIds=new Set(db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)).map(l=>l.id));
-    db.quotes.filter(q=>q.status==='sent'&&bookedIds.has(q.leadId)).forEach(q=>{
+    db.quotes.filter(q=>(q.status==='sent'||q.status==='draft')&&bookedIds.has(q.leadId)).forEach(q=>{
       q.status='accepted';q.acceptedAt=q.acceptedAt||new Date().toISOString().split('T')[0];fixed=true;
     });
     if(fixed)saveDB();
@@ -2597,7 +2638,7 @@ function renderDashboard(){
 
   // Auto-flag leads as needing follow up after 3 days of no action
   const today2=new Date().toISOString().split('T')[0];
-  const activeStatuses=['New','Need to send summary','Summary sent','Need to send estimate'];
+  const activeStatuses=['New','Need to send summary','Summary sent','Summary + rough quote','Need to send estimate'];
   let autoUpdated=false;
   db.leads.filter(l=>activeStatuses.includes(l.status)&&(l.statusUpdatedAt||l.createdAt)).forEach(l=>{
     const since=l.statusUpdatedAt||l.createdAt;
@@ -2607,7 +2648,7 @@ function renderDashboard(){
   if(autoUpdated)saveDB();
 
   // Follow-up leads — only show if status has been unchanged for 3+ days
-  const followupStatuses=['Need to follow up','Need to send summary','Need to send estimate','Summary sent','Estimate sent'];
+  const followupStatuses=['Need to follow up','Need to send summary','Need to send estimate','Summary sent','Summary + rough quote','Estimate sent'];
   const followups=db.leads.filter(l=>{
     if(!followupStatuses.includes(l.status))return false;
     const since=l.statusUpdatedAt||l.createdAt;
@@ -2653,7 +2694,7 @@ function renderDashboard(){
 }
 let leadFilter={text:'',source:'',est:''};
 function renderLeads(){const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=db.leads.filter(l=>l.status==='Did not book').length;renderPipeline();renderLeadsTable();}
-function renderPipeline(){const stages=['New','Need to follow up','Need to send summary','Summary sent','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'];const sc={'New':'#1a5276','Need to follow up':'#b7860b','Need to send summary':'#b7860b','Summary sent':'#2d5a3d','Estimate scheduled':'#6c3483','Need to send estimate':'#b7860b','Estimate sent':'#b7860b','Quote accepted':'#2d5a3d','Confirmation sent':'#2d5a3d'};document.getElementById('pipeline-board').style.gridTemplateColumns='repeat(4,1fr)';document.getElementById('pipeline-board').innerHTML=stages.map(stage=>{const cards=db.leads.filter(l=>l.status===stage);return`<div class="pipeline-col"><div class="pipeline-col-header"><span style="color:${sc[stage]};font-size:10px">${stage}</span><span class="pipeline-col-count">${cards.length}</span></div><div class="pipeline-cards">${cards.length?cards.map(l=>`<div class="pipeline-card" onclick="viewLead('${l.id}')"><div class="pipeline-card-name">${l.name}</div><div class="pipeline-card-meta">${l.size||'Size TBD'} · ${fmtDate(l.date)}</div><div class="pipeline-card-footer">${sourceBadge(l.source,l.sourceDetail)} ${l.estimateType?estBadge(l.estimateType):'<span class="badge pill-gray">No estimate</span>'}</div></div>`).join(''):'<div style="font-size:11px;color:var(--text3);padding:10px;text-align:center">No leads</div>'}</div></div>`;}).join('');}
+function renderPipeline(){const stages=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'];const sc={'New':'#1a5276','Need to follow up':'#b7860b','Need to send summary':'#b7860b','Summary sent':'#2d5a3d','Summary + rough quote':'#2d5a3d','Estimate scheduled':'#6c3483','Need to send estimate':'#b7860b','Estimate sent':'#b7860b','Quote accepted':'#2d5a3d','Confirmation sent':'#2d5a3d'};document.getElementById('pipeline-board').style.gridTemplateColumns='repeat(4,1fr)';document.getElementById('pipeline-board').innerHTML=stages.map(stage=>{const cards=db.leads.filter(l=>l.status===stage);return`<div class="pipeline-col"><div class="pipeline-col-header"><span style="color:${sc[stage]};font-size:10px">${stage}</span><span class="pipeline-col-count">${cards.length}</span></div><div class="pipeline-cards">${cards.length?cards.map(l=>`<div class="pipeline-card" onclick="viewLead('${l.id}')"><div class="pipeline-card-name">${l.name}</div><div class="pipeline-card-meta">${l.size||'Size TBD'} · ${fmtDate(l.date)}</div><div class="pipeline-card-footer">${sourceBadge(l.source,l.sourceDetail)} ${l.estimateType?estBadge(l.estimateType):'<span class="badge pill-gray">No estimate</span>'}</div></div>`).join(''):'<div style="font-size:11px;color:var(--text3);padding:10px;text-align:center">No leads</div>'}</div></div>`;}).join('');}
 function renderLeadsTable(){let leads=db.leads.filter(l=>l.status!=='Did not book'&&l.status!=='Booked'&&l.status!=='Completed');if(leadFilter.text)leads=leads.filter(l=>l.name.toLowerCase().includes(leadFilter.text.toLowerCase())||l.phone.includes(leadFilter.text));if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td><td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;}
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
 function filterLeadsSource(v){leadFilter.source=v;renderLeadsTable();}
@@ -2733,10 +2774,11 @@ const estBlock=showEstBlock?`<div style="margin-top:12px;padding:12px;background
 document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Phone</div><div>${l.phone||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Email</div><div>${l.email||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Move date</div><div>${fmtDate(l.date)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Home size</div><div>${l.size||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Source</div><div>${sourceBadge(l.source,l.sourceDetail)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Packing</div><div>${l.packing||'—'}</div></div>${l.takenBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Call taken by</div><div>${l.takenBy}</div></div>`:''}${l.estimateSetupBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate set up by</div><div>${l.estimateSetupBy}</div></div>`:''}${l.estimateOfficeNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">🔒 Office notes (estimate)</div><div style="font-size:12px;color:var(--amber);font-style:italic">${l.estimateOfficeNotes}</div></div>`:''}${l.estimateDoneBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate sent by</div><div><strong>${l.estimateSentBy}</strong></div></div>`:''}</div><div class="loc-section-label" style="margin-top:12px">📦 Load location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.from||'—'}${l.fromUnit?' #'+l.fromUnit:''}${l.fromZip?' '+l.fromZip:''}</div></div>${l.fromType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.fromType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessLoad||'—'}${l.fromElevator?' · Elevator':''}<br>${l.fromLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.fromStairs?l.fromStairs+' flights':'—'}${l.fromFloor?' · Floor '+l.fromFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingLoad||'—'}</div></div>${l.fromNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${l.fromNotes}</div></div>`:''}</div>${(l.extraLoads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">📦 Pickup ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${ex.notes}</div></div>`:''}</div>`).join('')}<div class="loc-section-label" style="margin-top:12px">🏠 Unload location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.to||'—'}${l.toUnit?' #'+l.toUnit:''}${l.toZip?' '+l.toZip:''}</div></div>${l.toType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.toType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessUnload||'—'}${l.toElevator?' · Elevator':''}<br>${l.toLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.toStairs?l.toStairs+' flights':'—'}${l.toFloor?' · Floor '+l.toFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingUnload||'—'}</div></div>${l.toNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${l.toNotes}</div></div>`:''}</div>${(l.extraUnloads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">🏠 Drop-off ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${ex.notes}</div></div>`:''}</div>`).join('')}${l.sqft||l.storage?`<div style="margin-top:10px;display:flex;gap:16px;font-size:12.5px">${l.sqft?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Square footage</div><div>${l.sqft} sq ft</div></div>`:''} ${l.storage?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Storage</div><div>Moving to CareMore Storage</div></div>`:''}</div>`:''}${quoteDaysBlock}${estBlock}${l.notes?`<div style="margin-top:12px;font-size:12.5px"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${l.notes}</div></div>`:''}${l.officeNotes?`<div style="margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--amber)"><div style="font-size:10.5px;color:var(--amber);font-weight:600;margin-bottom:2px">🔒 Office notes only</div><div style="font-size:12.5px">${l.officeNotes}</div></div>`:''}<hr class="divider"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Activity timeline</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;font-size:12px">${[
   l.createdAt?{date:l.createdAt,label:'Lead created',by:l.takenBy?'by '+l.takenBy:''}:null,
   l.summaryEmailBody&&l.summarySentAt?{date:l.summarySentAt,label:'Summary email sent',by:l.summaryEmailTo?'to '+l.summaryEmailTo:''}:null,
+  l.roughQuoteDate?{date:l.roughQuoteDate,label:`Rough quote sent: $${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?' – $'+(l.roughQuoteMax||0).toLocaleString():''}`,by:l.roughQuoteSentBy?'by '+l.roughQuoteSentBy:''}:null,
   l.estimateScheduledDate?{date:l.estimateScheduledDate,label:'Estimate scheduled',by:l.estimateSetupBy?'by '+l.estimateSetupBy:''}:null,
   l.estimateDate&&(l.status==='Estimate sent'||l.status==='Quote accepted'||l.status==='Confirmation sent')?{date:l.estimateDate,label:'Estimate sent',by:l.estimateSentBy?'by '+l.estimateSentBy:''}:null,
   l.estimateDate&&l.status==='Quote accepted'?{date:l.estimateDate,label:'Quote accepted',by:''}:null,
-].filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`<div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0;font-size:11px">${fmtDate(e.date)}</span><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-bottom:-1px"></span><span style="color:var(--text2)">${e.label}${e.by?` <span style="color:var(--text3)">${e.by}</span>`:''}</span></div>`).join('')||'<div style="color:var(--text3)">No activity logged yet</div>'}</div><div style="font-size:11.5px;color:var(--text3);margin-bottom:7px">Update status</div><div style="display:flex;gap:7px;flex-wrap:wrap">${['New','Need to follow up','Need to send summary','Summary sent','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'].map(s=>`<button class="btn btn-secondary btn-sm ${l.status===s?'btn-primary':''}" onclick="handleStatusClick('${l.id}','${s}')">${s}</button>`).join('')}
+].filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`<div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0;font-size:11px">${fmtDate(e.date)}</span><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-bottom:-1px"></span><span style="color:var(--text2)">${e.label}${e.by?` <span style="color:var(--text3)">${e.by}</span>`:''}</span></div>`).join('')||'<div style="color:var(--text3)">No activity logged yet</div>'}</div><div style="font-size:11.5px;color:var(--text3);margin-bottom:7px">Update status</div><div style="display:flex;gap:7px;flex-wrap:wrap">${['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'].map(s=>`<button class="btn btn-secondary btn-sm ${l.status===s?'btn-primary':''}" onclick="handleStatusClick('${l.id}','${s}')">${s}</button>`).join('')}
     </div>
     <div id="est-type-prompt-${l.id}" style="display:none;margin-top:12px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
       <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">Mark estimate as sent</div>
@@ -2763,10 +2805,17 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
 const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
-const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
-const viewSummaryBtn=l.status==='Summary sent'?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
+const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
+const viewSummaryBtn=(l.status==='Summary sent'||l.status==='Summary + rough quote')?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
+const roughQuoteBlock=l.roughQuoteDate?`<div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px;display:flex;justify-content:space-between;align-items:center">
+  <div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Rough quote sent${l.roughQuoteSentBy?' by '+l.roughQuoteSentBy:''} · ${fmtDate(l.roughQuoteDate)}</div>
+  <div style="font-weight:600;color:var(--accent)">$${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?' – $'+(l.roughQuoteMax).toLocaleString():''}</div>
+  ${l.roughQuoteNotes?`<div style="font-size:11.5px;color:var(--text3);margin-top:2px">${l.roughQuoteNotes}</div>`:''}</div>
+  <button class="btn btn-secondary btn-sm" onclick="openRoughQuotePrompt('${l.id}')">✏ Edit</button>
+</div>`:'';
 document.getElementById('view-modal-footer').innerHTML=`
   <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+    ${roughQuoteBlock}
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>
@@ -2943,8 +2992,12 @@ function handleStatusClick(id,status){
     setTimeout(()=>openCallSummaryEmail(id),200);
     return;
   }
-  if(status==='Summary sent'||status==='Need to send estimate'){
+  if(status==='Summary sent'){
     updateLeadStatus(id,status);
+    return;
+  }
+  if(status==='Summary + rough quote'){
+    openRoughQuotePrompt(id);
     return;
   }
   if(status==='Estimate scheduled'){
@@ -3041,10 +3094,47 @@ function markSummarySent(){
   renderLeads();
 }
 
+let _rqLeadId=null;
+function openRoughQuotePrompt(leadId){
+  _rqLeadId=leadId;
+  const l=db.leads.find(x=>x.id===leadId);
+  if(!l)return;
+  // Pre-fill from existing rough quote on lead
+  const rq=l.roughQuote||{};
+  const el=id=>document.getElementById(id);
+  if(el('rq-sent-by'))el('rq-sent-by').value=l.roughQuoteSentBy||l.takenBy||'';
+  if(el('rq-amount-min'))el('rq-amount-min').value=l.roughQuoteMin||rq.hrsMin&&rq.rate?Math.round(Number(rq.hrsMin)*Number(rq.rate)):'';
+  if(el('rq-amount-max'))el('rq-amount-max').value=l.roughQuoteMax||rq.hrsMax&&rq.rate?Math.round(Number(rq.hrsMax)*Number(rq.rate)):'';
+  if(el('rq-notes'))el('rq-notes').value=l.roughQuoteNotes||'';
+  openModal('rough-quote-prompt');
+}
+
+function confirmRoughQuote(){
+  const l=db.leads.find(x=>x.id===_rqLeadId);
+  if(!l)return;
+  const sentBy=document.getElementById('rq-sent-by')?.value?.trim();
+  const min=document.getElementById('rq-amount-min')?.value;
+  const max=document.getElementById('rq-amount-max')?.value;
+  if(!sentBy){showToast('Please fill in who sent this');return;}
+  if(!min){showToast('Please enter a rough quote amount');return;}
+  l.status='Summary + rough quote';
+  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  l.summarySentAt=l.summarySentAt||new Date().toISOString().split('T')[0];
+  l.roughQuoteSentBy=sentBy;
+  l.roughQuoteMin=Number(min)||0;
+  l.roughQuoteMax=Number(max)||Number(min)||0;
+  l.roughQuoteDate=new Date().toISOString().split('T')[0];
+  l.roughQuoteNotes=document.getElementById('rq-notes')?.value||'';
+  saveDB();
+  closeModal('rough-quote-prompt');
+  showToast('✓ Summary + rough quote marked as sent — '+l.name);
+  renderLeads();
+}
+
 let currentDNBLeadId=null;
 function openDidNotBook(leadId){currentDNBLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('dnb-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${sourceBadge(l.source,l.sourceDetail)}</span><br><span style="font-size:11.5px;color:var(--text3)">Current status: ${l.status}</span>`;
 // Auto-select stage based on current status
-const stageMap={'New':'after-call','Need to follow up':'after-call','Need to send summary':'after-call','Summary sent':'after-summary','Estimate scheduled':'after-estimate-scheduled','Need to send estimate':'after-estimate-scheduled','Estimate sent':'after-quote','Quote accepted':'after-quote','Confirmation sent':'after-quote','Need to follow up':'after-followup'};
+const stageMap={'New':'after-call','Need to follow up':'after-call','Need to send summary':'after-call','Summary sent':'after-summary','Summary + rough quote':'after-summary','Estimate scheduled':'after-estimate-scheduled','Need to send estimate':'after-estimate-scheduled','Estimate sent':'after-quote','Quote accepted':'after-quote','Confirmation sent':'after-quote','Need to follow up':'after-followup'};
 const autoStage=stageMap[l.status]||'';
 document.getElementById('dnb-stage').value=autoStage;
 document.getElementById('dnb-reason').selectedIndex=0;document.getElementById('dnb-notes').value='';openModal('did-not-book');}
@@ -4777,11 +4867,16 @@ function getEstimateEvents(){
   const events=[];
   db.leads.forEach(l=>{
     if(!SENT.includes(l.status))return;
-    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&
-      (q.status==='sent'||q.status==='accepted'||q.status==='declined'));
-    // Resolve sent-by name
+    // Find linked quote — check all statuses including draft
+    const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted')
+      ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='sent')
+      ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='declined')
+      ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='draft'&&(q.sentBy||q.estimateType));
+    // Resolve sent-by name — check lead, quote, then booked job
+    const bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id);
     const rawName=(l.estimateSentBy||linkedQ?.sentBy||'').trim();
     const name=_sNorm(rawName);
+    if(!name)return; // skip if we can't attribute to anyone
     // Resolve estimate type
     const estimateType=l.estimateType||linkedQ?.estimateType||'';
     // Resolve rate from first day of quote
@@ -5323,6 +5418,84 @@ function renderAnalytics(){
     </table>`;
   }).join('')
     :`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
+
+  // ── Rough quote conversion analytics ──
+  const BOOKED_S=['Quote accepted','Confirmation sent','Booked','Completed'];
+  const SUMMARY_STATUSES=['Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
+  const summaryLeads=db.leads.filter(l=>SUMMARY_STATUSES.includes(l.status));
+  const withRQ=summaryLeads.filter(l=>l.roughQuoteDate);
+  const withoutRQ=summaryLeads.filter(l=>!l.roughQuoteDate);
+  const rqBooked=withRQ.filter(l=>BOOKED_S.includes(l.status)).length;
+  const noRQBooked=withoutRQ.filter(l=>BOOKED_S.includes(l.status)).length;
+  const rqRate=withRQ.length?Math.round(rqBooked/withRQ.length*100):0;
+  const noRQRate=withoutRQ.length?Math.round(noRQBooked/withoutRQ.length*100):0;
+  document.getElementById('rough-quote-chart').innerHTML=summaryLeads.length?`
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Type</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Booked</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">Summary only</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${withoutRQ.length}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${noRQBooked}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${noRQRate>=70?'var(--accent)':noRQRate>=50?'var(--amber)':'var(--error)'}">${noRQRate}%</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">Summary + rough quote</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${withRQ.length}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${rqBooked}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${rqRate>=70?'var(--accent)':rqRate>=50?'var(--amber)':'var(--error)'}">${rqRate}%</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px">Leads that progressed beyond summary stage</div>`
+    :`<div class="empty-state"><div class="empty-title">No summary data yet</div></div>`;
+
+  // ── Rough quote by person ──
+  const rqByPerson={};
+  summaryLeads.forEach(l=>{
+    const name=_sNorm(l.roughQuoteSentBy||l.takenBy||'');
+    if(!name||!staffFilter.has(name))return;
+    if(!rqByPerson[name])rqByPerson[name]={withRQ:{sent:0,booked:0},withoutRQ:{sent:0,booked:0}};
+    const hasRQ=!!l.roughQuoteDate;
+    const booked=BOOKED_S.includes(l.status);
+    if(hasRQ){rqByPerson[name].withRQ.sent++;if(booked)rqByPerson[name].withRQ.booked++;}
+    else{rqByPerson[name].withoutRQ.sent++;if(booked)rqByPerson[name].withoutRQ.booked++;}
+  });
+  const rqPersonEntries=Object.entries(rqByPerson).sort((a,b)=>a[0].localeCompare(b[0]));
+  document.getElementById('rough-quote-person-chart').innerHTML=rqPersonEntries.length?rqPersonEntries.map(([name,d])=>{
+    const rqR=d.withRQ.sent?Math.round(d.withRQ.booked/d.withRQ.sent*100):null;
+    const noR=d.withoutRQ.sent?Math.round(d.withoutRQ.booked/d.withoutRQ.sent*100):null;
+    const col=r=>r===null?'var(--text3)':r>=70?'var(--accent)':r>=50?'var(--amber)':'var(--error)';
+    return`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px">
+      <thead><tr><th colspan="4" style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;background:var(--surface2)">${name}</th></tr>
+      <tr>
+        <th style="text-align:left;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Type</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Booked</th>
+        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+      </tr></thead>
+      <tbody>
+        ${d.withoutRQ.sent?`<tr>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border)">Summary only</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.withoutRQ.sent}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.withoutRQ.booked}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col(noR)}">${noR!==null?noR+'%':'—'}</td>
+        </tr>`:''}
+        ${d.withRQ.sent?`<tr>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border)">With rough quote</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.withRQ.sent}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.withRQ.booked}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col(rqR)}">${rqR!==null?rqR+'%':'—'}</td>
+        </tr>`:''}
+      </tbody>
+    </table>`;
+  }).join('')
+    :`<div class="empty-state"><div class="empty-title">No data yet</div><div class="empty-sub">Mark summaries as sent to track conversion</div></div>`;
 
 }
 
