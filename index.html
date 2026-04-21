@@ -4872,13 +4872,12 @@ function getEstimateEvents(){
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='sent')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='declined')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='draft'&&(q.sentBy||q.estimateType));
-    // Resolve sent-by name — check lead, quote, then booked job
-    const bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id);
-    const rawName=(l.estimateSentBy||linkedQ?.sentBy||'').trim();
+    // Resolve sent-by name — check lead, quote, then rough quote sender
+    const rawName=(l.estimateSentBy||linkedQ?.sentBy||l.roughQuoteSentBy||'').trim();
     const name=_sNorm(rawName);
     if(!name)return; // skip if we can't attribute to anyone
-    // Resolve estimate type
-    const estimateType=l.estimateType||linkedQ?.estimateType||'';
+    // Resolve estimate type — fall back to "Rough quote only" if booked via summary+rough quote
+    const estimateType=l.estimateType||linkedQ?.estimateType||(l.roughQuoteDate&&!l.estimateType?'Rough quote only':'');
     // Resolve rate from first day of quote
     const rate=linkedQ?.days?.[0]?.rate?Math.round(Number(linkedQ.days[0].rate)):0;
     // Resolve outcome
@@ -4930,8 +4929,8 @@ function renderAnalytics(){
     return`<div class="bar-row"><div class="bar-label">${s}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c/maxS*100)}%;background:${sc[s]||'#888'}">${c}</div></div><div class="bar-value">${c}</div></div>${detailHtml}`;
   }).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
   // ── Estimate close rates bar chart ──
-  const _ec2={'Unseen':'#888','Video':'#1a5276','FaceTime':'#6c3483','Onsite':'#b7860b'};
-  const _etTypes=['Unseen','Video','FaceTime','Onsite'];
+  const _ec2={'Unseen':'#888','Video':'#1a5276','FaceTime':'#6c3483','Onsite':'#b7860b','Rough quote only':'#2d6a4f'};
+  const _etTypes=['Unseen','Video','FaceTime','Onsite','Rough quote only'];
   const _ev2=getEstimateEvents();
   const _ed2=_etTypes.map(t=>{
     const rows=_ev2.filter(e=>e.estimateType===t);
