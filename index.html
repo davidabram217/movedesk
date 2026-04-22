@@ -2851,62 +2851,109 @@ function openConfirmEmail(leadId,bookedJob){
   let moveDetailsSection='';
   if(q&&q.days&&q.days.length){
     const d0q=q.days[0]||{};
-    q.days.forEach(function(d,i){
+    if(isMulti){
+      // Each day is self-contained with its own when/from/to/rate/fees
+      q.days.forEach(function(d,i){
+        const sourceDayBJ=bj&&bj.quoteDays&&bj.quoteDays[i]||{};
+        const day=Object.assign({},sourceDayBJ,d); // quote data takes priority
+        const rate=Number(day.rate)||Number(sourceDayBJ.rate)||0;
+        const loads=day.loads&&day.loads.length?day.loads:[{address:day.from||'',unit:day.fromUnit||'',access:day.fromAccess||'',parking:day.fromParking||''}];
+        const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:day.to||'',unit:day.toUnit||'',access:day.toAccess||'',parking:day.toParking||''}];
+        const cashRate=q.cashRate?Number(q.cashRate):null;
+        const baseRate=Number(q.days[0].rate||rate)||rate;
+        const dayCashRate=cashRate&&baseRate?Math.round(cashRate*(rate/baseRate)):cashRate;
+        const crewDesc=fmtCrewDesc(day);
+        // Day header
+        moveDetailsSection+='\nDay '+(i+1)+(day.dayLabel?' - '+day.dayLabel:'');
+        moveDetailsSection+='\nWhen: '+fmtDate(day.date)+(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
+        // Locations
+        loads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
+          moveDetailsSection+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
+        });
+        const hasUnloads=unloads.some(function(loc){return loc.address;});
+        if(hasUnloads){
+          unloads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
+            const addr=(l&&l.storage&&li===0&&loc.address&&loc.address.includes('Palou'))?CAREMORE_STORAGE_ADDR:(loc.address+(loc.unit?' #'+loc.unit:''));
+            moveDetailsSection+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+addr;
+          });
+        } else {
+          moveDetailsSection+='\nTo: Load trucks only';
+        }
+        moveDetailsSection+='\n*Customer responsible for any parking tickets should they be incurred';
+        // Rate & min hours
+        if(rate){
+          const cashStr=dayCashRate?' ($'+dayCashRate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
+          moveDetailsSection+='\n'+crewDesc+' @ $'+rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+cashStr;
+          if(day.hrsMin)moveDetailsSection+='\n'+day.hrsMin+' hour minimum';
+        }
+        // Day-specific fees
+        const allFees=(q.fees||[]).filter(function(f){return f.included&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
+        const dayFees=allFees.filter(function(f){
+          const lbl=(f.label||f.name||'').toLowerCase();
+          if(q.days.length<2)return true;
+          const mentionsThisDay=lbl.includes('day '+(i+1))||lbl.includes('day'+(i+1));
+          const mentionsAnyDay=q.days.some(function(_,j){return lbl.includes('day '+(j+1))||lbl.includes('day'+(j+1));});
+          const isPacking=lbl.includes('packing material');
+          if(isPacking)return false; // handled separately
+          return mentionsThisDay||(!mentionsAnyDay);
+        });
+        dayFees.forEach(function(f){
+          const lbl=f.label||f.name||'';
+          if(f.type==='range'){moveDetailsSection+='\n$'+(f.hrsMin||0)+' \u2013 $'+(f.hrsMax||0)+' '+lbl;}
+          else{moveDetailsSection+='\n$'+Number(f.amount||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' '+lbl;}
+        });
+        // Packing materials
+        const packFee=allFees.find(function(f){return (f.label||f.name||'').toLowerCase().includes('packing material');});
+        const hasPacking=l&&l.packing&&l.packing!=='No \u2014 just moving';
+        if(packFee&&packFee.type==='range'){
+          moveDetailsSection+='\n$'+(packFee.hrsMin||'?')+' \u2013 $'+(packFee.hrsMax||'?')+' '+(packFee.label||packFee.name||'Packing Materials');
+        } else if(hasPacking||packFee){
+          moveDetailsSection+='\nPacking Materials Used - TBD';
+        }
+        // Return drive
+        if(j&&j.driveReturn)moveDetailsSection+='\n'+j.driveReturn;
+        else moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
+        if(i<q.days.length-1)moveDetailsSection+='\n';
+      });
+      // Total
+      if(q.totalMin||q.totalMax)moveDetailsSection+='\nTotal estimate: $'+Number(q.totalMin||0).toLocaleString()+' \u2013 $'+Number(q.totalMax||0).toLocaleString()+' (all days combined)';
+    } else {
+      // Single day
+      const d=q.days[0];
       const loads=d.loads&&d.loads.length?d.loads:[{address:d.from||'',unit:d.fromUnit||'',access:d.fromAccess||'',parking:d.fromParking||''}];
       const unloads=d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'',unit:d.toUnit||'',access:d.toAccess||'',parking:d.toParking||''}];
-      const dayLabel=isMulti?'\n--- Day '+(i+1)+' — '+fmtDate(d.date)+' ---':'';
-      const arrival=d.arrivalStart?(', arriving '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'')):'';
-      moveDetailsSection+=dayLabel;
-      if(!isMulti)moveDetailsSection+='\nWhen: '+fmtDate(d.date)+arrival;
-      else moveDetailsSection+='\nArrival: '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'')+' · '+fmtCrewDesc(d);
+      const arrival=d.arrivalStart?(', arriving '+d.arrivalStart+(d.arrivalEnd?' \u2013 '+d.arrivalEnd:'')):'';
+      moveDetailsSection+='\nWhen: '+fmtDate(d.date)+arrival;
       loads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
-        moveDetailsSection+='\n'+(li===0?'📦 Pick-up':'📦 Pickup '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
-        if(loc.access)moveDetailsSection+=' · '+loc.access;
-        if(loc.parking)moveDetailsSection+=' · '+loc.parking;
+        moveDetailsSection+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
+        if(loc.access)moveDetailsSection+=' \u00b7 '+loc.access;
+        if(loc.parking)moveDetailsSection+=' \u00b7 '+loc.parking;
       });
       unloads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
-        const unloadAddr=(l.storage&&li===0&&loc.address&&loc.address.includes('Palou'))?CAREMORE_STORAGE_ADDR:(loc.address+(loc.unit?' #'+loc.unit:''));
-        moveDetailsSection+='\n'+(li===0?'🏠 Drop-off':'🏠 Drop-off '+(li+1))+': '+unloadAddr;
-        if(loc.access)moveDetailsSection+=' · '+loc.access;
-        if(loc.parking)moveDetailsSection+=' · '+loc.parking;
+        const addr=(l&&l.storage&&li===0&&loc.address&&loc.address.includes('Palou'))?CAREMORE_STORAGE_ADDR:(loc.address+(loc.unit?' #'+loc.unit:''));
+        moveDetailsSection+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+addr;
+        if(loc.access)moveDetailsSection+=' \u00b7 '+loc.access;
+        if(loc.parking)moveDetailsSection+=' \u00b7 '+loc.parking;
       });
-    });
-    // Rate line then fees — no headers, just clean lines
-    moveDetailsSection+='\n';
-    if(isMulti){
-      // Use booked job quoteDays as fallback if quote days don't have rates
-      const sourceDays=(q.days||[]).map((day,i)=>{
-        if(day.rate)return day;
-        // Fall back to booked job quoteDays
-        return(bj&&bj.quoteDays&&bj.quoteDays[i])||day;
+      moveDetailsSection+='\n';
+      if(d0q.rate){
+        const crewDesc=fmtCrewDesc(d0q);
+        const rate=Number(d0q.rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+        const cashRateStr=q.cashRate?' ($'+Number(q.cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
+        moveDetailsSection+='\n'+crewDesc+' @ $'+rate+' Per Hour'+cashRateStr;
+        if(d0q.hrsMin)moveDetailsSection+='\n'+d0q.hrsMin+' hour minimum';
+      }
+      const includedFees=(q.fees||[]).filter(function(f){return f.included&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
+      includedFees.forEach(function(f){
+        const lbl=f.label||f.name||'';
+        if(f.type==='range'){moveDetailsSection+='\n$'+(f.hrsMin||0)+' \u2013 $'+(f.hrsMax||0)+' '+lbl;}
+        else{moveDetailsSection+='\n$'+Number(f.amount||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' '+lbl;}
       });
-      sourceDays.forEach(function(day,i){
-        const rate=Number(day.rate)||0;
-        if(!rate)return;
-        const rateStr='Day '+(i+1)+' — '+fmtCrewDesc(day)+' @ $'+rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
-        const cashRateStr=q.cashRate?'($'+Number(q.cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
-        moveDetailsSection+='\n'+rateStr+(cashRateStr?' '+cashRateStr:'');
-        if(day.hrsMin)moveDetailsSection+='\n  '+day.hrsMin+' Hour Minimum';
-        if(day.packCrew&&day.packRate)moveDetailsSection+='\n  Packing crew: '+(day.packCrewSize||1)+' packer(s) @ $'+day.packRate+'/hr';
-      });
-    } else if(d0q.rate){
-      const rateStr=fmtCrewDesc(d0q)+' @ $'+Number(d0q.rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
-      const cashRateStr=q.cashRate?'($'+Number(q.cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
-      moveDetailsSection+='\n'+rateStr+(cashRateStr?' '+cashRateStr:'');
-      if(d0q.hrsMin)moveDetailsSection+='\n'+d0q.hrsMin+' Hour Minimum';
+      const hasPacking=l&&l.packing&&l.packing!=='No \u2014 just moving';
+      const packFee=(q.fees||[]).find(f=>(f.label||f.name||'').toLowerCase().includes('packing'));
+      if(hasPacking||packFee)moveDetailsSection+='\nPacking Materials Used - '+(packFee&&packFee.amount?'$'+Number(packFee.amount).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}):'TBD');
+      moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
     }
-    const includedFees=(q.fees||[]).filter(function(f){return f.included!==false&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
-    includedFees.forEach(function(f){
-      const lbl=f.label||f.name||'';
-      if(f.type==='range'){moveDetailsSection+='\n$'+(f.hrsMin||0)+' – $'+(f.hrsMax||0)+' '+lbl;}
-      else{moveDetailsSection+='\n$'+Number(f.amount||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' '+lbl;}
-    });
-    // Check if packing is included
-    const hasPacking=l.packing&&l.packing!=='No — just moving';
-    const packFee=(q.fees||[]).find(f=>(f.label||f.name||'').toLowerCase().includes('packing'));
-    if(hasPacking||packFee)moveDetailsSection+='\nPacking Materials Used - '+(packFee&&packFee.amount?'$'+Number(packFee.amount).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}):'TBD');
-    moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
-    if(isMulti&&q)moveDetailsSection+='\n\nTotal estimate: $'+Number(q.totalMin||0).toLocaleString()+' – $'+Number(q.totalMax||0).toLocaleString()+' (all days combined, before additional fees)';
   } else {
     const moveDate=fmtDate(l.date);
     moveDetailsSection='\nWhen: '+moveDate+', arriving between 8:30–9:30am\n📦 From:\n'+fmtLoadLocations(l)+'\n\n🏠 To:\n'+fmtUnloadLocations(l);
@@ -3688,16 +3735,18 @@ function buildJobCalUrl(j){
   // 10. Rates & fees — formatted like confirmation email
   const isMultiDay=j.multiDay&&j.quoteDays&&j.quoteDays.length>1;
   if(isMultiDay){
-    // Show each day's labor separately
+    const costLines=[];
     j.quoteDays.forEach((day,i)=>{
+      const rate=Number(day.rate||0);
+      if(!rate)return;
       const crewDesc=day.crewLoadDiff
         ?(day.crewLoad||day.crew||'?')+' load / '+(day.crewUnload||day.crew||'?')+' unload movers'
         :(day.crew||'?')+' movers';
-      const cashStr=j.rateCash?` ($${Number(j.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} If Paid Cash)`:'';
-      lines.push(`Day ${i+1} — ${crewDesc} @ $${Number(day.rate||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Per Hour${cashStr}`);
-      if(day.hrsMin)lines.push(`  ${day.hrsMin} hour minimum`);
-      if(day.packCrew&&day.packRate)lines.push(`  Packing crew: ${day.packCrewSize||1} packer(s) @ $${day.packRate}/hr · ${day.packHrsMin||'?'}–${day.packHrsMax||'?'} hrs`);
+      const cashRate=j.rateCash?Math.round(Number(j.rateCash)*(rate/Number(j.quoteDays[0].rate||rate))):null;
+      const cashStr=cashRate?' or $'+cashRate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' if paid in cash':'';
+      costLines.push(`Day${i+1} ${crewDesc} @ $${rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Per Hour${cashStr}`);
     });
+    if(costLines.length)lines.push('Cost: '+costLines.join('\n      '));
   } else if(j.rateRegular){
     const crewDesc=j.crewDiff
       ?(j.crewLoad||j.movers||'?')+' load / '+(j.crewUnload||j.movers||'?')+' unload movers'
