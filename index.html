@@ -4018,8 +4018,7 @@ async function bookingOpenEmail(){
   const to=j.email||l?.email||'';
   if(!to){showToast('No email on file — open lead to add email');return;}
   currentConfirmEmailLeadId=j.leadId||null;
-  closeModal('booking-next');
-  setTimeout(()=>openConfirmEmail(j.leadId||null,j),200);
+  openConfirmEmail(j.leadId||null,j);
 }
 
 async function bookingCalDone(){
