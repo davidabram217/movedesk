@@ -2990,7 +2990,10 @@ function sendConfirmationEmail(){
     const day=(j.extraDays||[]).find(d=>d.id===window._currentDayId);
     if(day){day.emailSent=true;}
   }
-  saveDB();closeModal('confirm-email');showToast('✓ Confirmation email sent');renderLeads();
+  saveDB();closeModal('confirm-email');
+  const ceModal=document.getElementById('modal-confirm-email');
+  if(ceModal)ceModal.style.zIndex='';
+  showToast('✓ Confirmation email sent');renderLeads();
   if(bookedJobId&&!window._currentDayId){
     setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
   } else if(bookedJobId&&window._currentDayId){
@@ -4018,7 +4021,11 @@ async function bookingOpenEmail(){
   const to=j.email||l?.email||'';
   if(!to){showToast('No email on file — open lead to add email');return;}
   currentConfirmEmailLeadId=j.leadId||null;
+  // Build the email first before closing any modals
   openConfirmEmail(j.leadId||null,j);
+  // Now bump the confirm-email modal z-index above booking-next
+  const ceModal=document.getElementById('modal-confirm-email');
+  if(ceModal)ceModal.style.zIndex='600';
 }
 
 async function bookingCalDone(){
