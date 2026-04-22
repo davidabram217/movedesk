@@ -2869,12 +2869,22 @@ function openConfirmEmail(leadId){
     });
     // Rate line then fees — no headers, just clean lines
     moveDetailsSection+='\n';
-    if(d0q.rate){
+    if(isMulti){
+      // Show each day's labor separately
+      (q.days||[]).forEach(function(day,i){
+        if(!day.rate)return;
+        const rateStr='Day '+(i+1)+' — '+fmtCrewDesc(day)+' @ $'+Number(day.rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
+        const cashRateStr=q.cashRate?'($'+Number(q.cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
+        moveDetailsSection+='\n'+rateStr+(cashRateStr?' '+cashRateStr:'');
+        if(day.hrsMin)moveDetailsSection+='\n  '+day.hrsMin+' Hour Minimum';
+        if(day.packCrew&&day.packRate)moveDetailsSection+='\n  Packing crew: '+(day.packCrewSize||1)+' packer(s) @ $'+day.packRate+'/hr';
+      });
+    } else if(d0q.rate){
       const rateStr=fmtCrewDesc(d0q)+' @ $'+Number(d0q.rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
       const cashRateStr=q.cashRate?'($'+Number(q.cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
       moveDetailsSection+='\n'+rateStr+(cashRateStr?' '+cashRateStr:'');
+      if(d0q.hrsMin)moveDetailsSection+='\n'+d0q.hrsMin+' Hour Minimum';
     }
-    if(d0q.hrsMin)moveDetailsSection+='\n'+d0q.hrsMin+' Hour Minimum';
     const includedFees=(q.fees||[]).filter(function(f){return f.included!==false&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
     includedFees.forEach(function(f){
       const lbl=f.label||f.name||'';
@@ -3666,16 +3676,27 @@ function buildJobCalUrl(j){
   lines.push('');
 
   // 10. Rates & fees — formatted like confirmation email
-  if(j.rateRegular){
+  const isMultiDay=j.multiDay&&j.quoteDays&&j.quoteDays.length>1;
+  if(isMultiDay){
+    // Show each day's labor separately
+    j.quoteDays.forEach((day,i)=>{
+      const crewDesc=day.crewLoadDiff
+        ?(day.crewLoad||day.crew||'?')+' load / '+(day.crewUnload||day.crew||'?')+' unload movers'
+        :(day.crew||'?')+' movers';
+      const cashStr=j.rateCash?` ($${Number(j.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} If Paid Cash)`:'';
+      lines.push(`Day ${i+1} — ${crewDesc} @ $${Number(day.rate||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Per Hour${cashStr}`);
+      if(day.hrsMin)lines.push(`  ${day.hrsMin} hour minimum`);
+      if(day.packCrew&&day.packRate)lines.push(`  Packing crew: ${day.packCrewSize||1} packer(s) @ $${day.packRate}/hr · ${day.packHrsMin||'?'}–${day.packHrsMax||'?'} hrs`);
+    });
+  } else if(j.rateRegular){
     const crewDesc=j.crewDiff
       ?(j.crewLoad||j.movers||'?')+' load / '+(j.crewUnload||j.movers||'?')+' unload movers'
       :(j.movers||'?')+' movers';
     const cashStr=j.rateCash?` ($${Number(j.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} If Paid Cash)`:'';
     lines.push(`${crewDesc} @ $${Number(j.rateRegular).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Per Hour${cashStr}`);
+    const calDay0=j.quoteDays&&j.quoteDays[0];
+    if(calDay0&&calDay0.hrsMin)lines.push(`${calDay0.hrsMin} hour minimum`);
   }
-  // Min hours
-  const calDay0=j.quoteDays&&j.quoteDays[0];
-  if(calDay0&&calDay0.hrsMin)lines.push(`${calDay0.hrsMin} hour minimum`);
   if(j.feeMaterials)lines.push(`$${Number(j.feeMaterials).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Material Fee`);
   if(j.feeFuel)lines.push(`$${Number(j.feeFuel).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Fuel Fee`);
   // Packing materials
