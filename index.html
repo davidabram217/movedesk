@@ -2886,16 +2886,25 @@ function openConfirmEmail(leadId,bookedJob){
           moveDetailsSection+='\n'+crewDesc+' @ $'+rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+cashStr;
           if(day.hrsMin)moveDetailsSection+='\n'+day.hrsMin+' hour minimum';
         }
-        // Day-specific fees
+        // Day-specific fees — fees mentioning a day number only show on that day
         const allFees=(q.fees||[]).filter(function(f){return f.included&&(f.label||f.name)&&(f.amount||f.hrsMin||f.hrsMax);});
         const dayFees=allFees.filter(function(f){
           const lbl=(f.label||f.name||'').toLowerCase();
-          if(q.days.length<2)return true;
-          const mentionsThisDay=lbl.includes('day '+(i+1))||lbl.includes('day'+(i+1));
-          const mentionsAnyDay=q.days.some(function(_,j){return lbl.includes('day '+(j+1))||lbl.includes('day'+(j+1));});
           const isPacking=lbl.includes('packing material');
-          if(isPacking)return false; // handled separately
-          return mentionsThisDay||(!mentionsAnyDay);
+          if(isPacking)return false; // handled separately below
+          if(q.days.length<2)return true;
+          // Check if this fee mentions any day number
+          // Check for explicit day number reference (e.g. "day 1", "day1")
+          const mentionsAnyDay=q.days.some(function(_,j){return lbl.includes('day '+(j+1))||lbl.includes('day'+(j+1));});
+          if(mentionsAnyDay){
+            return lbl.includes('day '+(i+1))||lbl.includes('day'+(i+1));
+          }
+          // Check for "pack day" / "packing day" type fees — assign to day 1
+          if(lbl.includes('pack day')||lbl.includes('packing day')){return i===0;}
+          // Check for "move day" / "delivery day" type fees — assign to last day
+          if(lbl.includes('move day')||lbl.includes('delivery day')){return i===q.days.length-1;}
+          // Generic fee with no day reference — show on day 1 only to avoid duplication
+          return i===0;
         });
         dayFees.forEach(function(f){
           const lbl=f.label||f.name||'';
