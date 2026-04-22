@@ -2835,7 +2835,6 @@ saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLe
 
 let currentConfirmEmailLeadId=null;
 function openConfirmEmail(leadId,bookedJob){
-  try{
   currentConfirmEmailLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l&&!bookedJob)return;
@@ -2955,9 +2954,52 @@ function openConfirmEmail(leadId,bookedJob){
       if(hasPacking||packFee)moveDetailsSection+='\nPacking Materials Used - '+(packFee&&packFee.amount?'$'+Number(packFee.amount).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}):'TBD');
       moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
     }
+  } else if(bj&&bj.quoteDays&&bj.quoteDays.length>0){
+    // No quote in system but booked job has quoteDays — use those
+    const bjIsMulti=bj.multiDay&&bj.quoteDays.length>1;
+    bj.quoteDays.forEach(function(day,i){
+      const loads=day.loads&&day.loads.length?day.loads:[{address:bj.from||'',unit:bj.fromUnit||'',access:bj.accessLoad||'',parking:bj.parkingLoad||''}];
+      const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:bj.to||'',unit:bj.toUnit||'',access:bj.accessUnload||'',parking:bj.parkingUnload||''}];
+      const rate=Number(day.rate)||Number(bj.rateRegular)||0;
+      const cashRate=bj.rateCash?Number(bj.rateCash):null;
+      const crewDesc=fmtCrewDesc(day)||((day.crew||bj.movers||'?')+' movers');
+      if(bjIsMulti)moveDetailsSection+='\nDay '+(i+1)+(day.dayLabel?' - '+day.dayLabel:'');
+      moveDetailsSection+='\nWhen: '+fmtDate(day.date||bj.date)+(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
+      loads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
+        moveDetailsSection+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
+      });
+      const hasUnloads=unloads.some(function(loc){return loc.address;});
+      if(hasUnloads){
+        unloads.filter(function(loc){return loc.address;}).forEach(function(loc,li){
+          moveDetailsSection+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+loc.address+(loc.unit?' #'+loc.unit:'');
+        });
+      } else if(bjIsMulti){
+        moveDetailsSection+='\nTo: Load trucks only';
+      }
+      moveDetailsSection+='\n*Customer responsible for any parking tickets should they be incurred';
+      if(rate){
+        const cashStr=cashRate?' ($'+cashRate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
+        moveDetailsSection+='\n'+crewDesc+' @ $'+rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+cashStr;
+        if(day.hrsMin)moveDetailsSection+='\n'+day.hrsMin+' hour minimum';
+      }
+      if(bj.feeFuel)moveDetailsSection+='\n$'+Number(bj.feeFuel).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Fuel Fee';
+      if(bj.feeMaterials)moveDetailsSection+='\n$'+Number(bj.feeMaterials).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Material Fee';
+      moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
+      if(i<bj.quoteDays.length-1)moveDetailsSection+='\n';
+    });
   } else {
+    // Fallback — no quote and no quoteDays, use basic lead/job info
     const moveDate=fmtDate(l?.date||bj?.date||'');
-    moveDetailsSection='\nWhen: '+moveDate+', arriving between 8:30–9:30am\n📦 From:\n'+fmtLoadLocations(l)+'\n\n🏠 To:\n'+fmtUnloadLocations(l);
+    const arrivalStr=bj?.time?', arriving '+bj.time:', arriving between 8:30–9:30am';
+    moveDetailsSection='\nWhen: '+moveDate+arrivalStr+'\nFrom:\n'+fmtLoadLocations(l||bj)+'\n\nTo:\n'+fmtUnloadLocations(l||bj);
+    if(bj?.rateRegular){
+      const crew=(bj.movers||'?')+' movers';
+      const cashStr=bj.rateCash?' ($'+Number(bj.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
+      moveDetailsSection+='\n'+crew+' @ $'+Number(bj.rateRegular).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+cashStr;
+    }
+    if(bj?.feeFuel)moveDetailsSection+='\n$'+Number(bj.feeFuel).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Fuel Fee';
+    if(bj?.feeMaterials)moveDetailsSection+='\n$'+Number(bj.feeMaterials).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Material Fee';
+    moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
   }
   const lEmail=l?.email||bj?.email||'';
   const lPacking=l?.packing||bj?.packing||'';
@@ -2977,10 +3019,6 @@ function openConfirmEmail(leadId,bookedJob){
     document.getElementById('ce-body').value=lDraft.body||body;
   }
   openModal('confirm-email');
-  }catch(err){
-    console.error("openConfirmEmail error:",err);
-    alert("Email error: "+err.message);
-  }
 }
 function sendConfirmationEmail(){
   const to=document.getElementById('ce-to').value.trim();
