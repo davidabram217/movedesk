@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v1776895390 --><html lang="en">
+<!DOCTYPE html><!-- v1776895919 --><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8879,36 +8879,7 @@ function confirmAddDay(){
   showDayNextSteps(j,day);
 }
 
-function buildDayCalUrl(j,day){
-  const lines=[];
-  if(day.officeNotes)lines.push(day.officeNotes.toUpperCase(),'');
-  lines.push(
-    `${j.name}${j.phone?' ('+j.phone+')':''} — DAY ${day.dayNumber}`,
-    `Crew: ${day.crew||'TBD'} | ${day.movers||'?'} men @ $${day.rate||'?'}/hr`,
-    '',
-    `When: ${fmtDate(day.date)}, arriving ${day.time||'TBD'}`,
-    `From: ${day.from||j.from||'TBD'}`,
-    `To: ${day.to||j.to||'TBD'}`,
-    '',
-    `Access: ${day.accessLoad||'—'} → ${day.accessUnload||'—'}`,
-    day.scope?'\nScope:\n'+day.scope:'',
-    day.crewNotes?'\nCrew notes:\n'+day.crewNotes:'',
-    '',
-    `Fuel: $${day.feeFuel||'—'} | Materials: $${day.feeMaterials||'—'}`,
-    '',
-    '*Customer responsible for any parking tickets'
-  );
-  const text=lines.filter(l=>l!==null&&l!==undefined).join('\n').replace(/\n{3,}/g,'\n\n').trim();
-  const start=day.date.replace(/-/g,'');
-  const params=new URLSearchParams({
-    action:'TEMPLATE',
-    text:`${j.name} — Day ${day.dayNumber} | CareMore Moving`,
-    dates:`${start}/${start}`,
-    details:text,
-    location:day.from||j.from||''
-  });
-  return`https://calendar.google.com/calendar/render?${params.toString()}`;
-}
+
 
 function showDayNextSteps(j,day){
   // Reuse the booking checklist modal but for a new day
