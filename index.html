@@ -2834,14 +2834,18 @@ if(q){q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];}
 saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
 
 let currentConfirmEmailLeadId=null;
-function openConfirmEmail(leadId){
+function openConfirmEmail(leadId,bookedJob){
   currentConfirmEmailLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
-  if(!l)return;
-  const firstName=l.name?l.name.split(' ')[0]:'';
+  if(!l&&!bookedJob)return;
+  const name=(l?.name||bookedJob?.name||'');
+  const firstName=name?name.split(' ')[0]:'';
   // Find the accepted/sent quote for this lead
   const q=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
-    ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent');
+    ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')
+    ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.days&&qt.days.length);
+  // Also find the booked job for fallback data
+  const bj=bookedJob||(db.bookedJobs||[]).find(b=>b.leadId===leadId);
   const isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
   // Build move details section from quote days if available
   let moveDetailsSection='';
@@ -2870,10 +2874,16 @@ function openConfirmEmail(leadId){
     // Rate line then fees — no headers, just clean lines
     moveDetailsSection+='\n';
     if(isMulti){
-      // Show each day's labor separately
-      (q.days||[]).forEach(function(day,i){
-        if(!day.rate)return;
-        const rateStr='Day '+(i+1)+' — '+fmtCrewDesc(day)+' @ $'+Number(day.rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
+      // Use booked job quoteDays as fallback if quote days don't have rates
+      const sourceDays=(q.days||[]).map((day,i)=>{
+        if(day.rate)return day;
+        // Fall back to booked job quoteDays
+        return(bj&&bj.quoteDays&&bj.quoteDays[i])||day;
+      });
+      sourceDays.forEach(function(day,i){
+        const rate=Number(day.rate)||0;
+        if(!rate)return;
+        const rateStr='Day '+(i+1)+' — '+fmtCrewDesc(day)+' @ $'+rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
         const cashRateStr=q.cashRate?'($'+Number(q.cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'';
         moveDetailsSection+='\n'+rateStr+(cashRateStr?' '+cashRateStr:'');
         if(day.hrsMin)moveDetailsSection+='\n  '+day.hrsMin+' Hour Minimum';
@@ -3958,17 +3968,9 @@ async function bookingOpenEmail(){
   const l=db.leads.find(x=>x.id===j.leadId);
   const to=j.email||l?.email||'';
   if(!to){showToast('No email on file — open lead to add email');return;}
-  const firstName=(j.name||'').split(' ')[0];
-  const subject='Move Confirmation — '+fmtDate(j.date);
-  const body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:\n\nWhen: '+fmtDate(j.date)+(j.time?', '+j.time:'')+'\n\nPick-up:\n'+fmtLoadLocations(j)+'\n\nDrop-off:\n'+fmtUnloadLocations(j)+'\n\n*Customer responsible for any parking tickets should they be incurred\n'+(j.packing&&j.packing!=='No'?'*'+j.packing+' packing included\n':'')+'\n'+(j.movers||'3')+' men @ $'+(j.rateRegular||'225')+'.00 Per Hour ($'+(j.rateCash||'210')+'.00 If Paid Cash)\n2 hour minimum\n'+(j.feeMaterials?'$'+j.feeMaterials+' Material Fee\n':'')+''+(j.feeFuel?'$'+j.feeFuel+' Fuel Fee\n':'')+'Return drive time back to warehouse at completion\n(30 Minute Minimum)\n(10% yearly increase / 3.5% CC Fee)\n\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the following important documents before your move:\n\nInsurance Options Form 2026:\nhttps://drive.google.com/file/d/1iDk5QAJ_avsMmhRyoXMy9F-iY_IvljtJ/view?usp=drive_link\n\nMove Confirmation Letter 2026:\nhttps://drive.google.com/file/d/1V_SwNhJvjnimoCWm8z4OPp3UOgLF0aIc/view?usp=drive_link\n\nPlease let us know your insurance option choice prior to your move.\n\nIf you have any questions feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to seeing you soon!\n\nSincerely,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
-  // Set the lead ID so sendConfirmationEmail works after sending
   currentConfirmEmailLeadId=j.leadId||null;
-  // Populate the editable modal
-  document.getElementById('ce-to').value=to;
-  document.getElementById('ce-subject').value=subject;
-  document.getElementById('ce-body').value=body;
   closeModal('booking-next');
-  setTimeout(()=>openModal('confirm-email'),200);
+  setTimeout(()=>openConfirmEmail(j.leadId||null,j),200);
 }
 
 async function bookingCalDone(){
