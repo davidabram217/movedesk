@@ -2835,6 +2835,7 @@ saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLe
 
 let currentConfirmEmailLeadId=null;
 function openConfirmEmail(leadId,bookedJob){
+  try{
   currentConfirmEmailLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l&&!bookedJob)return;
@@ -2976,6 +2977,10 @@ function openConfirmEmail(leadId,bookedJob){
     document.getElementById('ce-body').value=lDraft.body||body;
   }
   openModal('confirm-email');
+  }catch(err){
+    console.error("openConfirmEmail error:",err);
+    alert("Email error: "+err.message);
+  }
 }
 function sendConfirmationEmail(){
   const to=document.getElementById('ce-to').value.trim();
