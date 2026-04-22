@@ -2851,6 +2851,8 @@ function openConfirmEmail(leadId,bookedJob){
   let moveDetailsSection='';
   if(q&&q.days&&q.days.length){
     const d0q=q.days[0]||{};
+    // DEBUG — remove after testing
+    console.log('Quote days:',JSON.stringify(q.days.map(d=>({date:d.date,rate:d.rate,crew:d.crew,hrsMin:d.hrsMin}))));
     if(isMulti){
       // Each day is self-contained with its own when/from/to/rate/fees
       q.days.forEach(function(d,i){
