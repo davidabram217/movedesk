@@ -2802,7 +2802,7 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
       ${isPending?`<button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent);padding:6px 14px;font-size:12.5px" onclick="acceptQuote('${l.id}')">✓ Mark as quote accepted</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="closeModal('view');openDidNotBook('${l.id}')">✕ Did not book</button>
     </div>`;
-const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
@@ -2835,6 +2835,9 @@ saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLe
 
 let currentConfirmEmailLeadId=null;
 function openConfirmEmail(leadId,bookedJob){
+  closeModal('view');
+  const ceModal=document.getElementById('modal-confirm-email');
+  if(ceModal)ceModal.style.zIndex='600';
   currentConfirmEmailLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l&&!bookedJob)return;
@@ -2851,12 +2854,6 @@ function openConfirmEmail(leadId,bookedJob){
   let moveDetailsSection='';
   if(q&&q.days&&q.days.length){
     const d0q=q.days[0]||{};
-    // DEBUG — remove after testing
-    alert('v99 Quote days: '+JSON.stringify(q.days.map(function(d){return{date:d.date,rate:d.rate,crew:d.crew,hrsMin:d.hrsMin};})));
-    try{alert('isMulti='+isMulti+' jobType='+q.jobType+' days='+q.days.length);}catch(e2){alert('CRASH on isMulti: '+e2.message);}
-    var _dbg='';
-    for(var _di=0;_di<q.days.length;_di++){var _d=q.days[_di];_dbg+='Day'+(_di+1)+': rate='+_d.rate+'\n';}
-    alert('Per day:\n'+_dbg);
     if(isMulti){
       // Each day is self-contained with its own when/from/to/rate/fees
       q.days.forEach(function(d,i){
