@@ -2912,7 +2912,7 @@ function openConfirmEmail(leadId,bookedJob){
           moveDetailsSection+='\nPacking Materials Used - TBD';
         }
         // Return drive
-        if(j&&j.driveReturn)moveDetailsSection+='\n'+j.driveReturn;
+        if(bj&&bj.driveReturn)moveDetailsSection+='\n'+bj.driveReturn;
         else moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
         if(i<q.days.length-1)moveDetailsSection+='\n';
       });
