@@ -2955,21 +2955,25 @@ function openConfirmEmail(leadId,bookedJob){
       moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
     }
   } else {
-    const moveDate=fmtDate(l.date);
+    const moveDate=fmtDate(l?.date||bj?.date||'');
     moveDetailsSection='\nWhen: '+moveDate+', arriving between 8:30–9:30am\n📦 From:\n'+fmtLoadLocations(l)+'\n\n🏠 To:\n'+fmtUnloadLocations(l);
   }
-  const subject=isMulti?'Multi-Day Move Confirmation — '+(q.days[0]?fmtDate(q.days[0].date):fmtDate(l.date)):'Move Confirmation — '+fmtDate(l.date);
+  const lEmail=l?.email||bj?.email||'';
+  const lPacking=l?.packing||bj?.packing||'';
+  const lStorage=l?.storage||bj?.storage||false;
+  const lDraft=l?._confirmEmailDraft||null;
+  const subject=isMulti?'Multi-Day Move Confirmation — '+(q&&q.days[0]?fmtDate(q.days[0].date):fmtDate(bj?.date||'')):'Move Confirmation — '+fmtDate(l?.date||bj?.date||'');
   const body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:'
     +moveDetailsSection
-    +'\n\n*Customer responsible for any parking tickets should they be incurred\n*No small packing needed\n'+(l.packing&&l.packing!=='No'?'*'+l.packing+' packing included\n':'')
-    +'\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nIf utilizing the Cash Discount you will need to have the full amount on hand as we cannot offer the discount if splitting the bill or using an alternate payment method. Try having more than enough cash handy as we would have to charge for time to get more.\n\nIf you have any questions feel free to reply to this email or you can always call the shop at (415) 822-8547.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the following important documents before your move:\n\nInsurance Options Form 2026:\nhttps://davidabram217.github.io/movedesk/insurance-2026.pdf\n\nMove Confirmation Letter 2026:\nhttps://davidabram217.github.io/movedesk/move-confirmation-2026.pdf\n'+(l.storage?'\nStorage Guidelines 2026:\nhttps://davidabram217.github.io/movedesk/storage-guidelines-2026.pdf\n':'')+'\nPlease let us know your insurance option choice prior to your move.\n\nWe look forward to seeing you soon.\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com\n\nCheck out our Yelp reviews: https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco';
-  document.getElementById('ce-to').value=l.email||'';
+    +'\n\n*Customer responsible for any parking tickets should they be incurred\n*No small packing needed\n'+(lPacking&&lPacking!=='No'?'*'+lPacking+' packing included\n':'')
+    +'\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nIf utilizing the Cash Discount you will need to have the full amount on hand as we cannot offer the discount if splitting the bill or using an alternate payment method. Try having more than enough cash handy as we would have to charge for time to get more.\n\nIf you have any questions feel free to reply to this email or you can always call the shop at (415) 822-8547.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the following important documents before your move:\n\nInsurance Options Form 2026:\nhttps://davidabram217.github.io/movedesk/insurance-2026.pdf\n\nMove Confirmation Letter 2026:\nhttps://davidabram217.github.io/movedesk/move-confirmation-2026.pdf\n'+(lStorage?'\nStorage Guidelines 2026:\nhttps://davidabram217.github.io/movedesk/storage-guidelines-2026.pdf\n':'')+'\nPlease let us know your insurance option choice prior to your move.\n\nWe look forward to seeing you soon.\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com\n\nCheck out our Yelp reviews: https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco';
+  document.getElementById('ce-to').value=lEmail;
   document.getElementById('ce-subject').value=subject;
   document.getElementById('ce-body').value=body;
-  if(l._confirmEmailDraft){
-    document.getElementById('ce-to').value=l._confirmEmailDraft.to||l.email||'';
-    document.getElementById('ce-subject').value=l._confirmEmailDraft.subject||subject;
-    document.getElementById('ce-body').value=l._confirmEmailDraft.body||body;
+  if(lDraft){
+    document.getElementById('ce-to').value=lDraft.to||lEmail;
+    document.getElementById('ce-subject').value=lDraft.subject||subject;
+    document.getElementById('ce-body').value=lDraft.body||body;
   }
   openModal('confirm-email');
 }
