@@ -1,5 +1,4 @@
-<!DOCTYPE html><!-- v1776894987 -->
-<html lang="en">
+<!DOCTYPE html><!-- v1776895390 --><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2940,7 +2939,8 @@ function openConfirmEmail(leadId,bookedJob){
   document.getElementById('ce-to').value=lEmail;
   document.getElementById('ce-subject').value=subject;
   document.getElementById('ce-body').value=body;
-  if(l?._confirmEmailDraft){
+  // Only load draft if it was saved recently (don't use old cached bodies)
+  if(l?._confirmEmailDraft&&l._confirmEmailDraft.savedAt&&l._confirmEmailDraft.savedAt>new Date(Date.now()-3600000).toISOString()){
     document.getElementById('ce-to').value=l._confirmEmailDraft.to||lEmail;
     document.getElementById('ce-subject').value=l._confirmEmailDraft.subject||subject;
     document.getElementById('ce-body').value=l._confirmEmailDraft.body||body;
