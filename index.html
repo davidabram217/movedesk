@@ -2853,7 +2853,7 @@ function openConfirmEmail(leadId,bookedJob){
     const d0q=q.days[0]||{};
     // DEBUG — remove after testing
     alert('v99 Quote days: '+JSON.stringify(q.days.map(function(d){return{date:d.date,rate:d.rate,crew:d.crew,hrsMin:d.hrsMin};})));
-    alert('isMulti='+isMulti+' jobType='+q.jobType+' days='+q.days.length);
+    try{alert('isMulti='+isMulti+' jobType='+q.jobType+' days='+q.days.length);}catch(e2){alert('CRASH on isMulti: '+e2.message);}
     var _dbg='';
     for(var _di=0;_di<q.days.length;_di++){var _d=q.days[_di];_dbg+='Day'+(_di+1)+': rate='+_d.rate+'\n';}
     alert('Per day:\n'+_dbg);
