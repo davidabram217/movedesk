@@ -4020,14 +4020,12 @@ function markDayCalAdded(jobId,calKey){
 
 async function bookingOpenEmail(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
-  if(!j)return;
+  if(!j){showToast('No booked job found');return;}
   const l=db.leads.find(x=>x.id===j.leadId);
   const to=j.email||l?.email||'';
   if(!to){showToast('No email on file — open lead to add email');return;}
   currentConfirmEmailLeadId=j.leadId||null;
-  // Build the email first before closing any modals
   openConfirmEmail(j.leadId||null,j);
-  // Now bump the confirm-email modal z-index above booking-next
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='600';
 }
@@ -4216,6 +4214,7 @@ function deleteBookedJob(id){
 function filterBooked(v){bookedFilter.text=v;renderBooked();}
 function filterBookedCrew(v){bookedFilter.crew=v;renderBooked();}
 function viewBookedJob(id){const j=db.bookedJobs.find(x=>x.id===id);if(!j)return;
+currentBookedJobId=id;
 // Backfill access/parking from lead if missing on job
 const _jLead=j.leadId?db.leads.find(l=>l.id===j.leadId):null;
 if(_jLead){
@@ -4381,6 +4380,7 @@ document.getElementById('view-modal-footer').innerHTML=`
       <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${j.leadId}')">✏ Edit lead</button>
       ${j.from&&j.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(j.from+(j.fromZip?' '+j.fromZip:'')).replace(/'/g,"\\'")}','${(j.to+(j.toZip?' '+j.toZip:'')).replace(/'/g,"\\'")}','${j.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:''}
       <button class="btn btn-secondary" onclick="editBookedJob('${j.id}')">✏️ Edit</button>
+      <button class="btn btn-secondary" onclick="currentBookedJobId='${j.id}';closeModal('view');setTimeout(()=>bookingOpenEmail(),100)">✉ Confirmation email</button>
       <button class="btn btn-secondary" style="color:var(--error);border-color:var(--error)" onclick="cancelJob('${j.id}')">Cancel job</button>
       <button class="btn btn-primary" onclick="closeModal('view');openComplete('${j.id}')">→ Close job</button>
     </div>
