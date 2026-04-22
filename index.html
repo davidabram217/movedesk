@@ -685,7 +685,7 @@
         <div class="form-group"><label>Phone *</label><input type="tel" id="nl-phone" placeholder="(555) 000-0000" onblur="checkRepeatByPhone(this.value)"></div>
         <div class="form-group"><label>Email</label><input type="email" id="nl-email" placeholder="email@example.com"></div>
         <div class="form-group"><label>How did they hear about us? *</label>
-          <select id="nl-source" onchange="toggleSourceDetail()"><option value="">Select source…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
+          <select id="nl-source" onchange="toggleSourceDetail()"><option value="">Select source…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
         </div>
         <div class="form-group" id="nl-source-detail-group" style="display:none">
           <label id="nl-source-detail-label">Details</label>
@@ -2290,7 +2290,7 @@ function toggleSourceDetail(){
     'Old Folks':   ['Any details?','e.g. contact name'],
     'Woodshanti':  ['Any details?','e.g. contact name'],
     'Juli Lipprie':['Any details?','e.g. context'],
-    'Philippe Kuzak':['Any details?','e.g. context'],
+    'Kuzak':['Any details?','e.g. context'],
     'Storage Out': ['Contact or context','e.g. rep name'],
     'Pack Attack': ['Contact or context','e.g. rep name'],
     'Tammy / Libby Organizer':['Any details?','e.g. which organizer'],
@@ -2310,7 +2310,7 @@ function toggleSourceDetail(){
 }
 
 function sourceBadge(s,detail){
-  const map={'Yelp':'pill-red','Google':'pill-blue','ChatGPT':'pill-purple','Referral':'pill-green','Building':'pill-amber','Realtor':'pill-amber','Social media':'pill-amber','Repeat customer':'pill-green','ZIPPG':'pill-green','Old Folks':'pill-green','Woodshanti':'pill-green','Juli Lipprie':'pill-green','Philippe Kuzak':'pill-green','Storage Out':'pill-blue','Pack Attack':'pill-blue','Moving Company':'pill-purple','Tammy / Libby Organizer':'pill-green','Unknown':'pill-gray','Other':'pill-gray'};
+  const map={'Yelp':'pill-red','Google':'pill-blue','ChatGPT':'pill-purple','Referral':'pill-green','Building':'pill-amber','Realtor':'pill-amber','Social media':'pill-amber','Repeat customer':'pill-green','ZIPPG':'pill-green','Old Folks':'pill-green','Woodshanti':'pill-green','Juli Lipprie':'pill-green','Kuzak':'pill-green','Storage Out':'pill-blue','Pack Attack':'pill-blue','Moving Company':'pill-purple','Tammy / Libby Organizer':'pill-green','Unknown':'pill-gray','Other':'pill-gray'};
   const label=detail?`${s}: ${detail}`:s;
   return`<span class="badge ${map[s]||'pill-gray'}" title="${detail||''}">${label||'—'}</span>`;
 }
