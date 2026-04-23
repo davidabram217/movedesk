@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v1776986689 --><html lang="en">
+<!DOCTYPE html><!-- v1776987148 --><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -668,7 +668,6 @@
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-dishes" onchange="calcPackMaterials()"> China/dishes</label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-wine" onchange="calcPackMaterials()"> Wine glasses</label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-tv" onchange="calcPackMaterials()"> Large TVs</label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-wardrobe" onchange="calcPackMaterials()"> Wardrobe contents</label>
               </div>
             </div>
           </div>
@@ -5102,7 +5101,6 @@ function calcPackMaterials(){
   const hasDishes=document.getElementById('pc-dishes').checked;
   const hasWine=document.getElementById('pc-wine').checked;
   const hasTv=document.getElementById('pc-tv').checked;
-  const hasWardrobe=document.getElementById('pc-wardrobe').checked;
   if(!size)return;
 
   // Base box counts by size (full pack)
@@ -5116,14 +5114,18 @@ function calcPackMaterials(){
   };
 
   // Unit costs
-  const COST={sm:2.50,med:3.50,lg:4.50,paper:25,bubble:30,tape:3.50,markers:2,vault:25,artwork:15,wineBox:8,tvBox:20};
+  const COST={sm:2.50,med:3.50,lg:4.50,paper:40,bubble:30,tape:2,markers:2,vault:25,artwork:6,wineBox:8,tvBox:20};
 
   let b={...BASE[size]};
 
   // Adjust for packing type
-  if(type==='partial'){b={sm:Math.ceil(b.sm*0.4),med:Math.ceil(b.med*0.4),lg:Math.ceil(b.lg*0.3),paper:Math.ceil(b.paper*0.5),bubble:b.bubble,tape:Math.ceil(b.tape*0.4),markers:1};}
-  else if(type==='kitchen'){b={sm:Math.ceil(b.sm*0.3),med:Math.ceil(b.med*0.3),lg:0,paper:Math.ceil(b.paper*0.4),bubble:1,tape:Math.ceil(b.tape*0.3),markers:1};}
-  else if(type==='unpack'){b={sm:0,med:0,lg:0,paper:0,bubble:0,tape:Math.ceil(b.tape*0.3),markers:1};}
+  if(type==='partial'){b={sm:Math.ceil(b.sm*0.4),med:Math.ceil(b.med*0.4),lg:Math.ceil(b.lg*0.3),paper:Math.ceil(b.paper*0.5),bubble:0,tape:Math.ceil(b.tape*0.4)};}
+  else if(type==='kitchen'){b={sm:Math.ceil(b.sm*0.3),med:Math.ceil(b.med*0.3),lg:0,paper:Math.ceil(b.paper*0.4),bubble:0,tape:Math.ceil(b.tape*0.3)};}
+  else if(type==='unpack'){b={sm:0,med:0,lg:0,paper:0,bubble:0,tape:Math.ceil(b.tape*0.3)};}
+
+  // Remove markers and bubble wrap from base — not charged to customer
+  b.markers=0;
+  b.bubble=0;
 
   // Sqft adjustment (if provided)
   if(sqft>0){
@@ -5136,8 +5138,8 @@ function calcPackMaterials(){
   let artworkBoxes=hasArtwork?3:0;
   let wineBoxes=hasWine?2:0;
   let tvBoxes=hasTv?2:0;
-  if(hasDishes){b.paper+=1;b.bubble+=1;}
-  if(hasWardrobe){b.tape+=2;}
+  if(hasDishes){b.paper+=1;}
+  if(hasTv){b.tape+=1;}
 
   // Vaults
   const vaultCost=vaults*COST.vault;
@@ -5151,10 +5153,8 @@ function calcPackMaterials(){
     ...(wineBoxes?[{label:'Wine glass boxes',qty:wineBoxes,unit:COST.wineBox,total:wineBoxes*COST.wineBox}]:[]),
     ...(tvBoxes?[{label:'TV boxes',qty:tvBoxes,unit:COST.tvBox,total:tvBoxes*COST.tvBox}]:[]),
     {label:'Packing paper (reams)',qty:b.paper,unit:COST.paper,total:b.paper*COST.paper},
-    {label:'Bubble wrap rolls',qty:b.bubble,unit:COST.bubble,total:b.bubble*COST.bubble},
     {label:'Packing tape rolls',qty:b.tape,unit:COST.tape,total:b.tape*COST.tape},
-    {label:'Markers',qty:b.markers,unit:COST.markers,total:b.markers*COST.markers},
-    ...(vaults?[{label:'Wardrobe/vault boxes',qty:vaults,unit:COST.vault,total:vaultCost}]:[]),
+    ...(vaults?[{label:'Vault/wardrobe boxes (returned after)',qty:vaults,unit:COST.vault,total:vaultCost}]:[]),
   ].filter(i=>i.qty>0);
 
   const totalCost=items.reduce((s,i)=>s+i.total,0);
