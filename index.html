@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v1776987148 --><html lang="en">
+<!DOCTYPE html><!-- v1776987484 --><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -668,6 +668,7 @@
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-dishes" onchange="calcPackMaterials()"> China/dishes</label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-wine" onchange="calcPackMaterials()"> Wine glasses</label>
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-tv" onchange="calcPackMaterials()"> Large TVs</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-wardrobe" onchange="calcPackMaterials()"> Wardrobe boxes</label>
               </div>
             </div>
           </div>
@@ -5101,6 +5102,7 @@ function calcPackMaterials(){
   const hasDishes=document.getElementById('pc-dishes').checked;
   const hasWine=document.getElementById('pc-wine').checked;
   const hasTv=document.getElementById('pc-tv').checked;
+  const hasWardrobe=document.getElementById('pc-wardrobe').checked;
   if(!size)return;
 
   // Base box counts by size (full pack)
@@ -5138,6 +5140,7 @@ function calcPackMaterials(){
   let artworkBoxes=hasArtwork?3:0;
   let wineBoxes=hasWine?2:0;
   let tvBoxes=hasTv?2:0;
+  let wardrobeBoxes=hasWardrobe?4:0;
   if(hasDishes){b.paper+=1;}
   if(hasTv){b.tape+=1;}
 
@@ -5152,9 +5155,9 @@ function calcPackMaterials(){
     ...(artworkBoxes?[{label:'Artwork/mirror boxes',qty:artworkBoxes,unit:COST.artwork,total:artworkBoxes*COST.artwork}]:[]),
     ...(wineBoxes?[{label:'Wine glass boxes',qty:wineBoxes,unit:COST.wineBox,total:wineBoxes*COST.wineBox}]:[]),
     ...(tvBoxes?[{label:'TV boxes',qty:tvBoxes,unit:COST.tvBox,total:tvBoxes*COST.tvBox}]:[]),
+    ...(wardrobeBoxes?[{label:'Wardrobe boxes',qty:wardrobeBoxes,unit:COST.vault,total:wardrobeBoxes*COST.vault}]:[]),
     {label:'Packing paper (reams)',qty:b.paper,unit:COST.paper,total:b.paper*COST.paper},
     {label:'Packing tape rolls',qty:b.tape,unit:COST.tape,total:b.tape*COST.tape},
-    ...(vaults?[{label:'Vault/wardrobe boxes (returned after)',qty:vaults,unit:COST.vault,total:vaultCost}]:[]),
   ].filter(i=>i.qty>0);
 
   const totalCost=items.reduce((s,i)=>s+i.total,0);
