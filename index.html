@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v1776909588 --><html lang="en">
+<!DOCTYPE html><!-- v1776986689 --><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,6 +29,7 @@
     <div class="nav-item" onclick="showPage('payroll')"><span>$</span> Payroll & Cash</div>
     <div class="nav-item" onclick="showPage('settings')"><span>◇</span> Settings</div>
     <div class="nav-item" onclick="showPage('aiquote')"><span>🤖</span> AI Quote Builder</div>
+    <div class="nav-item" onclick="showPage('packcalc')"><span>📦</span> Pack Materials Calc</div>
   </div>
   <div class="sidebar-footer">v1.0 · You & John</div>
 </nav>
@@ -631,6 +632,66 @@
     </div>
 
     
+    <div class="page" id="page-packcalc">
+      <div style="max-width:760px">
+        
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Job details</div></div>
+          <div class="card-body">
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>Home size</label>
+                <select id="pc-size" onchange="calcPackMaterials()">
+                  <option value="">Select…</option>
+                  <option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option>
+                  <option>3 Bedroom</option><option>4+ Bedroom</option><option>Office / Commercial</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Square footage <span style="font-size:11px;color:var(--text3)">(optional)</span></label>
+                <input type="number" id="pc-sqft" placeholder="e.g. 800" oninput="calcPackMaterials()">
+              </div>
+              <div class="form-group"><label>Packing type</label>
+                <select id="pc-type" onchange="calcPackMaterials()">
+                  <option value="full">Full pack (everything)</option>
+                  <option value="partial">Partial pack (fragiles only)</option>
+                  <option value="kitchen">Kitchen only</option>
+                  <option value="unpack">Unpack only</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Vaults / wardrobe boxes</label>
+                <input type="number" id="pc-vaults" placeholder="0" oninput="calcPackMaterials()">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:8px">
+              <label>Special items <span style="font-size:11px;color:var(--text3)">(check all that apply)</span></label>
+              <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-artwork" onchange="calcPackMaterials()"> Artwork/mirrors</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-dishes" onchange="calcPackMaterials()"> China/dishes</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-wine" onchange="calcPackMaterials()"> Wine glasses</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-tv" onchange="calcPackMaterials()"> Large TVs</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="pc-wardrobe" onchange="calcPackMaterials()"> Wardrobe contents</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        
+        <div id="pc-results" style="display:none">
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">📦 Estimated materials</div><div id="pc-total-display" style="font-size:15px;font-weight:700;color:var(--accent)"></div></div>
+            <div class="card-body" id="pc-breakdown"></div>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">📊 Historical averages <span style="font-size:11px;color:var(--text3);font-weight:400">from your completed jobs</span></div></div>
+            <div class="card-body" id="pc-historical"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">💡 Suggested quote range</div></div>
+            <div class="card-body" id="pc-suggestion"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-settings">
       <div style="max-width:520px">
         <div class="card" style="margin-bottom:16px">
@@ -1101,6 +1162,7 @@
           <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Rate per hour</div><div style="font-size:18px;font-weight:600;color:var(--accent)" id="cj-rate-display">—</div></div>
           <div style="flex:1"></div>
           <div class="form-group" style="margin:0;min-width:160px"><label>Amount paid ($)</label><input type="number" id="cj-paid" placeholder="0.00" oninput="calcBalance()"></div>
+          <div class="form-group" style="margin:0;min-width:160px"><label>Actual job total ($) <span style="font-size:10.5px;color:var(--text3)">if different from quoted</span></label><input type="number" id="cj-actual-total" placeholder="e.g. 1800"></div>
           <input type="hidden" id="cj-total">
         </div>
         <div id="cj-balance-bar" style="display:none;padding:10px 12px;border-radius:var(--radius);border:1px solid;display:flex;align-items:center;justify-content:space-between">
@@ -2102,7 +2164,7 @@ async function syncToSupabase(){
     await Promise.all(ops);
   }catch(e){console.error('Supabase sync error:',e);}
 }
-const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data']};
+const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type']};
 function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();}
 function openModal(n){
   if(n==='new-lead'){
@@ -4599,12 +4661,13 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
   // Pre-fill vaults from booking volume — extract max number from text like "4–5 vaults"
   if(j.volume){const nums=(j.volume.match(/[\d.]+/g)||[]).map(Number);if(nums.length)document.getElementById('cj-vaults').value=Math.max(...nums);}
   calcTotal();calcBalance();openModal('complete-job');}
-function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;const paid=document.getElementById('cj-paid').value;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
+function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;const paid=document.getElementById('cj-paid').value;
+  const actualTotal=document.getElementById('cj-actual-total')?.value?Number(document.getElementById('cj-actual-total').value):null;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
   const vaults=document.getElementById('cj-vaults').value;
   // Find the original quote for this job
   const lead=j?db.leads.find(l=>l.id===j.leadId):null;
   const originalQuote=lead?db.quotes.find(q=>q.leadId===lead.id):null;
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,owing,paymentState:paymentState||'paid',payment:document.getElementById('cj-payment').value,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:document.getElementById('cj-rate').value||null,feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,owing,paymentState:paymentState||'paid',payment:document.getElementById('cj-payment').value,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:document.getElementById('cj-rate').value||null,feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
@@ -5029,6 +5092,127 @@ function getEstimateEvents(){
   return events;
 }
 
+
+function calcPackMaterials(){
+  const size=document.getElementById('pc-size').value;
+  const sqft=Number(document.getElementById('pc-sqft').value)||0;
+  const type=document.getElementById('pc-type').value;
+  const vaults=Number(document.getElementById('pc-vaults').value)||0;
+  const hasArtwork=document.getElementById('pc-artwork').checked;
+  const hasDishes=document.getElementById('pc-dishes').checked;
+  const hasWine=document.getElementById('pc-wine').checked;
+  const hasTv=document.getElementById('pc-tv').checked;
+  const hasWardrobe=document.getElementById('pc-wardrobe').checked;
+  if(!size)return;
+
+  // Base box counts by size (full pack)
+  const BASE={
+    'Studio':           {sm:5,med:10,lg:5,paper:1,bubble:1,tape:4,markers:1},
+    '1 Bedroom':        {sm:8,med:15,lg:8,paper:2,bubble:1,tape:6,markers:1},
+    '2 Bedroom':        {sm:12,med:20,lg:10,paper:3,bubble:2,tape:8,markers:2},
+    '3 Bedroom':        {sm:15,med:25,lg:15,paper:4,bubble:3,tape:10,markers:2},
+    '4+ Bedroom':       {sm:20,med:35,lg:20,paper:5,bubble:4,tape:14,markers:3},
+    'Office / Commercial':{sm:15,med:20,lg:10,paper:3,bubble:2,tape:10,markers:2},
+  };
+
+  // Unit costs
+  const COST={sm:2.50,med:3.50,lg:4.50,paper:25,bubble:30,tape:3.50,markers:2,vault:25,artwork:15,wineBox:8,tvBox:20};
+
+  let b={...BASE[size]};
+
+  // Adjust for packing type
+  if(type==='partial'){b={sm:Math.ceil(b.sm*0.4),med:Math.ceil(b.med*0.4),lg:Math.ceil(b.lg*0.3),paper:Math.ceil(b.paper*0.5),bubble:b.bubble,tape:Math.ceil(b.tape*0.4),markers:1};}
+  else if(type==='kitchen'){b={sm:Math.ceil(b.sm*0.3),med:Math.ceil(b.med*0.3),lg:0,paper:Math.ceil(b.paper*0.4),bubble:1,tape:Math.ceil(b.tape*0.3),markers:1};}
+  else if(type==='unpack'){b={sm:0,med:0,lg:0,paper:0,bubble:0,tape:Math.ceil(b.tape*0.3),markers:1};}
+
+  // Sqft adjustment (if provided)
+  if(sqft>0){
+    const sizeDefaults={'Studio':400,'1 Bedroom':650,'2 Bedroom':950,'3 Bedroom':1300,'4+ Bedroom':2000,'Office / Commercial':1200};
+    const ratio=sqft/(sizeDefaults[size]||1000);
+    if(ratio>1.2||ratio<0.8){const r=Math.min(Math.max(ratio,0.6),1.5);Object.keys(b).forEach(k=>{b[k]=Math.ceil(b[k]*r);});}
+  }
+
+  // Special items
+  let artworkBoxes=hasArtwork?3:0;
+  let wineBoxes=hasWine?2:0;
+  let tvBoxes=hasTv?2:0;
+  if(hasDishes){b.paper+=1;b.bubble+=1;}
+  if(hasWardrobe){b.tape+=2;}
+
+  // Vaults
+  const vaultCost=vaults*COST.vault;
+
+  // Calculate costs
+  const items=[
+    {label:'Small boxes (1.5 cu ft)',qty:b.sm,unit:COST.sm,total:b.sm*COST.sm},
+    {label:'Medium boxes (3 cu ft)',qty:b.med,unit:COST.med,total:b.med*COST.med},
+    {label:'Large boxes (4.5 cu ft)',qty:b.lg,unit:COST.lg,total:b.lg*COST.lg},
+    ...(artworkBoxes?[{label:'Artwork/mirror boxes',qty:artworkBoxes,unit:COST.artwork,total:artworkBoxes*COST.artwork}]:[]),
+    ...(wineBoxes?[{label:'Wine glass boxes',qty:wineBoxes,unit:COST.wineBox,total:wineBoxes*COST.wineBox}]:[]),
+    ...(tvBoxes?[{label:'TV boxes',qty:tvBoxes,unit:COST.tvBox,total:tvBoxes*COST.tvBox}]:[]),
+    {label:'Packing paper (reams)',qty:b.paper,unit:COST.paper,total:b.paper*COST.paper},
+    {label:'Bubble wrap rolls',qty:b.bubble,unit:COST.bubble,total:b.bubble*COST.bubble},
+    {label:'Packing tape rolls',qty:b.tape,unit:COST.tape,total:b.tape*COST.tape},
+    {label:'Markers',qty:b.markers,unit:COST.markers,total:b.markers*COST.markers},
+    ...(vaults?[{label:'Wardrobe/vault boxes',qty:vaults,unit:COST.vault,total:vaultCost}]:[]),
+  ].filter(i=>i.qty>0);
+
+  const totalCost=items.reduce((s,i)=>s+i.total,0);
+  const minCost=Math.round(totalCost*0.85/5)*5;
+  const maxCost=Math.round(totalCost*1.25/5)*5;
+
+  // Historical data from completed jobs
+  const historicalJobs=(db.completedJobs||[]).filter(j=>{
+    if(!j.feePackMaterials||Number(j.feePackMaterials)<=0)return false;
+    if(size&&j.size&&j.size!==size)return false;
+    return true;
+  });
+  const histAmounts=historicalJobs.map(j=>Number(j.feePackMaterials)).filter(n=>n>0).sort((a,b)=>a-b);
+  const histAvg=histAmounts.length?Math.round(histAmounts.reduce((s,n)=>s+n,0)/histAmounts.length):null;
+  const histMin=histAmounts.length?histAmounts[0]:null;
+  const histMax=histAmounts.length?histAmounts[histAmounts.length-1]:null;
+
+  // Update UI
+  document.getElementById('pc-results').style.display='block';
+  document.getElementById('pc-total-display').textContent='$'+minCost+' – $'+maxCost;
+  document.getElementById('pc-breakdown').innerHTML=`
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Item</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Qty</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Unit</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Total</th>
+      </tr></thead>
+      <tbody>${items.map(i=>`<tr>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border)">${i.label}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${i.qty}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">$${i.unit.toFixed(2)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-weight:500">$${i.total.toFixed(2)}</td>
+      </tr>`).join('')}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--border)">
+        <td colspan="3" style="padding:8px;font-weight:600">Estimated total</td>
+        <td style="padding:8px;text-align:right;font-weight:700;color:var(--accent)">$${totalCost.toFixed(2)}</td>
+      </tr></tfoot>
+    </table>`;
+
+  document.getElementById('pc-historical').innerHTML=histAmounts.length?`
+    <div style="font-size:13.5px;line-height:2">
+      <div>Jobs matching this size: <strong>${histAmounts.length}</strong></div>
+      <div>Average charged: <strong style="color:var(--accent)">$${histAvg}</strong></div>
+      <div>Range: <strong>$${histMin} – $${histMax}</strong></div>
+    </div>
+    <div style="margin-top:12px">
+      ${histAmounts.map(n=>`<span style="display:inline-block;background:var(--surface2);border-radius:4px;padding:3px 8px;font-size:12px;margin:2px">$${n}</span>`).join('')}
+    </div>`
+    :`<div class="empty-state"><div class="empty-title">No historical data yet</div><div class="empty-sub">Complete jobs with packing materials costs to see averages here</div></div>`;
+
+  const suggestedMin=histAvg?Math.round(Math.min(minCost,histAvg*0.9)/5)*5:minCost;
+  const suggestedMax=histAvg?Math.round(Math.max(maxCost,histAvg*1.1)/5)*5:maxCost;
+  document.getElementById('pc-suggestion').innerHTML=`
+    <div style="font-size:24px;font-weight:700;color:var(--accent);margin-bottom:6px">$${suggestedMin} – $${suggestedMax}</div>
+    <div style="font-size:13px;color:var(--text3)">Based on ${histAvg?'material costs and your historical averages':'estimated material costs'}. Adjust based on customer's actual packing needs.</div>
+    <button class="btn btn-primary" style="margin-top:14px" onclick="navigator.clipboard.writeText('$'+${suggestedMin}+' – $'+${suggestedMax});showToast('✓ Copied to clipboard')">📋 Copy range</button>`;
+}
 
 function renderAnalytics(){
   // Populate year selector
