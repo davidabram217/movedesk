@@ -1,4 +1,4 @@
-<!DOCTYPE html><!-- v1776895919 --><html lang="en">
+<!DOCTYPE html><!-- v1776909588 --><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1045,6 +1045,7 @@
         <div class="form-group"><label>Est. volume (vaults)</label><input type="text" id="bj-volume" placeholder="e.g. 4–5 vaults"></div>
         <div class="form-group full"><label>Scope of work / items of note</label><textarea id="bj-scope" placeholder="Key items, fragile pieces, special handling notes…" style="min-height:70px"></textarea></div>
         <div class="form-group full"><label>Special crew notes</label><textarea id="bj-crew-notes" placeholder="Instructions specifically for the crew on the day…" style="min-height:60px"></textarea></div>
+        <div class="form-group"><label>Do not exceed price ($)</label><input type="number" id="bj-do-not-exceed" placeholder="e.g. 5755"></div>
         <div class="form-group full"><label>Additional notes</label><textarea id="bj-email-note" placeholder="Any other details…" style="min-height:60px"></textarea></div>
         <div class="form-group full" style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
           <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">🔒 Office notes only <span style="font-size:10px;font-weight:400;color:var(--text3)">— never shared with client, appears at top of calendar entry</span></label>
@@ -3566,6 +3567,7 @@ function bjWriteFields(j){
   j.volume=document.getElementById('bj-volume').value;
   j.scope=document.getElementById('bj-scope').value;
   j.crewNotes=document.getElementById('bj-crew-notes').value;
+  j.doNotExceed=document.getElementById('bj-do-not-exceed')?.value?Number(document.getElementById('bj-do-not-exceed').value):null;
   j.emailNote=document.getElementById('bj-email-note').value;
   j.officeNotes=document.getElementById('bj-office-notes')?.value||'';
   j.crewDiff=document.getElementById('bj-crew-diff').checked;
@@ -3586,7 +3588,7 @@ function openBooking(leadId){
   if(!l)return;
   document.getElementById('book-job-summary').innerHTML=`<strong>${l.name}</strong> · ${l.phone||''} · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;
   document.getElementById('bj-date').value=l.date||'';
-  ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes','bj-do-not-exceed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bj-time').value='8:30–9:30am';
   document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   // Auto-populate from quote if one exists
@@ -3870,7 +3872,6 @@ function openBookingChecklist(){
 }
 
 function buildDayCalUrl(j,day,dayNum){
-  // Build a Google Calendar URL for a specific day from a quote day object
   const dateStr=day.date||j.date||'';
   const d=dateStr.replace(/-/g,'');
   let startHour='0830',endHour='1730';
@@ -3878,25 +3879,110 @@ function buildDayCalUrl(j,day,dayNum){
     const m=day.arrivalStart.match(/(\d+)[:.]?(\d*)\s*(am|pm)?/i);
     if(m){let h=parseInt(m[1]);const mins=m[2]?m[2].padEnd(2,'0'):'00';if(m[3]&&m[3].toLowerCase()==='pm'&&h!==12)h+=12;if(m[3]&&m[3].toLowerCase()==='am'&&h===12)h=0;startHour=String(h).padStart(2,'0')+mins;endHour=String(Math.min(h+9,23)).padStart(2,'0')+mins;}
   }
-  const loads=day.loads&&day.loads.length?day.loads:[{address:day.from||''}];
-  const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:day.to||''}];
+  const loads=day.loads&&day.loads.length?day.loads:[{address:day.from||j.from||'',access:day.fromAccess||j.accessLoad||'',parking:day.fromParking||j.parkingLoad||''}];
+  const unloads=day.unloads&&day.unloads.length?day.unloads:[{address:day.to||j.to||'',access:day.toAccess||j.accessUnload||'',parking:day.toParking||j.parkingUnload||''}];
   const firstLoad=loads.find(l=>l.address)||{};
-  const dayLabel=j.name+' — Day '+dayNum+' | '+fmtCrewDesc(day)+' | '+(firstLoad.address||'');
+  const hasUnloads=unloads.some(l=>l.address);
+  const isPackDay=!hasUnloads||(day.dayLabel&&day.dayLabel.toLowerCase().includes('pack'));
+  const totalDays=(j.quoteDays||[]).length;
+  const dayLabelText=day.dayLabel?'Day '+dayNum+' - '+day.dayLabel:'Day '+dayNum+(dayNum===1&&totalDays>1?' - Pack & Prep':dayNum===totalDays&&totalDays>1?' - Move Day':'');
+  const calTitle=j.name+' — '+dayLabelText+' | '+fmtCrewDesc(day)+' | '+(firstLoad.address||'');
+  const fmt=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+
   const lines=[];
-  if(j.officeNotes){lines.push('🔒 OFFICE NOTES: '+j.officeNotes);lines.push('');}
-  lines.push(j.name+' · '+j.phone);
-  lines.push('Day '+dayNum+' of '+(j.quoteDays||[]).length);
-  lines.push('Crew: '+fmtCrewDesc(day)+' · '+(day.hrsMin||'?')+'–'+(day.hrsMax||'?')+' hrs @ $'+(day.rate||'?')+'/hr');
-  if(day.packCrew&&day.packRate)lines.push('Packing crew: '+(day.packCrewSize||1)+' packer(s) · '+(day.packHrsMin||'?')+'–'+(day.packHrsMax||'?')+' hrs @ $'+day.packRate+'/hr');
+
+  // Office notes at top
+  if(j.officeNotes){lines.push('🔒 OFFICE NOTES ONLY');lines.push(j.officeNotes.toUpperCase());lines.push('');}
+
+  // Customer + day header
+  lines.push(j.name+(j.phone?' ('+j.phone+')':''));
+  if(j.source)lines.push('Source: '+j.source);
+  if(j.size)lines.push(j.size);
   lines.push('');
-  loads.filter(l=>l.address).forEach((l,i)=>{lines.push((i===0?'📦 Pick-up':'📦 Pickup '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));if(l.access)lines.push('   Access: '+l.access);if(l.parking)lines.push('   Parking: '+l.parking);});
+
+  // Day label
+  lines.push(dayLabelText);
   lines.push('');
-  unloads.filter(l=>l.address).forEach((l,i)=>{lines.push((i===0?'🏠 Drop-off':'🏠 Drop-off '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));if(l.access)lines.push('   Access: '+l.access);if(l.parking)lines.push('   Parking: '+l.parking);});
-  if(j.scope){lines.push('');lines.push('Scope: '+j.scope);}
-  if(j.crewNotes){lines.push('');lines.push('Crew notes: '+j.crewNotes);}
-  const desc=encodeURIComponent(lines.join('\n'));
+
+  // When
+  const arrStr=day.arrivalStart?'we will arrive between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'';
+  lines.push('When: '+fmtDate(dateStr)+(arrStr?' - '+arrStr:''));
+  lines.push('');
+
+  // From
+  loads.filter(l=>l.address).forEach((l,i)=>{
+    lines.push((i===0?'From':'Pickup '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));
+    if(l.access)lines.push('Load: '+l.access);
+    if(l.parking)lines.push('Parking: '+l.parking);
+  });
+
+  // To
+  if(hasUnloads){
+    unloads.filter(l=>l.address).forEach((l,i)=>{
+      lines.push((i===0?'To':'Drop-off '+(i+1))+': '+l.address+(l.unit?' #'+l.unit:''));
+      if(l.access)lines.push('Unload: '+l.access);
+      if(l.parking)lines.push('Parking: '+l.parking);
+    });
+  } else {
+    lines.push('To: Onsite pack & prep');
+  }
+  lines.push('');
+
+  // Rate
+  const rate=Number(day.rate||0);
+  const cashRate=j.rateCash?Number(j.rateCash):null;
+  const day1Rate=j.quoteDays&&j.quoteDays[0]?Number(j.quoteDays[0].rate||rate):rate;
+  const dayCash=cashRate&&day1Rate?Math.round(cashRate*(rate/day1Rate)):null;
+  if(rate){
+    const crew=Number(day.crew||0);
+    const cashStr=dayCash?' ($'+fmt(dayCash)+'.00 If Paid Cash)':'';
+    lines.push(crew+' men @ $'+fmt(rate)+'.00 Per Hour'+cashStr);
+  }
+  lines.push('');
+
+  // Day-specific fees from quote
+  const allFees=(j.quoteFees||[]).filter(f=>f.included&&(f.amount||f.hrsMin||f.hrsMax));
+  allFees.forEach(f=>{
+    const lbl=(f.label||f.name||'');
+    const lblL=lbl.toLowerCase();
+    if(lblL.includes('packing material'))return; // shown separately
+    // Day filter
+    const mentionsDay=(j.quoteDays||[]).some((_,di)=>lblL.includes('day '+(di+1))||lblL.includes('day'+(di+1)));
+    if(mentionsDay&&!lblL.includes('day '+dayNum)&&!lblL.includes('day'+dayNum))return;
+    if(!mentionsDay){
+      if(lblL.includes('pack day')||lblL.includes('packing day')){if(dayNum!==1)return;}
+      else if(lblL.includes('move day')||lblL.includes('delivery day')){if(dayNum!==totalDays)return;}
+      // generic fees — day 1 only
+      else if(dayNum!==1)return;
+    }
+    if(f.type==='range'){lines.push('$'+(f.hrsMin||0)+' – $'+(f.hrsMax||0)+' '+lbl);}
+    else{lines.push('$'+fmt(f.amount)+'.00 '+lbl);}
+  });
+
+  // Packing materials on pack days
+  const packFee=allFees.find(f=>(f.label||f.name||'').toLowerCase().includes('packing material'));
+  if(isPackDay){
+    if(packFee&&packFee.type==='range'){lines.push('$'+packFee.hrsMin+' – $'+packFee.hrsMax+' '+(packFee.label||'Packing Materials'));}
+    else{lines.push('Packing materials used TBD');}
+  }
+
+  // Drive/return
+  lines.push('');
+  if(j.driveTo)lines.push(j.driveTo);
+  lines.push('Drive to location and return drive time back to warehouse at completion of day (30 Minute Minimum)');
+
+  // Scope / exclusions
+  if(j.scope){lines.push('');lines.push(j.scope);}
+
+  // Crew notes
+  if(j.crewNotes){lines.push('');lines.push(j.crewNotes);}
+
+  // Do not exceed (from officeNotes or separate field)
+  if(j.doNotExceed){lines.push('');lines.push('Do not exceed price is $'+fmt(j.doNotExceed)+' + 3.5% credit card fee. (no fee for check)');}
+
+  const desc=encodeURIComponent(lines.filter(l=>l!==undefined).join('\n').replace(/\n{3,}/g,'\n\n'));
   const loc=encodeURIComponent(firstLoad.address||'');
-  return`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(dayLabel)}&dates=${d}T${startHour}00/${d}T${endHour}00&details=${desc}&location=${loc}`;
+  return`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(calTitle)}&dates=${d}T${startHour}00/${d}T${endHour}00&details=${desc}&location=${loc}`;
 }
 
 function renderBookingChecklist(){
@@ -4387,6 +4473,7 @@ function editBookedJob(jobId){
   document.getElementById('bj-scope').value=j.scope||'';
   document.getElementById('bj-crew-notes').value=j.crewNotes||'';
   document.getElementById('bj-email-note').value=j.emailNote||'';
+  if(document.getElementById('bj-do-not-exceed'))document.getElementById('bj-do-not-exceed').value=j.doNotExceed||'';
   if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';
   const titleEl=document.querySelector('#modal-book-job .modal-title');
   const btnEl=document.querySelector('#modal-book-job .btn-primary');
@@ -8920,16 +9007,7 @@ function switchJobTab(tab,id,el){
   document.getElementById('jt-calendar').style.display=tab==='calendar'?'':'none';
 }
 
-function markDayCalAdded(jobId,dayId){
-  const j=db.bookedJobs.find(x=>x.id===jobId);
-  if(!j||!j.extraDays)return;
-  const day=j.extraDays.find(d=>d.id===dayId);
-  if(day){day.calendarAdded=true;saveDB();}
-  setTimeout(()=>{
-    const btn=document.querySelector('#booking-checklist div:nth-child(2)');
-    if(btn)btn.style.borderColor='var(--accent)';
-  },300);
-}
+
 
 function openDayConfirmEmail(jobId,dayId){
   const j=db.bookedJobs.find(x=>x.id===jobId);
