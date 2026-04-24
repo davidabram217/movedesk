@@ -883,8 +883,14 @@
         </button>
         <button class="btn btn-secondary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="nextStepAction('summary')">
           <div>
-            <div style="font-weight:500;font-size:13px">📋 Send call summary email</div>
+            <div style="font-weight:500;font-size:13px">📋 Send call summary</div>
             <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Generate a summary email to send back to the customer</div>
+          </div>
+        </button>
+        <button class="btn btn-secondary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="nextStepAction('summary-rq')">
+          <div>
+            <div style="font-weight:500;font-size:13px">📋 Send summary + rough quote</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Include a ballpark price in the summary email</div>
           </div>
         </button>
         <button class="btn btn-secondary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="nextStepAction('estimate')">
@@ -2542,6 +2548,10 @@ function nextStepAction(action){
     if(l){l.status='Need to send summary';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
     nextStepSubModal=true;
     setTimeout(()=>openCallSummaryEmail(currentNextStepLeadId),200);
+  } else if(action==='summary-rq'){
+    const l=db.leads.find(x=>x.id===currentNextStepLeadId);
+    if(l){l.status='Need to send summary';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
+    setTimeout(()=>openRoughQuotePrompt(currentNextStepLeadId),200);
   } else if(action==='estimate'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
     if(l){l.status='Estimate scheduled';saveDB();renderLeads();}
@@ -2869,6 +2879,7 @@ const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" 
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
+const summaryRQBtn=['New','Need to follow up','Need to send summary'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');setTimeout(()=>openRoughQuotePrompt('${l.id}'),200)">✉ Summary + rough quote</button>`:'';
 const viewSummaryBtn=(l.status==='Summary sent'||l.status==='Summary + rough quote')?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
 const roughQuoteBlock=l.roughQuoteDate?`<div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px;display:flex;justify-content:space-between;align-items:center">
   <div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Rough quote sent${l.roughQuoteSentBy?' by '+l.roughQuoteSentBy:''} · ${fmtDate(l.roughQuoteDate)}</div>
@@ -2883,7 +2894,7 @@ document.getElementById('view-modal-footer').innerHTML=`
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>
-      ${summaryBtn}${viewSummaryBtn}${viewQuoteBtn}${mapBtn}
+      ${summaryBtn}${summaryRQBtn}${viewSummaryBtn}${viewQuoteBtn}${mapBtn}
       <button class="btn btn-secondary" style="color:#c0392b;border-color:#c0392b" onclick="window.deleteLead('${l.id}')">🗑 Delete</button>
     </div>
     <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
@@ -3106,7 +3117,8 @@ function handleStatusClick(id,status){
     return;
   }
   if(status==='Summary + rough quote'){
-    openRoughQuotePrompt(id);
+    closeModal('view');
+    setTimeout(()=>openRoughQuotePrompt(id),200);
     return;
   }
   if(status==='Estimate scheduled'){
