@@ -1,4 +1,5 @@
-<!DOCTYPE html><!-- v1776987484 --><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2757,7 +2758,7 @@ function renderDashboard(){
 let leadFilter={text:'',source:'',est:''};
 function renderLeads(){const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=db.leads.filter(l=>l.status==='Did not book').length;renderPipeline();renderLeadsTable();}
 function renderPipeline(){const stages=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'];const sc={'New':'#1a5276','Need to follow up':'#b7860b','Need to send summary':'#b7860b','Summary sent':'#2d5a3d','Summary + rough quote':'#2d5a3d','Estimate scheduled':'#6c3483','Need to send estimate':'#b7860b','Estimate sent':'#b7860b','Quote accepted':'#2d5a3d','Confirmation sent':'#2d5a3d'};document.getElementById('pipeline-board').style.gridTemplateColumns='repeat(4,1fr)';document.getElementById('pipeline-board').innerHTML=stages.map(stage=>{const cards=db.leads.filter(l=>l.status===stage);return`<div class="pipeline-col"><div class="pipeline-col-header"><span style="color:${sc[stage]};font-size:10px">${stage}</span><span class="pipeline-col-count">${cards.length}</span></div><div class="pipeline-cards">${cards.length?cards.map(l=>`<div class="pipeline-card" onclick="viewLead('${l.id}')"><div class="pipeline-card-name">${l.name}</div><div class="pipeline-card-meta">${l.size||'Size TBD'} · ${fmtDate(l.date)}</div><div class="pipeline-card-footer">${sourceBadge(l.source,l.sourceDetail)} ${l.estimateType?estBadge(l.estimateType):'<span class="badge pill-gray">No estimate</span>'}</div></div>`).join(''):'<div style="font-size:11px;color:var(--text3);padding:10px;text-align:center">No leads</div>'}</div></div>`;}).join('');}
-function renderLeadsTable(){let leads=db.leads.filter(l=>l.status!=='Did not book'&&l.status!=='Booked'&&l.status!=='Completed');if(leadFilter.text)leads=leads.filter(l=>l.name.toLowerCase().includes(leadFilter.text.toLowerCase())||l.phone.includes(leadFilter.text));if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td><td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;}
+function renderLeadsTable(){let leads=db.leads.filter(l=>l.status!=='Did not book'&&l.status!=='Booked'&&l.status!=='Completed');if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td><td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;}
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
 function filterLeadsSource(v){leadFilter.source=v;renderLeadsTable();}
 function filterLeadsEst(v){leadFilter.est=v;renderLeadsTable();}
@@ -6423,20 +6424,38 @@ function globalSearch(val){
       totalSpent:jobs.reduce((s,j)=>s+(Number(j.paid)||0),0),latestJob,latestLead,isBooked});
   });
 
-  // Also search leads directly — catches anyone not yet in customers
+  // Also search leads directly — catches anyone not yet in customers, all statuses
   db.leads.forEach(l=>{
     if(!l.name)return;
     const ln=(l.name||'').toLowerCase();
-    const lp=(l.phone||'');
-    if(!ln.includes(q)&&!lp.includes(q)&&!(l.email||'').toLowerCase().includes(q))return;
-    // Skip if already found via customers (match by phone or name+phone combo)
-    const alreadyFound=matched.some(m=>(lp&&m.phone===lp)||(ln===m.name.toLowerCase()&&!lp));
-    if(alreadyFound)return;
+    const lp=(l.phone||'').replace(/\D/g,'');
+    const qClean=q.replace(/\D/g,'');
+    const matches=ln.includes(q)||lp.includes(qClean)||(l.phone||'').includes(q)||(l.email||'').toLowerCase().includes(q);
+    if(!matches)return;
+    // Skip if already found via customers with same phone
+    if(lp&&matched.some(m=>(m.phone||'').replace(/\D/g,'')===lp))return;
     const key='lead:'+l.id;
     if(seenKeys.has(key))return;
     seenKeys.add(key);
-    matched.push({custId:null,name:l.name,phone:lp,totalJobs:0,totalSpent:0,
-      latestJob:null,latestLead:l,isBooked:false,leadId:l.id});
+    const isBooked=l.status==='Booked'||l.status==='Quote accepted'||l.status==='Confirmation sent';
+    matched.push({custId:null,name:l.name,phone:l.phone||'',totalJobs:0,totalSpent:0,
+      latestJob:null,latestLead:l,isBooked,leadId:l.id});
+  });
+
+  // Also search booked jobs directly
+  (db.bookedJobs||[]).forEach(j=>{
+    if(!j.name)return;
+    const jn=(j.name||'').toLowerCase();
+    const jp=(j.phone||'').replace(/\D/g,'');
+    const qClean=q.replace(/\D/g,'');
+    const matches=jn.includes(q)||jp.includes(qClean)||(j.phone||'').includes(q)||(j.email||'').toLowerCase().includes(q);
+    if(!matches)return;
+    if(jp&&matched.some(m=>(m.phone||'').replace(/\D/g,'')===jp))return;
+    const key='bj:'+j.id;
+    if(seenKeys.has(key))return;
+    seenKeys.add(key);
+    matched.push({custId:null,name:j.name,phone:j.phone||'',totalJobs:0,totalSpent:0,
+      latestJob:null,latestLead:null,isBooked:true,bookedJobId:j.id,leadId:j.leadId||null});
   });
 
   if(!matched.length){
@@ -6457,6 +6476,7 @@ function globalSearch(val){
     else if(c.latestLead)sub.push('Lead: '+fmtDate(c.latestLead.date||c.latestLead.createdAt));
     const clickAction=c.custId
       ?`closeGlobalSearch();showPage('customers');setTimeout(()=>viewCustomer('${c.custId}'),100)`
+      :c.bookedJobId?`closeGlobalSearch();showPage('booked');setTimeout(()=>viewBookedJob('${c.bookedJobId}'),100)`
       :c.leadId?`closeGlobalSearch();showPage('leads');setTimeout(()=>viewLead('${c.leadId}'),100)`
       :'closeGlobalSearch()';
     return`<div onclick="${clickAction}" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
