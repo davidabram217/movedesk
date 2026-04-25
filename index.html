@@ -2550,8 +2550,9 @@ function nextStepAction(action){
     setTimeout(()=>openCallSummaryEmail(currentNextStepLeadId),200);
   } else if(action==='summary-rq'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){l.status='Need to send summary';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
-    setTimeout(()=>openRoughQuotePrompt(currentNextStepLeadId),200);
+    if(l){l.status='Summary + rough quote';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
+    nextStepSubModal=true;
+    setTimeout(()=>openCallSummaryEmail(currentNextStepLeadId),200);
   } else if(action==='estimate'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
     if(l){l.status='Estimate scheduled';saveDB();renderLeads();}
@@ -2879,7 +2880,7 @@ const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" 
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
-const summaryRQBtn=['New','Need to follow up','Need to send summary'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');setTimeout(()=>openRoughQuotePrompt('${l.id}'),200)">✉ Summary + rough quote</button>`:'';
+const summaryRQBtn=['New','Need to follow up','Need to send summary'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');setTimeout(()=>{const _l=db.leads.find(x=>x.id==='${l.id}');if(_l){_l.status='Summary + rough quote';_l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();}openCallSummaryEmail('${l.id}');},200)">✉ Summary + rough quote</button>`:'';
 const viewSummaryBtn=(l.status==='Summary sent'||l.status==='Summary + rough quote')?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
 const roughQuoteBlock=l.roughQuoteDate?`<div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px;display:flex;justify-content:space-between;align-items:center">
   <div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Rough quote sent${l.roughQuoteSentBy?' by '+l.roughQuoteSentBy:''} · ${fmtDate(l.roughQuoteDate)}</div>
@@ -3117,8 +3118,10 @@ function handleStatusClick(id,status){
     return;
   }
   if(status==='Summary + rough quote'){
+    const l=db.leads.find(x=>x.id===id);
+    if(l){l.status='Summary + rough quote';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();}
     closeModal('view');
-    setTimeout(()=>openRoughQuotePrompt(id),200);
+    setTimeout(()=>openCallSummaryEmail(id),200);
     return;
   }
   if(status==='Estimate scheduled'){
