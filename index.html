@@ -771,7 +771,7 @@
         <div class="form-group" id="nl-size-other-group" style="display:none"><label>Please describe</label><input type="text" id="nl-size-other" placeholder="e.g. Large warehouse, 2 units, etc."></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="nl-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Type of move</label>
-          <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Internal</option></select>
+          <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Internal</option></select>
         </div>
         <div class="form-group"><label>Packing needed?</label>
           <select id="nl-packing"><option value="No">No — just moving</option><option value="Partial">Partial packing</option><option value="Full">Full packing service</option></select>
@@ -1470,6 +1470,7 @@
             <option>Move to storage</option>
             <option>Pack and move to storage</option>
             <option>Move out of storage</option>
+            <option>Load pod / truck only</option>
             <option>Internal</option>
           </select>
         </div>
@@ -3158,11 +3159,38 @@ function openCallSummaryEmail(leadId){
   const firstName=l.name?l.name.split(' ')[0]:'there';
   document.getElementById('cs-to').value=l.email||'';
   document.getElementById('cs-subject').value=`Summary of Our Call — Your Upcoming Move`;
-  // Build rough quote section if any fields filled in
+  // Build rough quote section — check both old structure (rq.*) and new (l.roughQuoteMin/Max)
   const rq=l.roughQuote||{};
-  const hasRQ=rq.movers||rq.rate||rq.hrsMin||rq.fuel||rq.materials||rq.other;
+  const hasNewRQ=l.roughQuoteMin||l.roughQuoteMax;
+  const hasOldRQ=rq.movers||rq.rate||rq.hrsMin||rq.fuel||rq.materials||rq.other;
+  const hasRQ=hasNewRQ||hasOldRQ;
   let rqSection='';
-  if(hasRQ){
+  if(hasNewRQ){
+    // New style — roughQuoteMin/Max already calculated totals
+    const min=Number(l.roughQuoteMin||0);
+    const max=Number(l.roughQuoteMax||0);
+    const cashMin=l.roughQuoteCashMin?Number(l.roughQuoteCashMin):null;
+    const cashMax=l.roughQuoteCashMax?Number(l.roughQuoteCashMax):null;
+    rqSection='\n\nRough estimate discussed on call:';
+    if(rq.movers&&rq.rate)rqSection+='\n  '+rq.movers+' movers @ $'+rq.rate+'/hr'+(rq.cashRate?' or $'+rq.cashRate+' if paid in cash':'');
+    if(rq.hrsMin||rq.hrsMax)rqSection+='\n  Est. '+(rq.hrsMin||'?')+(rq.hrsMax&&rq.hrsMax!==rq.hrsMin?'–'+rq.hrsMax:'')+' hours';
+    if(rq.fuel)rqSection+='\n  Fuel fee: $'+rq.fuel;
+    if(rq.materials)rqSection+='\n  Material fee: $'+rq.materials;
+    if(rq.packMatMin||rq.packMatMax)rqSection+='\n  Packing materials: $'+(rq.packMatMin||'?')+(rq.packMatMax&&rq.packMatMax!==rq.packMatMin?' – $'+rq.packMatMax:'');
+    rqSection+='\n\n  Estimated total: $'+min.toLocaleString()+(max&&max!==min?' – $'+max.toLocaleString():'');
+    // Cash totals — from cashRate on roughQuote if available
+    if(rq.cashRate&&rq.hrsMin){
+      const cashLabourMin=Number(rq.cashRate)*Number(rq.hrsMin);
+      const cashLabourMax=rq.hrsMax?Number(rq.cashRate)*Number(rq.hrsMax):cashLabourMin;
+      const fees=(Number(rq.fuel)||0)+(Number(rq.materials)||0);
+      const cashTotalMin=cashLabourMin+fees;
+      const cashTotalMax=cashLabourMax+fees;
+      rqSection+=' or $'+cashTotalMin.toLocaleString()+(cashTotalMax!==cashTotalMin?' – $'+cashTotalMax.toLocaleString():'')+' if paid in cash';
+    } else if(l.roughQuoteCashMin){
+      rqSection+=' or $'+Number(l.roughQuoteCashMin).toLocaleString()+(l.roughQuoteCashMax&&l.roughQuoteCashMax!==l.roughQuoteCashMin?' – $'+Number(l.roughQuoteCashMax).toLocaleString():'')+' if paid in cash';
+    }
+    rqSection+='\n\n*Please note this is a rough estimate based on our phone discussion. The final cost may vary and we will confirm exact pricing once we have had a chance to review all the details.';
+  } else if(hasOldRQ){
     rqSection='\n\nRough estimate discussed on call:';
     if(rq.movers)rqSection+='\n  '+rq.movers+' movers';
     if(rq.rate)rqSection+=' @ $'+rq.rate+'/hr'+(rq.cashRate?' or $'+rq.cashRate+' if paid in cash':'');
