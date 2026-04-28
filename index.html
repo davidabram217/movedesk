@@ -3171,12 +3171,11 @@ function sendConfirmationEmail(){
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='';
   showToast('✓ Confirmation email sent');renderLeads();
-  if(bookedJobId&&!window._currentDayId){
+  // Find booked job — either from currentBookedJobId or via the lead
+  const resolvedJobId=bookedJobId||(l?(db.bookedJobs||[]).find(b=>b.leadId===l.id)?.id:null);
+  if(resolvedJobId){
+    currentBookedJobId=resolvedJobId;
     setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
-  } else if(bookedJobId&&window._currentDayId){
-    const job=db.bookedJobs.find(x=>x.id===bookedJobId);
-    const day=job?(job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
-    if(job&&day)setTimeout(()=>showDayNextSteps(job,day),300);
   }
 }
 
@@ -4294,6 +4293,10 @@ function renderBookingChecklist(){
   }
   const bothDone=allCalDone&&(emailDone||!j.email);
 
+  const alreadyBooked=!j.pendingConfirmation;
+  const btnLabel=alreadyBooked?'✓ Done':'✓ Confirm &amp; move to Booked Jobs';
+  const btnAction=alreadyBooked?`closeModal('booking-next')`:`bookingNextDone()`;
+
   document.getElementById('booking-checklist').innerHTML=`
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${emailDone?'var(--accent)':'var(--border2)'};background:${emailDone?'var(--accent-light)':'var(--surface)'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -4309,9 +4312,14 @@ function renderBookingChecklist(){
 
   const btn=document.getElementById('bk-confirm-btn');
   const sub=document.getElementById('bk-confirm-sub');
-  if(bothDone){
+  if(btn){
+    btn.textContent='';
+    btn.innerHTML=btnLabel;
+    btn.onclick=new Function(btnAction);
+  }
+  if(bothDone||alreadyBooked){
     if(btn){btn.style.opacity='1';btn.style.pointerEvents='auto';}
-    if(sub)sub.textContent='All steps done — click to confirm booking';
+    if(sub)sub.textContent=alreadyBooked?'':'All steps done — click to confirm booking';
   } else {
     if(btn){btn.style.opacity='0.4';btn.style.pointerEvents='none';}
     const missing=[];
