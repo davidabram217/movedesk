@@ -5463,7 +5463,7 @@ function getEstimateEvents(){
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='declined')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='draft'&&(q.sentBy||q.estimateType));
     // Resolve sent-by name — check lead, quote, then rough quote sender
-    const rawName=(l.estimateSentBy||linkedQ?.sentBy||l.roughQuoteSentBy||'').trim();
+    const rawName=(l.estimateSentBy||linkedQ?.sentBy||l.roughQuoteSentBy||l.takenBy||'').trim();
     const name=_sNorm(rawName);
     if(!name)return; // skip if we can't attribute to anyone
     // Resolve estimate type — fall back to "Rough quote only" if booked via summary+rough quote
@@ -5786,7 +5786,7 @@ function renderAnalytics(){
   filteredJobs.forEach(j=>{
     const lead=db.leads.find(l=>db.bookedJobs.find(b=>b.id===j.bookedJobId&&b.leadId===l.id));
     const lQ=(db.quotes||[]).find(q=>q.leadId===lead?.id&&(q.status==='sent'||q.status==='accepted'));
-    const name=_sNorm((lead?.estimateSentBy||lQ?.sentBy||'').trim());
+    const name=_sNorm((lead?.estimateSentBy||lQ?.sentBy||lead?.takenBy||'').trim());
     if(!name)return;
     if(!_spd[name])_spd[name]={sent:0,booked:0,completed:0,revenue:0,byType:{}};
     _spd[name].completed++;
@@ -6209,9 +6209,10 @@ function renderAnalytics(){
     :`<div class="empty-state"><div class="empty-title">No data yet</div><div class="empty-sub">Mark summaries as sent to track conversion</div></div>`;
 
   // ── How jobs get booked ──
-  const bookedLeads=db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)||
+  const BOOKED_STATUSES=['Quote accepted','Confirmation sent','Booked','Completed'];
+  const bookedLeads=db.leads.filter(l=>BOOKED_STATUSES.includes(l.status)||
     (db.bookedJobs||[]).some(j=>j.leadId===l.id)||
-    (db.completedJobs||[]).some(j=>j.bookedJobId&&db.bookedJobs.find(b=>b.id===j.bookedJobId&&b.leadId===l.id)));
+    (db.completedJobs||[]).some(cj=>{const bj=(db.bookedJobs||[]).find(b=>b.id===cj.bookedJobId);return bj&&bj.leadId===l.id;}));
 
   // Categorise each booked lead
   function getBookingPath(l){
@@ -6263,7 +6264,7 @@ function renderAnalytics(){
   // Per-person how-booked breakdown
   const personPaths={};
   bookedLeads.forEach(l=>{
-    const name=_sNorm(l.takenBy||l.estimateSentBy||'');
+    const name=_sNorm(l.estimateSentBy||l.takenBy||l.roughQuoteSentBy||'');
     if(!name||!staffFilter.has(name))return;
     if(!personPaths[name])personPaths[name]={};
     const path=getBookingPath(l);
