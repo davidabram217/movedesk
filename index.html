@@ -229,7 +229,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <div class="filter-bar">
           <div class="search-bar"><span style="color:var(--text3)">⌕</span><input type="text" placeholder="Search leads…" oninput="filterLeads(this.value)"></div>
           <select onchange="filterLeadsSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>Other</option></select>
-          <select onchange="filterLeadsEst(this.value)"><option value="">All estimate types</option><option>Unseen</option><option>Video</option><option>FaceTime</option><option>Onsite</option></select>
+          <select onchange="filterLeadsEst(this.value)"><option value="">All estimate types</option><option>FaceTime</option><option>Video</option><option>Onsite</option><option>Summary + rough quote</option><option>Unseen</option></select>
         </div>
         <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Move date</th><th>Size</th><th>Source</th><th>Estimate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="leads-tbody"></tbody></table></div></div></div>
       </div>
@@ -1060,10 +1060,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <label>Type of estimate *</label>
           <select id="sche-type">
             <option value="">Select type…</option>
-            <option>Unseen</option>
-            <option>Video</option>
             <option>FaceTime</option>
+            <option>Video</option>
             <option>Onsite</option>
+            <option>Summary + rough quote</option>
+            <option>Unseen</option>
           </select>
         </div>
         <div class="form-group"><label>Date *</label><input type="date" id="sche-date"></div>
@@ -1157,7 +1158,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
       <div class="form-grid form-grid-2">
         <div class="form-group full">
           <label>How was the estimate done? *</label>
-          <select id="se-type"><option value="">Select estimate type…</option><option>Unseen</option><option>Video</option><option>FaceTime</option><option>Onsite</option></select>
+          <select id="se-type"><option value="">Select estimate type…</option><option>FaceTime</option><option>Video</option><option>Onsite</option><option>Summary + rough quote</option><option>Unseen</option></select>
           <div class="form-hint">Tracked in analytics for close rate reporting</div>
         </div>
         <div class="form-group"><label>Estimate date</label><input type="date" id="se-date"></div>
@@ -1418,20 +1419,40 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         </label>
         <div id="cs-rq-section" style="display:none;margin-top:12px">
           <div class="form-grid form-grid-2" style="gap:10px">
-            <div class="form-group" style="margin:0">
-              <label style="font-size:11.5px">Rough quote min ($)</label>
-              <input type="number" id="cs-rq-min" placeholder="e.g. 1200" oninput="updateRoughQuoteInEmail()">
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">No. of movers</label>
+              <select id="cs-rq-movers" onchange="updateRoughQuoteInEmail()"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select>
             </div>
-            <div class="form-group" style="margin:0">
-              <label style="font-size:11.5px">Rough quote max ($)</label>
-              <input type="number" id="cs-rq-max" placeholder="e.g. 1800" oninput="updateRoughQuoteInEmail()">
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Hourly rate ($)</label>
+              <input type="number" id="cs-rq-rate" placeholder="e.g. 280" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Cash rate ($ if paid in cash)</label>
+              <input type="number" id="cs-rq-cash-rate" placeholder="e.g. 260" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Est. hours (min)</label>
+              <input type="number" id="cs-rq-hrs-min" placeholder="e.g. 4" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Est. hours (max)</label>
+              <input type="number" id="cs-rq-hrs-max" placeholder="e.g. 7" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Fuel fee ($)</label>
+              <input type="number" id="cs-rq-fuel" placeholder="e.g. 60" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Material fee ($)</label>
+              <input type="number" id="cs-rq-materials" placeholder="e.g. 40" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Pack materials min ($)</label>
+              <input type="number" id="cs-rq-pack-mat-min" placeholder="e.g. 300" oninput="updateRoughQuoteInEmail()">
+            </div>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Pack materials max ($)</label>
+              <input type="number" id="cs-rq-pack-mat-max" placeholder="e.g. 600" oninput="updateRoughQuoteInEmail()">
             </div>
           </div>
           <div class="form-group" style="margin-top:8px;margin-bottom:0">
-            <label style="font-size:11.5px">Cash price (optional)</label>
-            <input type="number" id="cs-rq-cash" placeholder="e.g. 1100 – 1650" oninput="updateRoughQuoteInEmail()">
+            <label style="font-size:11.5px">Other fees / notes <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+            <input type="text" id="cs-rq-other" placeholder="e.g. COI fee, long carry…" oninput="updateRoughQuoteInEmail()">
           </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:6px">These amounts will be appended to the email body automatically</div>
+          <div id="cs-rq-preview" style="margin-top:10px;padding:10px 14px;background:var(--accent-light);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--accent);display:none"></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px">Estimated totals will be calculated and appended to the email automatically</div>
         </div>
       </div>
       <div class="form-group">
@@ -1690,10 +1711,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <label>Estimate type <span style="font-size:11px;color:var(--text3)">(logs to lead)</span></label>
           <select id="qb-estimate-type" oninput="qbAutoSave()">
             <option value="">Select…</option>
-            <option>Unseen</option>
-            <option>Video</option>
             <option>FaceTime</option>
+            <option>Video</option>
             <option>Onsite</option>
+            <option>Summary + rough quote</option>
+            <option>Unseen</option>
           </select>
         </div>
       </div>
@@ -1922,8 +1944,8 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
 
 <div class="modal-bg" id="modal-rough-quote-prompt">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-header"><div class="modal-title">Summary + Rough Quote</div><button class="modal-close" onclick="closeModal('rough-quote-prompt')">×</button></div>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><div class="modal-title">💬 Add rough quote</div><button class="modal-close" onclick="closeModal('rough-quote-prompt')">×</button></div>
     <div class="modal-body">
       <div class="form-group">
         <label>Sent by</label>
@@ -1931,23 +1953,26 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
         <datalist id="rq-sent-by-list"><option value="John"><option value="Dave"></datalist>
       </div>
       <div class="form-grid form-grid-2">
-        <div class="form-group">
-          <label>Rough quote min ($)</label>
-          <input type="number" id="rq-amount-min" placeholder="e.g. 1200">
+        <div class="form-group"><label>No. of movers</label>
+          <select id="rq-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option></select>
         </div>
-        <div class="form-group">
-          <label>Rough quote max ($)</label>
-          <input type="number" id="rq-amount-max" placeholder="e.g. 1800">
-        </div>
+        <div class="form-group"><label>Hourly rate ($)</label><input type="number" id="rq-rate" placeholder="e.g. 280"></div>
+        <div class="form-group"><label>Cash rate ($ if paid in cash)</label><input type="number" id="rq-cash-rate" placeholder="e.g. 260"></div>
+        <div class="form-group"><label>Est. hours (min)</label><input type="number" id="rq-hrs-min" placeholder="e.g. 4"></div>
+        <div class="form-group"><label>Est. hours (max)</label><input type="number" id="rq-hrs-max" placeholder="e.g. 7"></div>
+        <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="rq-fuel" placeholder="e.g. 60"></div>
+        <div class="form-group"><label>Material fee ($)</label><input type="number" id="rq-materials" placeholder="e.g. 40"></div>
+        <div class="form-group"><label>Pack materials min ($)</label><input type="number" id="rq-pack-mat-min" placeholder="e.g. 300"></div>
+        <div class="form-group"><label>Pack materials max ($)</label><input type="number" id="rq-pack-mat-max" placeholder="e.g. 600"></div>
       </div>
-      <div class="form-group">
-        <label>Notes <span style="font-size:11px;color:var(--text3)">(optional)</span></label>
-        <textarea id="rq-notes" style="min-height:60px" placeholder="e.g. Based on 2 bed, no stairs..."></textarea>
+      <div class="form-group"><label>Other fees / notes <span style="font-size:11px;color:var(--text3)">(optional)</span></label>
+        <input type="text" id="rq-other" placeholder="e.g. COI fee, long carry…">
       </div>
+      <div id="rq-total-preview" style="margin-top:8px;padding:10px 14px;background:var(--accent-light);border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--accent);display:none"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('rough-quote-prompt')">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmRoughQuote()">✓ Mark as sent</button>
+      <button class="btn btn-primary" onclick="confirmRoughQuote()">✓ Save rough quote</button>
     </div>
   </div>
 </div>
@@ -3471,29 +3496,68 @@ function toggleRoughQuoteSection(){
   const checked=document.getElementById('cs-include-rq').checked;
   document.getElementById('cs-rq-section').style.display=checked?'block':'none';
   if(checked){
+    // Pre-fill from lead's existing rough quote data
     const l=db.leads.find(x=>x.id===currentCallSummaryLeadId);
     if(l){
-      if(l.roughQuoteMin)document.getElementById('cs-rq-min').value=l.roughQuoteMin;
-      if(l.roughQuoteMax)document.getElementById('cs-rq-max').value=l.roughQuoteMax;
+      const rq=l.roughQuote||{};
+      const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.value=val;};
+      set('cs-rq-movers',rq.movers||'');
+      set('cs-rq-rate',rq.rate||'');
+      set('cs-rq-cash-rate',rq.cashRate||'');
+      set('cs-rq-hrs-min',rq.hrsMin||'');
+      set('cs-rq-hrs-max',rq.hrsMax||'');
+      set('cs-rq-fuel',rq.fuel||'');
+      set('cs-rq-materials',rq.materials||'');
+      set('cs-rq-pack-mat-min',rq.packMatMin||'');
+      set('cs-rq-pack-mat-max',rq.packMatMax||'');
+      set('cs-rq-other',rq.other||'');
     }
     updateRoughQuoteInEmail();
   } else {
     const body=document.getElementById('cs-body');
-    body.value=body.value.replace(/\n\nRough estimate discussed on call:[\s\S]*$/,'');
+    body.value=body.value.replace(/\n\nRough estimate discussed on call:[\s\S]*/,'');
+    document.getElementById('cs-rq-preview').style.display='none';
   }
 }
 
 function updateRoughQuoteInEmail(){
-  const min=Number(document.getElementById('cs-rq-min')?.value)||0;
-  const max=Number(document.getElementById('cs-rq-max')?.value)||0;
-  const cash=Number(document.getElementById('cs-rq-cash')?.value)||0;
-  if(!min)return;
+  const rate=Number(document.getElementById('cs-rq-rate')?.value)||0;
+  const cashRate=Number(document.getElementById('cs-rq-cash-rate')?.value)||0;
+  const hrsMin=Number(document.getElementById('cs-rq-hrs-min')?.value)||0;
+  const hrsMax=Number(document.getElementById('cs-rq-hrs-max')?.value)||0;
+  const movers=document.getElementById('cs-rq-movers')?.value||'';
+  const fuel=Number(document.getElementById('cs-rq-fuel')?.value)||0;
+  const materials=Number(document.getElementById('cs-rq-materials')?.value)||0;
+  const packMin=Number(document.getElementById('cs-rq-pack-mat-min')?.value)||0;
+  const packMax=Number(document.getElementById('cs-rq-pack-mat-max')?.value)||0;
+  const other=document.getElementById('cs-rq-other')?.value||'';
+  if(!rate||!hrsMin)return;
   const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
-  const cashMax=cash&&max&&min?Math.round(cash*(max/min)):0;
-  const rqText='\n\nRough estimate discussed on call:'
-    +'\n\n  Estimated total: $'+fmt(min)+(max&&max!==min?' \u2013 $'+fmt(max):'')
-    +(cash?'\n  Cash price: $'+fmt(cash)+(cashMax&&cashMax!==cash?' \u2013 $'+fmt(cashMax):''):'')
-    +'\n\n*Please note this is a rough estimate based on our phone discussion. The final cost may vary and we will confirm exact pricing once we have had a chance to review all the details.';
+  const fees=fuel+materials;
+  const totalMin=Math.round(rate*hrsMin+fees+(packMin||0));
+  const totalMax=hrsMax?Math.round(rate*hrsMax+fees+(packMax||packMin||0)):totalMin;
+  const cashMin=cashRate?Math.round(cashRate*hrsMin+fees+(packMin||0)):0;
+  const cashMax=cashRate&&hrsMax?Math.round(cashRate*hrsMax+fees+(packMax||packMin||0)):cashMin;
+
+  // Update preview
+  const preview=document.getElementById('cs-rq-preview');
+  if(preview){
+    preview.style.display='block';
+    preview.textContent='Estimated total: $'+fmt(totalMin)+(totalMax!==totalMin?' – $'+fmt(totalMax):'')+(cashMin?' or $'+fmt(cashMin)+(cashMax!==cashMin?' – $'+fmt(cashMax):'')+' if paid in cash':'');
+  }
+
+  // Build the rough quote text
+  let rqText='\n\nRough estimate discussed on call:';
+  if(movers&&rate)rqText+='\n  '+movers+' movers @ $'+fmt(rate)+'/hr'+(cashRate?' or $'+fmt(cashRate)+' if paid in cash':'');
+  if(hrsMin)rqText+='\n  Est. '+hrsMin+(hrsMax&&hrsMax!==hrsMin?' – '+hrsMax:'')+' hours';
+  if(fuel)rqText+='\n  Fuel fee: $'+fmt(fuel);
+  if(materials)rqText+='\n  Material fee: $'+fmt(materials);
+  if(packMin||packMax)rqText+='\n  Packing materials: $'+fmt(packMin||0)+(packMax&&packMax!==packMin?' – $'+fmt(packMax):'');
+  if(other)rqText+='\n  '+other;
+  rqText+='\n\n  Estimated total: $'+fmt(totalMin)+(totalMax!==totalMin?' – $'+fmt(totalMax):'');
+  if(cashMin)rqText+=' or $'+fmt(cashMin)+(cashMax!==cashMin?' – $'+fmt(cashMax):'')+' if paid in cash';
+  rqText+='\n\n*Please note this is a rough estimate based on our phone discussion. The final cost may vary and we will confirm exact pricing once we have had a chance to review all the details.';
+
   const body=document.getElementById('cs-body');
   if(body.value.includes('Rough estimate discussed on call:')){
     body.value=body.value.replace(/\n\nRough estimate discussed on call:[\s\S]*/,rqText);
@@ -3521,10 +3585,33 @@ function markSummarySent(){
     l.summaryEmailBody=sentBody;
     l.summaryEmailSubject=sentSubject;
     if(includeRQ){
+      const rqRate=Number(document.getElementById('cs-rq-rate')?.value)||0;
+      const rqHrsMin=Number(document.getElementById('cs-rq-hrs-min')?.value)||0;
+      const rqHrsMax=Number(document.getElementById('cs-rq-hrs-max')?.value)||0;
+      const rqFuel=Number(document.getElementById('cs-rq-fuel')?.value)||0;
+      const rqMaterials=Number(document.getElementById('cs-rq-materials')?.value)||0;
+      const rqPackMin=Number(document.getElementById('cs-rq-pack-mat-min')?.value)||0;
+      const rqPackMax=Number(document.getElementById('cs-rq-pack-mat-max')?.value)||0;
+      const fees=rqFuel+rqMaterials;
+      const calcMin=rqRate&&rqHrsMin?Math.round(rqRate*rqHrsMin+fees+(rqPackMin||0)):rqMin;
+      const calcMax=rqRate&&rqHrsMax?Math.round(rqRate*rqHrsMax+fees+(rqPackMax||rqPackMin||0)):rqMax;
       l.roughQuoteDate=sentDate;
-      if(rqMin)l.roughQuoteMin=rqMin;
-      if(rqMax)l.roughQuoteMax=rqMax;
+      l.roughQuoteMin=calcMin||rqMin;
+      l.roughQuoteMax=calcMax||rqMax;
       if(!l.roughQuoteSentBy)l.roughQuoteSentBy=l.takenBy||'';
+      // Save full rough quote object for booking form pre-fill
+      l.roughQuote={
+        movers:document.getElementById('cs-rq-movers')?.value||'',
+        rate:rqRate||'',
+        cashRate:Number(document.getElementById('cs-rq-cash-rate')?.value)||'',
+        hrsMin:rqHrsMin||'',
+        hrsMax:rqHrsMax||'',
+        fuel:rqFuel||'',
+        materials:rqMaterials||'',
+        packMatMin:rqPackMin||'',
+        packMatMax:rqPackMax||'',
+        other:document.getElementById('cs-rq-other')?.value||'',
+      };
     }
     saveDB();
   }
@@ -3533,6 +3620,8 @@ function markSummarySent(){
   if(cbx){cbx.checked=false;}
   const rqs=document.getElementById('cs-rq-section');
   if(rqs)rqs.style.display='none';
+  ['cs-rq-movers','cs-rq-rate','cs-rq-cash-rate','cs-rq-hrs-min','cs-rq-hrs-max','cs-rq-fuel','cs-rq-materials','cs-rq-pack-mat-min','cs-rq-pack-mat-max','cs-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const prev=document.getElementById('cs-rq-preview');if(prev)prev.style.display='none';
   nextStepSubModal=false;
   closeModal('call-summary');
   showToast('✓ Summary marked as sent'+(includeRQ?' with rough quote':''));
@@ -3544,14 +3633,83 @@ function openRoughQuotePrompt(leadId){
   _rqLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
-  // Pre-fill from existing rough quote on lead
   const rq=l.roughQuote||{};
-  const el=id=>document.getElementById(id);
-  if(el('rq-sent-by'))el('rq-sent-by').value=l.roughQuoteSentBy||l.takenBy||'';
-  if(el('rq-amount-min'))el('rq-amount-min').value=l.roughQuoteMin||rq.hrsMin&&rq.rate?Math.round(Number(rq.hrsMin)*Number(rq.rate)):'';
-  if(el('rq-amount-max'))el('rq-amount-max').value=l.roughQuoteMax||rq.hrsMax&&rq.rate?Math.round(Number(rq.hrsMax)*Number(rq.rate)):'';
-  if(el('rq-notes'))el('rq-notes').value=l.roughQuoteNotes||'';
+  const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!==undefined&&val!=='')el.value=val;};
+  set('rq-sent-by',l.roughQuoteSentBy||l.takenBy||'');
+  set('rq-movers',rq.movers||'');
+  set('rq-rate',rq.rate||'');
+  set('rq-cash-rate',rq.cashRate||'');
+  set('rq-hrs-min',rq.hrsMin||'');
+  set('rq-hrs-max',rq.hrsMax||'');
+  set('rq-fuel',rq.fuel||'');
+  set('rq-materials',rq.materials||'');
+  set('rq-pack-mat-min',rq.packMatMin||'');
+  set('rq-pack-mat-max',rq.packMatMax||'');
+  set('rq-other',rq.other||'');
+  // Add live total preview on input
+  ['rq-rate','rq-hrs-min','rq-hrs-max','rq-fuel','rq-materials','rq-cash-rate'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.oninput=updateRQTotalPreview;
+  });
+  updateRQTotalPreview();
   openModal('rough-quote-prompt');
+}
+
+function updateRQTotalPreview(){
+  const rate=Number(document.getElementById('rq-rate')?.value)||0;
+  const hrsMin=Number(document.getElementById('rq-hrs-min')?.value)||0;
+  const hrsMax=Number(document.getElementById('rq-hrs-max')?.value)||0;
+  const fuel=Number(document.getElementById('rq-fuel')?.value)||0;
+  const materials=Number(document.getElementById('rq-materials')?.value)||0;
+  const cashRate=Number(document.getElementById('rq-cash-rate')?.value)||0;
+  const preview=document.getElementById('rq-total-preview');
+  if(!preview)return;
+  if(!rate||!hrsMin){preview.style.display='none';return;}
+  const min=Math.round(rate*hrsMin+fuel+materials);
+  const max=hrsMax?Math.round(rate*hrsMax+fuel+materials):min;
+  const cashMin=cashRate?Math.round(cashRate*hrsMin+fuel+materials):0;
+  const cashMax=cashRate&&hrsMax?Math.round(cashRate*hrsMax+fuel+materials):cashMin;
+  const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+  preview.style.display='block';
+  preview.innerHTML='Estimated total: $'+fmt(min)+(max!==min?' – $'+fmt(max):'')
+    +(cashMin?' &nbsp;·&nbsp; Cash: $'+fmt(cashMin)+(cashMax!==cashMin?' – $'+fmt(cashMax):''):'');
+}
+
+function confirmRoughQuote(){
+  const l=db.leads.find(x=>x.id===_rqLeadId);
+  if(!l)return;
+  const sentBy=document.getElementById('rq-sent-by')?.value?.trim();
+  const rate=Number(document.getElementById('rq-rate')?.value)||0;
+  const hrsMin=Number(document.getElementById('rq-hrs-min')?.value)||0;
+  const hrsMax=Number(document.getElementById('rq-hrs-max')?.value)||0;
+  const fuel=Number(document.getElementById('rq-fuel')?.value)||0;
+  const materials=Number(document.getElementById('rq-materials')?.value)||0;
+  const cashRate=Number(document.getElementById('rq-cash-rate')?.value)||0;
+  if(!sentBy){showToast('Please fill in who sent this');return;}
+  const min=rate&&hrsMin?Math.round(rate*hrsMin+fuel+materials):Number(document.getElementById('rq-pack-mat-min')?.value)||0;
+  const max=rate&&hrsMax?Math.round(rate*hrsMax+fuel+materials):Number(document.getElementById('rq-pack-mat-max')?.value)||min;
+  l.status='Summary + rough quote';
+  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  l.roughQuoteSentBy=sentBy;
+  l.roughQuoteMin=min;
+  l.roughQuoteMax=max;
+  l.roughQuoteDate=new Date().toISOString().split('T')[0];
+  l.roughQuote={
+    movers:document.getElementById('rq-movers')?.value||'',
+    rate:document.getElementById('rq-rate')?.value||'',
+    cashRate:document.getElementById('rq-cash-rate')?.value||'',
+    hrsMin:document.getElementById('rq-hrs-min')?.value||'',
+    hrsMax:document.getElementById('rq-hrs-max')?.value||'',
+    fuel:document.getElementById('rq-fuel')?.value||'',
+    materials:document.getElementById('rq-materials')?.value||'',
+    packMatMin:document.getElementById('rq-pack-mat-min')?.value||'',
+    packMatMax:document.getElementById('rq-pack-mat-max')?.value||'',
+    other:document.getElementById('rq-other')?.value||'',
+  };
+  saveDB();
+  closeModal('rough-quote-prompt');
+  showToast('✓ Rough quote saved — '+l.name+(min?' ($'+min.toLocaleString()+(max!==min?' – $'+max.toLocaleString():'')+')':''));
+  renderLeads();
 }
 
 
@@ -5472,8 +5630,9 @@ function getEstimateEvents(){
     const rawName=(l.estimateSentBy||linkedQ?.sentBy||l.roughQuoteSentBy||l.takenBy||'').trim();
     const name=_sNorm(rawName);
     if(!name)return;
-    // Resolve estimate type
-    const estimateType=l.estimateType||linkedQ?.estimateType||(l.roughQuoteDate&&!l.estimateType?'Rough quote only':'');
+    // Resolve estimate type — map rough quote to correct label
+    const rawEstType=l.estimateType||linkedQ?.estimateType||(l.roughQuoteDate&&!l.estimateType?'Summary + rough quote':'');
+    const estimateType=rawEstType==='Rough quote only'?'Summary + rough quote':rawEstType;
     const rate=linkedQ?.days?.[0]?.rate?Math.round(Number(linkedQ.days[0].rate)):0;
     const booked=BOOKED.includes(l.status);
     const lost=l.status==='Did not book';
@@ -5647,8 +5806,8 @@ function renderAnalytics(){
     return`<div class="bar-row"><div class="bar-label">${s}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c/maxS*100)}%;background:${sc[s]||'#888'}">${c}</div></div><div class="bar-value">${c}</div></div>${detailHtml}`;
   }).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
   // ── Estimate close rates bar chart ──
-  const _ec2={'Unseen':'#888','Video':'#1a5276','FaceTime':'#6c3483','Onsite':'#b7860b','Rough quote only':'#2d6a4f'};
-  const _etTypes=['Unseen','Video','FaceTime','Onsite','Rough quote only'];
+  const _ec2={'FaceTime':'#6c3483','Video':'#1a5276','Onsite':'#b7860b','Summary + rough quote':'#2d6a4f','Unseen':'#888'};
+  const _etTypes=['FaceTime','Video','Onsite','Summary + rough quote','Unseen'];
   const _ev2=getEstimateEvents();
   const _ed2=_etTypes.map(t=>{
     const rows=_ev2.filter(e=>e.estimateType===t);
