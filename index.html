@@ -3055,7 +3055,8 @@ const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAccepte
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
 
-const viewSummaryBtn=l.status==='Summary sent'?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
+const hasSummary=l.summaryEmailBody||(l.summaryLog&&l.summaryLog.length);
+const viewSummaryBtn=hasSummary?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
 const roughQuoteBlock=l.roughQuoteDate?`<div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px;display:flex;justify-content:space-between;align-items:center">
   <div><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Rough quote sent${l.roughQuoteSentBy?' by '+l.roughQuoteSentBy:''} · ${fmtDate(l.roughQuoteDate)}</div>
   <div style="font-weight:600;color:var(--accent)">$${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?' – $'+(l.roughQuoteMax).toLocaleString():''}</div>
