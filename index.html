@@ -3951,8 +3951,32 @@ function openBooking(leadId){
     if(scopeParts.length)document.getElementById('bj-scope').value=scopeParts.join('\n');
     if(quote.officeNotes||l?.officeNotes){const _bjOn=document.getElementById('bj-office-notes');if(_bjOn)_bjOn.value=quote.officeNotes||l?.officeNotes||'';}
   } else {
-    // Fall back to estimate quote
-    document.getElementById('bj-quote').value=l.estimateQuote||'';if(l.officeNotes){const _bjOn2=document.getElementById('bj-office-notes');if(_bjOn2&&!_bjOn2.value)_bjOn2.value=l.officeNotes;}
+    // No formal quote — try to populate from rough quote
+    const rq=l.roughQuote||{};
+    const hasRQ=rq.rate||rq.hrsMin||l.roughQuoteMin;
+    if(hasRQ){
+      if(rq.rate)document.getElementById('bj-rate-regular').value=rq.rate;
+      if(rq.cashRate)document.getElementById('bj-rate-cash').value=rq.cashRate;
+      if(rq.movers){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=rq.movers;}
+      if(rq.fuel)document.getElementById('bj-fee-fuel').value=rq.fuel;
+      if(rq.materials)document.getElementById('bj-fee-materials').value=rq.materials;
+      if(rq.packMatMin)document.getElementById('bj-pack-mat-min').value=rq.packMatMin;
+      if(rq.packMatMax)document.getElementById('bj-pack-mat-max').value=rq.packMatMax;
+      // Build scope from rough quote
+      const rqParts=[];
+      if(rq.movers&&rq.rate)rqParts.push(rq.movers+' movers @ $'+rq.rate+'/hr'+(rq.cashRate?' or $'+rq.cashRate+' cash':''));
+      if(rq.hrsMin||rq.hrsMax)rqParts.push('Est. '+(rq.hrsMin||'?')+(rq.hrsMax&&rq.hrsMax!==rq.hrsMin?' – '+rq.hrsMax:'')+' hrs');
+      if(rqParts.length)document.getElementById('bj-scope').value=rqParts.join('\n');
+      // Estimated total from rough quote
+      if(l.roughQuoteMax||l.roughQuoteMin)document.getElementById('bj-quote').value=l.roughQuoteMax||l.roughQuoteMin;
+      else if(rq.rate&&rq.hrsMax){
+        const total=Math.round(Number(rq.rate)*Number(rq.hrsMax)+(Number(rq.fuel)||0)+(Number(rq.materials)||0));
+        document.getElementById('bj-quote').value=total;
+      }
+    } else {
+      document.getElementById('bj-quote').value=l.estimateQuote||'';
+    }
+    if(l.officeNotes){const _bjOn2=document.getElementById('bj-office-notes');if(_bjOn2&&!_bjOn2.value)_bjOn2.value=l.officeNotes;}
   }
   openModal('book-job');
 }
