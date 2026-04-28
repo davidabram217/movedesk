@@ -460,16 +460,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <div class="card-body" id="estimate-type-chart"></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-        <div class="card">
-          <div class="card-header"><div class="card-title">📊 Rough quote conversion</div><div style="font-size:11.5px;color:var(--text3)">Of leads that got a summary — did rough quote help booking rate?</div></div>
-          <div class="card-body" id="rough-quote-chart"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">📊 Rough quote by person</div><div style="font-size:11.5px;color:var(--text3)">John & Dave — rough quote conversion rate</div></div>
-          <div class="card-body" id="rough-quote-person-chart"></div>
-        </div>
-      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
           <div class="card-header"><div class="card-title">📊 How jobs get booked</div><div style="font-size:11.5px;color:var(--text3)">Booked direct, via quote, via rough quote</div></div>
@@ -6281,7 +6272,7 @@ function renderAnalytics(){
     if(e.lost)_ep[e.name][e.estimateType].dnb++;
   });
   const _epNames=Object.keys(_ep).sort();
-  const _allEt=[...new Set(_ev.filter(e=>e.estimateType).map(e=>e.estimateType))].sort();
+  const _allEt=_etTypes.filter(t=>_ev.some(e=>e.estimateType===t));
   document.getElementById('estimate-type-chart').innerHTML=_epNames.length?_epNames.map(name=>{
     const types=_ep[name];
     const rows=_allEt.filter(t=>types[t]).map(t=>{
@@ -6314,78 +6305,6 @@ function renderAnalytics(){
   }).join('')
     :`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
 
-  // ── Rough quote conversion analytics ──
-  const BOOKED_S=['Quote accepted','Confirmation sent','Booked','Completed'];
-  const SUMMARY_STATUSES=['Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
-  const summaryLeads=db.leads.filter(l=>SUMMARY_STATUSES.includes(l.status));
-  const withRQ=summaryLeads.filter(l=>l.roughQuoteDate||l.status==='Summary + rough quote');
-  const withoutRQ=summaryLeads.filter(l=>!withRQ.includes(l));
-  const rqBooked=withRQ.filter(l=>BOOKED_S.includes(l.status)).length;
-  const noRQBooked=withoutRQ.filter(l=>BOOKED_S.includes(l.status)).length;
-  const rqRate=withRQ.length?Math.round(rqBooked/withRQ.length*100):0;
-  const noRQRate=withoutRQ.length?Math.round(noRQBooked/withoutRQ.length*100):0;
-  document.getElementById('rough-quote-chart').innerHTML=summaryLeads.length?`
-    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
-      <thead><tr>
-        <th style="text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Type</th>
-        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
-        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Booked</th>
-        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
-      </tr></thead>
-      <tbody>
-        <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">Summary only</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${withoutRQ.length}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${noRQBooked}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${noRQRate>=70?'var(--accent)':noRQRate>=50?'var(--amber)':'var(--error)'}">${noRQRate}%</td>
-        </tr>
-        
-      </tbody>
-    </table>
-    <div style="font-size:11px;color:var(--text3);margin-top:8px">Leads that progressed beyond summary stage</div>`
-    :`<div class="empty-state"><div class="empty-title">No summary data yet</div></div>`;
-
-  // ── Rough quote by person ──
-  const rqByPerson={};
-  summaryLeads.forEach(l=>{
-    const name=_sNorm(l.roughQuoteSentBy||l.takenBy||l.estimateSentBy||'');
-    if(!name||!staffFilter.has(name))return;
-    if(!rqByPerson[name])rqByPerson[name]={withRQ:{sent:0,booked:0},withoutRQ:{sent:0,booked:0}};
-    const hasRQ=!!l.roughQuoteDate||l.status==='Summary + rough quote';
-    const booked=BOOKED_S.includes(l.status);
-    if(hasRQ){rqByPerson[name].withRQ.sent++;if(booked)rqByPerson[name].withRQ.booked++;}
-    else{rqByPerson[name].withoutRQ.sent++;if(booked)rqByPerson[name].withoutRQ.booked++;}
-  });
-  const rqPersonEntries=Object.entries(rqByPerson).sort((a,b)=>a[0].localeCompare(b[0]));
-  document.getElementById('rough-quote-person-chart').innerHTML=rqPersonEntries.length?rqPersonEntries.map(([name,d])=>{
-    const rqR=d.withRQ.sent?Math.round(d.withRQ.booked/d.withRQ.sent*100):null;
-    const noR=d.withoutRQ.sent?Math.round(d.withoutRQ.booked/d.withoutRQ.sent*100):null;
-    const col=r=>r===null?'var(--text3)':r>=70?'var(--accent)':r>=50?'var(--amber)':'var(--error)';
-    return`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px">
-      <thead><tr><th colspan="4" style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;background:var(--surface2)">${name}</th></tr>
-      <tr>
-        <th style="text-align:left;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Type</th>
-        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Sent</th>
-        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Booked</th>
-        <th style="text-align:right;padding:6px 10px;font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
-      </tr></thead>
-      <tbody>
-        ${d.withoutRQ.sent?`<tr>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border)">Summary only</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.withoutRQ.sent}</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.withoutRQ.booked}</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col(noR)}">${noR!==null?noR+'%':'—'}</td>
-        </tr>`:''}
-        ${d.withRQ.sent?`<tr>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border)">With rough quote</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.withRQ.sent}</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.withRQ.booked}</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col(rqR)}">${rqR!==null?rqR+'%':'—'}</td>
-        </tr>`:''}
-      </tbody>
-    </table>`;
-  }).join('')
-    :`<div class="empty-state"><div class="empty-title">No data yet</div><div class="empty-sub">Mark summaries as sent to track conversion</div></div>`;
 
   // ── How jobs get booked ──
   const BOOKED_STATUSES=['Quote accepted','Confirmation sent','Booked','Completed'];
