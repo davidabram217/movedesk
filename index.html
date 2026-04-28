@@ -953,16 +953,23 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 
         
         <div class="form-group full" style="padding:14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
-          <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">💬 Rough quote given on call <span style="font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">— leave blank if not discussed · included in summary email if filled in</span></div>
-          <div class="form-grid form-grid-2">
-            <div class="form-group"><label>No. of movers</label><select id="nl-rq-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
-            <div class="form-group"><label>Hourly rate ($)</label><input type="number" id="nl-rq-rate" placeholder="e.g. 225"></div>
-            <div class="form-group"><label>Cash rate ($ if paid in cash)</label><input type="number" id="nl-rq-cash-rate" placeholder="e.g. 210"></div>
-            <div class="form-group"><label>Est. hours (min)</label><input type="number" id="nl-rq-hrs-min" placeholder="e.g. 3"></div>
-            <div class="form-group"><label>Est. hours (max)</label><input type="number" id="nl-rq-hrs-max" placeholder="e.g. 5"></div>
-            <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="nl-rq-fuel" placeholder="e.g. 75"></div>
-            <div class="form-group"><label>Material fee ($)</label><input type="number" id="nl-rq-materials" placeholder="e.g. 50"></div>
-            <div class="form-group"><label>Pack materials min ($)</label><input type="number" id="nl-rq-pack-mat-min" placeholder="e.g. 50"></div><div class="form-group"><label>Pack materials max ($)</label><input type="number" id="nl-rq-pack-mat-max" placeholder="e.g. 200"></div><div class="form-group full"><label>Other fees / notes</label><input type="text" id="nl-rq-other" placeholder="e.g. COI fee…"></div>
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:500">
+            <input type="checkbox" id="nl-include-rq" onchange="document.getElementById('nl-rq-fields').style.display=this.checked?'block':'none'" style="width:16px;height:16px;cursor:pointer">
+            Send them a rough quote also
+          </label>
+          <div id="nl-rq-fields" style="display:none;margin-top:14px">
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>No. of movers</label><select id="nl-rq-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+              <div class="form-group"><label>Hourly rate ($)</label><input type="number" id="nl-rq-rate" placeholder="e.g. 225"></div>
+              <div class="form-group"><label>Cash rate ($ if paid in cash)</label><input type="number" id="nl-rq-cash-rate" placeholder="e.g. 210"></div>
+              <div class="form-group"><label>Est. hours (min)</label><input type="number" id="nl-rq-hrs-min" placeholder="e.g. 3"></div>
+              <div class="form-group"><label>Est. hours (max)</label><input type="number" id="nl-rq-hrs-max" placeholder="e.g. 5"></div>
+              <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="nl-rq-fuel" placeholder="e.g. 75"></div>
+              <div class="form-group"><label>Material fee ($)</label><input type="number" id="nl-rq-materials" placeholder="e.g. 50"></div>
+              <div class="form-group"><label>Pack materials min ($)</label><input type="number" id="nl-rq-pack-mat-min" placeholder="e.g. 50"></div>
+              <div class="form-group"><label>Pack materials max ($)</label><input type="number" id="nl-rq-pack-mat-max" placeholder="e.g. 200"></div>
+              <div class="form-group full"><label>Other fees / notes</label><input type="text" id="nl-rq-other" placeholder="e.g. COI fee…"></div>
+            </div>
           </div>
         </div>
 
@@ -2393,6 +2400,8 @@ document.addEventListener('click',e=>{
   }
 });
 function resetNewLeadForm(){editingLeadId=null;document.querySelector('#modal-new-lead .modal-title').textContent='New lead intake';const _slBtn=document.querySelector('#modal-new-lead .btn-primary');if(_slBtn)_slBtn.textContent='Save lead';['nl-name','nl-phone','nl-email','nl-from','nl-from-zip','nl-from-unit','nl-from-floor','nl-from-notes','nl-to','nl-to-zip','nl-to-unit','nl-to-floor','nl-to-notes','nl-notes','nl-office-notes','nl-sqft','nl-source-other','nl-source-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['nl-source','nl-size','nl-move-type','nl-packing','nl-access-load','nl-access-unload','nl-parking-load','nl-parking-unload','nl-from-type','nl-to-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['nl-storage'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const storSel=document.getElementById('nl-storage-select');if(storSel)storSel.value='no';const og=document.getElementById('nl-source-other-group');if(og)og.style.display='none';const dg=document.getElementById('nl-source-detail-group');if(dg)dg.style.display='none';resetExtraLocations();const rcp=document.getElementById('nl-repeat-customer-panel');if(rcp)rcp.style.display='none';['nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-pack-mat-min','nl-rq-pack-mat-max','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const rqm=document.getElementById('nl-rq-movers');if(rqm)rqm.selectedIndex=0;
+const rqcb=document.getElementById('nl-include-rq');if(rqcb)rqcb.checked=false;
+const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none';
   const d=new Date();d.setDate(d.getDate()+7);document.getElementById('nl-date').value=d.toISOString().split('T')[0];populateStaffSelect('nl-taken-by','');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
@@ -2590,6 +2599,11 @@ function openEditLead(leadId){
   document.getElementById('nl-storage').checked=!!l.storage;
   document.getElementById('nl-notes').value=l.notes||'';
   document.getElementById('nl-office-notes').value=l.officeNotes||'';const rq=l.roughQuote||{};['nl-rq-movers','nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=rq[id.replace('nl-rq-','').replace('-','')]||rq[id.replace('nl-rq-','')]||'';});if(document.getElementById('nl-rq-movers'))document.getElementById('nl-rq-movers').value=rq.movers||'';if(document.getElementById('nl-rq-pack-mat-min'))document.getElementById('nl-rq-pack-mat-min').value=rq.packMatMin||'';if(document.getElementById('nl-rq-pack-mat-max'))document.getElementById('nl-rq-pack-mat-max').value=rq.packMatMax||'';if(document.getElementById('nl-rq-cash-rate'))document.getElementById('nl-rq-cash-rate').value=rq.cashRate||'';
+  // Show rough quote section if lead already has rough quote data
+  const hasRQData=rq.rate||rq.hrsMin||l.roughQuoteMin;
+  const rqcb=document.getElementById('nl-include-rq');const rqf=document.getElementById('nl-rq-fields');
+  if(rqcb)rqcb.checked=!!hasRQData;
+  if(rqf)rqf.style.display=hasRQData?'block':'none';
   populateStaffSelect('nl-taken-by',l.takenBy||'');
   document.getElementById('modal-new-lead').classList.add('open');
 }
@@ -2666,8 +2680,33 @@ function saveLead(){
     if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
     // Show next step prompt after modal has fully closed
     currentNextStepLeadId=lead.id;
+    const includeRQOnSave=document.getElementById('nl-include-rq')?.checked||false;
     document.getElementById('next-step-name').textContent=name+' · '+fmtDate(lead.date);
-    setTimeout(function(){ openModal('next-step'); }, 1500);
+    if(includeRQOnSave){
+      // Skip next-step modal and go straight to summary email with rough quote pre-checked
+      setTimeout(function(){
+        openCallSummaryEmail(lead.id);
+        setTimeout(function(){
+          const cbx=document.getElementById('cs-include-rq');
+          if(cbx&&!cbx.checked){cbx.checked=true;toggleRoughQuoteSection();}
+          // Pre-fill min/max from rough quote fields
+          const rq=lead.roughQuote||{};
+          if(rq.rate&&rq.hrsMin){
+            const min=Math.round(Number(rq.rate)*Number(rq.hrsMin)+(Number(rq.fuel)||0)+(Number(rq.materials)||0));
+            const max=rq.hrsMax?Math.round(Number(rq.rate)*Number(rq.hrsMax)+(Number(rq.fuel)||0)+(Number(rq.materials)||0)):min;
+            const minEl=document.getElementById('cs-rq-min');
+            const maxEl=document.getElementById('cs-rq-max');
+            const cashEl=document.getElementById('cs-rq-cash');
+            if(minEl&&!minEl.value)minEl.value=min;
+            if(maxEl&&!maxEl.value)maxEl.value=max;
+            if(cashEl&&!cashEl.value&&rq.cashRate&&rq.hrsMin){cashEl.value=Math.round(Number(rq.cashRate)*Number(rq.hrsMin)+(Number(rq.fuel)||0)+(Number(rq.materials)||0));}
+            updateRoughQuoteInEmail();
+          }
+        },400);
+      },1500);
+    } else {
+      setTimeout(function(){ openModal('next-step'); }, 1500);
+    }
   }
 }
 
