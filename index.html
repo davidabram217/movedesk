@@ -5451,26 +5451,30 @@ const staffFilter=new Set(['John','Dave']);
 // ══════════════════════════════════════════════════════════
 function getEstimateEvents(){
   // Returns array of {name, estimateType, status, rate, leadStatus, quoteStatus}
-  // for every lead that had an estimate sent
+  // Only includes leads where a PRICE was given — rough quote, formal estimate, or quote sent
+  // Summary only (no price) is NOT counted as a sales event
   const BOOKED=['Quote accepted','Confirmation sent','Booked','Completed'];
   const SENT=['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
   const events=[];
   db.leads.forEach(l=>{
     if(!SENT.includes(l.status))return;
-    // Find linked quote — check all statuses including draft
+    // Find linked quote
     const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='sent')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='declined')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='draft'&&(q.sentBy||q.estimateType));
-    // Resolve sent-by name — check lead, quote, then rough quote sender
+    // Determine if a price was actually given
+    const hasRoughQuote=!!(l.roughQuoteDate||l.roughQuoteMin);
+    const hasFormalEstimate=!!(l.estimateType||linkedQ||l.estimateSentBy);
+    // Skip if only a summary was sent — no price discussed
+    if(!hasRoughQuote&&!hasFormalEstimate)return;
+    // Resolve sent-by name
     const rawName=(l.estimateSentBy||linkedQ?.sentBy||l.roughQuoteSentBy||l.takenBy||'').trim();
     const name=_sNorm(rawName);
-    if(!name)return; // skip if we can't attribute to anyone
-    // Resolve estimate type — fall back to "Rough quote only" if booked via summary+rough quote
+    if(!name)return;
+    // Resolve estimate type
     const estimateType=l.estimateType||linkedQ?.estimateType||(l.roughQuoteDate&&!l.estimateType?'Rough quote only':'');
-    // Resolve rate from first day of quote
     const rate=linkedQ?.days?.[0]?.rate?Math.round(Number(linkedQ.days[0].rate)):0;
-    // Resolve outcome
     const booked=BOOKED.includes(l.status);
     const lost=l.status==='Did not book';
     const pending=!booked&&!lost;
@@ -5795,9 +5799,12 @@ function renderAnalytics(){
   // Alias _spd as staffData for the existing table render below
   const staffData=_spd;
   const staffEntries=Object.entries(staffData);
-  // Count unique booked leads per person (definitive number)
+  // Count unique booked leads per person where a price was given (not summary only)
   const uniqueBookedByName={};
   db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)).forEach(l=>{
+    const hasRoughQuote=!!(l.roughQuoteDate||l.roughQuoteMin);
+    const hasFormalEstimate=!!(l.estimateType||(db.quotes||[]).some(q=>q.leadId===l.id)||l.estimateSentBy);
+    if(!hasRoughQuote&&!hasFormalEstimate)return; // skip summary-only leads
     const name=_sNorm(l.estimateSentBy||l.takenBy||l.roughQuoteSentBy||'');
     if(!name||!staffFilter.has(name))return;
     if(!uniqueBookedByName[name])uniqueBookedByName[name]=new Set();
