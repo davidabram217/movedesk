@@ -4218,7 +4218,16 @@ function confirmBooking(){
   let job=db.bookedJobs.find(x=>x.leadId===currentBookingLeadId&&x._draft);
   if(!job){
     job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',size:l?l.size:'',moveType:l?l.moveType:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',confirmEmailSent:l?!!l.emailConfirmationSent:false,bookedAt:new Date().toISOString().split('T')[0]};
-    db.bookedJobs.push(job);
+    // Copy rough quote data from lead so we can track it after completion
+  if(l){
+    if(l.roughQuoteDate)job.roughQuoteDate=l.roughQuoteDate;
+    if(l.roughQuoteMin)job.roughQuoteMin=l.roughQuoteMin;
+    if(l.roughQuoteMax)job.roughQuoteMax=l.roughQuoteMax;
+    if(l.roughQuoteSentBy)job.roughQuoteSentBy=l.roughQuoteSentBy;
+    if(l.roughQuote)job.roughQuote=l.roughQuote;
+    job.bookedFromRoughQuote=!!(l.roughQuoteDate)&&!(db.quotes||[]).some(q=>q.leadId===l.id&&q.status==='accepted');
+  }
+  db.bookedJobs.push(job);
   }
   // Write all form fields onto job and clear draft flag
   bjWriteFields(job);
@@ -5030,7 +5039,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   // Find the original quote for this job
   const lead=j?db.leads.find(l=>l.id===j.leadId):null;
   const originalQuote=lead?db.quotes.find(q=>q.leadId===lead.id):null;
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,owing,paymentState:paymentState||'paid',payment:document.getElementById('cj-payment').value,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:document.getElementById('cj-rate').value||null,feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,owing,paymentState:paymentState||'paid',payment:document.getElementById('cj-payment').value,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:document.getElementById('cj-rate').value||null,feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
@@ -6115,7 +6124,7 @@ function renderAnalytics(){
   const BOOKED_S=['Quote accepted','Confirmation sent','Booked','Completed'];
   const SUMMARY_STATUSES=['Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
   const summaryLeads=db.leads.filter(l=>SUMMARY_STATUSES.includes(l.status));
-  const withRQ=summaryLeads.filter(l=>l.roughQuoteDate);
+  const withRQ=summaryLeads.filter(l=>l.roughQuoteDate||l.status==='Summary + rough quote');
   const withoutRQ=summaryLeads.filter(l=>!withRQ.includes(l));
   const rqBooked=withRQ.filter(l=>BOOKED_S.includes(l.status)).length;
   const noRQBooked=withoutRQ.filter(l=>BOOKED_S.includes(l.status)).length;
@@ -6148,7 +6157,7 @@ function renderAnalytics(){
     const name=_sNorm(l.roughQuoteSentBy||l.takenBy||l.estimateSentBy||'');
     if(!name||!staffFilter.has(name))return;
     if(!rqByPerson[name])rqByPerson[name]={withRQ:{sent:0,booked:0},withoutRQ:{sent:0,booked:0}};
-    const hasRQ=!!l.roughQuoteDate;
+    const hasRQ=!!l.roughQuoteDate||l.status==='Summary + rough quote';
     const booked=BOOKED_S.includes(l.status);
     if(hasRQ){rqByPerson[name].withRQ.sent++;if(booked)rqByPerson[name].withRQ.booked++;}
     else{rqByPerson[name].withoutRQ.sent++;if(booked)rqByPerson[name].withoutRQ.booked++;}
