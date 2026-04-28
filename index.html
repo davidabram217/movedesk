@@ -2772,7 +2772,11 @@ function nextStepAction(action){
   closeModal('next-step');
   if(action==='book'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){l.status='Quote accepted';saveDB();renderLeads();}
+    if(l){
+      const hasAcceptedQuote=(db.quotes||[]).some(q=>q.leadId===l.id&&q.status==='accepted');
+      l.status=hasAcceptedQuote?'Quote accepted':'Confirmation sent';
+      saveDB();renderLeads();
+    }
     setTimeout(()=>openBooking(currentNextStepLeadId),200);
   } else if(action==='quote'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
@@ -4246,7 +4250,10 @@ function confirmBooking(){
   job.quoteDays=isMultiDayQuote?leadQuote.days:[];
   job.quoteFees=leadQuote?leadQuote.fees||[]:[];
   delete job._draft;
-  if(l)l.status='Quote accepted';
+  if(l){
+    const hasAcceptedQuote=(db.quotes||[]).some(q=>q.leadId===l.id&&(q.status==='accepted'||q.status==='sent'));
+    l.status=hasAcceptedQuote?'Quote accepted':'Confirmation sent';
+  }
   // Auto-accept any sent quotes linked to this lead
   if(db.quotes&&currentBookingLeadId){
     db.quotes.filter(q=>q.leadId===currentBookingLeadId&&q.status==='sent').forEach(q=>{
