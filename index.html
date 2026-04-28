@@ -5944,13 +5944,7 @@ function renderAnalytics(){
   // ── Rough quote conversion analytics ──
   const BOOKED_S=['Quote accepted','Confirmation sent','Booked','Completed'];
   const SUMMARY_STATUSES=['Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
-  // A lead counts as "had a summary" if: status is in SUMMARY_STATUSES OR a summary was actually sent OR a rough quote date exists
-  const summaryLeads=db.leads.filter(l=>
-    SUMMARY_STATUSES.includes(l.status)||
-    l.summarySentAt||
-    (l.summaryLog&&l.summaryLog.length)||
-    l.roughQuoteDate
-  );
+  const summaryLeads=db.leads.filter(l=>SUMMARY_STATUSES.includes(l.status));
   const withRQ=summaryLeads.filter(l=>l.roughQuoteDate||l.status==='Summary + rough quote'||(l.summaryLog&&l.summaryLog.some(s=>s.status==='Summary + rough quote')));
   const withoutRQ=summaryLeads.filter(l=>!withRQ.includes(l));
   const rqBooked=withRQ.filter(l=>BOOKED_S.includes(l.status)).length;
