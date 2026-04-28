@@ -2293,6 +2293,55 @@ function saveDB(){
   _saveTimer=setTimeout(()=>syncToSupabase(),500);
 }
 
+// ── Global auto-save ── fires 1.5s after any input in any open modal
+let _globalAutoSaveTimer=null;
+function _globalAutoSave(){
+  clearTimeout(_globalAutoSaveTimer);
+  _globalAutoSaveTimer=setTimeout(function(){
+    // New lead form
+    const newLeadOpen=document.getElementById('modal-new-lead')?.classList.contains('open');
+    if(newLeadOpen){autoSaveLeadDraft();return;}
+    // Quote builder
+    const qbOpen=document.getElementById('modal-quote-builder')?.classList.contains('open');
+    if(qbOpen){qbAutoSave();return;}
+    // Booking form — save draft to localStorage
+    const bookOpen=document.getElementById('modal-book-job')?.classList.contains('open');
+    if(bookOpen){
+      try{
+        const bjDraft={
+          date:document.getElementById('bj-date')?.value||'',
+          time:document.getElementById('bj-time')?.value||'',
+          movers:document.getElementById('bj-movers')?.value||'',
+          rateRegular:document.getElementById('bj-rate-regular')?.value||'',
+          rateCash:document.getElementById('bj-rate-cash')?.value||'',
+          feeFuel:document.getElementById('bj-fee-fuel')?.value||'',
+          feeMaterials:document.getElementById('bj-fee-materials')?.value||'',
+          quote:document.getElementById('bj-quote')?.value||'',
+          scope:document.getElementById('bj-scope')?.value||'',
+          crewNotes:document.getElementById('bj-crew-notes')?.value||'',
+          officeNotes:document.getElementById('bj-office-notes')?.value||'',
+          emailNote:document.getElementById('bj-email-note')?.value||'',
+          doNotExceed:document.getElementById('bj-do-not-exceed')?.value||'',
+          packMatMin:document.getElementById('bj-pack-mat-min')?.value||'',
+          packMatMax:document.getElementById('bj-pack-mat-max')?.value||'',
+          leadId:currentBookingLeadId,savedAt:new Date().toISOString()
+        };
+        localStorage.setItem('bj_draft_'+currentBookingLeadId,JSON.stringify(bjDraft));
+      }catch(e){}
+      return;
+    }
+    // Edit lead form
+    const editLeadOpen=document.getElementById('modal-edit-lead')?.classList.contains('open');
+    if(editLeadOpen){autoSaveLeadDraft();return;}
+    // Call summary
+    const csOpen=document.getElementById('modal-call-summary')?.classList.contains('open');
+    if(csOpen){autoSaveConfirmEmail();return;}
+  },1500);
+}
+// Attach global auto-save to all input events
+document.addEventListener('input',_globalAutoSave);
+document.addEventListener('change',_globalAutoSave);
+
 async function syncToSupabase(){
   try{
     // Upsert all records
@@ -3978,6 +4027,22 @@ function openBooking(leadId){
     }
     if(l.officeNotes){const _bjOn2=document.getElementById('bj-office-notes');if(_bjOn2&&!_bjOn2.value)_bjOn2.value=l.officeNotes;}
   }
+  // Restore booking draft if available for this lead
+  try{
+    const bjDraftStr=localStorage.getItem('bj_draft_'+leadId);
+    if(bjDraftStr){
+      const bjDraft=JSON.parse(bjDraftStr);
+      // Only restore if saved in last 2 hours
+      if(bjDraft.savedAt&&new Date()-new Date(bjDraft.savedAt)<7200000){
+        ['date','time','movers','rateRegular','rateCash','feeFuel','feeMaterials','quote','scope','crewNotes','officeNotes','emailNote','doNotExceed','packMatMin','packMatMax'].forEach(k=>{
+          const el=document.getElementById('bj-'+k.replace(/([A-Z])/g,'-$1').toLowerCase());
+          if(el&&bjDraft[k])el.value=bjDraft[k];
+        });
+      } else {
+        localStorage.removeItem('bj_draft_'+leadId);
+      }
+    }
+  }catch(e){}
   openModal('book-job');
 }
 function buildJobCalUrl(j){
