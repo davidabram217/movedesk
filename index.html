@@ -2531,7 +2531,7 @@ function autoSaveLeadDraft(){
   };
   // Only save if there's something worth saving
   if(!draft.name&&!draft.phone&&!draft.from)return;
-  localStorage.setItem('leadDraft',JSON.stringify(draft));
+  localStorage.setItem('leadDraft',JSON.stringify({...draft,savedAt:new Date().toISOString()}));
 }
 
 function restoreLeadDraft(){
@@ -2539,6 +2539,23 @@ function restoreLeadDraft(){
   if(!raw)return;
   try{
     const d=JSON.parse(raw);
+    // Don't restore if this person is already booked or completed
+    if(d.phone){
+      const clean=d.phone.replace(/\D/g,'');
+      const alreadyBooked=(db.bookedJobs||[]).some(j=>j.phone&&j.phone.replace(/\D/g,'')===clean);
+      const alreadyCompleted=(db.completedJobs||[]).some(j=>j.phone&&j.phone.replace(/\D/g,'')===clean);
+      const alreadyActiveLead=(db.leads||[]).some(l=>l.phone&&l.phone.replace(/\D/g,'')===clean&&l.status!=='Did not book');
+      if(alreadyBooked||alreadyCompleted||alreadyActiveLead){
+        clearLeadDraft();
+        if(alreadyBooked)showToast('Draft cleared — '+d.name+' is already booked');
+        return;
+      }
+    }
+    // Also don't restore if draft is older than 24 hours
+    if(d.savedAt&&Date.now()-new Date(d.savedAt).getTime()>86400000){
+      clearLeadDraft();
+      return;
+    }
     const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.value=val;};
     set('nl-name',d.name);set('nl-phone',d.phone);set('nl-email',d.email);
     set('nl-source',d.source);set('nl-source-detail',d.sourceDetail);toggleSourceDetail();set('nl-date',d.date);set('nl-size',d.size);set('nl-size-other',d.sizeOther||'');toggleSizeOther();
