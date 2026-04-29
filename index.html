@@ -1979,6 +1979,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
           <option value="">Select stage…</option>
           <option value="after-call">After initial call — no follow-up</option>
           <option value="after-summary">After call summary was sent</option>
+          <option value="after-summary-rq">After summary + rough quote was sent</option>
           <option value="after-estimate-scheduled">After estimate was scheduled</option>
           <option value="after-quote">After quote was sent</option>
           <option value="after-followup">After follow-up attempts</option>
@@ -3027,7 +3028,7 @@ function filterLeadsEst(v){leadFilter.est=v;renderLeadsTable();}
 function setLeadTab(tab,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');document.getElementById('leads-pipeline').style.display=tab==='pipeline'?'':'none';document.getElementById('leads-list').style.display=tab==='list'?'':'none';document.getElementById('leads-archived').style.display=tab==='archived'?'':'none';if(tab==='archived')renderArchivedLeads();}
 let archivedFilter={text:'',source:''};
 function renderArchivedLeads(){
-  const stageLabels={'after-call':'After call','after-summary':'After summary','after-estimate-scheduled':'After estimate','after-quote':'After quote','after-followup':'After follow-up','unknown':'Unknown'};
+  const stageLabels={'after-call':'After call','after-summary':'After summary','after-summary-rq':'After summary + rough quote','after-estimate-scheduled':'After estimate','after-quote':'After quote','after-followup':'After follow-up','unknown':'Unknown'};
   const archived=db.leads.filter(l=>l.status==='Did not book');
   const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=archived.length;
   let leads=archived;
@@ -3706,8 +3707,8 @@ function confirmRoughQuote(){
 
 function openDidNotBook(leadId){currentDNBLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('dnb-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${sourceBadge(l.source,l.sourceDetail)}</span><br><span style="font-size:11.5px;color:var(--text3)">Current status: ${l.status}</span>`;
 // Auto-select stage based on current status
-const stageMap={'New':'after-call','Need to follow up':'after-call','Need to send summary':'after-call','Summary sent':'after-summary','Summary + rough quote':'after-summary','Estimate scheduled':'after-estimate-scheduled','Need to send estimate':'after-estimate-scheduled','Estimate sent':'after-quote','Quote accepted':'after-quote','Confirmation sent':'after-quote','Need to follow up':'after-followup'};
-const autoStage=stageMap[l.status]||'';
+const stageMap={'New':'after-call','Need to follow up':'after-call','Need to send summary':'after-call','Summary sent':'after-summary','Summary + rough quote':'after-summary-rq','Estimate scheduled':'after-estimate-scheduled','Need to send estimate':'after-estimate-scheduled','Estimate sent':'after-quote','Quote accepted':'after-quote','Confirmation sent':'after-quote','Need to follow up':'after-followup'};
+const autoStage=stageMap[l.status]||(l.roughQuoteDate?'after-summary-rq':null)||'unknown';
 document.getElementById('dnb-stage').value=autoStage;
 document.getElementById('dnb-reason').selectedIndex=0;document.getElementById('dnb-notes').value='';openModal('did-not-book');}
 function confirmDidNotBook(){
@@ -5603,10 +5604,11 @@ function getEstimateEvents(){
   // Only includes leads where a PRICE was given — rough quote, formal estimate, or quote sent
   // Summary only (no price) is NOT counted as a sales event
   const BOOKED=['Quote accepted','Confirmation sent','Booked','Completed'];
-  const SENT=['Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
+  const SENT=['Summary + rough quote','Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
   const events=[];
   db.leads.forEach(l=>{
-    if(!SENT.includes(l.status))return;
+    // Include if status is in SENT, OR if they had a rough quote (regardless of current status)
+    if(!SENT.includes(l.status)&&!l.roughQuoteDate&&!l.roughQuoteMin)return;
     // Find linked quote
     const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='sent')
