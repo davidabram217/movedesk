@@ -2819,7 +2819,11 @@ function saveLead(){
       l.packing=document.getElementById('nl-packing').value;
       l.sqft=document.getElementById('nl-sqft').value;
       l.storage=(document.getElementById('nl-storage-select')&&document.getElementById('nl-storage-select').value==='yes');
-      l.notes=document.getElementById('nl-notes').value.trim();l.officeNotes=document.getElementById('nl-office-notes').value.trim();l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',cashRate:document.getElementById('nl-rq-cash-rate')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
+      l.notes=document.getElementById('nl-notes').value.trim();
+      const _editedOfficeNotes=document.getElementById('nl-office-notes').value.trim();
+      l.officeNotes=_editedOfficeNotes;
+      // Sync to any booked jobs for this lead
+      if(_editedOfficeNotes)(db.bookedJobs||[]).filter(bj=>bj.leadId===l.id).forEach(bj=>{bj.officeNotes=_editedOfficeNotes;});l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',cashRate:document.getElementById('nl-rq-cash-rate')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
       l.takenBy=document.getElementById('nl-taken-by').value;
     }
     editingLeadId=null;
@@ -3871,7 +3875,9 @@ async function confirmScheduleEstimate(){
   l.estimateScheduledDate=date;
   l.estimateScheduledTime=document.getElementById('sche-time').value;
   l.estimateNotes=document.getElementById('sche-notes').value;
-  l.estimateOfficeNotes=document.getElementById('sche-office-notes')?.value||'';
+  const _scheOn=document.getElementById('sche-office-notes')?.value||'';
+  l.estimateOfficeNotes=_scheOn;
+  if(_scheOn)l.officeNotes=_scheOn; // sync to master
   l.estimateSetupBy=setupBy;
   if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
   // Don't mark as scheduled yet — wait for checklist confirmation
@@ -4189,7 +4195,11 @@ function bjWriteFields(j){
   j.crewNotes=document.getElementById('bj-crew-notes').value;
   j.doNotExceed=document.getElementById('bj-do-not-exceed')?.value?Number(document.getElementById('bj-do-not-exceed').value):null;
   j.emailNote=document.getElementById('bj-email-note').value;
-  j.officeNotes=document.getElementById('bj-office-notes')?.value||'';
+  const _newOfficeNotes=document.getElementById('bj-office-notes')?.value||'';
+  j.officeNotes=_newOfficeNotes;
+  // Sync office notes back to lead as master copy
+  const _bjLead=db.leads.find(x=>x.id===j.leadId);
+  if(_bjLead&&_newOfficeNotes)_bjLead.officeNotes=_newOfficeNotes;
   j.crewDiff=document.getElementById('bj-crew-diff').checked;
   j.crewLoad=document.getElementById('bj-crew-load')?.value||'';
   j.crewUnload=document.getElementById('bj-crew-unload')?.value||'';
@@ -4311,7 +4321,7 @@ function buildJobCalUrl(j){
   const lines=[];
 
   // 1. Office notes — internal only, top
-  if(j.officeNotes){lines.push('🔒 OFFICE NOTES ONLY');lines.push(j.officeNotes.toUpperCase());lines.push('');}
+  if(_officeNotes){lines.push('🔒 OFFICE NOTES ONLY');lines.push(_officeNotes.toUpperCase());lines.push('');}
 
   // 2. Insurance type
   if(j.insuranceType){lines.push(`Insurance: ${j.insuranceType}`);lines.push('');}
@@ -5166,7 +5176,8 @@ function editBookedJob(jobId){
   document.getElementById('bj-crew-notes').value=j.crewNotes||'';
   document.getElementById('bj-email-note').value=j.emailNote||'';
   if(document.getElementById('bj-do-not-exceed'))document.getElementById('bj-do-not-exceed').value=j.doNotExceed||'';
-  if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';
+  const _bjLeadOn=db.leads.find(x=>x.id===j.leadId);
+  if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=_bjLeadOn?.officeNotes||j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';
   const titleEl=document.querySelector('#modal-book-job .modal-title');
   const btnEl=document.querySelector('#modal-book-job .btn-primary');
   if(titleEl)titleEl.textContent='Edit booked job';
@@ -8295,7 +8306,7 @@ function saveQuote(status){
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
     stipulations:document.getElementById('qb-stipulations').value,
-    notes:document.getElementById('qb-notes').value,officeNotes:document.getElementById('qb-office-notes')?.value||'',estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
+    notes:document.getElementById('qb-notes').value,officeNotes:(()=>{const _qbOn=document.getElementById('qb-office-notes')?.value||'';const _qbL=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;if(_qbL&&_qbOn)_qbL.officeNotes=_qbOn;return _qbOn;})(),estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
     sentBy:document.getElementById('qb-sent-by')?.value||'',estimateType:document.getElementById('qb-estimate-type')?.value||'',
     totalMin:t.totalMin,totalMax:t.totalMax,
     status:status||'draft',
