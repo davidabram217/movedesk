@@ -8985,27 +8985,32 @@ function customerAutocomplete(val){
   if(!ac)return;
   if(!val||val.length<2){ac.style.display='none';return;}
   const q=val.toLowerCase();
-  // Search customers, completed jobs, and booked jobs
   const seen=new Set();
   const matches=[];
-  // Customers first (have full history)
-  (db.customers||[]).filter(c=>(c.name||'').toLowerCase().includes(q)).slice(0,4).forEach(c=>{
-    if(!seen.has(c.phone)){seen.add(c.phone);matches.push({id:c.id,name:c.name,phone:c.phone||'',email:c.email||'',type:'customer',jobs:getCustomerHistory(c.id).jobs.length});}
+  // Customers with completed jobs first
+  (db.customers||[]).filter(c=>(c.name||'').toLowerCase().includes(q)&&getCustomerHistory(c.id).jobs.length>0).slice(0,4).forEach(c=>{
+    const ph=(c.phone||'').replace(/\D/g,'');
+    if(ph)seen.add(ph);
+    matches.push({id:c.id,name:c.name,phone:c.phone||'',email:c.email||'',type:'customer',jobs:getCustomerHistory(c.id).jobs.length});
   });
-  // Completed jobs not already found
-  (db.completedJobs||[]).filter(j=>(j.name||'').toLowerCase().includes(q)&&!seen.has((j.phone||'').replace(/\D/g,''))).slice(0,2).forEach(j=>{
+  // Completed jobs not already found by phone
+  (db.completedJobs||[]).filter(j=>(j.name||'').toLowerCase().includes(q)).slice(0,2).forEach(j=>{
     const ph=(j.phone||'').replace(/\D/g,'');
-    if(!seen.has(ph)){seen.add(ph);matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'completed',jobs:1,date:j.date});}
+    if(seen.has(ph))return;
+    seen.add(ph);
+    matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'completed',jobs:1,date:j.date});
   });
-  // Booked jobs not already found
-  (db.bookedJobs||[]).filter(j=>(j.name||'').toLowerCase().includes(q)&&!seen.has((j.phone||'').replace(/\D/g,''))).slice(0,2).forEach(j=>{
+  // Booked jobs not already found by phone
+  (db.bookedJobs||[]).filter(j=>(j.name||'').toLowerCase().includes(q)).slice(0,2).forEach(j=>{
     const ph=(j.phone||'').replace(/\D/g,'');
-    if(!seen.has(ph)){seen.add(ph);matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'booked',jobs:0,date:j.date});}
+    if(seen.has(ph))return;
+    seen.add(ph);
+    matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'booked',jobs:0,date:j.date});
   });
   if(!matches.length){ac.style.display='none';return;}
   ac.style.display='block';
   ac.innerHTML=matches.map(c=>{
-    const badge=c.type==='customer'?`${c.jobs} job(s)`:c.type==='booked'?'Currently booked':'Previous job';
+    const badge=c.type==='customer'?c.jobs+' job(s)':c.type==='booked'?'Currently booked':'Previous job';
     const color=c.type==='customer'?'var(--accent)':c.type==='booked'?'var(--amber)':'var(--text3)';
     return`<div onclick="${c.id?`selectCustomerForLead('${c.id}')`:`selectJobForLead(${JSON.stringify({name:c.name,phone:c.phone,email:c.email,date:c.date,type:c.type})})`}" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div>
