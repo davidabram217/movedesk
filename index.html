@@ -8922,26 +8922,94 @@ function checkRepeatByPhone(val){
     if(emailEl&&!emailEl.value)emailEl.value=job.email||'';
     const srcEl=document.getElementById('nl-source');
     if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
+    showRepeatCustomerPanel(job.name,job.date,'Completed job','var(--accent)');
     showToast('👋 Previous customer found — '+job.name);
+    return;
   }
+  // Also check active booked jobs
+  const bookedJob=(db.bookedJobs||[]).find(j=>j.phone&&j.phone.replace(/\D/g,'')===clean);
+  if(bookedJob){
+    const nameEl=document.getElementById('nl-name');
+    const emailEl=document.getElementById('nl-email');
+    if(nameEl&&!nameEl.value)nameEl.value=bookedJob.name||'';
+    if(emailEl&&!emailEl.value)emailEl.value=bookedJob.email||'';
+    const srcEl=document.getElementById('nl-source');
+    if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
+    showRepeatCustomerPanel(bookedJob.name,bookedJob.date,'Currently booked — job not yet complete','var(--amber)');
+    showToast('⚠ This customer has a job already booked on '+fmtDate(bookedJob.date));
+    return;
+  }
+  // Check active leads (any status except did not book)
+  const activeLead=(db.leads||[]).find(l=>l.status!=='Did not book'&&l.phone&&l.phone.replace(/\D/g,'')===clean);
+  if(activeLead){
+    const nameEl=document.getElementById('nl-name');
+    if(nameEl&&!nameEl.value)nameEl.value=activeLead.name||'';
+    showRepeatCustomerPanel(activeLead.name,activeLead.date,'Already in system — status: '+activeLead.status,'#2980b9');
+    showToast('⚠ This customer already has an active lead — '+activeLead.status);
+  }
+}
+
+function showRepeatCustomerPanel(name,date,label,color){
+  const body=document.getElementById('nl-repeat-customer-body');
+  const panel=document.getElementById('nl-repeat-customer-panel');
+  if(!body||!panel)return;
+  body.innerHTML=`<div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid ${color};display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:11px;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">⚠ Existing customer match</div>
+      <div style="font-size:12px;color:var(--text2)"><strong>${name||'Unknown'}</strong>${date?' · '+fmtDate(date):''}</div>
+      <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${label}</div>
+    </div>
+  </div>`;
+  panel.style.display='block';
 }
 
 function customerAutocomplete(val){
   const ac=document.getElementById('nl-name-ac');
   if(!ac)return;
-  if(!val||val.length<2||!db.customers||!db.customers.length){ac.style.display='none';return;}
+  if(!val||val.length<2){ac.style.display='none';return;}
   const q=val.toLowerCase();
-  const matches=db.customers.filter(c=>(c.name||'').toLowerCase().includes(q)).slice(0,6);
+  // Search customers, completed jobs, and booked jobs
+  const seen=new Set();
+  const matches=[];
+  // Customers first (have full history)
+  (db.customers||[]).filter(c=>(c.name||'').toLowerCase().includes(q)).slice(0,4).forEach(c=>{
+    if(!seen.has(c.phone)){seen.add(c.phone);matches.push({id:c.id,name:c.name,phone:c.phone||'',email:c.email||'',type:'customer',jobs:getCustomerHistory(c.id).jobs.length});}
+  });
+  // Completed jobs not already found
+  (db.completedJobs||[]).filter(j=>(j.name||'').toLowerCase().includes(q)&&!seen.has((j.phone||'').replace(/\D/g,''))).slice(0,2).forEach(j=>{
+    const ph=(j.phone||'').replace(/\D/g,'');
+    if(!seen.has(ph)){seen.add(ph);matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'completed',jobs:1,date:j.date});}
+  });
+  // Booked jobs not already found
+  (db.bookedJobs||[]).filter(j=>(j.name||'').toLowerCase().includes(q)&&!seen.has((j.phone||'').replace(/\D/g,''))).slice(0,2).forEach(j=>{
+    const ph=(j.phone||'').replace(/\D/g,'');
+    if(!seen.has(ph)){seen.add(ph);matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'booked',jobs:0,date:j.date});}
+  });
   if(!matches.length){ac.style.display='none';return;}
   ac.style.display='block';
-  ac.innerHTML=matches.map(c=>`
-    <div onclick="selectCustomerForLead('${c.id}')" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+  ac.innerHTML=matches.map(c=>{
+    const badge=c.type==='customer'?`${c.jobs} job(s)`:c.type==='booked'?'Currently booked':'Previous job';
+    const color=c.type==='customer'?'var(--accent)':c.type==='booked'?'var(--amber)':'var(--text3)';
+    return`<div onclick="${c.id?`selectCustomerForLead('${c.id}')`:`selectJobForLead(${JSON.stringify({name:c.name,phone:c.phone,email:c.email,date:c.date,type:c.type})})`}" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div>
         <div style="font-weight:500">${c.name}</div>
-        <div style="font-size:11.5px;color:var(--text3)">${c.phone||''}${c.phone&&c.email?' · ':''}${c.email||''}</div>
+        <div style="font-size:11.5px;color:var(--text3)">${c.phone}${c.phone&&c.email?' · ':''}${c.email}</div>
       </div>
-      <span class="badge pill-gray" style="font-size:10px;flex-shrink:0">${getCustomerHistory(c.id).jobs.length} job(s)</span>
-    </div>`).join('');
+      <span class="badge pill-gray" style="font-size:10px;flex-shrink:0;color:${color}">${badge}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectJobForLead(data){
+  if(data.name)document.getElementById('nl-name').value=data.name;
+  if(data.phone)document.getElementById('nl-phone').value=data.phone;
+  if(data.email){const el=document.getElementById('nl-email');if(el)el.value=data.email;}
+  document.getElementById('nl-name-ac').style.display='none';
+  const srcEl=document.getElementById('nl-source');
+  if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
+  const label=data.type==='booked'?'Currently booked — job not yet complete':'Previous completed job';
+  const color=data.type==='booked'?'var(--amber)':'var(--accent)';
+  showRepeatCustomerPanel(data.name,data.date,label,color);
 }
 
 function selectCustomerForLead(custId){
