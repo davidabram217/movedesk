@@ -3125,8 +3125,10 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
     </div>`;
 const _bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id);
 const _hasBookedJob=!!_bookedJob;
-const _needsCalendar=_bookedJob&&!_bookedJob.calendarAdded;
-const _calBtn=_needsCalendar?`<button class="btn btn-secondary" onclick="event.stopPropagation();openChecklistForJob('${_bookedJob.id}')">📅 Add to calendar</button>`:'';const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const _calUrl=_bookedJob?buildJobCalUrl(_bookedJob):'';
+const _calBtn=_bookedJob?`<button class="btn btn-secondary" onclick="markJobCalAdded('${_bookedJob.id}');window.open(${JSON.stringify(_calUrl)},'_blank')">📅 Add to calendar</button>`:'';
+const _resendBtn=_bookedJob?`<button class="btn btn-secondary" onclick="currentBookedJobId='${_bookedJob.id}';closeModal('view');setTimeout(()=>openConfirmEmail('${l.id}',db.bookedJobs.find(x=>x.id==='${_bookedJob.id}')),100)">✉ Resend confirmation</button>`:'';
+const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
@@ -3146,7 +3148,7 @@ document.getElementById('view-modal-footer').innerHTML=`
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>
-      ${summaryBtn}${viewSummaryBtn}${viewQuoteBtn}${_calBtn}${mapBtn}
+      ${summaryBtn}${viewSummaryBtn}${viewQuoteBtn}${_resendBtn}${_calBtn}${mapBtn}
       <button class="btn btn-secondary" style="color:#c0392b;border-color:#c0392b" onclick="window.deleteLead('${l.id}')">🗑 Delete</button>
     </div>
     <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
@@ -3298,6 +3300,7 @@ function sendConfirmationEmail(){
   showToast('✓ Confirmation email sent');renderLeads();
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
+  showToast('DEBUG: bookedJobId='+currentBookedJobId+' leadId='+(_ceLead?.id||'null')+' resolved='+_resolvedId);
   if(_resolvedId&&!window._currentDayId){
     currentBookedJobId=_resolvedId;
     window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(db.bookedJobs.find(x=>x.id===_resolvedId));
