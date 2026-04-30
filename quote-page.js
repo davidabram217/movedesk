@@ -22,6 +22,9 @@ async function loadQuote(){
     });
     if(!res.ok){document.getElementById('loading').textContent='Unable to load quote (error '+res.status+'). Please contact us at (415) 822-8547.';return;}
     var rows=await res.json();
+    console.log('Quotes from Supabase:',rows.length,'rows');
+    console.log('Looking for publicId:',publicId);
+    if(rows.length>0)console.log('First row sample:',JSON.stringify(rows[0]).slice(0,200));
     var row=rows.find(function(r){return r.data&&r.data.publicId===publicId;});
     if(!row){document.getElementById('loading').textContent='Quote not found. Please contact us at (415) 822-8547.';return;}
     var q=row.data;
