@@ -3292,21 +3292,20 @@ function sendConfirmationEmail(){
     const day=(j.extraDays||[]).find(d=>d.id===window._currentDayId);
     if(day){day.emailSent=true;}
   }
-  saveDB();
-  document.getElementById('modal-confirm-email').classList.remove('open');
-  showToast('✓ Confirmation email sent');
-  renderLeads();
+  saveDB();closeModal('confirm-email');
+  const ceModal=document.getElementById('modal-confirm-email');
+  if(ceModal)ceModal.style.zIndex='';
+  showToast('✓ Confirmation email sent');renderLeads();
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
-  if(_resolvedId){
-    const _resJob=db.bookedJobs.find(x=>x.id===_resolvedId);
-    if(_resJob){
-      currentBookedJobId=_resolvedId;
-      window._bookingCalUrl=buildJobCalUrl(_resJob);
-      document.getElementById('booking-next-name').textContent=_resJob.name+' · '+fmtDate(_resJob.date);
-      renderBookingChecklist();
-      openModal('booking-next');
-    }
+  if(_resolvedId&&!window._currentDayId){
+    currentBookedJobId=_resolvedId;
+    window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(db.bookedJobs.find(x=>x.id===_resolvedId));
+    setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
+  } else if(_resolvedId&&window._currentDayId){
+    const job=db.bookedJobs.find(x=>x.id===_resolvedId);
+    const day=job?(job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
+    if(job&&day)setTimeout(()=>showDayNextSteps(job,day),300);
   }
 }
 
@@ -4651,10 +4650,6 @@ function renderBookingChecklist(){
   }
   const bothDone=allCalDone&&(emailDone||!j.email);
 
-  const alreadyBooked=!j.pendingConfirmation;
-  const btnLabel=alreadyBooked?'✓ Done':'✓ Confirm &amp; move to Booked Jobs';
-  const btnAction=alreadyBooked?`closeModal('booking-next')`:`bookingNextDone()`;
-
   document.getElementById('booking-checklist').innerHTML=`
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${emailDone?'var(--accent)':'var(--border2)'};background:${emailDone?'var(--accent-light)':'var(--surface)'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -4671,13 +4666,12 @@ function renderBookingChecklist(){
   const btn=document.getElementById('bk-confirm-btn');
   const sub=document.getElementById('bk-confirm-sub');
   if(btn){
-    btn.textContent='';
-    btn.innerHTML=btnLabel;
-    btn.onclick=new Function(btnAction);
+    btn.innerHTML='✓ Confirm &amp; move to Booked Jobs';
+    btn.onclick=bookingNextDone;
   }
-  if(bothDone||alreadyBooked){
+  if(bothDone){
     if(btn){btn.style.opacity='1';btn.style.pointerEvents='auto';}
-    if(sub)sub.textContent=alreadyBooked?'':'All steps done — click to confirm booking';
+    if(sub)sub.textContent='All steps done — click to confirm booking';
   } else {
     if(btn){btn.style.opacity='0.4';btn.style.pointerEvents='none';}
     const missing=[];
@@ -4792,18 +4786,14 @@ async function sendConfirmEmailViaEJS(){
 }
 
 function markJobEmailSent(jobId){
-  const jid=jobId||currentBookedJobId;
-  const j=db.bookedJobs.find(x=>x.id===jid);
-  if(!j){showToast('Could not find booked job');return;}
+  const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
+  if(!j)return;
   j.confirmEmailSent=true;
   currentBookedJobId=j.id;
-  window._bookingCalUrl=buildJobCalUrl(j);
+  window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
   saveDB();
-  showToast('✓ Email marked as sent');
-  document.getElementById('modal-confirm-email').classList.remove('open');
-  document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
-  openModal('booking-next');
+  showToast('✓ Email marked as sent');
 }
 
 function buildJobCalDesc(j){
