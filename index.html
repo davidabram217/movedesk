@@ -2457,7 +2457,6 @@ function clearLeadDraft(){localStorage.removeItem('leadDraft');}
 document.addEventListener('click',e=>{
   if(e.target.classList.contains('modal-bg')){
     if(e.target.id==='modal-new-lead'){
-      // Auto-save draft instead of closing
       autoSaveLeadDraft();
       return;
     }
@@ -3127,8 +3126,7 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
 const _bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id);
 const _hasBookedJob=!!_bookedJob;
 const _needsCalendar=_bookedJob&&!_bookedJob.calendarAdded;
-const _calBtn=_needsCalendar?`<button class="btn btn-secondary" onclick="closeModal('view');showPage('booked');setTimeout(()=>viewBookedJob('${_bookedJob.id}'),200)">📅 Add to calendar</button>`:'';
-const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const _calBtn=_needsCalendar?`<button class="btn btn-secondary" onclick="event.stopPropagation();openChecklistForJob('${_bookedJob.id}')">📅 Add to calendar</button>`:'';const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
@@ -3307,7 +3305,7 @@ function sendConfirmationEmail(){
       window._bookingCalUrl=buildJobCalUrl(_resJob);
       document.getElementById('booking-next-name').textContent=_resJob.name+' · '+fmtDate(_resJob.date);
       renderBookingChecklist();
-      document.getElementById('modal-booking-next').classList.add('open');
+      openModal('booking-next');
     }
   }
 }
@@ -4459,16 +4457,10 @@ function openChecklistForJob(jobId){
   if(!j){showToast('Job not found');return;}
   currentBookedJobId=jobId;
   window._bookingCalUrl=buildJobCalUrl(j);
-  // Render content first
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
-  // Use longer delay to ensure click event has fully propagated before opening
-  setTimeout(function(){
-    closeModal('view');
-    setTimeout(function(){
-      openModal('booking-next');
-    },100);
-  },100);
+  closeModal('view');
+  openModal('booking-next');
 }
 
 function openBookingChecklist(){
@@ -4477,7 +4469,7 @@ function openBookingChecklist(){
   window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
-  document.getElementById('modal-booking-next').classList.add('open');
+  openModal('booking-next');
 }
 
 function buildDayCalUrl(j,day,dayNum){
@@ -4808,13 +4800,10 @@ function markJobEmailSent(jobId){
   window._bookingCalUrl=buildJobCalUrl(j);
   saveDB();
   showToast('✓ Email marked as sent');
-  // Close confirm email modal if open
-  const ceModal=document.getElementById('modal-confirm-email');
-  if(ceModal)ceModal.classList.remove('open');
-  // Open booking checklist
+  document.getElementById('modal-confirm-email').classList.remove('open');
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
-  document.getElementById('modal-booking-next').classList.add('open');
+  openModal('booking-next');
 }
 
 function buildJobCalDesc(j){
