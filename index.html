@@ -4350,8 +4350,6 @@ function confirmBooking(){
     j.rateRegular=document.getElementById('bj-rate-regular').value;
     j.rateCash=document.getElementById('bj-rate-cash').value;
     j.feeMaterials=document.getElementById('bj-fee-materials').value;
-    j.packMatMin=document.getElementById('bj-pack-mat-min')?.value||'';
-    j.packMatMax=document.getElementById('bj-pack-mat-max')?.value||'';
     j.feeFuel=document.getElementById('bj-fee-fuel').value;
     j.driveTo=document.getElementById('bj-drive-to').value;
     j.driveReturn=document.getElementById('bj-drive-return').value;
@@ -4362,7 +4360,7 @@ function confirmBooking(){
     j.scope=document.getElementById('bj-scope').value;
     j.crewNotes=document.getElementById('bj-crew-notes').value;
     j.emailNote=document.getElementById('bj-email-note').value;
-    j.officeNotes=document.getElementById('bj-office-notes')?.value||'';j.crewDiff=document.getElementById('bj-crew-diff').checked;j.crewLoad=document.getElementById('bj-crew-load')?.value||'';j.crewUnload=document.getElementById('bj-crew-unload')?.value||'';j.packCrew=document.getElementById('bj-pack-crew').checked;j.packCrewSize=document.getElementById('bj-pack-crew-size')?.value||'';j.packRate=document.getElementById('bj-pack-rate')?.value||'';j.packHrsMin=document.getElementById('bj-pack-hrs-min')?.value||'';j.packHrsMax=document.getElementById('bj-pack-hrs-max')?.value||'';
+    j.officeNotes=document.getElementById('bj-office-notes')?.value||'';
     const dateChanged=oldDate&&oldDate!==date;
     currentBookedJobId=j.id;
     editingBookedJobId=null;
@@ -4385,40 +4383,11 @@ function confirmBooking(){
   // Attach quote days if a multi-day quote exists
   const leadQuote=(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId&&(q.status==='accepted'||q.status==='sent'));
   const isMultiDayQuote=leadQuote&&leadQuote.jobType==='multi'&&leadQuote.days&&leadQuote.days.length>1;
-  // Reuse draft job created by auto-save if it exists, otherwise create new
-  let job=db.bookedJobs.find(x=>x.leadId===currentBookingLeadId&&x._draft);
-  if(!job){
-    job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',size:l?l.size:'',moveType:l?l.moveType:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',confirmEmailSent:l?!!l.emailConfirmationSent:false,bookedAt:new Date().toISOString().split('T')[0]};
-    // Copy rough quote data from lead so we can track it after completion
-  if(l){
-    if(l.roughQuoteDate)job.roughQuoteDate=l.roughQuoteDate;
-    if(l.roughQuoteMin)job.roughQuoteMin=l.roughQuoteMin;
-    if(l.roughQuoteMax)job.roughQuoteMax=l.roughQuoteMax;
-    if(l.roughQuoteSentBy)job.roughQuoteSentBy=l.roughQuoteSentBy;
-    if(l.roughQuote)job.roughQuote=l.roughQuote;
-    job.bookedFromRoughQuote=!!(l.roughQuoteDate)&&!(db.quotes||[]).some(q=>q.leadId===l.id&&q.status==='accepted');
-  }
+  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
+    multiDay:isMultiDayQuote,quoteDays:isMultiDayQuote?leadQuote.days:[],quoteFees:leadQuote?leadQuote.fees||[]:[]
+  };
   db.bookedJobs.push(job);
-  }
-  // Write all form fields onto job and clear draft flag
-  bjWriteFields(job);
-  job.date=date;
-  job.crew='';
-  job.pendingConfirmation=true;
-  job.multiDay=isMultiDayQuote;
-  job.quoteDays=isMultiDayQuote?leadQuote.days:[];
-  job.quoteFees=leadQuote?leadQuote.fees||[]:[];
-  delete job._draft;
-  if(l){
-    const hasAcceptedQuote=(db.quotes||[]).some(q=>q.leadId===l.id&&(q.status==='accepted'||q.status==='sent'));
-    l.status=hasAcceptedQuote?'Quote accepted':'Confirmation sent';
-  }
-  // Auto-accept any sent quotes linked to this lead
-  if(db.quotes&&currentBookingLeadId){
-    db.quotes.filter(q=>q.leadId===currentBookingLeadId&&q.status==='sent').forEach(q=>{
-      q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];
-    });
-  }
+  if(l)l.status='Quote accepted';
   saveDB();closeModal('book-job');renderLeads();
   currentBookedJobId=job.id;
   window._bookingCalUrl=buildJobCalUrl(job);
@@ -4464,8 +4433,7 @@ function openChecklistForJob(jobId){
 
 function openBookingChecklist(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
-  if(!j){showToast('DEBUG: No job found for id='+currentBookedJobId);return;}
-  window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
+  if(!j)return;
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
   openModal('booking-next');
@@ -4634,9 +4602,7 @@ function renderBookingChecklist(){
           <div style="font-weight:500;font-size:13px;color:${calDone?'var(--accent)':'var(--text)'}">${calDone?'✓ Added to Google Calendar':'📅 Add to Google Calendar'}</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:2px">${calDone?'Done':'Opens Google Calendar with the job pre-filled'}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          ${!calDone?`<a href="${url}" target="_blank" class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')">Add to calendar →</a><button class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')" style="font-size:11px">✓ Mark done</button>`:`<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--text3)" onclick="resetJobCal('${j.id}')">↩ Redo</button>`}
-        </div>
+        ${!calDone?`<div style="display:flex;gap:6px"><a href="${url}" target="_blank" class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')">Add to calendar →</a><button class="btn btn-secondary btn-sm" onclick="markJobCalAdded('${j.id}')" style="font-size:11px">✓ Mark done</button></div>`:''}
       </div>
     </div>`;
   }
@@ -4665,10 +4631,6 @@ function renderBookingChecklist(){
 
   const btn=document.getElementById('bk-confirm-btn');
   const sub=document.getElementById('bk-confirm-sub');
-  if(btn){
-    btn.innerHTML='✓ Confirm &amp; move to Booked Jobs';
-    btn.onclick=bookingNextDone;
-  }
   if(bothDone){
     if(btn){btn.style.opacity='1';btn.style.pointerEvents='auto';}
     if(sub)sub.textContent='All steps done — click to confirm booking';
@@ -4789,8 +4751,6 @@ function markJobEmailSent(jobId){
   const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
   if(!j)return;
   j.confirmEmailSent=true;
-  currentBookedJobId=j.id;
-  window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
   saveDB();
   renderBookingChecklist();
   showToast('✓ Email marked as sent');
@@ -5113,12 +5073,11 @@ function editBookedJob(jobId){
 function markJobCalAdded(jobId){
   const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
   if(!j)return;
-  j.calendarAdded=true;j.calendarAddedDate=new Date().toISOString().split('T')[0];
+  j.calendarAdded=true;
+  j.calendarAddedDate=new Date().toISOString().split('T')[0];
   saveDB();
-  // Update whichever view is open
-  if(document.getElementById('modal-booking-next')?.classList.contains('open'))renderBookingChecklist();
-  else setTimeout(()=>renderBooked(),300);
-  showToast('✓ Marked as added to calendar');
+  renderBookingChecklist();
+  showToast('✓ Calendar marked as done');
 }
 let currentCancelJobId=null;
 function cancelJob(id){
