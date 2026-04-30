@@ -3416,12 +3416,12 @@ function sendConfirmationEmail(){
   // Find booked job BEFORE renderLeads navigates away
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
+  alert('DEBUG: currentBookedJobId='+currentBookedJobId+'\nleadId='+(_ceLead?.id||'null')+'\nresolvedId='+_resolvedId+'\nbookedJobs count='+(db.bookedJobs||[]).length+'\nbookedJobs for this lead='+(db.bookedJobs||[]).filter(b=>b.leadId===_ceLead?.id).length);
   if(_resolvedId){
     currentBookedJobId=_resolvedId;
     setTimeout(()=>{renderLeads();openBookingChecklist();},300);
   } else {
     renderLeads();
-    // No booked job found — prompt to complete the booking
     if(_ceLead){
       setTimeout(()=>showToast('⚠ Please complete the booking form to move this job to Booked Jobs'),500);
     }
