@@ -4464,7 +4464,7 @@ function openChecklistForJob(jobId){
 
 function openBookingChecklist(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
-  if(!j)return;
+  if(!j){showToast('DEBUG: No job found for id='+currentBookedJobId);return;}
   window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
