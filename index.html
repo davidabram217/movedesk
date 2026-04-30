@@ -3412,11 +3412,18 @@ function sendConfirmationEmail(){
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='';
   showToast('✓ Confirmation email sent');renderLeads();
-  // Find booked job — either from currentBookedJobId or via the lead
-  const resolvedJobId=bookedJobId||(l?(db.bookedJobs||[]).find(b=>b.leadId===l.id)?.id:null);
+  // Find booked job — try currentBookedJobId first, then lead, then currentConfirmEmailLeadId
+  const _leadId=l?.id||currentConfirmEmailLeadId||null;
+  const resolvedJobId=currentBookedJobId
+    ||(db.bookedJobs||[]).find(b=>b.leadId===_leadId)?.id
+    ||(db.bookedJobs||[]).find(b=>b.confirmEmailSent)?.id;
   if(resolvedJobId){
     currentBookedJobId=resolvedJobId;
-    setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
+    setTimeout(()=>{
+      document.getElementById('booking-next-name').textContent=(db.bookedJobs.find(x=>x.id===resolvedJobId)?.name||'')+' · next steps';
+      openModal('booking-next');
+      renderBookingChecklist();
+    },300);
   }
 }
 
@@ -8770,14 +8777,14 @@ function viewCustomer(custId){
   // Pre-fill new lead button to populate name/phone/email
   document.getElementById('cv-new-lead-btn').onclick=function(){
     closeModal('customer-view');
+    clearLeadDraft();
     openModal('new-lead');
     setTimeout(function(){
-      const nameEl=document.getElementById('nl-name');
-      const phoneEl=document.getElementById('nl-phone');
-      const emailEl=document.getElementById('nl-email');
-      if(nameEl)nameEl.value=c.name;
-      if(phoneEl)phoneEl.value=c.phone||'';
-      if(emailEl)emailEl.value=c.email||'';
+      if(document.getElementById('nl-name'))document.getElementById('nl-name').value=c.name;
+      if(document.getElementById('nl-phone'))document.getElementById('nl-phone').value=c.phone||'';
+      if(document.getElementById('nl-email'))document.getElementById('nl-email').value=c.email||'';
+      const srcEl=document.getElementById('nl-source');if(srcEl)srcEl.value='Repeat customer';
+      showToast('👋 New job for '+c.name+' — fill in the details');
     },100);
   };
 
@@ -9007,12 +9014,29 @@ function customerAutocomplete(val){
     seen.add(ph);
     matches.push({id:null,name:j.name,phone:j.phone||'',email:j.email||'',type:'booked',jobs:0,date:j.date});
   });
+  // Active leads (summary sent, estimate sent etc) not already found
+  (db.leads||[]).filter(l=>(l.name||'').toLowerCase().includes(q)&&l.status!=='Completed').slice(0,2).forEach(l=>{
+    const ph=(l.phone||'').replace(/\D/g,'');
+    if(seen.has(ph))return;
+    seen.add(ph);
+    const isDNB=l.status==='Did not book';
+    matches.push({id:null,name:l.name,phone:l.phone||'',email:l.email||'',type:isDNB?'dnb':'active-lead',jobs:0,date:l.date,status:l.status,leadId:l.id});
+  });
   if(!matches.length){ac.style.display='none';return;}
   ac.style.display='block';
-  ac.innerHTML=matches.map(c=>{
-    const badge=c.type==='customer'?c.jobs+' job(s)':c.type==='booked'?'Currently booked':'Previous job';
-    const color=c.type==='customer'?'var(--accent)':c.type==='booked'?'var(--amber)':'var(--text3)';
-    return`<div onclick="${c.id?`selectCustomerForLead('${c.id}')`:`selectJobForLead(${JSON.stringify({name:c.name,phone:c.phone,email:c.email,date:c.date,type:c.type})})`}" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+  ac.innerHTML=matches.map((c,idx)=>{
+    const badge=c.type==='customer'?c.jobs+' job(s)'
+      :c.type==='booked'?'Currently booked'
+      :c.type==='dnb'?'Did not book'
+      :c.type==='active-lead'?(c.status||'Active lead')
+      :'Previous job';
+    const color=c.type==='customer'?'var(--accent)'
+      :c.type==='booked'?'var(--amber)'
+      :c.type==='dnb'?'var(--text3)'
+      :c.type==='active-lead'?'#2980b9'
+      :'var(--text3)';
+    const onclickFn=c.id?`selectCustomerForLead('${c.id}')`:`selectAcMatch(${idx})`;
+    return`<div onclick="${onclickFn}" style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div>
         <div style="font-weight:500">${c.name}</div>
         <div style="font-size:11.5px;color:var(--text3)">${c.phone}${c.phone&&c.email?' · ':''}${c.email}</div>
@@ -9020,16 +9044,43 @@ function customerAutocomplete(val){
       <span class="badge pill-gray" style="font-size:10px;flex-shrink:0;color:${color}">${badge}</span>
     </div>`;
   }).join('');
+  // Store matches for selectAcMatch to reference
+  window._acMatches=matches;
+}
+
+function selectAcMatch(idx){
+  const c=window._acMatches&&window._acMatches[idx];
+  if(!c)return;
+  selectJobForLead(c);
 }
 
 function selectJobForLead(data){
+  document.getElementById('nl-name-ac').style.display='none';
+  // For active leads or DNB leads — show their existing lead
+  if((data.type==='active-lead'||data.type==='dnb')&&data.leadId){
+    closeModal('new-lead');
+    clearLeadDraft();
+    setTimeout(()=>{
+      showPage('leads');
+      setTimeout(()=>viewLead(data.leadId),200);
+    },100);
+    return;
+  }
+  // For completed customers — navigate to customer profile
+  const clean=(data.phone||'').replace(/\D/g,'');
+  let cust=db.customers.find(c=>c.phone&&c.phone.replace(/\D/g,'')===clean);
+  if(cust){
+    closeModal('new-lead');
+    clearLeadDraft();
+    setTimeout(()=>{showPage('customers');setTimeout(()=>viewCustomer(cust.id),200);},100);
+    return;
+  }
+  // For booked/completed jobs not yet in customers — pre-fill new lead form
   if(data.name)document.getElementById('nl-name').value=data.name;
   if(data.phone)document.getElementById('nl-phone').value=data.phone;
   if(data.email){const el=document.getElementById('nl-email');if(el)el.value=data.email;}
-  document.getElementById('nl-name-ac').style.display='none';
-  const srcEl=document.getElementById('nl-source');
-  if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
-  const label=data.type==='booked'?'Currently booked — job not yet complete':'Previous completed job';
+  const srcEl=document.getElementById('nl-source');if(srcEl&&!srcEl.value)srcEl.value='Repeat customer';
+  const label=data.type==='booked'?'Currently booked — job not yet complete':'Previous job';
   const color=data.type==='booked'?'var(--amber)':'var(--accent)';
   showRepeatCustomerPanel(data.name,data.date,label,color);
 }
