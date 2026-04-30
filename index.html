@@ -3242,7 +3242,8 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
       ${isPending?`<button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent);padding:6px 14px;font-size:12.5px" onclick="acceptQuote('${l.id}')">✓ Mark as quote accepted</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="closeModal('view');openDidNotBook('${l.id}')">✕ Did not book</button>
     </div>`;
-const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const _hasBookedJob=(db.bookedJobs||[]).some(b=>b.leadId===l.id);
+const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
@@ -3420,6 +3421,10 @@ function sendConfirmationEmail(){
     setTimeout(()=>{renderLeads();openBookingChecklist();},300);
   } else {
     renderLeads();
+    // No booked job found — prompt to complete the booking
+    if(_ceLead){
+      setTimeout(()=>showToast('⚠ Please complete the booking form to move this job to Booked Jobs'),500);
+    }
   }
 }
 
