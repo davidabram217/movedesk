@@ -3169,6 +3169,11 @@ function openConfirmEmail(leadId,bookedJob){
   const l=db.leads.find(x=>x.id===leadId);
   const bj=bookedJob||(db.bookedJobs||[]).find(b=>b.leadId===leadId);
   if(!l&&!bj)return;
+  // FIX: clear sticky day-flow state and pin the right booked job so the
+  // post-send checklist opens for THIS lead, not a stale one.
+  window._currentDayId=null;
+  currentBookedJobId=bj?bj.id:null;
+  window._bookingCalUrl=bj?buildJobCalUrl(bj):null;
   const firstName=((l?.name||bj?.name||'')).split(' ')[0];
   const q=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')
@@ -3300,15 +3305,22 @@ function sendConfirmationEmail(){
   showToast('✓ Confirmation email sent');
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
+  // FIX: only treat this as a "day email" if _currentDayId actually belongs to
+  // the resolved job. Otherwise it's stale state from a prior multi-day flow
+  // and we should fall through to the regular booking checklist.
+  let _dayMatch=null;
+  if(_resolvedId&&window._currentDayId){
+    const _job=db.bookedJobs.find(x=>x.id===_resolvedId);
+    _dayMatch=_job?(_job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
+    if(!_dayMatch)window._currentDayId=null;
+  }
   if(_resolvedId&&!window._currentDayId){
     currentBookedJobId=_resolvedId;
     window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(db.bookedJobs.find(x=>x.id===_resolvedId));
     setTimeout(()=>{renderLeads();openModal('booking-next');renderBookingChecklist();},300);
-  } else if(_resolvedId&&window._currentDayId){
+  } else if(_resolvedId&&window._currentDayId&&_dayMatch){
     const job=db.bookedJobs.find(x=>x.id===_resolvedId);
-    const day=job?(job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
-    if(job&&day)setTimeout(()=>showDayNextSteps(job,day),300);
-    else renderLeads();
+    setTimeout(()=>showDayNextSteps(job,_dayMatch),300);
   } else {
     renderLeads();
   }
