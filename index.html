@@ -3126,7 +3126,7 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
 const _bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id);
 const _hasBookedJob=!!_bookedJob;
 const _calUrl=_bookedJob?buildJobCalUrl(_bookedJob):'';
-const _calBtn=_bookedJob?`<button class="btn btn-secondary" onclick="markJobCalAdded('${_bookedJob.id}');window.open(${JSON.stringify(_calUrl)},'_blank')">📅 Add to calendar</button>`:'';
+const _calBtn=_bookedJob?`<button class="btn btn-secondary" onclick="markJobCalAdded('${_bookedJob.id}');openJobCalendar('${_bookedJob.id}')">📅 Add to calendar</button>`:'';
 const _resendBtn=_bookedJob?`<button class="btn btn-secondary" onclick="currentBookedJobId='${_bookedJob.id}';closeModal('view');setTimeout(()=>openConfirmEmail('${l.id}',db.bookedJobs.find(x=>x.id==='${_bookedJob.id}')),100)">✉ Resend confirmation</button>`:'';
 const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
@@ -4422,6 +4422,13 @@ function openEditedJobCal(){
   window.open(url,'_blank');
   const btn=document.getElementById('job-edit-cal-btn');
   if(btn){btn.textContent='✓ Opened';btn.style.color='var(--accent)';}
+}
+
+function openJobCalendar(jobId){
+  const j=db.bookedJobs.find(x=>x.id===jobId);
+  if(!j)return;
+  const url=buildJobCalUrl(j);
+  window.open(url,'_blank');
 }
 
 function openChecklistForJob(jobId){
