@@ -3413,12 +3413,12 @@ function sendConfirmationEmail(){
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='';
   showToast('✓ Confirmation email sent');
-  // Find booked job BEFORE renderLeads navigates away
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
-  alert('DEBUG: currentBookedJobId='+currentBookedJobId+'\nleadId='+(_ceLead?.id||'null')+'\nresolvedId='+_resolvedId+'\nbookedJobs count='+(db.bookedJobs||[]).length+'\nbookedJobs for this lead='+(db.bookedJobs||[]).filter(b=>b.leadId===_ceLead?.id).length);
   if(_resolvedId){
     currentBookedJobId=_resolvedId;
+    const _resJob=db.bookedJobs.find(x=>x.id===_resolvedId);
+    if(_resJob)window._bookingCalUrl=buildJobCalUrl(_resJob);
     setTimeout(()=>{renderLeads();openBookingChecklist();},300);
   } else {
     renderLeads();
@@ -4901,9 +4901,14 @@ function markJobEmailSent(jobId){
   const j=db.bookedJobs.find(x=>x.id===(jobId||currentBookedJobId));
   if(!j)return;
   j.confirmEmailSent=true;
+  currentBookedJobId=j.id;
+  window._bookingCalUrl=buildJobCalUrl(j);
   saveDB();
+  // Open the booking checklist modal
+  document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
-  showToast('✓ Email marked as sent');
+  openModal('booking-next');
+  showToast('✓ Email marked as sent — now add to calendar');
 }
 
 function buildJobCalDesc(j){
