@@ -3058,7 +3058,7 @@ function reactivateLead(id){
   showToast('↩ '+l.name+' reactivated — marked as Need to follow up');
 }
 
-function viewLead(id){const l=db.leads.find(x=>x.id===id);if(!l)return;document.getElementById('view-modal-title').textContent=l.name;
+function viewLead(id){try{const l=db.leads.find(x=>x.id===id);if(!l)return;document.getElementById('view-modal-title').textContent=l.name;
 document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
 const isPending=l.estimateType&&l.status==='Estimate sent';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
@@ -3099,7 +3099,7 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
   l.estimateScheduledDate?{date:l.estimateScheduledDate,label:'Estimate scheduled',by:l.estimateSetupBy?'by '+l.estimateSetupBy:''}:null,
   l.estimateDate&&(l.status==='Estimate sent'||l.status==='Quote accepted'||l.status==='Confirmation sent')?{date:l.estimateDate,label:'Estimate sent',by:l.estimateSentBy?'by '+l.estimateSentBy:''}:null,
   l.estimateDate&&l.status==='Quote accepted'?{date:l.estimateDate,label:'Quote accepted',by:''}:null,
-].filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`<div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0;font-size:11px">${fmtDate(e.date)}</span><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-bottom:-1px"></span><span style="color:var(--text2)">${e.label}${e.by?` <span style="color:var(--text3)">${e.by}</span>`:''}</span></div>`).join('')||'<div style="color:var(--text3)">No activity logged yet</div>'}</div><div style="font-size:11.5px;color:var(--text3);margin-bottom:7px">Update status</div><div style="display:flex;gap:7px;flex-wrap:wrap">${['New','Need to follow up','Need to send summary','Summary sent','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'].map(s=>`<button class="btn btn-secondary btn-sm ${l.status===s?'btn-primary':''}" onclick="handleStatusClick('${l.id}','${s}')">${s}</button>`).join('')}
+].filter(e=>e&&typeof e.date==='string'&&e.date).sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(e=>`<div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'DM Mono',monospace;color:var(--text3);flex-shrink:0;font-size:11px">${fmtDate(e.date)}</span><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-bottom:-1px"></span><span style="color:var(--text2)">${e.label}${e.by?` <span style="color:var(--text3)">${e.by}</span>`:''}</span></div>`).join('')||'<div style="color:var(--text3)">No activity logged yet</div>'}</div><div style="font-size:11.5px;color:var(--text3);margin-bottom:7px">Update status</div><div style="display:flex;gap:7px;flex-wrap:wrap">${['New','Need to follow up','Need to send summary','Summary sent','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'].map(s=>`<button class="btn btn-secondary btn-sm ${l.status===s?'btn-primary':''}" onclick="handleStatusClick('${l.id}','${s}')">${s}</button>`).join('')}
     </div>
     <div id="est-type-prompt-${l.id}" style="display:none;margin-top:12px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
       <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">Mark estimate as sent</div>
@@ -3153,7 +3153,7 @@ document.getElementById('view-modal-footer').innerHTML=`
     </div>
     <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
   </div>`;
-openModal('view');}
+openModal('view');}catch(err){console.error('viewLead failed for id',id,err);showToast('⚠ Could not open this lead — '+(err&&err.message?err.message:'unknown error')+' (check console)');}}
 
 function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';l.statusUpdatedAt=new Date().toISOString().split('T')[0];
 // Also mark the linked quote as accepted
@@ -4243,7 +4243,7 @@ function buildJobCalUrl(j){
   const lines=[];
 
   // 1. Office notes — internal only, top
-  if(_officeNotes){lines.push('🔒 OFFICE NOTES ONLY');lines.push(_officeNotes.toUpperCase());lines.push('');}
+  if(j.officeNotes){lines.push('🔒 OFFICE NOTES ONLY');lines.push(j.officeNotes.toUpperCase());lines.push('');}
 
   // 2. Insurance type
   if(j.insuranceType){lines.push(`Insurance: ${j.insuranceType}`);lines.push('');}
