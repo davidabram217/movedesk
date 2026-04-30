@@ -3297,21 +3297,22 @@ function sendConfirmationEmail(){
   saveDB();closeModal('confirm-email');
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='';
-  showToast('✓ Confirmation email sent');renderLeads();
+  showToast('✓ Confirmation email sent');
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
-  showToast('DEBUG: bookedJobId='+currentBookedJobId+' leadId='+(_ceLead?.id||'null')+' resolved='+_resolvedId);
   if(_resolvedId&&!window._currentDayId){
     currentBookedJobId=_resolvedId;
     window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(db.bookedJobs.find(x=>x.id===_resolvedId));
-    setTimeout(()=>{openModal('booking-next');renderBookingChecklist();},300);
+    setTimeout(()=>{renderLeads();openModal('booking-next');renderBookingChecklist();},300);
   } else if(_resolvedId&&window._currentDayId){
     const job=db.bookedJobs.find(x=>x.id===_resolvedId);
     const day=job?(job.extraDays||[]).find(d=>d.id===window._currentDayId):null;
     if(job&&day)setTimeout(()=>showDayNextSteps(job,day),300);
+    else renderLeads();
+  } else {
+    renderLeads();
   }
 }
-
 function selectEstimateType(id,btn){
   // Just highlight the selection — don't save yet
   const prompt=document.getElementById('est-type-prompt-'+id);
