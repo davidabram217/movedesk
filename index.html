@@ -4388,9 +4388,9 @@ function confirmBooking(){
   };
   db.bookedJobs.push(job);
   if(l)l.status='Quote accepted';
-  saveDB();closeModal('book-job');renderLeads();
   currentBookedJobId=job.id;
   window._bookingCalUrl=buildJobCalUrl(job);
+  saveDB();closeModal('book-job');renderLeads();
   openBookingChecklist();
 }
 
@@ -4433,10 +4433,11 @@ function openChecklistForJob(jobId){
 
 function openBookingChecklist(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
-  if(!j)return;
+  if(!j){showToast('⚠ DEBUG: job not found, id='+currentBookedJobId);return;}
+  window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
-  openModal('booking-next');
+  setTimeout(function(){openModal('booking-next');},50);
 }
 
 function buildDayCalUrl(j,day,dayNum){
