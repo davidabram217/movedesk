@@ -3411,12 +3411,15 @@ function sendConfirmationEmail(){
   saveDB();closeModal('confirm-email');
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='';
-  showToast('✓ Confirmation email sent');renderLeads();
-  // Open booking checklist — find booked job via currentBookedJobId or lead
-  const _resolvedId=currentBookedJobId||(l?(db.bookedJobs||[]).find(b=>b.leadId===l.id)?.id:null);
+  showToast('✓ Confirmation email sent');
+  // Find booked job BEFORE renderLeads navigates away
+  const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
+  const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
   if(_resolvedId){
     currentBookedJobId=_resolvedId;
-    setTimeout(()=>openBookingChecklist(),300);
+    setTimeout(()=>{renderLeads();openBookingChecklist();},300);
+  } else {
+    renderLeads();
   }
 }
 
