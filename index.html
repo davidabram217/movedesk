@@ -2143,6 +2143,15 @@ async function loadDB(){
     db.weeklyPayroll={};
     (payrollRows||[]).forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});
     db.cashTransactions=(transactions||[]).map(r=>({...r.data,id:r.id}));
+    // ai_training — load if table exists, otherwise keep whatever's in localStorage
+    try{
+      const aiRows=await sbFetch('ai_training?select=id,data&order=created_at.desc');
+      if(Array.isArray(aiRows))db.aiTraining=aiRows.map(r=>({...r.data,id:r.id}));
+    }catch(e){
+      console.warn('ai_training load skipped (table may not exist yet):',e);
+      // preserve whatever localStorage had
+      try{const raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');if(raw){const ld=JSON.parse(raw);if(Array.isArray(ld.aiTraining))db.aiTraining=ld.aiTraining;}}catch(_){}
+    }
     // Customers are rebuilt from leads/jobs on startup - not stored in Supabase
     db.customers=[];
     // Settings
@@ -2271,6 +2280,13 @@ async function syncToSupabase(){
     if(weekRows.length)ops.push(sbFetch('payroll_weeks','POST',weekRows));
     if(txnRows.length)ops.push(sbFetch('cash_transactions','POST',txnRows));
     ops.push(sbFetch('settings','POST',[{id:'main',data:db.settings}]));
+    // ai_training — wrapped so a missing table doesn't break other syncs
+    const aiRows=(db.aiTraining||[]).map(r=>({id:r.id,data:r}));
+    if(aiRows.length){
+      ops.push(sbFetch('ai_training','POST',aiRows).catch(e=>{
+        console.warn('ai_training sync skipped (table may not exist yet):',e);
+      }));
+    }
     await Promise.all(ops);
     _lastSyncAt=Date.now();
   }catch(e){console.error('Supabase sync error:',e);}
@@ -5375,11 +5391,52 @@ const actualLabour=Number(j.feeLabour)||0;
 const actualHours=Number(j.hours)||0;
 
 // Build AI analysis block — look up by completedJobId, bookedJobId, or name+date fallback
-const aiRec=db.aiTraining&&(
+let aiRec=db.aiTraining&&(
   db.aiTraining.find(r=>r.completedJobId===j.id)||
   db.aiTraining.find(r=>r.bookedJobId===j.bookedJobId&&j.bookedJobId)||
   db.aiTraining.find(r=>r.name===j.name&&r.date===j.date)
 );
+// Self-heal: if flagged for AI but the record never made it (or was lost on
+// another device because ai_training didn't sync to Supabase), rebuild it
+// from the completed job + original quote and persist so it shows up forever.
+if(!aiRec&&j.usedForAI){
+  const _bookedForAI=db.bookedJobs.find(b=>b.id===j.bookedJobId)||null;
+  const _leadForAI=(_bookedForAI&&db.leads.find(l=>l.id===_bookedForAI.leadId))
+    ||db.leads.find(l=>l.name===j.name)
+    ||null;
+  const _quoteForAI=_leadForAI?db.quotes.find(q=>q.leadId===_leadForAI.id):null;
+  aiRec={
+    id:uid(),
+    completedJobId:j.id,
+    bookedJobId:j.bookedJobId||null,
+    date:j.date,name:j.name,size:j.size,moveType:j.moveType,
+    from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
+    accessLoad:j.accessLoad,accessUnload:j.accessUnload,
+    quotedMin:_quoteForAI?_quoteForAI.totalMin:null,
+    quotedMax:_quoteForAI?_quoteForAI.totalMax:null,
+    quotedHoursMin:_quoteForAI?_quoteForAI.days?.[0]?.hrsMin:null,
+    quotedHoursMax:_quoteForAI?_quoteForAI.days?.[0]?.hrsMax:null,
+    quotedRate:_quoteForAI?_quoteForAI.days?.[0]?.rate:null,
+    quotedCrew:_quoteForAI?_quoteForAI.days?.[0]?.crew:null,
+    estimatedVaults:_quoteForAI?Number(_quoteForAI.estimatedVaults)||null:null,
+    actualHours:Number(j.hours)||null,
+    moveMen:Number(j.moveMen)||null,
+    packHoursActual:Number(j.packHoursActual)||null,
+    packMen:Number(j.packMen)||null,
+    feePackMaterials:Number(j.feePackMaterials)||null,
+    actualVaults:Number(j.vaults)||null,
+    actualRate:j.hourlyRateCharged?Number(j.hourlyRateCharged):null,
+    actualTotal:Number(j.total)||null,
+    actualLabour:Number(j.feeLabour)||null,
+    actualFuel:Number(j.feeFuel)||null,
+    actualMaterials:Number(j.feeMaterials)||null,
+    savedAt:new Date().toISOString(),
+    _rebuilt:true
+  };
+  if(!db.aiTraining)db.aiTraining=[];
+  db.aiTraining.push(aiRec);
+  try{saveDB();}catch(e){}
+}
 const aiBlock=aiRec
   ?'<div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)"><div style="font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🤖 Saved for AI quote training</div><div style="font-size:12px;color:var(--text2);line-height:1.7">This job has been logged for AI training. The model will use: <strong>'+(aiRec.actualHours||'?')+' hrs</strong> actual'+(aiRec.moveMen?', <strong>'+aiRec.moveMen+' movers</strong>':'')+(aiRec.packHoursActual?', <strong>'+aiRec.packHoursActual+' pack hrs</strong>':'')+', total <strong>'+fmtMoney(aiRec.actualTotal)+'</strong> vs quoted <strong>'+fmtMoney(aiRec.quotedMin)+'–'+fmtMoney(aiRec.quotedMax)+'</strong>.<br><span style="color:var(--text3)">Accuracy: job came in '+(Number(aiRec.actualTotal)<=Number(aiRec.quotedMax)?'<span class="badge pill-green" style="font-size:10px">✓ within quoted range</span>':'<span class="badge pill-amber" style="font-size:10px">over quoted max by '+fmtMoney(Number(aiRec.actualTotal)-Number(aiRec.quotedMax))+'</span>')+'</span></div></div>'
   :(j.usedForAI?'<div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text3)">🤖 Flagged for AI training but training record not found.</div>':'');
