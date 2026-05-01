@@ -38,6 +38,7 @@
 <div id="pending-leads-notice" style="display:none;background:#2d6a4f;color:#fff;padding:10px 20px;align-items:center;gap:12px;font-size:13px;flex-shrink:0">
   <span>📋 <strong><span id="pending-count">0</span> new quote form submission(s)</strong> waiting to be imported</span>
   <button onclick="importPendingLeads()" style="background:#fff;color:#2d6a4f;border:none;border-radius:4px;padding:5px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Import now</button>
+  <button onclick="clearAllPendingLeads()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.6);border-radius:4px;padding:5px 12px;font-size:12px;font-weight:500;cursor:pointer" title="Discard all pending submissions without importing — useful for clearing test data">Clear all</button>
 </div>
   <div class="topbar">
     <div>
@@ -6736,14 +6737,24 @@ async function importPendingLeads(){
     const localPending=JSON.parse(localStorage.getItem('caremore-pending-leads')||'[]');
     const allPending=[...(rows||[]).map(r=>({...r.data,_sbId:r.id})),...localPending];
     if(!allPending.length){showToast('No pending quote form submissions found.');return;}
-    let imported=0;
+    // Repeat-customer detection: matched on phone against completed/booked jobs.
+    // (No dedup — every submission becomes a lead. Use "Clear all" to discard test data.)
+    const phoneNorm=s=>String(s||'').replace(/\D/g,'');
+    const knownPhones=new Set(
+      [...(db.completedJobs||[]),...(db.bookedJobs||[])]
+        .map(j=>phoneNorm(j.phone)).filter(Boolean)
+    );
+    let imported=0, repeatCount=0;
     allPending.forEach(d=>{
+      // Detect repeat customer
+      const isRepeat=phoneNorm(d.phone)&&knownPhones.has(phoneNorm(d.phone));
+      if(isRepeat)repeatCount++;
       const lead={
         id:uid(),
         name:d.name||((d.firstName||'')+' '+(d.lastName||'')).trim(),
         phone:d.phone||'',
         email:d.email||'',
-        source:d.source||'',
+        source:isRepeat?'Repeat customer':(d.source||''),
         sourceDetail:d.sourceDetail||d.sourceOther||'',
         date:d.date||d.moveDate||'',
         size:d.size||d.moveSize||'',
@@ -6774,7 +6785,8 @@ async function importPendingLeads(){
         estimateType:'',estimateDate:'',estimateQuote:'',estimateNotes:'',
         status:'New',
         createdAt:(d.submittedAt||new Date().toISOString()).split('T')[0],
-        fromQuoteForm:true
+        fromQuoteForm:true,
+        repeatCustomer:isRepeat||false
       };
       db.leads.push(lead);imported++;
     });
@@ -6783,9 +6795,27 @@ async function importPendingLeads(){
     }
     localStorage.removeItem('caremore-pending-leads');
     saveDB();renderLeads();renderDashboard();
-    showToast(`✓ ${imported} lead${imported!==1?'s':''} imported from quote form`);
+    let msg=`✓ ${imported} lead${imported!==1?'s':''} imported from quote form`;
+    if(repeatCount)msg+=` · ${repeatCount} repeat customer${repeatCount!==1?'s':''} 👋`;
+    showToast(msg);
     document.getElementById('pending-leads-notice').style.display='none';
   }catch(e){showToast('Could not import leads — check console for details.');console.error(e);}
+}
+
+async function clearAllPendingLeads(){
+  try{
+    const rows=await sbFetch('pending_leads?select=id&order=created_at.asc');
+    const localPending=JSON.parse(localStorage.getItem('caremore-pending-leads')||'[]');
+    const totalCount=(rows?.length||0)+localPending.length;
+    if(!totalCount){showToast('No pending submissions to clear.');return;}
+    if(!confirm(`Discard all ${totalCount} pending submission${totalCount!==1?'s':''} without importing? This cannot be undone.`))return;
+    if(rows&&rows.length){
+      await Promise.all(rows.map(r=>sbDelete('pending_leads',r.id)));
+    }
+    localStorage.removeItem('caremore-pending-leads');
+    showToast(`✓ Cleared ${totalCount} pending submission${totalCount!==1?'s':''}`);
+    document.getElementById('pending-leads-notice').style.display='none';
+  }catch(e){showToast('Could not clear pending submissions — check console.');console.error(e);}
 }
 
 async function checkPendingLeads(){
