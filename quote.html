@@ -3,53 +3,133 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your Move Estimate - CareMore Moving and Storage</title>
+<title>Get a Free Quote — CareMore Moving and Storage</title>
+<meta name="description" content="Tell us about your move and we'll send you a custom quote within 2 business days. Family-run, fully insured, San Francisco Bay Area.">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--green:#2d5a3d;--green2:#234a31;--green-light:#e8f0ea;--text:#1a1916;--text2:#6b6760;--text3:#9e9b94;--border:#e0dbd0;--cream:#faf8f3;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,.08)}
-body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14px;line-height:1.6}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --green:#2d5a3d;--green2:#234a31;--green-light:#e8f0ea;
+  --text:#1a1916;--text2:#6b6760;--text3:#9e9b94;
+  --border:#e0dbd0;--cream:#faf8f3;
+  --error:#b91c1c;--error-bg:#fef2f2;
+  --radius:8px;--shadow:0 1px 4px rgba(0,0,0,.08);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14.5px;line-height:1.6}
+
+/* ── Header ─────────────────────── */
 .header{background:#fff;border-bottom:1px solid var(--border);padding:24px 20px;text-align:center}
 .logo-wrap{display:inline-block;text-align:center}
 .logo-care{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1;display:block}
 .logo-line{display:block;width:100%;height:2.5px;background:#4a9e6b;margin:7px 0}
 .logo-moving{font-family:'Cormorant Garamond',serif;font-size:24px;font-style:italic;color:#1a1916;letter-spacing:.5px;display:block}
 .logo-city{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);margin-top:7px}
+
+/* ── Main layout ─────────────────── */
 .main{max-width:680px;margin:0 auto;padding:32px 20px 60px}
-.loading{text-align:center;padding:60px 20px;color:var(--text3);font-size:15px}
-.quote-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px}
-.quote-header{padding:28px 32px;border-bottom:1px solid var(--border);text-align:center}
-.quote-title{font-size:20px;font-weight:600;margin-bottom:4px}
-.quote-sub{font-size:13px;color:var(--text3)}
-.biz-info{font-size:12px;color:var(--text2);margin-top:12px;line-height:1.8}
-.section{padding:24px 32px;border-bottom:1px solid var(--border)}
+.intro{text-align:center;margin-bottom:28px}
+.intro h1{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;letter-spacing:.3px;line-height:1.15;margin-bottom:10px}
+.intro p{color:var(--text2);font-size:15px;max-width:480px;margin:0 auto;line-height:1.55}
+
+/* ── Card / sections ─────────────── */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:18px}
+.section{padding:24px 28px;border-bottom:1px solid var(--border)}
 .section:last-child{border-bottom:none}
-.section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:12px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.field-label{font-size:11px;color:var(--text3);margin-bottom:2px}
-.field-value{font-size:14px;color:var(--text)}
-.table{width:100%;border-collapse:collapse;font-size:13.5px}
-.table th{padding:8px;border-bottom:2px solid var(--border);text-align:left;color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.table th:not(:first-child){text-align:right}
-.table td{padding:10px 8px;border-bottom:1px solid var(--border)}
-.table td:not(:first-child){text-align:right}
-.table .total-row td{font-weight:600;font-size:15px;padding-top:14px;border-bottom:2px solid var(--border)}
-.terms{font-size:12.5px;color:var(--text2);line-height:1.8}
-.terms li{margin-bottom:4px}
-.accept-section{padding:32px;text-align:center;background:var(--green-light)}
-.accept-title{font-size:16px;font-weight:600;margin-bottom:8px}
-.accept-sub{font-size:13.5px;color:var(--text2);margin-bottom:24px;line-height:1.6}
-.accept-btn{background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:16px 48px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;transition:background .15s;display:inline-block}
-.accept-btn:hover{background:var(--green2)}
-.accept-btn:disabled{background:#aaa;cursor:not-allowed}
-.accepted-box{background:#fff;border:2px solid var(--green);border-radius:12px;padding:32px;text-align:center}
-.accepted-check{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
-.accepted-title{font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:8px}
-.contact-bar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;text-align:center;font-size:13px;color:var(--text2)}
-@media(max-width:560px){.section{padding:20px 18px}.accept-section{padding:24px 18px}.grid-2{grid-template-columns:1fr}.table{font-size:12.5px}}
+.section-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:16px;display:flex;align-items:center;gap:9px}
+.section-label .step{width:20px;height:20px;line-height:20px;text-align:center;border-radius:50%;background:var(--green-light);color:var(--green);font-size:11px;font-weight:700;letter-spacing:0;flex-shrink:0}
+
+/* ── Field grid ───────────────────── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{margin-bottom:14px;display:flex;flex-direction:column}
+.field:last-child{margin-bottom:0}
+.field.full{grid-column:1/-1}
+.field label{font-size:12.5px;color:var(--text2);margin-bottom:5px;font-weight:500}
+.field label .req{color:var(--green);margin-left:1px}
+.field input,.field select,.field textarea{
+  font-family:inherit;font-size:14.5px;color:var(--text);
+  background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  padding:11px 12px;width:100%;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+  -webkit-appearance:none;appearance:none;
+}
+.field textarea{resize:vertical;min-height:80px;line-height:1.5}
+.field select{
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%236b6760' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(45,90,61,.12);
+}
+.field input[disabled]{background:var(--cream);color:var(--text2);cursor:not-allowed}
+.field input::placeholder,.field textarea::placeholder{color:var(--text3)}
+.field.has-error input,.field.has-error select,.field.has-error textarea{border-color:var(--error);background:var(--error-bg)}
+.field-hint{font-size:12px;color:var(--text3);margin-top:5px}
+
+/* ── Location blocks (extra stops) ─ */
+.loc-block{background:var(--cream);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-top:14px;position:relative}
+.loc-block-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.loc-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;padding:4px 10px;border-radius:999px}
+.loc-badge.pickup{background:#e8f0ea;color:var(--green)}
+.loc-badge.dropoff{background:#fef3e8;color:#a3590f}
+.remove-loc-btn{
+  background:none;border:1px solid var(--border);color:var(--text3);
+  width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:600;
+  transition:all .15s;line-height:1;
+}
+.remove-loc-btn:hover{background:var(--error);border-color:var(--error);color:#fff}
+
+/* ── "Add another stop" buttons ─── */
+.add-loc-btn{
+  background:transparent;color:var(--green);border:1.5px dashed var(--border);
+  padding:10px 16px;border-radius:var(--radius);cursor:pointer;font-family:inherit;
+  font-size:13px;font-weight:500;margin-top:14px;
+  transition:all .15s;width:100%;
+}
+.add-loc-btn:hover{border-color:var(--green);background:var(--green-light)}
+
+/* ── Submit ────────────────────────── */
+.submit-section{padding:28px;text-align:center;background:var(--green-light)}
+.submit-btn{
+  background:var(--green);color:#fff;border:none;border-radius:var(--radius);
+  padding:15px 40px;font-family:'DM Sans',sans-serif;font-size:15.5px;font-weight:600;
+  cursor:pointer;transition:background .15s,transform .04s;
+  min-width:240px;
+}
+.submit-btn:hover{background:var(--green2)}
+.submit-btn:active{transform:translateY(1px)}
+.submit-btn:disabled{background:#aaa;cursor:wait}
+.submit-foot{margin-top:12px;font-size:12.5px;color:var(--text2)}
+
+/* ── Success page ──────────────────── */
+.success-card{background:#fff;border:2px solid var(--green);border-radius:12px;padding:36px 28px;text-align:center;box-shadow:var(--shadow)}
+.success-check{width:60px;height:60px;border-radius:50%;background:var(--green);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.success-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;margin-bottom:10px}
+.success-sub{color:var(--text2);font-size:15px;margin-bottom:24px;line-height:1.55}
+.success-summary{text-align:left;background:var(--cream);border-radius:var(--radius);padding:16px 20px;margin-top:24px;font-size:13px}
+.success-contact{margin-top:22px;font-size:13.5px;color:var(--text2)}
+.success-contact a{color:var(--green);text-decoration:none;font-weight:500}
+
+/* ── Footer ────────────────────────── */
+footer{margin-top:40px;padding:18px 20px;text-align:center;font-size:12px;color:var(--text3);line-height:1.7}
+footer a{color:var(--text2);text-decoration:none}
+
+/* ── Mobile ─────────────────────────── */
+@media(max-width:560px){
+  .section{padding:20px 18px}
+  .submit-section{padding:22px 18px}
+  .grid-2{grid-template-columns:1fr;gap:0}
+  .intro h1{font-size:28px}
+  .submit-btn{width:100%}
+}
+
+/* ── Loading spinner ─────────────────── */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
 </style>
 </head>
 <body>
+
 <div class="header">
   <div class="logo-wrap">
     <span class="logo-care">CareMore</span>
@@ -58,17 +138,340 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);
   </div>
   <div class="logo-city">San Francisco, CA</div>
 </div>
+
 <div class="main">
-  <div id="loading" class="loading">Loading your quote...</div>
-  <div id="expired" style="display:none;text-align:center;padding:60px 20px">
-    <div style="font-size:48px;margin-bottom:16px">&#9203;</div>
-    <div style="font-size:20px;font-weight:600;margin-bottom:8px">This quote has expired</div>
-    <div style="color:var(--text3);margin-bottom:24px">Please contact us for an updated estimate.</div>
-    <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> &nbsp;&middot;&nbsp;
-    <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a>
+
+<!-- ─────────── FORM PAGE ─────────── -->
+<div id="form-page">
+
+  <div class="intro">
+    <h1>Tell us about your move</h1>
+    <p>Fill out the details below and we'll get back to you within 2 business days with a custom quote — no obligation.</p>
   </div>
-  <div id="quote-content" style="display:none"></div>
+
+  <div class="card">
+
+    <!-- Step 1: Contact -->
+    <div class="section">
+      <div class="section-label"><span class="step">1</span>Your contact details</div>
+      <div class="grid-2">
+        <div class="field full" id="f-name">
+          <label>Full name<span class="req">*</span></label>
+          <input id="q-name" type="text" autocomplete="name">
+        </div>
+        <div class="field" id="f-phone">
+          <label>Phone<span class="req">*</span></label>
+          <input id="q-phone" type="tel" autocomplete="tel" placeholder="(415) 555-0123">
+        </div>
+        <div class="field" id="f-email">
+          <label>Email<span class="req">*</span></label>
+          <input id="q-email" type="email" autocomplete="email" placeholder="you@example.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Move -->
+    <div class="section">
+      <div class="section-label"><span class="step">2</span>Move details</div>
+      <div class="grid-2">
+        <div class="field" id="f-date">
+          <label>Move date<span class="req">*</span></label>
+          <input id="q-date" type="date">
+          <div class="field-hint">Approximate is fine — we'll confirm later.</div>
+        </div>
+        <div class="field">
+          <label>Home size</label>
+          <select id="q-size">
+            <option value="">Select…</option>
+            <option>Studio</option>
+            <option>1 Bedroom</option>
+            <option>2 Bedroom</option>
+            <option>3 Bedroom</option>
+            <option>4+ Bedroom</option>
+            <option>Office / Commercial</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Square footage (optional)</label>
+          <input id="q-sqft" type="text" placeholder="e.g. 1200">
+        </div>
+        <div class="field">
+          <label>Type of move</label>
+          <select id="q-movetype">
+            <option value="">Select…</option>
+            <option>Move</option>
+            <option>Pack and move</option>
+            <option>Packing only</option>
+            <option>Move to storage</option>
+            <option>Pack and move to storage</option>
+            <option>Move out of storage</option>
+            <option>Load pod / truck only</option>
+            <option>Warehouse labor</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Do you need packing?</label>
+          <select id="q-packing">
+            <option>No</option>
+            <option>Yes — full pack</option>
+            <option>Partial / fragile only</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Moving to CareMore Storage?</label>
+          <select id="q-storage" onchange="toggleStorage()">
+            <option value="no">No</option>
+            <option value="yes">Yes — store with us</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Pick-up -->
+    <div class="section">
+      <div class="section-label"><span class="step">3</span>Pick-up location</div>
+      <div class="grid-2">
+        <div class="field full" id="f-from">
+          <label>Address<span class="req">*</span></label>
+          <input id="q-from" type="text" placeholder="Start typing address…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Zip code</label>
+          <input id="q-from-zip" type="text" maxlength="5" inputmode="numeric" placeholder="94103">
+        </div>
+        <div class="field">
+          <label>Unit / Suite #</label>
+          <input id="q-from-unit" type="text" placeholder="e.g. Apt 4B">
+        </div>
+        <div class="field">
+          <label>Location type</label>
+          <select id="q-from-type">
+            <option value="">Select…</option>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Condo</option>
+            <option>Office</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Floor #</label>
+          <input id="q-from-floor" type="text" placeholder="e.g. 2">
+        </div>
+        <div class="field">
+          <label>Access</label>
+          <select id="q-access-load">
+            <option value="">Select…</option>
+            <option>Flat</option>
+            <option>Flat with long walk</option>
+            <option>A few steps</option>
+            <option>1 flight</option>
+            <option>2 flights</option>
+            <option>3 flights</option>
+            <option>4 flights</option>
+            <option>Elevator</option>
+            <option>Elevator with long walk</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Parking</label>
+          <select id="q-parking-load">
+            <option value="">Select…</option>
+            <option>Loading dock</option>
+            <option>Double parking</option>
+            <option>Save spots</option>
+            <option>Permits</option>
+            <option>Open parking</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Notes</label>
+          <input id="q-from-notes" type="text" placeholder="Parking details, gate codes, access info…">
+        </div>
+      </div>
+      <div id="q-extra-loads"></div>
+      <button type="button" class="add-loc-btn" onclick="addExtraLoad()">+ Add another pick-up location</button>
+    </div>
+
+    <!-- Step 4: Drop-off -->
+    <div class="section">
+      <div class="section-label"><span class="step">4</span>Drop-off location</div>
+      <div class="grid-2">
+        <div class="field full" id="f-to">
+          <label>Address<span class="req">*</span></label>
+          <input id="q-to" type="text" placeholder="Start typing address…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Zip code</label>
+          <input id="q-to-zip" type="text" maxlength="5" inputmode="numeric" placeholder="94117">
+        </div>
+        <div class="field">
+          <label>Unit / Suite #</label>
+          <input id="q-to-unit" type="text" placeholder="e.g. #205">
+        </div>
+        <div class="field">
+          <label>Location type</label>
+          <select id="q-to-type">
+            <option value="">Select…</option>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Condo</option>
+            <option>Office</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Floor #</label>
+          <input id="q-to-floor" type="text" placeholder="e.g. 3">
+        </div>
+        <div class="field">
+          <label>Access</label>
+          <select id="q-access-unload">
+            <option value="">Select…</option>
+            <option>Flat</option>
+            <option>Flat with long walk</option>
+            <option>A few steps</option>
+            <option>1 flight</option>
+            <option>2 flights</option>
+            <option>3 flights</option>
+            <option>4 flights</option>
+            <option>Elevator</option>
+            <option>Elevator with long walk</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Parking</label>
+          <select id="q-parking-unload">
+            <option value="">Select…</option>
+            <option>Loading dock</option>
+            <option>Double parking</option>
+            <option>Save spots</option>
+            <option>Permits</option>
+            <option>Open parking</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Notes</label>
+          <input id="q-to-notes" type="text" placeholder="Parking details, gate codes, access info…">
+        </div>
+      </div>
+      <div id="q-extra-unloads"></div>
+      <button type="button" class="add-loc-btn" onclick="addExtraUnload()">+ Add another drop-off location</button>
+    </div>
+
+    <!-- Step 5: Anything else -->
+    <div class="section">
+      <div class="section-label"><span class="step">5</span>Anything else</div>
+      <div class="grid-2">
+        <div class="field full">
+          <label>Notes for our team</label>
+          <textarea id="q-notes" placeholder="Anything heavy or unusual? Piano, gym equipment, special handling, timing constraints…"></textarea>
+        </div>
+        <div class="field full" id="f-source">
+          <label>How did you hear about us?<span class="req">*</span></label>
+          <select id="q-source" onchange="toggleSourceOther()">
+            <option value="">Select…</option>
+            <option>Google</option>
+            <option>Yelp</option>
+            <option>Referral</option>
+            <option>Realtor</option>
+            <option>Repeat customer</option>
+            <option>ChatGPT</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field full" id="q-source-other-group" style="display:none">
+          <label id="q-source-other-label">Please specify</label>
+          <input id="q-source-other" type="text">
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-section">
+      <button type="button" class="submit-btn" id="submit-btn" onclick="submitForm()">Send my quote request</button>
+      <div class="submit-foot">We'll respond within 2 business days. Your info stays private.</div>
+    </div>
+
+  </div>
+
 </div>
-<script src="quote-page.js"></script>
+
+<!-- ─────────── SUCCESS PAGE ─────────── -->
+<div id="success-page" style="display:none">
+  <div class="success-card">
+    <div class="success-check">&#10003;</div>
+    <div class="success-title">Thanks, <span id="success-name">there</span>!</div>
+    <div class="success-sub">We've received your request. Our team will review the details and get back to you within 2 business days with a custom quote.</div>
+    <div class="success-summary" id="success-summary"></div>
+    <div class="success-contact">
+      Questions? <a href="tel:4158228547">(415) 822-8547</a> &nbsp;·&nbsp; <a href="mailto:move@caremoremoving.com">move@caremoremoving.com</a>
+    </div>
+  </div>
+</div>
+
+</div><!-- /.main -->
+
+<footer>
+  CareMore Moving &amp; Storage &nbsp;·&nbsp; San Francisco, CA &nbsp;·&nbsp; <a href="https://www.caremoremoving.com">caremoremoving.com</a>
+</footer>
+
+<!-- Form logic (your existing file) -->
+<script src="quote-form.js"></script>
+
+<!-- Google Places autocomplete for the main from/to addresses -->
+<script>
+  // Today as min date
+  (function(){
+    var d=document.getElementById('q-date');
+    if(d){d.setAttribute('min',new Date().toISOString().split('T')[0]);}
+  })();
+
+  // Phone formatting
+  (function(){
+    var p=document.getElementById('q-phone');
+    if(!p)return;
+    p.addEventListener('input',function(){
+      var v=this.value.replace(/\D/g,'').slice(0,10);
+      if(v.length>=7) this.value='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);
+      else if(v.length>=4) this.value='('+v.slice(0,3)+') '+v.slice(3);
+      else if(v.length>=1) this.value='('+v;
+      else this.value='';
+    });
+  })();
+
+  // ZIP digits-only
+  ['q-from-zip','q-to-zip'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,5);});
+  });
+
+  // Google Places autocomplete (called by the API script callback)
+  function initPlaces(){
+    if(!window.google||!window.google.maps||!window.google.maps.places)return;
+    ['q-from','q-to'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(!el)return;
+      var ac=new google.maps.places.Autocomplete(el,{types:['address'],componentRestrictions:{country:'us'}});
+      ac.addListener('place_changed',function(){
+        var place=ac.getPlace();
+        if(!place||!place.address_components)return;
+        var zip=place.address_components.find(function(c){return c.types.includes('postal_code');});
+        if(zip){
+          var zipId=id==='q-from'?'q-from-zip':'q-to-zip';
+          var zipEl=document.getElementById(zipId);
+          if(zipEl&&!zipEl.value)zipEl.value=zip.short_name;
+        }
+      });
+    });
+  }
+  window.initPlaces=initPlaces;
+</script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMInpYFiq8TcphbW_lJXiNXil9hs2frMY&libraries=places&callback=initPlaces"></script>
+
 </body>
 </html>
