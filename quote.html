@@ -3,53 +3,134 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your Move Estimate - CareMore Moving and Storage</title>
+<title>Get a Free Quote — CareMore Moving and Storage</title>
+<meta name="description" content="Tell us about your move and we'll send you a custom quote within 2 business days. Family-run, fully insured, San Francisco Bay Area.">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--green:#2d5a3d;--green2:#234a31;--green-light:#e8f0ea;--text:#1a1916;--text2:#6b6760;--text3:#9e9b94;--border:#e0dbd0;--cream:#faf8f3;--radius:8px;--shadow:0 1px 4px rgba(0,0,0,.08)}
-body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14px;line-height:1.6}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --green:#2d5a3d;--green2:#234a31;--green-light:#e8f0ea;
+  --text:#1a1916;--text2:#6b6760;--text3:#9e9b94;
+  --border:#e0dbd0;--cream:#faf8f3;
+  --error:#b91c1c;--error-bg:#fef2f2;
+  --radius:8px;--shadow:0 1px 4px rgba(0,0,0,.08);
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);font-size:14.5px;line-height:1.6}
+
+/* ── Header ─────────────────────── */
 .header{background:#fff;border-bottom:1px solid var(--border);padding:24px 20px;text-align:center}
 .logo-wrap{display:inline-block;text-align:center}
 .logo-care{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600;color:#1a1916;letter-spacing:1px;line-height:1;display:block}
 .logo-line{display:block;width:100%;height:2.5px;background:#4a9e6b;margin:7px 0}
 .logo-moving{font-family:'Cormorant Garamond',serif;font-size:24px;font-style:italic;color:#1a1916;letter-spacing:.5px;display:block}
 .logo-city{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);margin-top:7px}
+
+/* ── Main layout ─────────────────── */
 .main{max-width:680px;margin:0 auto;padding:32px 20px 60px}
-.loading{text-align:center;padding:60px 20px;color:var(--text3);font-size:15px}
-.quote-card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px}
-.quote-header{padding:28px 32px;border-bottom:1px solid var(--border);text-align:center}
-.quote-title{font-size:20px;font-weight:600;margin-bottom:4px}
-.quote-sub{font-size:13px;color:var(--text3)}
-.biz-info{font-size:12px;color:var(--text2);margin-top:12px;line-height:1.8}
-.section{padding:24px 32px;border-bottom:1px solid var(--border)}
+.intro{text-align:center;margin-bottom:28px}
+.intro h1{font-family:'Cormorant Garamond',serif;font-size:34px;font-weight:600;letter-spacing:.3px;line-height:1.15;margin-bottom:10px}
+.intro p{color:var(--text2);font-size:15px;max-width:480px;margin:0 auto;line-height:1.55}
+
+/* ── Card / sections ─────────────── */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:18px}
+.section{padding:24px 28px;border-bottom:1px solid var(--border)}
 .section:last-child{border-bottom:none}
-.section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:12px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.field-label{font-size:11px;color:var(--text3);margin-bottom:2px}
-.field-value{font-size:14px;color:var(--text)}
-.table{width:100%;border-collapse:collapse;font-size:13.5px}
-.table th{padding:8px;border-bottom:2px solid var(--border);text-align:left;color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.table th:not(:first-child){text-align:right}
-.table td{padding:10px 8px;border-bottom:1px solid var(--border)}
-.table td:not(:first-child){text-align:right}
-.table .total-row td{font-weight:600;font-size:15px;padding-top:14px;border-bottom:2px solid var(--border)}
-.terms{font-size:12.5px;color:var(--text2);line-height:1.8}
-.terms li{margin-bottom:4px}
-.accept-section{padding:32px;text-align:center;background:var(--green-light)}
-.accept-title{font-size:16px;font-weight:600;margin-bottom:8px}
-.accept-sub{font-size:13.5px;color:var(--text2);margin-bottom:24px;line-height:1.6}
-.accept-btn{background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:16px 48px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;transition:background .15s;display:inline-block}
-.accept-btn:hover{background:var(--green2)}
-.accept-btn:disabled{background:#aaa;cursor:not-allowed}
-.accepted-box{background:#fff;border:2px solid var(--green);border-radius:12px;padding:32px;text-align:center}
-.accepted-check{width:56px;height:56px;border-radius:50%;background:var(--green);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
-.accepted-title{font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:8px}
-.contact-bar{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;text-align:center;font-size:13px;color:var(--text2)}
-@media(max-width:560px){.section{padding:20px 18px}.accept-section{padding:24px 18px}.grid-2{grid-template-columns:1fr}.table{font-size:12.5px}}
+.section-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:16px;display:flex;align-items:center;gap:9px}
+.section-label .step{width:20px;height:20px;line-height:20px;text-align:center;border-radius:50%;background:var(--green-light);color:var(--green);font-size:11px;font-weight:700;letter-spacing:0;flex-shrink:0}
+.loc-section-label{font-size:13px;font-weight:600;color:var(--text);margin:18px 0 12px;display:flex;align-items:center;gap:7px}
+
+/* ── Field grid ───────────────────── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{margin-bottom:14px;display:flex;flex-direction:column}
+.field:last-child{margin-bottom:0}
+.field.full{grid-column:1/-1}
+.field label{font-size:12.5px;color:var(--text2);margin-bottom:5px;font-weight:500}
+.field label .req{color:var(--green);margin-left:1px}
+.field input,.field select,.field textarea{
+  font-family:inherit;font-size:14.5px;color:var(--text);
+  background:#fff;border:1px solid var(--border);border-radius:var(--radius);
+  padding:11px 12px;width:100%;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+  -webkit-appearance:none;appearance:none;
+}
+.field textarea{resize:vertical;min-height:80px;line-height:1.5}
+.field select{
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%236b6760' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:34px;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(45,90,61,.12);
+}
+.field input[disabled]{background:var(--cream);color:var(--text2);cursor:not-allowed}
+.field input::placeholder,.field textarea::placeholder{color:var(--text3)}
+.field.has-error input,.field.has-error select,.field.has-error textarea{border-color:var(--error);background:var(--error-bg)}
+.field-hint{font-size:12px;color:var(--text3);margin-top:5px}
+
+/* ── Location blocks (extra stops) ─ */
+.loc-block{background:var(--cream);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-top:14px;position:relative}
+.loc-block-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.loc-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;padding:4px 10px;border-radius:999px}
+.loc-badge.pickup{background:#e8f0ea;color:var(--green)}
+.loc-badge.dropoff{background:#fef3e8;color:#a3590f}
+.remove-loc-btn{
+  background:none;border:1px solid var(--border);color:var(--text3);
+  width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:600;
+  transition:all .15s;line-height:1;
+}
+.remove-loc-btn:hover{background:var(--error);border-color:var(--error);color:#fff}
+
+/* ── "Add another stop" buttons ─── */
+.add-loc-btn{
+  background:transparent;color:var(--green);border:1.5px dashed var(--border);
+  padding:10px 16px;border-radius:var(--radius);cursor:pointer;font-family:inherit;
+  font-size:13px;font-weight:500;margin-top:14px;
+  transition:all .15s;width:100%;
+}
+.add-loc-btn:hover{border-color:var(--green);background:var(--green-light)}
+
+/* ── Submit ────────────────────────── */
+.submit-section{padding:28px;text-align:center;background:var(--green-light)}
+.submit-btn{
+  background:var(--green);color:#fff;border:none;border-radius:var(--radius);
+  padding:15px 40px;font-family:'DM Sans',sans-serif;font-size:15.5px;font-weight:600;
+  cursor:pointer;transition:background .15s,transform .04s;
+  min-width:240px;
+}
+.submit-btn:hover{background:var(--green2)}
+.submit-btn:active{transform:translateY(1px)}
+.submit-btn:disabled{background:#aaa;cursor:wait}
+.submit-foot{margin-top:12px;font-size:12.5px;color:var(--text2)}
+
+/* ── Success page ──────────────────── */
+.success-card{background:#fff;border:2px solid var(--green);border-radius:12px;padding:36px 28px;text-align:center;box-shadow:var(--shadow)}
+.success-check{width:60px;height:60px;border-radius:50%;background:var(--green);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.success-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;margin-bottom:10px}
+.success-sub{color:var(--text2);font-size:15px;margin-bottom:24px;line-height:1.55}
+.success-summary{text-align:left;background:var(--cream);border-radius:var(--radius);padding:16px 20px;margin-top:24px;font-size:13px}
+.success-contact{margin-top:22px;font-size:13.5px;color:var(--text2)}
+.success-contact a{color:var(--green);text-decoration:none;font-weight:500}
+
+/* ── Footer ────────────────────────── */
+footer{margin-top:40px;padding:18px 20px;text-align:center;font-size:12px;color:var(--text3);line-height:1.7}
+footer a{color:var(--text2);text-decoration:none}
+
+/* ── Mobile ─────────────────────────── */
+@media(max-width:560px){
+  .section{padding:20px 18px}
+  .submit-section{padding:22px 18px}
+  .grid-2{grid-template-columns:1fr;gap:0}
+  .intro h1{font-size:28px}
+  .submit-btn{width:100%}
+}
+
+/* ── Loading spinner ─────────────────── */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
 </style>
 </head>
 <body>
+
 <div class="header">
   <div class="logo-wrap">
     <span class="logo-care">CareMore</span>
@@ -58,17 +139,647 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text);
   </div>
   <div class="logo-city">San Francisco, CA</div>
 </div>
+
 <div class="main">
-  <div id="loading" class="loading">Loading your quote...</div>
-  <div id="expired" style="display:none;text-align:center;padding:60px 20px">
-    <div style="font-size:48px;margin-bottom:16px">&#9203;</div>
-    <div style="font-size:20px;font-weight:600;margin-bottom:8px">This quote has expired</div>
-    <div style="color:var(--text3);margin-bottom:24px">Please contact us for an updated estimate.</div>
-    <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> &nbsp;&middot;&nbsp;
-    <a href="mailto:move@caremoremoving.com" style="color:var(--green);font-weight:500">move@caremoremoving.com</a>
+
+<!-- ─────────── FORM PAGE ─────────── -->
+<div id="form-page">
+
+  <div class="intro">
+    <h1>Tell us about your move</h1>
+    <p>Fill out the details below and we'll get back to you within 2 business days with a custom quote — no obligation.</p>
   </div>
-  <div id="quote-content" style="display:none"></div>
+
+  <div class="card">
+
+    <!-- Step 1: Contact -->
+    <div class="section">
+      <div class="section-label"><span class="step">1</span>Your contact details</div>
+      <div class="grid-2">
+        <div class="field full" id="f-name">
+          <label>Full name<span class="req">*</span></label>
+          <input id="q-name" type="text" autocomplete="name">
+        </div>
+        <div class="field" id="f-phone">
+          <label>Phone<span class="req">*</span></label>
+          <input id="q-phone" type="tel" autocomplete="tel" placeholder="(415) 555-0123">
+        </div>
+        <div class="field" id="f-email">
+          <label>Email<span class="req">*</span></label>
+          <input id="q-email" type="email" autocomplete="email" placeholder="you@example.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Move details (matches CRM new-lead form) -->
+    <div class="section">
+      <div class="section-label"><span class="step">2</span>Move details</div>
+      <div class="grid-2">
+        <div class="field" id="f-date">
+          <label>Preferred move date<span class="req">*</span></label>
+          <input id="q-date" type="date">
+          <div class="field-hint">Approximate is fine — we'll confirm later.</div>
+        </div>
+        <div class="field">
+          <label>Home size</label>
+          <select id="q-size" onchange="toggleSizeOther()">
+            <option value="">Select…</option>
+            <option>Studio</option>
+            <option>1 bedroom</option>
+            <option>2 bedroom</option>
+            <option>3 bedroom</option>
+            <option>4+ bedroom</option>
+            <option>Office/commercial</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field" id="q-size-other-group" style="display:none">
+          <label>Please describe</label>
+          <input id="q-size-other" type="text" placeholder="e.g. Large warehouse, 2 units, etc.">
+        </div>
+        <div class="field">
+          <label>Square footage</label>
+          <input id="q-sqft" type="number" placeholder="e.g. 800">
+        </div>
+        <div class="field">
+          <label>Type of move</label>
+          <select id="q-movetype">
+            <option value="">Select…</option>
+            <option>Move</option>
+            <option>Pack and move</option>
+            <option>Packing only</option>
+            <option>Move to storage</option>
+            <option>Pack and move to storage</option>
+            <option>Move out of storage</option>
+            <option>Load pod / truck only</option>
+            <option>Warehouse labor</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Packing needed?</label>
+          <select id="q-packing">
+            <option value="No">No — just moving</option>
+            <option value="Partial">Partial packing</option>
+            <option value="Full">Full packing service</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Load location (matches CRM "📦 Load location") -->
+    <div class="section">
+      <div class="section-label"><span class="step">3</span>📦 Load location</div>
+      <div class="grid-2">
+        <div class="field full" id="f-from">
+          <label>Load address<span class="req">*</span></label>
+          <input id="q-from" type="text" placeholder="Start typing address…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Zip code</label>
+          <input id="q-from-zip" type="text" maxlength="5" inputmode="numeric" placeholder="e.g. 94103">
+        </div>
+        <div class="field">
+          <label>Unit / Suite #</label>
+          <input id="q-from-unit" type="text" placeholder="e.g. Apt 4B">
+        </div>
+        <div class="field">
+          <label>Location type</label>
+          <select id="q-from-type">
+            <option value="">Select…</option>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Condo</option>
+            <option>Office</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Floor #</label>
+          <input id="q-from-floor" type="text" placeholder="e.g. 2">
+        </div>
+        <div class="field">
+          <label>Access at load</label>
+          <select id="q-access-load">
+            <option value="">Select…</option>
+            <option>Flat</option>
+            <option>Flat with long walk</option>
+            <option>A few steps</option>
+            <option>1 flight</option>
+            <option>2 flights</option>
+            <option>3 flights</option>
+            <option>4 flights</option>
+            <option>Elevator</option>
+            <option>Elevator with long walk</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Parking at load</label>
+          <select id="q-parking-load">
+            <option value="">Select…</option>
+            <option>Loading dock</option>
+            <option>Double parking</option>
+            <option>Street parking</option>
+            <option>Save spots</option>
+            <option>Permits</option>
+            <option>Open parking</option>
+            <option>Not sure yet</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Load location notes</label>
+          <input id="q-from-notes" type="text" placeholder="Parking details, gate codes, access info…">
+        </div>
+      </div>
+      <div id="q-extra-loads"></div>
+      <button type="button" class="add-loc-btn" onclick="addExtraLoad()">＋ Add another load location</button>
+    </div>
+
+    <!-- Step 4: Unload location (matches CRM "🏠 Unload location") -->
+    <div class="section">
+      <div class="section-label"><span class="step">4</span>🏠 Unload location</div>
+      <div class="grid-2">
+        <div class="field full">
+          <label>Moving to CareMore Moving &amp; Storage?</label>
+          <select id="q-storage" onchange="toggleStorage()">
+            <option value="no">No</option>
+            <option value="yes">Yes — moving to CareMore Storage</option>
+          </select>
+        </div>
+        <div class="field full" id="f-to">
+          <label>Unload address<span class="req">*</span></label>
+          <input id="q-to" type="text" placeholder="Start typing address…" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Zip code</label>
+          <input id="q-to-zip" type="text" maxlength="5" inputmode="numeric" placeholder="e.g. 94121">
+        </div>
+        <div class="field">
+          <label>Unit / Suite #</label>
+          <input id="q-to-unit" type="text" placeholder="e.g. Unit 2">
+        </div>
+        <div class="field">
+          <label>Location type</label>
+          <select id="q-to-type">
+            <option value="">Select…</option>
+            <option>House</option>
+            <option>Apartment</option>
+            <option>Condo</option>
+            <option>Office</option>
+            <option>Storage unit</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Floor #</label>
+          <input id="q-to-floor" type="text" placeholder="e.g. 3">
+        </div>
+        <div class="field">
+          <label>Access at unload</label>
+          <select id="q-access-unload">
+            <option value="">Select…</option>
+            <option>Flat</option>
+            <option>Flat with long walk</option>
+            <option>A few steps</option>
+            <option>1 flight</option>
+            <option>2 flights</option>
+            <option>3 flights</option>
+            <option>4 flights</option>
+            <option>Elevator</option>
+            <option>Elevator with long walk</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Parking at unload</label>
+          <select id="q-parking-unload">
+            <option value="">Select…</option>
+            <option>Loading dock</option>
+            <option>Double parking</option>
+            <option>Street parking</option>
+            <option>Save spots</option>
+            <option>Permits</option>
+            <option>Open parking</option>
+            <option>Not sure yet</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Unload location notes</label>
+          <input id="q-to-notes" type="text" placeholder="Parking details, gate codes, access info…">
+        </div>
+      </div>
+      <div id="q-extra-unloads"></div>
+      <button type="button" class="add-loc-btn" onclick="addExtraUnload()">＋ Add another drop-off location</button>
+    </div>
+
+    <!-- Step 5: Anything else -->
+    <div class="section">
+      <div class="section-label"><span class="step">5</span>Anything else</div>
+      <div class="grid-2">
+        <div class="field full">
+          <label>Additional notes</label>
+          <textarea id="q-notes" placeholder="Anything heavy or unusual? Piano, gym equipment, special handling, timing constraints…"></textarea>
+        </div>
+        <div class="field full" id="f-source">
+          <label>How did you hear about us?<span class="req">*</span></label>
+          <select id="q-source" onchange="toggleSourceOther()">
+            <option value="">Select…</option>
+            <option>Yelp</option>
+            <option>Google</option>
+            <option>ChatGPT</option>
+            <option>Referral</option>
+            <option>Realtor</option>
+            <option>Repeat customer</option>
+            <option>Social media</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field full" id="q-source-other-group" style="display:none">
+          <label id="q-source-other-label">Please specify</label>
+          <input id="q-source-other" type="text">
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="submit-section">
+      <button type="button" class="submit-btn" id="submit-btn" onclick="submitForm()">Send my quote request</button>
+      <div class="submit-foot">We'll respond within 2 business days. Your info stays private.</div>
+    </div>
+
+  </div>
+
 </div>
-<script src="quote-page.js"></script>
+
+<!-- ─────────── SUCCESS PAGE ─────────── -->
+<div id="success-page" style="display:none">
+  <div class="success-card">
+    <div class="success-check">&#10003;</div>
+    <div class="success-title">Thanks, <span id="success-name">there</span>!</div>
+    <div class="success-sub">We've received your request. Our team will review the details and get back to you within 2 business days with a custom quote.</div>
+    <div class="success-summary" id="success-summary"></div>
+    <div class="success-contact">
+      Questions? <a href="tel:4158228547">(415) 822-8547</a> &nbsp;·&nbsp; <a href="mailto:move@caremoremoving.com">move@caremoremoving.com</a>
+    </div>
+  </div>
+</div>
+
+</div><!-- /.main -->
+
+<footer>
+  CareMore Moving &amp; Storage &nbsp;·&nbsp; San Francisco, CA &nbsp;·&nbsp; <a href="https://www.caremoremoving.com">caremoremoving.com</a>
+</footer>
+
+<!-- EmailJS for internal notification (no customer auth needed) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  // ─── Config ────────────────────────────────────────
+  var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
+  var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
+  var EJS_SERVICE='service_nakq8tb';
+  var EJS_NOTIFY_TEMPLATE='template_nr2plwp';
+  var EJS_PUBLIC_KEY='76y89yZYC-kcq82ol';
+  var OFFICE_EMAIL='move@caremoremoving.com';
+  var LOCAL_KEY='caremore-pending-leads';
+  var GOOGLE_MAPS_KEY='AIzaSyDMInpYFiq8TcphbW_lJXiNXil9hs2frMY';
+
+  if(window.emailjs)emailjs.init({publicKey:EJS_PUBLIC_KEY});
+
+  var extraLoadCount=0, extraUnloadCount=0;
+
+  function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+  function v(id){var el=document.getElementById(id);return el?(el.value||'').trim():'';}
+
+  // ─── Toggles ───────────────────────────────────────
+  function toggleSizeOther(){
+    var val=v('q-size');
+    document.getElementById('q-size-other-group').style.display=(val==='Other')?'flex':'none';
+  }
+  function toggleStorage(){
+    var val=document.getElementById('q-storage').value;
+    var toField=document.getElementById('q-to');
+    if(val==='yes'){
+      toField.value='925 Palou Ave, San Francisco, CA 94124';
+      document.getElementById('q-to-zip').value='94124';
+      document.getElementById('q-to-type').value='Storage unit';
+      toField.disabled=true;
+      document.getElementById('q-to-zip').disabled=true;
+    } else {
+      if(toField.value==='925 Palou Ave, San Francisco, CA 94124'){
+        toField.value='';document.getElementById('q-to-zip').value='';
+      }
+      toField.disabled=false;
+      document.getElementById('q-to-zip').disabled=false;
+    }
+  }
+  function toggleSourceOther(){
+    var val=v('q-source');
+    var grp=document.getElementById('q-source-other-group');
+    var lbl=document.getElementById('q-source-other-label');
+    var show=val==='Other'||val==='Referral'||val==='Google'||val==='ChatGPT';
+    grp.style.display=show?'flex':'none';
+    if(val==='Referral')lbl.textContent='Who referred you?';
+    else if(val==='Google'||val==='ChatGPT')lbl.textContent='What did you search for?';
+    else lbl.textContent='Please specify';
+  }
+
+  // ─── Phone formatting + ZIP digits-only ────────────
+  document.getElementById('q-phone').addEventListener('input',function(){
+    var v=this.value.replace(/\D/g,'').slice(0,10);
+    if(v.length>=7) this.value='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);
+    else if(v.length>=4) this.value='('+v.slice(0,3)+') '+v.slice(3);
+    else if(v.length>=1) this.value='('+v;
+    else this.value='';
+  });
+  ['q-from-zip','q-to-zip'].forEach(function(id){
+    document.getElementById(id).addEventListener('input',function(){
+      this.value=this.value.replace(/\D/g,'').slice(0,5);
+    });
+  });
+
+  // ─── Min date = today ──────────────────────────────
+  document.getElementById('q-date').setAttribute('min',new Date().toISOString().split('T')[0]);
+
+  // ─── Extra location blocks ─────────────────────────
+  function makeLocBlock(id,badgeClass,badgeText){
+    var div=document.createElement('div');
+    div.className='loc-block';
+    div.id=id;
+    div.innerHTML='<div class="loc-block-header">'
+      +'<span class="loc-badge '+badgeClass+'">'+badgeText+'</span>'
+      +'<button type="button" class="remove-loc-btn" onclick="removeLoc(\''+id+'\')">×</button>'
+      +'</div>'
+      +'<div class="grid-2">'
+      +'<div class="field full"><label>Address</label><input type="text" id="'+id+'-addr" placeholder="Start typing address…" autocomplete="off"></div>'
+      +'<div class="field"><label>Zip code</label><input type="text" id="'+id+'-zip" maxlength="5" inputmode="numeric" placeholder="e.g. 94103"></div>'
+      +'<div class="field"><label>Unit / Suite #</label><input type="text" id="'+id+'-unit" placeholder="e.g. Apt 4B"></div>'
+      +'<div class="field"><label>Location type</label><select id="'+id+'-type"><option value="">Select…</option><option>House</option><option>Apartment</option><option>Condo</option><option>Office</option><option>Storage unit</option><option>Other</option></select></div>'
+      +'<div class="field"><label>Floor #</label><input type="text" id="'+id+'-floor" placeholder="e.g. 2"></div>'
+      +'<div class="field"><label>Access</label><select id="'+id+'-access"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>'
+      +'<div class="field"><label>Parking</label><select id="'+id+'-parking"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>'
+      +'<div class="field full"><label>Notes</label><input type="text" id="'+id+'-notes" placeholder="Parking details, gate codes, access info…"></div>'
+      +'</div>';
+    setTimeout(function(){
+      var addrEl=document.getElementById(id+'-addr');
+      var zipEl=document.getElementById(id+'-zip');
+      if(zipEl)zipEl.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,5);});
+      if(addrEl&&window.google&&window.google.maps&&window.google.maps.places){
+        var ac=new google.maps.places.Autocomplete(addrEl,{types:['address'],componentRestrictions:{country:'us'}});
+        ac.addListener('place_changed',function(){
+          var place=ac.getPlace();
+          if(!place||!place.address_components)return;
+          var zip=place.address_components.find(function(c){return c.types.includes('postal_code');});
+          if(zip&&zipEl&&!zipEl.value)zipEl.value=zip.short_name;
+        });
+      }
+    },100);
+    return div;
+  }
+  function addExtraLoad(){
+    extraLoadCount++;
+    document.getElementById('q-extra-loads').appendChild(
+      makeLocBlock('q-extra-load-'+extraLoadCount,'pickup','Pick-up '+(extraLoadCount+1))
+    );
+  }
+  function addExtraUnload(){
+    extraUnloadCount++;
+    document.getElementById('q-extra-unloads').appendChild(
+      makeLocBlock('q-extra-unload-'+extraUnloadCount,'dropoff','Drop-off '+(extraUnloadCount+1))
+    );
+  }
+  function removeLoc(id){
+    var el=document.getElementById(id);
+    if(el)el.parentNode.removeChild(el);
+  }
+
+  function getLocData(containerId){
+    var results=[];
+    var container=document.getElementById(containerId);
+    if(!container)return results;
+    var blocks=container.children;
+    for(var i=0;i<blocks.length;i++){
+      var id=blocks[i].id;
+      var addrEl=document.getElementById(id+'-addr');
+      if(addrEl&&addrEl.value.trim()){
+        results.push({
+          address:addrEl.value.trim(),
+          zip:(document.getElementById(id+'-zip')||{value:''}).value.trim(),
+          unit:(document.getElementById(id+'-unit')||{value:''}).value.trim(),
+          locationType:(document.getElementById(id+'-type')||{value:''}).value,
+          floor:(document.getElementById(id+'-floor')||{value:''}).value.trim(),
+          access:(document.getElementById(id+'-access')||{value:''}).value,
+          parking:(document.getElementById(id+'-parking')||{value:''}).value,
+          notes:(document.getElementById(id+'-notes')||{value:''}).value.trim()
+        });
+      }
+    }
+    return results;
+  }
+
+  // ─── Validation ────────────────────────────────────
+  function validate(){
+    var ok=true;
+    function req(fid,iid){
+      var f=document.getElementById(fid);
+      var el=document.getElementById(iid);
+      if(!el||!el.value.trim()){if(f)f.classList.add('has-error');ok=false;}
+      else{if(f)f.classList.remove('has-error');}
+    }
+    req('f-name','q-name');
+    req('f-phone','q-phone');
+    req('f-email','q-email');
+    req('f-date','q-date');
+    req('f-from','q-from');
+    req('f-to','q-to');
+    req('f-source','q-source');
+    var email=v('q-email');
+    if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+      var f=document.getElementById('f-email');if(f)f.classList.add('has-error');ok=false;
+    }
+    return ok;
+  }
+
+  // ─── Collect form data (matches CRM importPendingLeads schema) ────
+  function collectData(){
+    return {
+      name:v('q-name'),
+      phone:v('q-phone'),
+      email:v('q-email'),
+      date:v('q-date'),
+      moveDate:v('q-date'),
+      size:v('q-size'),
+      sizeOther:v('q-size-other'),
+      sqft:v('q-sqft'),
+      moveType:v('q-movetype'),
+      packing:v('q-packing'),
+      storage:document.getElementById('q-storage').value==='yes',
+      from:v('q-from'),
+      fromZip:v('q-from-zip'),
+      fromUnit:v('q-from-unit'),
+      fromType:v('q-from-type'),
+      fromFloor:v('q-from-floor'),
+      accessLoad:v('q-access-load'),
+      parkingLoad:v('q-parking-load'),
+      fromNotes:v('q-from-notes'),
+      extraLoads:getLocData('q-extra-loads'),
+      to:v('q-to'),
+      toZip:v('q-to-zip'),
+      toUnit:v('q-to-unit'),
+      toType:v('q-to-type'),
+      toFloor:v('q-to-floor'),
+      accessUnload:v('q-access-unload'),
+      parkingUnload:v('q-parking-unload'),
+      toNotes:v('q-to-notes'),
+      extraUnloads:getLocData('q-extra-unloads'),
+      source:v('q-source'),
+      sourceDetail:v('q-source-other'),
+      notes:v('q-notes'),
+      submittedAt:new Date().toISOString()
+    };
+  }
+
+  // ─── Submit ────────────────────────────────────────
+  function submitForm(){
+    if(!validate()){
+      var err=document.querySelector('.has-error');
+      if(err)err.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+    var btn=document.getElementById('submit-btn');
+    btn.disabled=true;
+    btn.innerHTML='<span class="spinner"></span>Sending…';
+    var data=collectData();
+
+    // Save to Supabase first
+    fetch(SUPABASE_URL+'/rest/v1/pending_leads',{
+      method:'POST',
+      headers:{
+        'apikey':SUPABASE_KEY,
+        'Authorization':'Bearer '+SUPABASE_KEY,
+        'Content-Type':'application/json',
+        'Prefer':'return=minimal'
+      },
+      body:JSON.stringify([{id:uid(),data:data}])
+    }).then(function(res){
+      if(!res.ok)throw new Error('Supabase '+res.status);
+      // Notify office (best-effort, don't block success)
+      sendOfficeNotification(data);
+      showSuccess(data);
+    }).catch(function(){
+      // localStorage fallback
+      try{
+        var p=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');
+        p.push(data);
+        localStorage.setItem(LOCAL_KEY,JSON.stringify(p));
+      }catch(_){}
+      sendOfficeNotification(data);
+      showSuccess(data);
+    });
+  }
+
+  // ─── Internal notification email (uses EmailJS, no customer auth) ──
+  function sendOfficeNotification(d){
+    if(!window.emailjs)return;
+    var body='New quote form submission!\n\n';
+    body+='CLIENT: '+d.name+'\n';
+    body+='Phone: '+d.phone+'\n';
+    body+='Email: '+d.email+'\n';
+    if(d.source)body+='Source: '+d.source+(d.sourceDetail?' — '+d.sourceDetail:'')+'\n';
+    body+='\nMOVE\n';
+    if(d.date)body+='Date: '+d.date+'\n';
+    if(d.size)body+='Size: '+d.size+(d.sizeOther?' — '+d.sizeOther:'')+'\n';
+    if(d.sqft)body+='Sqft: '+d.sqft+'\n';
+    if(d.moveType)body+='Type: '+d.moveType+'\n';
+    if(d.packing)body+='Packing: '+d.packing+'\n';
+    body+='\nFROM: '+d.from+(d.fromZip?' '+d.fromZip:'')+(d.fromUnit?' #'+d.fromUnit:'')+'\n';
+    if(d.fromType||d.fromFloor)body+='   '+(d.fromType||'')+(d.fromFloor?' • Floor '+d.fromFloor:'')+'\n';
+    if(d.accessLoad)body+='   Access: '+d.accessLoad+'\n';
+    if(d.parkingLoad)body+='   Parking: '+d.parkingLoad+'\n';
+    if(d.fromNotes)body+='   Notes: '+d.fromNotes+'\n';
+    (d.extraLoads||[]).forEach(function(ex,i){
+      body+='\nFROM '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+'\n';
+      if(ex.access)body+='   Access: '+ex.access+'\n';
+      if(ex.parking)body+='   Parking: '+ex.parking+'\n';
+    });
+    body+='\nTO: '+d.to+(d.toZip?' '+d.toZip:'')+(d.toUnit?' #'+d.toUnit:'')+'\n';
+    if(d.toType||d.toFloor)body+='   '+(d.toType||'')+(d.toFloor?' • Floor '+d.toFloor:'')+'\n';
+    if(d.accessUnload)body+='   Access: '+d.accessUnload+'\n';
+    if(d.parkingUnload)body+='   Parking: '+d.parkingUnload+'\n';
+    if(d.toNotes)body+='   Notes: '+d.toNotes+'\n';
+    (d.extraUnloads||[]).forEach(function(ex,i){
+      body+='\nTO '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+'\n';
+      if(ex.access)body+='   Access: '+ex.access+'\n';
+      if(ex.parking)body+='   Parking: '+ex.parking+'\n';
+    });
+    if(d.notes)body+='\nADDITIONAL NOTES:\n'+d.notes+'\n';
+    body+='\n— Log in to MoveDesk to import: https://davidabram217.github.io/movedesk';
+    try{
+      emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{
+        to_email:OFFICE_EMAIL,
+        to_name:'CareMore Moving and Storage',
+        from_name:'CareMore Quote Form',
+        reply_to:d.email||OFFICE_EMAIL,
+        subject:'New quote request — '+d.name+' ('+d.phone+')',
+        message:body,
+        html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>'
+      }).catch(function(e){console.warn('Office notification failed:',e);});
+    }catch(e){console.warn('EmailJS error:',e);}
+  }
+
+  // ─── Success page ──────────────────────────────────
+  function showSuccess(d){
+    document.getElementById('form-page').style.display='none';
+    document.getElementById('success-page').style.display='block';
+    document.getElementById('success-name').textContent=(d.name||'there').split(' ')[0];
+    var rows=[['Name',d.name],['Phone',d.phone],['Email',d.email]];
+    if(d.date)rows.push(['Move date',d.date]);
+    if(d.size)rows.push(['Home size',d.size]);
+    if(d.from)rows.push(['Pick-up',d.from+(d.fromZip?' '+d.fromZip:'')]);
+    (d.extraLoads||[]).forEach(function(ex,i){if(ex.address)rows.push(['Pick-up '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);});
+    if(d.to)rows.push(['Drop-off',d.to+(d.toZip?' '+d.toZip:'')]);
+    (d.extraUnloads||[]).forEach(function(ex,i){if(ex.address)rows.push(['Drop-off '+(i+2),ex.address+(ex.zip?' '+ex.zip:'')]);});
+    if(d.packing&&d.packing!=='No')rows.push(['Packing',d.packing]);
+    if(d.source)rows.push(['How you heard',d.source+(d.sourceDetail?' — '+d.sourceDetail:'')]);
+    if(d.notes)rows.push(['Notes',d.notes]);
+    document.getElementById('success-summary').innerHTML=rows.map(function(r){
+      return '<div style="display:flex;justify-content:space-between;gap:16px;padding:5px 0;border-bottom:1px solid #f0ede6"><span style="color:#9e9b94;flex-shrink:0">'+r[0]+'</span><span style="text-align:right">'+escapeHtml(String(r[1]||''))+'</span></div>';
+    }).join('');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  function escapeHtml(s){
+    return String(s||'').replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);});
+  }
+
+  // ─── Google Places autocomplete ────────────────────
+  function initPlaces(){
+    if(!window.google||!window.google.maps||!window.google.maps.places)return;
+    ['q-from','q-to'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(!el)return;
+      var ac=new google.maps.places.Autocomplete(el,{types:['address'],componentRestrictions:{country:'us'}});
+      ac.addListener('place_changed',function(){
+        var place=ac.getPlace();
+        if(!place||!place.address_components)return;
+        var zip=place.address_components.find(function(c){return c.types.includes('postal_code');});
+        if(zip){
+          var zipId=id==='q-from'?'q-from-zip':'q-to-zip';
+          var zipEl=document.getElementById(zipId);
+          if(zipEl&&!zipEl.value)zipEl.value=zip.short_name;
+        }
+      });
+    });
+  }
+  window.initPlaces=initPlaces;
+
+  // Load Google Places after page has rendered
+  (function(){
+    var s=document.createElement('script');
+    s.async=true; s.defer=true;
+    s.src='https://maps.googleapis.com/maps/api/js?key='+GOOGLE_MAPS_KEY+'&libraries=places&callback=initPlaces';
+    document.head.appendChild(s);
+  })();
+</script>
+
 </body>
 </html>
