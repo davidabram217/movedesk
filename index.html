@@ -1359,6 +1359,7 @@
         <div class="form-group"><label>No. of packers</label><select id="ecj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
         <div class="form-group"><label>Payment method</label><select id="ecj-payment"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
         <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="ecj-rate" placeholder="e.g. 145"></div>
+        <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="ecj-vaults" placeholder="e.g. 6" step="0.5"></div>
       </div>
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Charges & fees</div>
@@ -1378,6 +1379,16 @@
       </div>
 
       <div class="form-group"><label>Notes</label><textarea id="ecj-notes" style="min-height:60px"></textarea></div>
+
+      <div style="margin-top:16px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500">
+          <input type="checkbox" id="ecj-ai-training" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0">
+          <span style="display:block">
+            <span style="font-size:13px;color:var(--text)">🤖 Save for AI quote training</span>
+            <span style="display:block;font-size:11.5px;color:var(--text3);margin-top:2px;line-height:1.45">Use this job's actual data to improve future quote estimates. Recommended for jobs that match your typical workload.</span>
+          </span>
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('edit-completed')">Cancel</button>
@@ -5556,6 +5567,11 @@ function openEditCompletedJob(jobId){
   document.getElementById('ecj-paid').value=j.paid||'';
   document.getElementById('ecj-payment').value=j.payment||'Cash';
   document.getElementById('ecj-notes').value=j.notes||'';
+  // Vaults + AI training (added)
+  const vaultsEl=document.getElementById('ecj-vaults');
+  if(vaultsEl)vaultsEl.value=j.vaults||'';
+  const aiEl=document.getElementById('ecj-ai-training');
+  if(aiEl)aiEl.checked=!!j.usedForAI;
   openModal('edit-completed');
 }
 
@@ -5590,6 +5606,50 @@ function saveEditedCompletedJob(){
   j.owing=Math.max(0,total-paid);
   j.paymentState=j.owing<=0?'paid':'owing';
   j.notes=document.getElementById('ecj-notes').value;
+  // Vaults — store on the completed job
+  const _ecjVaults=document.getElementById('ecj-vaults')?.value||'';
+  j.vaults=_ecjVaults?Number(_ecjVaults):j.vaults;
+  // AI training toggle: respect the new state and add/update training record accordingly
+  const _wantsAI=document.getElementById('ecj-ai-training')?.checked||false;
+  const _wasAI=!!j.usedForAI;
+  j.usedForAI=_wantsAI;
+  if(!db.aiTraining)db.aiTraining=[];
+  if(_wantsAI){
+    // Ensure a training record exists; if it does, refresh actuals (since edit may have changed numbers)
+    let _aiRec=db.aiTraining.find(r=>r.completedJobId===j.id);
+    if(!_aiRec){
+      const _bk=db.bookedJobs.find(b=>b.id===j.bookedJobId)||null;
+      const _ld=(_bk&&db.leads.find(l=>l.id===_bk.leadId))||db.leads.find(l=>l.name===j.name)||null;
+      const _q=_ld?db.quotes.find(q=>q.leadId===_ld.id):null;
+      _aiRec={
+        id:uid(),completedJobId:j.id,bookedJobId:j.bookedJobId||null,
+        date:j.date,name:j.name,size:j.size,moveType:j.moveType,
+        from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
+        accessLoad:j.accessLoad,accessUnload:j.accessUnload,
+        quotedMin:_q?_q.totalMin:null,quotedMax:_q?_q.totalMax:null,
+        quotedHoursMin:_q?_q.days?.[0]?.hrsMin:null,quotedHoursMax:_q?_q.days?.[0]?.hrsMax:null,
+        quotedRate:_q?_q.days?.[0]?.rate:null,quotedCrew:_q?_q.days?.[0]?.crew:null,
+        estimatedVaults:_q?Number(_q.estimatedVaults)||null:null,
+        savedAt:new Date().toISOString()
+      };
+      db.aiTraining.push(_aiRec);
+    }
+    // Refresh actuals from current edit
+    _aiRec.actualHours=Number(j.hours)||null;
+    _aiRec.moveMen=Number(j.moveMen)||null;
+    _aiRec.packHoursActual=Number(j.packHoursActual)||null;
+    _aiRec.packMen=Number(j.packMen)||null;
+    _aiRec.feePackMaterials=Number(j.feePackMaterials)||null;
+    _aiRec.actualVaults=Number(j.vaults)||null;
+    _aiRec.actualRate=j.hourlyRateCharged?Number(j.hourlyRateCharged):null;
+    _aiRec.actualTotal=Number(j.total)||null;
+    _aiRec.actualLabour=Number(j.feeLabour)||null;
+    _aiRec.actualFuel=Number(j.feeFuel)||null;
+    _aiRec.actualMaterials=Number(j.feeMaterials)||null;
+  } else if(_wasAI){
+    // User unchecked the box — remove the record (avoids stale training data)
+    db.aiTraining=db.aiTraining.filter(r=>r.completedJobId!==j.id);
+  }
   saveDB();
   closeModal('edit-completed');
   showToast('✓ Job updated — '+j.name);
