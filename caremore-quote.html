@@ -236,12 +236,12 @@ function toggleStorage(){
   var val=document.getElementById('q-storage').value;
   var toField=document.getElementById('q-to');
   if(val==='yes'){
-    toField.value='925 Palou Ave, San Francisco, CA 94124';
+    toField.value='925 Palou Ave, San Francisco, CA';
     document.getElementById('q-to-zip').value='94124';
     document.getElementById('q-to-type').value='Storage unit';
     toField.disabled=true;document.getElementById('q-to-zip').disabled=true;
   } else {
-    if(toField.value==='925 Palou Ave, San Francisco, CA 94124'){
+    if(toField.value==='925 Palou Ave, San Francisco, CA'){
       toField.value='';document.getElementById('q-to-zip').value='';
     }
     toField.disabled=false;document.getElementById('q-to-zip').disabled=false;
@@ -358,55 +358,89 @@ function collectData(){
 }
 
 // ─── Build email bodies (same content as 3-week-old version) ───────
+function fmtAddr(addr,unit,zip){
+  var s=addr||'';
+  if(unit)s+=' #'+unit;
+  if(zip)s+=' '+zip;
+  return s;
+}
+
+function fmtLoadLocations(d){
+  var lines=[];
+  if(d.from){
+    lines.push(fmtAddr(d.from,d.fromUnit,d.fromZip));
+    if(d.fromType||d.fromFloor)lines.push((d.fromType||'')+(d.fromFloor?(d.fromType?' · ':'')+'Floor '+d.fromFloor:''));
+    if(d.accessLoad)lines.push('Access: '+d.accessLoad);
+    if(d.parkingLoad)lines.push('Parking: '+d.parkingLoad);
+    if(d.fromNotes)lines.push('Notes: '+d.fromNotes);
+  }
+  (d.extraLoads||[]).forEach(function(ex,i){
+    if(ex.address){
+      lines.push('');
+      lines.push('📦 Pickup '+(i+2)+': '+fmtAddr(ex.address,ex.unit,ex.zip));
+      if(ex.access)lines.push('Access: '+ex.access);
+      if(ex.parking)lines.push('Parking: '+ex.parking);
+      if(ex.notes)lines.push('Notes: '+ex.notes);
+    }
+  });
+  return lines.join('\n');
+}
+
+function fmtUnloadLocations(d){
+  var lines=[];
+  if(d.to){
+    lines.push(fmtAddr(d.to,d.toUnit,d.toZip));
+    if(d.toType||d.toFloor)lines.push((d.toType||'')+(d.toFloor?(d.toType?' · ':'')+'Floor '+d.toFloor:''));
+    if(d.accessUnload)lines.push('Access: '+d.accessUnload);
+    if(d.parkingUnload)lines.push('Parking: '+d.parkingUnload);
+    if(d.toNotes)lines.push('Notes: '+d.toNotes);
+  }
+  (d.extraUnloads||[]).forEach(function(ex,i){
+    if(ex.address){
+      lines.push('');
+      lines.push('🏠 Drop-off '+(i+2)+': '+fmtAddr(ex.address,ex.unit,ex.zip));
+      if(ex.access)lines.push('Access: '+ex.access);
+      if(ex.parking)lines.push('Parking: '+ex.parking);
+      if(ex.notes)lines.push('Notes: '+ex.notes);
+    }
+  });
+  return lines.join('\n');
+}
+
+// Office summary block (used by office alert email; same style as customer)
 function buildSummary(d){
   var out='';
   if(d.date)out+='Move date: '+d.date+'\n';
   if(d.size)out+='Home size: '+d.size+(d.sizeOther?' — '+d.sizeOther:'')+'\n';
   if(d.sqft)out+='Square footage: '+d.sqft+'\n';
-  if(d.moveType)out+='Type: '+d.moveType+'\n';
+  if(d.moveType)out+='Type of move: '+d.moveType+'\n';
   if(d.packing&&d.packing!=='No')out+='Packing: '+d.packing+'\n';
-  out+='\nPick-up:\n'+d.from+(d.fromZip?' '+d.fromZip:'')+(d.fromUnit?' #'+d.fromUnit:'')+'\n';
-  if(d.fromType||d.fromFloor)out+=(d.fromType||'')+(d.fromFloor?' • Floor '+d.fromFloor:'')+'\n';
-  if(d.accessLoad)out+='Access: '+d.accessLoad+'\n';
-  if(d.parkingLoad)out+='Parking: '+d.parkingLoad+'\n';
-  if(d.fromNotes)out+='Notes: '+d.fromNotes+'\n';
-  (d.extraLoads||[]).forEach(function(ex,i){
-    out+='\nPick-up '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+'\n';
-    if(ex.access)out+='Access: '+ex.access+'\n';
-    if(ex.parking)out+='Parking: '+ex.parking+'\n';
-  });
-  out+='\nDrop-off:\n'+d.to+(d.toZip?' '+d.toZip:'')+(d.toUnit?' #'+d.toUnit:'')+'\n';
-  if(d.toType||d.toFloor)out+=(d.toType||'')+(d.toFloor?' • Floor '+d.toFloor:'')+'\n';
-  if(d.accessUnload)out+='Access: '+d.accessUnload+'\n';
-  if(d.parkingUnload)out+='Parking: '+d.parkingUnload+'\n';
-  if(d.toNotes)out+='Notes: '+d.toNotes+'\n';
-  (d.extraUnloads||[]).forEach(function(ex,i){
-    out+='\nDrop-off '+(i+2)+': '+ex.address+(ex.zip?' '+ex.zip:'')+'\n';
-    if(ex.access)out+='Access: '+ex.access+'\n';
-    if(ex.parking)out+='Parking: '+ex.parking+'\n';
-  });
+  out+='\n📦 Moving from:\n'+fmtLoadLocations(d)+'\n';
+  out+='\n🏠 Moving to:\n'+fmtUnloadLocations(d)+'\n';
   if(d.notes)out+='\nAdditional notes:\n'+d.notes+'\n';
   return out;
 }
 
 function buildCustomerEmail(d){
   var firstName=(d.name||'').split(' ')[0]||'there';
-  return 'Hi '+firstName+',\n\n'
-    +'Thanks for reaching out to CareMore Moving & Storage! We\'ve received your move request and we\'ll be in touch within 2 business days with a custom quote.\n\n'
-    +'Please note this is not a confirmation — your move is not booked until you receive a signed confirmation from us.\n\n'
-    +'Here\'s a summary of what you submitted:\n'
-    +'----------------------------------------------\n'
-    +'Name: '+d.name+'\n'
-    +'Phone: '+d.phone+'\n'
-    +'Email: '+d.email+'\n'
-    +'----------------------------------------------\n'
-    +buildSummary(d)
-    +'----------------------------------------------\n\n'
-    +'If anything looks off, or if you need to reach us sooner, just reply to this email or call us at (415) 822-8547.\n\n'
-    +'Sincerely,\nThe CareMore Team\n\n'
-    +'CareMore Moving & Storage\n'
-    +'(415) 822-8547 · move@caremoremoving.com\n'
-    +'www.caremoremoving.com';
+  var body='Hi '+firstName+',\n\n';
+  body+='Thanks for reaching out to CareMore Moving & Storage! We are excited and really appreciate the opportunity to potentially help you out with your upcoming move. We\'ll be in touch within 2 business days with a custom quote.\n\n';
+  body+='Please note this is not a confirmation of your move.\n\n';
+  body+='Here\'s a summary of what you submitted:\n\n';
+  if(d.date)body+='Move date: '+d.date+'\n';
+  if(d.size)body+='Home size: '+d.size+(d.sizeOther?' — '+d.sizeOther:'')+'\n';
+  if(d.sqft)body+='Square footage: '+d.sqft+' sq ft\n';
+  if(d.moveType)body+='Type of move: '+d.moveType+'\n';
+  if(d.packing&&d.packing!=='No')body+='Packing needed: '+d.packing+'\n';
+  body+='\n📦 Moving from:\n'+fmtLoadLocations(d)+'\n';
+  body+='\n🏠 Moving to:\n'+fmtUnloadLocations(d)+'\n';
+  if(d.notes)body+='\nAdditional notes:\n'+d.notes+'\n';
+  body+='\nIf anything looks off, or if you need to reach us sooner, just reply to this email or call us at (415) 822-8547.\n\n';
+  body+='Sincerely,\nThe CareMore Team\n\n';
+  body+='CareMore Moving & Storage\n';
+  body+='(415) 822-8547 · move@caremoremoving.com\n';
+  body+='www.caremoremoving.com';
+  return body;
 }
 
 function buildOfficeEmail(d){
