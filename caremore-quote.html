@@ -92,7 +92,7 @@ footer a{color:var(--text2);text-decoration:none}
       <div class="section-label"><span class="step">1</span>Your contact details</div>
       <div class="grid-2">
         <div class="field full" id="f-name"><label>Full name<span class="req">*</span></label><input id="q-name" type="text" autocomplete="name"></div>
-        <div class="field" id="f-phone"><label>Phone<span class="req">*</span></label><input id="q-phone" type="tel" autocomplete="tel" placeholder="(415) 555-0123"></div>
+        <div class="field" id="f-phone"><label>Phone<span class="req">*</span></label><input id="q-phone" type="tel" autocomplete="tel" placeholder="415-555-0123"></div>
         <div class="field" id="f-email"><label>Email<span class="req">*</span></label><input id="q-email" type="email" autocomplete="email" placeholder="you@example.com"></div>
       </div>
     </div>
@@ -260,11 +260,13 @@ function toggleSourceOther(){
 }
 
 document.getElementById('q-phone').addEventListener('input',function(){
-  var x=this.value.replace(/\D/g,'').slice(0,10);
-  if(x.length>=7) this.value='('+x.slice(0,3)+') '+x.slice(3,6)+'-'+x.slice(6);
-  else if(x.length>=4) this.value='('+x.slice(0,3)+') '+x.slice(3);
-  else if(x.length>=1) this.value='('+x;
-  else this.value='';
+  var x=this.value.replace(/\D/g,'');
+  // Strip US country code if present (handles +1, 1, +14155551234, etc.)
+  if(x.length===11&&x.charAt(0)==='1')x=x.slice(1);
+  x=x.slice(0,10);
+  if(x.length>=7) this.value=x.slice(0,3)+'-'+x.slice(3,6)+'-'+x.slice(6);
+  else if(x.length>=4) this.value=x.slice(0,3)+'-'+x.slice(3);
+  else this.value=x;
 });
 ['q-from-zip','q-to-zip'].forEach(function(id){
   document.getElementById(id).addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,5);});
