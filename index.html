@@ -9578,9 +9578,63 @@ function estimatePackingMaterials(size,moveType){
 }
 
 function getAllTrainingData(){
+  // Self-heal: any completed job flagged for AI but missing a training record gets rebuilt.
+  // This catches records that never synced to Supabase (e.g. completed on another device,
+  // or before ai_training table existed in Supabase).
+  selfHealAITraining();
   const spreadsheet=SPREADSHEET_TRAINING;
   const fromApp=(db.aiTraining||[]);
   return [...spreadsheet,...fromApp];
+}
+
+function selfHealAITraining(){
+  if(!db.aiTraining)db.aiTraining=[];
+  let healed=0;
+  (db.completedJobs||[]).forEach(j=>{
+    if(!j.usedForAI)return;
+    // Already has a record? Skip.
+    const existing=db.aiTraining.find(r=>r.completedJobId===j.id)
+      ||db.aiTraining.find(r=>r.bookedJobId===j.bookedJobId&&j.bookedJobId)
+      ||db.aiTraining.find(r=>r.name===j.name&&r.date===j.date);
+    if(existing)return;
+    // Rebuild from completed job + original quote (same logic as viewLead self-heal)
+    const _bookedForAI=db.bookedJobs.find(b=>b.id===j.bookedJobId)||null;
+    const _leadForAI=(_bookedForAI&&db.leads.find(l=>l.id===_bookedForAI.leadId))
+      ||db.leads.find(l=>l.name===j.name)
+      ||null;
+    const _quoteForAI=_leadForAI?db.quotes.find(q=>q.leadId===_leadForAI.id):null;
+    db.aiTraining.push({
+      id:uid(),
+      completedJobId:j.id,
+      bookedJobId:j.bookedJobId||null,
+      date:j.date,name:j.name,size:j.size,moveType:j.moveType,
+      from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
+      accessLoad:j.accessLoad,accessUnload:j.accessUnload,
+      quotedMin:_quoteForAI?_quoteForAI.totalMin:null,
+      quotedMax:_quoteForAI?_quoteForAI.totalMax:null,
+      quotedHoursMin:_quoteForAI?_quoteForAI.days?.[0]?.hrsMin:null,
+      quotedHoursMax:_quoteForAI?_quoteForAI.days?.[0]?.hrsMax:null,
+      quotedRate:_quoteForAI?_quoteForAI.days?.[0]?.rate:null,
+      quotedCrew:_quoteForAI?_quoteForAI.days?.[0]?.crew:null,
+      estimatedVaults:_quoteForAI?Number(_quoteForAI.estimatedVaults)||null:null,
+      actualHours:Number(j.hours)||null,
+      moveMen:Number(j.moveMen)||null,
+      packHoursActual:Number(j.packHoursActual)||null,
+      packMen:Number(j.packMen)||null,
+      feePackMaterials:Number(j.feePackMaterials)||null,
+      actualVaults:Number(j.vaults)||null,
+      actualRate:j.hourlyRateCharged?Number(j.hourlyRateCharged):null,
+      actualTotal:Number(j.total)||null,
+      actualLabour:Number(j.feeLabour)||null,
+      actualFuel:Number(j.feeFuel)||null,
+      actualMaterials:Number(j.feeMaterials)||null,
+      savedAt:new Date().toISOString(),
+      _rebuilt:true
+    });
+    healed++;
+  });
+  if(healed){try{saveDB();}catch(e){}}
+  return healed;
 }
 
 function accessScore(access){
