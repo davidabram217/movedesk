@@ -273,6 +273,30 @@ document.getElementById('q-phone').addEventListener('input',function(){
 });
 
 document.getElementById('q-date').setAttribute('min',new Date().toISOString().split('T')[0]);
+// Also cap at 2 years out so date picker doesn't allow far-future dates
+(function(){
+  var maxDate=new Date();
+  maxDate.setFullYear(maxDate.getFullYear()+2);
+  document.getElementById('q-date').setAttribute('max',maxDate.toISOString().split('T')[0]);
+})();
+// Inline error hint shown when date validation fails
+(function(){
+  var fd=document.getElementById('f-date');
+  if(!fd)return;
+  var hint=document.createElement('div');
+  hint.className='date-err-hint';
+  hint.style.cssText='display:none;font-size:12px;color:var(--error);margin-top:5px';
+  hint.textContent='Please enter a move date between today and 2 years from now.';
+  fd.appendChild(hint);
+})();
+// Live-clear date error when user changes the value
+document.getElementById('q-date').addEventListener('input',function(){
+  var fd=document.getElementById('f-date');
+  if(fd){
+    var hint=fd.querySelector('.date-err-hint');
+    if(hint)hint.style.display='none';
+  }
+});
 
 function makeLocBlock(id,badgeClass,badgeText){
   var div=document.createElement('div');
@@ -332,6 +356,22 @@ function validate(){
   }
   req('f-name','q-name');req('f-phone','q-phone');req('f-email','q-email');
   req('f-date','q-date');req('f-from','q-from');req('f-to','q-to');req('f-source','q-source');
+  // Date sanity check — reject dates in the past or more than 2 years ahead
+  var dateVal=v('q-date');
+  if(dateVal){
+    var picked=new Date(dateVal+'T00:00:00');
+    var today=new Date();today.setHours(0,0,0,0);
+    var maxDate=new Date();maxDate.setFullYear(maxDate.getFullYear()+2);
+    if(isNaN(picked.getTime())||picked<today||picked>maxDate){
+      var fd=document.getElementById('f-date');
+      if(fd){
+        fd.classList.add('has-error');
+        var hint=fd.querySelector('.date-err-hint');
+        if(hint)hint.style.display='block';
+      }
+      ok=false;
+    }
+  }
   var email=v('q-email');
   if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
     var f=document.getElementById('f-email');if(f)f.classList.add('has-error');ok=false;
@@ -554,6 +594,62 @@ function showSuccess(d){
   }).join('');
   window.scrollTo({top:0,behavior:'smooth'});
 }
+</script>
+
+<!-- Google Places autocomplete: hides "TBD" / typed-junk addresses by surfacing real suggestions.
+     This script ONLY provides an address dropdown — it does NOT trigger any sign-in popup.
+     If the API fails (network, key issue, quota), the form still works as a plain text input. -->
+<script>
+window.initCareMorePlaces = function(){
+  if(!window.google || !google.maps || !google.maps.places) return;
+  var fields = ['address_components','formatted_address'];
+  ['q-from','q-to'].forEach(function(id){
+    var input = document.getElementById(id);
+    if(!input || input.disabled) return;
+    try {
+      var ac = new google.maps.places.Autocomplete(input, {
+        types: ['address'],
+        componentRestrictions: { country: 'us' },
+        fields: fields
+      });
+      ac.addListener('place_changed', function(){
+        var place = ac.getPlace();
+        if(!place || !place.address_components) return;
+        // Auto-fill the matching ZIP field if one's in the address components
+        var zip = place.address_components.find(function(c){ return c.types.includes('postal_code'); });
+        if(zip){
+          var zipId = id === 'q-from' ? 'q-from-zip' : 'q-to-zip';
+          var zipEl = document.getElementById(zipId);
+          if(zipEl && !zipEl.value) zipEl.value = zip.short_name;
+        }
+        // Replace the input's value with the formatted street address (without the zip,
+        // since zip is in its own field and the email format puts them together)
+        if(place.formatted_address){
+          // Remove the trailing US zip and ", USA" so we don't duplicate
+          var clean = place.formatted_address.replace(/,\s*USA$/,'').replace(/\s+\d{5}(-\d{4})?(,\s*USA)?$/,'');
+          input.value = clean;
+        }
+      });
+    } catch(e){
+      // Silently ignore — the input still works as a plain text field
+      console.warn('Places autocomplete unavailable for '+id+':', e);
+    }
+  });
+};
+// Load Google Maps Places library asynchronously, with the callback above.
+// If this fails (offline, key revoked, quota exceeded), the form still works fine.
+(function(){
+  // Don't load if it's already loaded or already loading
+  if(window.google && google.maps && google.maps.places){ window.initCareMorePlaces(); return; }
+  if(document.querySelector('script[data-caremore-places]')) return;
+  var s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyDMInpYFiq8TcphbW_lJXiNXil9hs2frMY&libraries=places&callback=initCareMorePlaces&loading=async';
+  s.async = true;
+  s.defer = true;
+  s.setAttribute('data-caremore-places','1');
+  s.onerror = function(){ console.warn('Google Maps failed to load — addresses will use plain text input.'); };
+  document.head.appendChild(s);
+})();
 </script>
 
 </body>
