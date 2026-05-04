@@ -2169,6 +2169,16 @@ async function loadDB(){
     const s=settingsRows&&settingsRows[0];
     if(s&&s.data){db.settings={...db.settings,...s.data};}
     if(!db.settings.crew||!db.settings.crew.length)db.settings.crew=['John','Dave'];
+    // Self-heal: remove orphaned booked jobs that also exist in completedJobs.
+    // (Caused by older code paths that didn't sbDelete the booked row when a job was completed.)
+    const completedIds=new Set((db.completedJobs||[]).map(j=>j.id));
+    const orphans=(db.bookedJobs||[]).filter(j=>completedIds.has(j.id));
+    if(orphans.length){
+      console.log('Cleaning up '+orphans.length+' orphaned booked job(s) that are also completed:',orphans.map(o=>o.name||o.id).join(', '));
+      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!completedIds.has(j.id));
+      // Best-effort cloud cleanup so it doesn't come back next refresh
+      orphans.forEach(j=>{try{sbDelete('booked_jobs',j.id);}catch(_){}});
+    }
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -5335,7 +5345,13 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       savedAt:new Date().toISOString()
     });
   }
-  db.completedJobs.push(completed);upsertCustomer(completed);db.bookedJobs=db.bookedJobs.filter(x=>x.id!==currentCompleteJobId);if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead)lead.status='Completed';}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
+  db.completedJobs.push(completed);upsertCustomer(completed);
+  const _completedBookedJobId=currentCompleteJobId;
+  db.bookedJobs=db.bookedJobs.filter(x=>x.id!==_completedBookedJobId);
+  // Explicitly delete the booked-jobs row from Supabase, otherwise it lingers in the cloud
+  // and reappears as a duplicate on the next refresh from another device.
+  sbDelete('booked_jobs',_completedBookedJobId);
+  if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead)lead.status='Completed';}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
 
 function saveJobForAI(completedJobId){
   const j=db.completedJobs.find(x=>x.id===completedJobId);
