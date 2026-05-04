@@ -2516,6 +2516,23 @@ const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
+// Apples-to-apples comparison helper for quote accuracy.
+// If a customer paid the cash rate, the actual total is artificially low compared to the quote
+// (which was based on the regular rate). This returns the total the job WOULD have cost at the
+// regular rate, plus a flag so the UI can show both numbers when they differ.
+function getQuoteCompareTotal(j){
+  const actualTotal=Number(j.total)||Number(j.actualTotal)||Number(j.paid)||0;
+  if(!j.paidCashRate||!j.quotedRate||!j.cashRate||!j.hours){
+    return{compareTotal:actualTotal,actualPaid:actualTotal,paidCash:false,regularEquiv:null};
+  }
+  // Reconstruct the regular-rate-equivalent: replace the labour line with hours × quoted rate
+  const hours=Number(j.hours)||0;
+  const regularLabour=hours*Number(j.quotedRate);
+  const cashLabour=hours*Number(j.cashRate);
+  // Take what they actually paid, swap cash labour for regular labour
+  const regularEquiv=Math.round(actualTotal-cashLabour+regularLabour);
+  return{compareTotal:regularEquiv,actualPaid:actualTotal,paidCash:true,regularEquiv};
+}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function statusBadge(s){const map={'New':['pill-blue','New'],'Need to follow up':['pill-amber','Follow up'],'Need to send summary':['pill-amber','Send summary'],'Summary sent':['pill-green','Summary sent'],'Estimate scheduled':['pill-purple','Est. scheduled'],'Need to send estimate':['pill-amber','Need to send estimate'],'Estimate sent':['pill-amber','Estimate pending'],'Quote accepted':['pill-green','Quote accepted'],'Confirmation sent':['pill-green','Confirmation sent'],'Booked':['pill-green','Booked'],'Did not book':['pill-gray','Did not book'],'Completed':['pill-green','Completed']};const[cls,label]=map[s]||['pill-gray',s];return`<span class="badge ${cls}">${label}</span>`;}
@@ -5557,7 +5574,18 @@ const qPackMatFee=quote&&quote.fees?quote.fees.find(f=>f.label&&f.label.toLowerC
 const qTotalMin=quote?quote.totalMin:null;
 const qTotalMax=quote?quote.totalMax:null;
 const aiBlock=aiRec
-  ?'<div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)"><div style="font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🤖 Saved for AI quote training</div><div style="font-size:12px;color:var(--text2);line-height:1.7">This job has been logged for AI training. The model will use: <strong>'+(aiRec.actualHours||'?')+' hrs</strong> actual'+(aiRec.moveMen?', <strong>'+aiRec.moveMen+' movers</strong>':'')+(aiRec.packHoursActual?', <strong>'+aiRec.packHoursActual+' pack hrs</strong>':'')+', total <strong>'+fmtMoney(aiRec.actualTotal)+'</strong> vs quoted <strong>'+fmtMoney(aiRec.quotedMin)+'–'+fmtMoney(aiRec.quotedMax)+'</strong>.<br><span style="color:var(--text3)">Accuracy: job came in '+(Number(aiRec.actualTotal)<=Number(aiRec.quotedMax)?'<span class="badge pill-green" style="font-size:10px">✓ within quoted range</span>':'<span class="badge pill-amber" style="font-size:10px">over quoted max by '+fmtMoney(Number(aiRec.actualTotal)-Number(aiRec.quotedMax))+'</span>')+'</span></div></div>'
+  ?(function(){
+    const _cmp=getQuoteCompareTotal(j);
+    const _compareTotal=_cmp.compareTotal;
+    const _within=Number(_compareTotal)<=Number(aiRec.quotedMax);
+    const _accuracyBadge=_within
+      ?'<span class="badge pill-green" style="font-size:10px">✓ within quoted range</span>'
+      :'<span class="badge pill-amber" style="font-size:10px">over quoted max by '+fmtMoney(Number(_compareTotal)-Number(aiRec.quotedMax))+'</span>';
+    const _cashLine=_cmp.paidCash
+      ?'<br><span style="color:var(--text3);font-size:11px">Customer paid <strong>'+fmtMoney(_cmp.actualPaid)+'</strong> at cash rate; compared above at regular-rate equivalent <strong>'+fmtMoney(_compareTotal)+'</strong> for fair quote-vs-actual.</span>'
+      :'';
+    return '<div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)"><div style="font-size:10px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🤖 Saved for AI quote training</div><div style="font-size:12px;color:var(--text2);line-height:1.7">This job has been logged for AI training. The model will use: <strong>'+(aiRec.actualHours||'?')+' hrs</strong> actual'+(aiRec.moveMen?', <strong>'+aiRec.moveMen+' movers</strong>':'')+(aiRec.packHoursActual?', <strong>'+aiRec.packHoursActual+' pack hrs</strong>':'')+', total <strong>'+fmtMoney(_compareTotal)+'</strong> vs quoted <strong>'+fmtMoney(aiRec.quotedMin)+'–'+fmtMoney(aiRec.quotedMax)+'</strong>.<br><span style="color:var(--text3)">Accuracy: job came in '+_accuracyBadge+'</span>'+_cashLine+'</div></div>';
+  })()
   :(j.usedForAI?'<div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text3)">🤖 Flagged for AI training but training record not found.</div>':'');
 
 const quoteBlock=`
@@ -5595,8 +5623,15 @@ const quoteBlock=`
         <tr style="border-top:2px solid var(--border)">
           <td style="padding:9px 10px;font-size:13px;font-weight:700">Final total</td>
           <td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;font-family:'DM Mono',monospace;color:var(--text3)">${qTotalMin&&qTotalMax?fmtMoney(qTotalMin)+'–'+fmtMoney(qTotalMax):'—'}</td>
-          <td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;font-family:'DM Mono',monospace">${fmtMoney(j.total)}</td>
-          <td style="padding:9px 10px">${qTotalMax&&j.total?(Number(j.total)<=Number(qTotalMax)?'<span class="badge pill-green" style="font-size:10px">✓ within quoted range</span>':`<span class="badge pill-amber" style="font-size:10px">+${fmtMoney(Number(j.total)-Number(qTotalMax))} over max</span>`):''}</td>
+          <td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;font-family:'DM Mono',monospace">${(function(){const _c=getQuoteCompareTotal(j);return _c.paidCash?fmtMoney(_c.actualPaid)+'<div style="font-size:10.5px;color:var(--text3);font-weight:400;font-family:inherit;margin-top:2px">@ regular rate: '+fmtMoney(_c.compareTotal)+'</div>':fmtMoney(j.total);})()}</td>
+          <td style="padding:9px 10px">${(function(){
+            if(!qTotalMax||!j.total)return'';
+            const _cmp=getQuoteCompareTotal(j);
+            const _within=Number(_cmp.compareTotal)<=Number(qTotalMax);
+            return _within
+              ?'<span class="badge pill-green" style="font-size:10px">✓ within quoted range</span>'
+              :'<span class="badge pill-amber" style="font-size:10px">+'+fmtMoney(Number(_cmp.compareTotal)-Number(qTotalMax))+' over max</span>';
+          })()}</td>
         </tr>
       </tbody>
     </table>`}
@@ -6497,11 +6532,14 @@ function renderAnalytics(){
   }).map(j=>{
     const lead=db.leads.find(l=>db.bookedJobs.some(b=>b.id===j.bookedJobId&&b.leadId===l.id));
     const q=lead?db.quotes.find(qt=>qt.leadId===lead.id):null;
-    const actual=Number(j.total);
+    // Use regular-rate-equivalent total when the customer paid cash rate,
+    // so we're comparing quote (built at regular rate) to an apples-to-apples actual.
+    const cmp=getQuoteCompareTotal(j);
+    const actual=cmp.compareTotal;
     const qMin=Number(q.totalMin);const qMax=Number(q.totalMax);
     const withinRange=actual>=qMin&&actual<=qMax;
     const pctDiff=Math.round((actual-qMax)/qMax*100);
-    return{actual,qMin,qMax,withinRange,pctDiff,name:j.name};
+    return{actual,actualPaid:cmp.actualPaid,paidCash:cmp.paidCash,qMin,qMax,withinRange,pctDiff,name:j.name};
   });
 
   const qaEl=document.getElementById('quote-accuracy-chart');
@@ -6522,7 +6560,7 @@ function renderAnalytics(){
         <div style="font-size:12.5px;line-height:1.8">
           <div>✓ <strong>${withinCount}</strong> of ${quotedJobs.length} jobs came in within the quoted range</div>
           ${avgOver.length?`<div style="color:var(--amber)">⚠ ${avgOver.length} job${avgOver.length>1?'s':''} ran over by avg <strong>${avgOverPct}%</strong></div>`:'<div style="color:var(--accent)">✓ No jobs ran significantly over</div>'}
-          <div style="color:var(--text3);font-size:11.5px;margin-top:4px">Note: add-ons (insurance, dump, COI) are excluded from over/under calculation</div>
+          <div style="color:var(--text3);font-size:11.5px;margin-top:4px">Note: add-ons (insurance, dump, COI) are excluded from over/under calculation${quotedJobs.some(j=>j.paidCash)?'. Jobs paid at the cash rate are compared at their regular-rate equivalent so the accuracy reflects the quote, not the discount':''}</div>
         </div>
       </div>
       <div class="bar-chart">
