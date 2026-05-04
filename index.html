@@ -6832,29 +6832,32 @@ function renderActivityPatterns(){
     :`<div class="empty-state"><div class="empty-title">No insurance data yet</div><div class="empty-sub">Record insurance type when completing jobs</div></div>`;
 
   // ── 5. Repeat customer rate ──
-  const phoneCount={};const nameCount={};
-  [...allJobs,...db.leads].forEach(x=>{
-    if(x.phone){const p=x.phone.replace(/\D/g,'');phoneCount[p]=(phoneCount[p]||0)+1;}
-    if(x.name){const n=x.name.toLowerCase().trim();nameCount[n]=(nameCount[n]||0)+1;}
+  // Count distinct moves per customer by looking ONLY at completed jobs.
+  // (Counting bookedJobs + completedJobs + leads triple-counts the same single move:
+  // 1 lead → 1 booked job → 1 completed job is one customer, not three.)
+  const completedForRepeat=db.completedJobs||[];
+  const phoneCount={};
+  completedForRepeat.forEach(j=>{
+    if(j.phone){const p=j.phone.replace(/\D/g,'');phoneCount[p]=(phoneCount[p]||0)+1;}
   });
-  const repeatCustomers=new Set([...Object.keys(phoneCount).filter(p=>phoneCount[p]>1)]);
-  const repeatJobs=allJobs.filter(j=>j.phone&&repeatCustomers.has(j.phone.replace(/\D/g,'')));
-  const newJobs=allJobs.filter(j=>!j.phone||!repeatCustomers.has(j.phone.replace(/\D/g,'')));
-  const repeatRate=allJobs.length?Math.round(repeatJobs.length/allJobs.length*100):0;
+  const repeatCustomers=new Set(Object.keys(phoneCount).filter(p=>phoneCount[p]>1));
+  const repeatJobs=completedForRepeat.filter(j=>j.phone&&repeatCustomers.has(j.phone.replace(/\D/g,'')));
+  const newJobs=completedForRepeat.filter(j=>!j.phone||!repeatCustomers.has(j.phone.replace(/\D/g,'')));
+  const repeatRate=completedForRepeat.length?Math.round(repeatJobs.length/completedForRepeat.length*100):0;
   const repeatRevenue=repeatJobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
   const newRevenue=newJobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
   const totalRevenue=repeatRevenue+newRevenue;
-  document.getElementById('repeat-customer-chart').innerHTML=allJobs.length?`
+  document.getElementById('repeat-customer-chart').innerHTML=completedForRepeat.length?`
     <div style="display:flex;gap:16px;align-items:center;margin-bottom:16px">
       <div style="text-align:center"><div style="font-size:36px;font-weight:700;color:#6c3483">${repeatRate}%</div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Repeat customers</div></div>
       <div style="flex:1">
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--text2)">Repeat</span><span style="font-weight:600;color:#6c3483">${repeatJobs.length} jobs · ${fmtMoney(repeatRevenue)}</span></div>
         <div style="background:var(--surface2);border-radius:4px;height:10px;margin-bottom:8px"><div style="height:100%;border-radius:4px;background:#6c3483;width:${repeatRate}%"></div></div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--text2)">New</span><span style="font-weight:600;color:var(--text3)">${newJobs.length} jobs · ${fmtMoney(newRevenue)}</span></div>
-        <div style="background:var(--surface2);border-radius:4px;height:10px"><div style="height:100%;border-radius:4px;background:var(--text3);width:${allJobs.length?Math.round(newJobs.length/allJobs.length*100):0}%"></div></div>
+        <div style="background:var(--surface2);border-radius:4px;height:10px"><div style="height:100%;border-radius:4px;background:var(--text3);width:${completedForRepeat.length?Math.round(newJobs.length/completedForRepeat.length*100):0}%"></div></div>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--text3)">${totalRevenue?Math.round(repeatRevenue/totalRevenue*100):0}% of revenue comes from repeat customers</div>`
+    <div style="font-size:12px;color:var(--text3)">${totalRevenue?Math.round(repeatRevenue/totalRevenue*100):0}% of revenue comes from repeat customers · based on ${completedForRepeat.length} completed jobs</div>`
     :`<div class="empty-state"><div class="empty-title">No completed jobs yet</div></div>`;
 }
 
