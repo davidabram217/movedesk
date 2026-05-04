@@ -3414,6 +3414,8 @@ function saveEstimateSent(id){
   const doneBy=document.getElementById('est-done-by-'+id)?.value||'';
   const sentBy=document.getElementById('est-sent-by-'+id)?.value||'';
   if(!sentBy){showToast('Please fill in who sent the estimate (Sent by ★).');return;}
+  l.status='Estimate sent';
+  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
   l.estimateType=type;
   l.estimateDate=new Date().toISOString().split('T')[0];
   if(quote)l.estimateQuote=quote;
