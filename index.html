@@ -609,6 +609,13 @@
           </div>
         </div>
       </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header">
+          <div class="card-title">📋 Quoting rules</div>
+          <div style="font-size:12px;color:var(--text3)">Business rules that inform every estimate — kept separate from training data</div>
+        </div>
+        <div class="card-body" id="ai-quoting-rules"></div>
+      </div>
       <div class="card">
         <div class="card-header">
           <div class="card-title">Training data</div>
@@ -5305,7 +5312,20 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   // Find the original quote for this job
   const lead=j?db.leads.find(l=>l.id===j.leadId):null;
   const originalQuote=lead?db.quotes.find(q=>q.leadId===lead.id):null;
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,owing,paymentState:paymentState||'paid',payment:document.getElementById('cj-payment').value,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:document.getElementById('cj-rate').value||null,feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+  // Track the rate context: what was quoted, what's the cash discount, what was actually charged.
+  // This lets us understand later whether the customer paid cash rate or regular rate.
+  const _quotedRate=j?Number(j.rateRegular)||(originalQuote?Number(originalQuote.days?.[0]?.rate):null):null;
+  const _cashRate=j?Number(j.rateCash)||null:null;
+  const _chargedRate=Number(document.getElementById('cj-rate').value)||null;
+  // Detect cash payment: charged rate matches cash rate (within $5) AND payment method is Cash
+  const _paymentMethod=document.getElementById('cj-payment').value;
+  const _paidCash=_paymentMethod==='Cash'||(_cashRate&&_chargedRate&&Math.abs(_chargedRate-_cashRate)<=5);
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+    // NEW: preserve the rate context so analytics know what to base future quotes on
+    quotedRate:_quotedRate||null,
+    cashRate:_cashRate,
+    paidCashRate:_paidCash&&!!_cashRate,
+    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
@@ -5328,7 +5348,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       quotedMax:originalQuote?originalQuote.totalMax:null,
       quotedHoursMin:originalQuote?originalQuote.days?.[0]?.hrsMin:null,
       quotedHoursMax:originalQuote?originalQuote.days?.[0]?.hrsMax:null,
-      quotedRate:originalQuote?originalQuote.days?.[0]?.rate:null,
+      quotedRate:_quotedRate||(originalQuote?originalQuote.days?.[0]?.rate:null),
       quotedCrew:originalQuote?originalQuote.days?.[0]?.crew:null,estimatedVaults:originalQuote?Number(originalQuote.estimatedVaults)||null:null,
       // Actual outcome
       actualHours:Number(completed.hours)||null,
@@ -5338,6 +5358,10 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       feePackMaterials:Number(completed.feePackMaterials)||null,
       actualVaults:Number(vaults)||null,
       actualRate:completed.hourlyRateCharged?Number(completed.hourlyRateCharged):null,
+      // NEW: cash-rate context — knowing this lets the AI distinguish
+      // a job that ran at the standard rate from one that got the cash discount.
+      cashRate:_cashRate,
+      paidCashRate:_paidCash&&!!_cashRate,
       actualTotal:Number(completed.total)||null,
       actualLabour:Number(completed.feeLabour)||null,
       actualFuel:Number(completed.feeFuel)||null,
@@ -5586,7 +5610,7 @@ document.getElementById('view-modal-body').innerHTML=`
     ${field('Crew leader',j.crew)}
     ${field('Crew members',j.movers)}
     ${field('Move hours',j.hours?j.hours+' hrs':'\u2014')}${j.moveMen?field('Move crew',j.moveMen+' movers'):''}${j.packHoursActual?field('Pack hours',j.packHoursActual+' hrs'):''}${j.packMen?field('Pack crew',j.packMen+' packer(s)'):''}${j.feePackMaterials?field('Pack materials','$'+Number(j.feePackMaterials).toLocaleString()):''}
-    ${field('Rate charged',j.hourlyRateCharged?'<span style="font-weight:600;color:var(--accent)">$'+j.hourlyRateCharged+'/hr</span>':'')}
+    ${field('Rate charged',j.hourlyRateCharged?'<span style="font-weight:600;color:var(--accent)">$'+j.hourlyRateCharged+'/hr</span>'+(j.paidCashRate?' <span style="display:inline-block;background:#e8f0ea;color:#2d6a4f;font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:4px;letter-spacing:.3px">CASH RATE</span>':'')+(j.quotedRate&&Number(j.quotedRate)!==Number(j.hourlyRateCharged)?'<div style="font-size:10.5px;color:var(--text3);margin-top:2px">Quoted at $'+j.quotedRate+'/hr</div>':''):'')}
     ${field('Effective rate',j.ratePerHour?'$'+j.ratePerHour+'/hr':'')}
     ${field('Payment method',j.payment)}
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Total charged</div><div style="font-weight:600;font-size:15px">${fmtMoney(j.total)}</div></div>
@@ -9592,15 +9616,30 @@ const SPREADSHEET_TRAINING=[{"id":"3f923bf1-1545-47b1-acb0-88b01ef3676f","date":
 {"id":"100cd87b-7bbd-4e73-b31c-8139feb1d041","date":"2025-11-22","savedAt":"2026-05-03T22:07:46.725439Z","name":"Amy Hammond","moveType":"Office Move","size":"Office","sqft":null,"estimatedVaults":9.0,"actualVaults":null,"accessLoad":"Elevator","accessUnload":"Elevator","packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":6.0,"quotedHoursMax":8.0,"actualHours":7.5,"moveMen":6.0,"actualRate":420.0,"quotedMin":2645.0,"quotedMax":3485.0,"fromZip":"94103.0","toZip":"94103.0","actualTotal":3959.0,"feeMaterials":50.0,"feePackMaterials":0.0,"feeFuel":75.0,"feeParkingPermit":0.0,"feeCOI":0.0,"feeInsurance":150.0,"feeDump":400.0,"feeDamage":0.0,"feeYelp":0.0,"crew":"Nubio","estimator":"Dave","source":"Repeat Customer","notes":"Moving between two buildings.  Very long walk between the two building.  Dump fee and insurance fee not quoted in original estimate","fromSpreadsheet":true},
 {"id":"ae6b5aca-d236-40ab-b050-a934c1bfea3e","date":"2026-02-26","savedAt":"2026-05-03T22:07:46.725439Z","name":"Jack Koerner","moveType":"Move","size":"3 Bedroom","sqft":1522.0,"estimatedVaults":11.0,"actualVaults":null,"accessLoad":"Flat","accessUnload":"1 Flight","packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":7.0,"quotedHoursMax":9.0,"actualHours":12.25,"moveMen":5.0,"actualRate":325.0,"quotedMin":2555.0,"quotedMax":3255.0,"fromZip":"94925.0","toZip":"94925.0","actualTotal":4086.25,"feeMaterials":45.0,"feePackMaterials":0.0,"feeFuel":60.0,"feeParkingPermit":0.0,"feeCOI":0.0,"feeInsurance":0.0,"feeDump":0.0,"feeDamage":0.0,"feeYelp":0.0,"crew":"Nubio","estimator":"Dave","source":"Realtor","notes":"Unload took longer as it was a construction site","fromSpreadsheet":true},
 {"id":"211a4f02-6548-4a58-b0f6-ad05f48802f3","date":"2026-03-03","name":"Nicole Bloom","moveType":"Storage In","size":"Other","sqft":null,"estimatedVaults":2,"actualVaults":1,"accessLoad":"Elevator","accessUnload":"Flat","packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":3,"quotedHoursMax":4,"actualHours":4.25,"moveMen":2,"actualRate":130,"quotedMin":925,"quotedMax":1135,"actualTotal":1013,"feeMaterials":35,"feePackMaterials":211,"feeFuel":65,"feeParkingPermit":0,"feeCOI":0,"feeInsurance":150,"feeDump":0,"feeDamage":0,"feeYelp":0,"fromZip":"94402","toZip":"94124","crew":"Nubio","estimator":"Dave","source":"Kuzak","notes":"Packing material of 211 was for amazon blankets she wanted which i put in the originalk quote.  we went with 2 guys to the job instead of the quoted 3. It cam to our storage","fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.870714"},
-{"id":"8987d0eb-39ef-4aa5-9d41-9ac8cd7a2960","date":"2026-03-23","name":"Caroline Fawley","moveType":"Move","size":"3 Bedroom","sqft":1874,"estimatedVaults":5,"actualVaults":null,"accessLoad":"Flat","accessUnload":"Flat","packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":7,"quotedHoursMax":8,"actualHours":4.5,"moveMen":3,"actualRate":225,"quotedMin":2750,"quotedMax":3125,"actualTotal":1214,"feeMaterials":25,"feePackMaterials":51,"feeFuel":85,"feeParkingPermit":0,"feeCOI":0,"feeInsurance":0,"feeDump":0,"feeDamage":0,"feeYelp":0,"fromZip":"94901","toZip":"94901","crew":"Ciaran","estimator":"John","source":"Juli Lipprie","notes":"they was also a small drop of along the way to the unload.  It was a big place but only certain items were going","fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.870862"},
-{"id":"cc1fbbfa-7212-496e-9888-97616e210c9c","date":null,"name":"we add 3.5% cc that is not included in the estimates sent out None","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"fromZip":null,"toZip":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.871658"},
-{"id":"b27806ba-b7f7-4585-b941-254027a79494","date":null,"name":"estimate typically does not include, dump, insurance, credit fee of 3.5% None","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"fromZip":null,"toZip":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.871809"},
-{"id":"2a3a4b39-75fa-4947-a173-1aceff105cc8","date":null,"name":"When the load zip code is in sf we typically start the clock when we arrive at the load, we stop in after the unload and add on the retyrn drive back to our warehouse at 94124.  Minimum 30 minutes None","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"fromZip":null,"toZip":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.871919"},
-{"id":"30b7b44e-e665-4ed4-9447-fd11771b2f3f","date":null,"name":"When the load zip code is outside of sf we start the clock when we leave our warehouse and stop it when we get back to our warehouse after the job None","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"fromZip":null,"toZip":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.872017"},
-{"name":"we add 3.5% cc that is not included in the estimates sent out","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"fromZip":null,"toZip":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"id":"051555b1-16c9-4ac1-ae64-ff1d4726effa","savedAt":"2026-05-03T22:07:46.725439Z","date":null},
-{"name":"estimate typicall does not include, dump, insurance, cc fee","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"fromZip":null,"toZip":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"id":"b5edecf8-2562-4473-9692-81a6f32f2193","savedAt":"2026-05-03T22:07:46.725439Z","date":null},
-{"name":"When the load zip code is in sf we typically start the clock when we arrive at the load, we stop in after the unload and add on the retyrn drive back to our warehouse at 94124.  Minimum 30 minutes","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"fromZip":null,"toZip":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"id":"6d06283f-2729-4a88-b995-e2eb11a2f8df","savedAt":"2026-05-03T22:07:46.725439Z","date":null},
-{"name":"When the load zip code is outside of sf we start the clock when we leave our warehouse and stop it when we get back to our warehouse after the job","moveType":null,"size":null,"sqft":null,"estimatedVaults":null,"actualVaults":null,"accessLoad":null,"accessUnload":null,"packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":null,"quotedHoursMax":null,"actualHours":null,"moveMen":null,"actualRate":null,"quotedMin":null,"quotedMax":null,"fromZip":null,"toZip":null,"actualTotal":null,"feeMaterials":null,"feePackMaterials":null,"feeFuel":null,"feeParkingPermit":null,"feeCOI":null,"feeInsurance":null,"feeDump":null,"feeDamage":null,"feeYelp":null,"crew":null,"estimator":null,"source":null,"notes":null,"fromSpreadsheet":true,"id":"a017c6bd-b0c4-4c5b-8b26-1a46a140fa1a","savedAt":"2026-05-03T22:07:46.725439Z","date":null}];
+{"id":"8987d0eb-39ef-4aa5-9d41-9ac8cd7a2960","date":"2026-03-23","name":"Caroline Fawley","moveType":"Move","size":"3 Bedroom","sqft":1874,"estimatedVaults":5,"actualVaults":null,"accessLoad":"Flat","accessUnload":"Flat","packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":7,"quotedHoursMax":8,"actualHours":4.5,"moveMen":3,"actualRate":225,"quotedMin":2750,"quotedMax":3125,"actualTotal":1214,"feeMaterials":25,"feePackMaterials":51,"feeFuel":85,"feeParkingPermit":0,"feeCOI":0,"feeInsurance":0,"feeDump":0,"feeDamage":0,"feeYelp":0,"fromZip":"94901","toZip":"94901","crew":"Ciaran","estimator":"John","source":"Juli Lipprie","notes":"they was also a small drop of along the way to the unload.  It was a big place but only certain items were going","fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.870862"}];
+const QUOTING_RULES=[
+  {
+    "category": "Pricing",
+    "title": "Credit card fee",
+    "body": "We add a 3.5% credit card fee that is NOT included in estimates sent out. Add 3.5% on top when the customer pays by card."
+  },
+  {
+    "category": "Pricing",
+    "title": "What's not in the estimate",
+    "body": "Estimates typically do NOT include: dump fees, insurance, and credit card fee (3.5%). These are added on top of the quoted range."
+  },
+  {
+    "category": "Clock time",
+    "title": "SF jobs (load zip in SF)",
+    "body": "Clock STARTS when we arrive at the load. Clock STOPS after the unload, plus the return drive back to our warehouse at 94124. Minimum 30 minutes."
+  },
+  {
+    "category": "Clock time",
+    "title": "Out-of-SF jobs (load zip outside SF)",
+    "body": "Clock STARTS when we leave our warehouse. Clock STOPS when we get back to our warehouse after the job. Full round trip is billed."
+  }
+];
+
 
 // SF zip code centroids for accurate distance calculation
 // Comprehensive zip code coordinates — Bay Area + common CA/NV/AZ destinations
@@ -10068,6 +10107,22 @@ function generateAIQuote(){
     </div>`:''}
     ${inputs.notes?`<div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px;margin-bottom:10px;color:var(--text2)"><span style="font-weight:600;color:var(--text3)">📝 Notes logged:</span> ${inputs.notes}</div>`:''}
     ${overRate>0?`<div style="padding:10px 12px;background:var(--amber-light);border-radius:var(--radius);font-size:12.5px;color:var(--amber);margin-bottom:10px">⚠ ${overRate}% of similar past jobs ran longer than originally quoted — this estimate uses actual hours so should be more accurate.</div>`:''}
+    ${(function(){
+      // Surface the quoting rules that apply to THIS quote
+      const rules=(typeof QUOTING_RULES!=='undefined'?QUOTING_RULES:[]);
+      if(!rules.length)return'';
+      const applicable=rules.filter(r=>{
+        if(!r.title)return true;
+        const t=r.title.toLowerCase();
+        // Show clock rule that matches the job; show pricing rules always
+        if(t.includes('sf jobs')&&!isOutsideSF)return true;
+        if(t.includes('out-of-sf')&&isOutsideSF)return true;
+        if(r.category==='Pricing')return true;
+        return false;
+      });
+      if(!applicable.length)return'';
+      return`<div style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);font-size:12px;margin-bottom:10px;border-left:3px solid var(--accent)"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Rules to apply when quoting</div>${applicable.map(r=>`<div style="margin-bottom:6px;line-height:1.5"><strong style="color:var(--text)">${r.title}:</strong> <span style="color:var(--text2)">${r.body}</span></div>`).join('')}</div>`;
+    })()}
     <div style="font-size:11.5px;color:var(--text3);line-height:1.6">
       Labour: $${labourMin.toLocaleString()}–$${labourMax.toLocaleString()} · Fuel: $${fuelEstimate}${packingMaterials?' · Packing: $'+packingMaterials:''}<br>
       <em>Add insurance, COI, parking, dump fees as needed. 3.5% CC fee if applicable.</em>
@@ -10077,6 +10132,26 @@ function generateAIQuote(){
 function renderAIQuote(){
   const all=getAllTrainingData();
   document.getElementById('ai-training-count').textContent=all.length+' training records ('+(SPREADSHEET_TRAINING.length)+' from spreadsheet, '+((db.aiTraining||[]).length)+' from completed jobs)';
+  // Render the Quoting Rules card — grouped by category
+  const rulesEl=document.getElementById('ai-quoting-rules');
+  if(rulesEl){
+    const rules=(typeof QUOTING_RULES!=='undefined'?QUOTING_RULES:[]);
+    if(!rules.length){
+      rulesEl.innerHTML='<div class="empty-state"><div class="empty-title">No quoting rules yet</div></div>';
+    } else {
+      const byCat={};
+      rules.forEach(r=>{const c=r.category||'General';(byCat[c]=byCat[c]||[]).push(r);});
+      rulesEl.innerHTML=Object.entries(byCat).map(([cat,items])=>`
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">${cat}</div>
+          ${items.map(r=>`
+            <div style="margin-bottom:12px">
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">${r.title}</div>
+              <div style="font-size:12.5px;color:var(--text2);line-height:1.5">${r.body}</div>
+            </div>`).join('')}
+        </div>`).join('');
+    }
+  }
   document.getElementById('ai-training-tbody').innerHTML=all.length?all.map(j=>`
     <tr>
       <td style="padding:8px 14px;border-bottom:1px solid var(--border)">${j.name||'—'}</td>
