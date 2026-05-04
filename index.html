@@ -6525,22 +6525,49 @@ function renderAnalytics(){
     </div>`}).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No completed jobs yet</div></div>`;
 
   // ── #13 QUOTE ACCURACY SCORE ──
-  const quotedJobs=filteredJobs.filter(j=>{
-    const lead=db.leads.find(l=>db.bookedJobs.some(b=>b.id===j.bookedJobId&&b.leadId===l.id));
-    const q=lead?db.quotes.find(qt=>qt.leadId===lead.id):null;
-    return q&&q.totalMin&&q.totalMax&&j.total;
-  }).map(j=>{
-    const lead=db.leads.find(l=>db.bookedJobs.some(b=>b.id===j.bookedJobId&&b.leadId===l.id));
-    const q=lead?db.quotes.find(qt=>qt.leadId===lead.id):null;
-    // Use regular-rate-equivalent total when the customer paid cash rate,
-    // so we're comparing quote (built at regular rate) to an apples-to-apples actual.
+  // Robust quote lookup — the simple "completed → bookedJobs → leads → quotes" chain
+  // breaks when the booked job has been deleted (which is correct behaviour after completion).
+  // Try multiple paths, then fall back to the AI training record's stored quote data.
+  function findQuoteForCompletedJob(j){
+    // Path 1: bookedJobId direct match on quotes table
+    if(j.bookedJobId){
+      const q1=(db.quotes||[]).find(q=>q.bookedJobId===j.bookedJobId&&q.totalMin&&q.totalMax);
+      if(q1)return{quote:q1,source:'direct'};
+    }
+    // Path 2: lead lookup via bookedJobs (works only if the booked row still exists)
+    const _bk=j.bookedJobId?db.bookedJobs.find(b=>b.id===j.bookedJobId):null;
+    let lead=_bk?db.leads.find(l=>l.id===_bk.leadId):null;
+    // Path 3: fall back to lead lookup by name + date
+    if(!lead&&j.name){
+      lead=db.leads.find(l=>l.name===j.name&&l.date===j.date)
+        ||db.leads.find(l=>l.name===j.name);
+    }
+    if(lead){
+      const q2=(db.quotes||[]).find(q=>q.leadId===lead.id&&q.totalMin&&q.totalMax);
+      if(q2)return{quote:q2,source:'lead'};
+    }
+    // Path 4: synthesize from AI training record (same trick used in completed-job view)
+    const aiRec=(db.aiTraining||[]).find(r=>
+      r.completedJobId===j.id||
+      (r.bookedJobId&&r.bookedJobId===j.bookedJobId)||
+      (r.name===j.name&&r.date===j.date)
+    );
+    if(aiRec&&aiRec.quotedMin&&aiRec.quotedMax){
+      return{quote:{totalMin:aiRec.quotedMin,totalMax:aiRec.quotedMax,_synthetic:true},source:'ai'};
+    }
+    return null;
+  }
+  const quotedJobs=filteredJobs.map(j=>{
+    const found=findQuoteForCompletedJob(j);
+    if(!found||!j.total)return null;
+    const q=found.quote;
     const cmp=getQuoteCompareTotal(j);
     const actual=cmp.compareTotal;
     const qMin=Number(q.totalMin);const qMax=Number(q.totalMax);
     const withinRange=actual>=qMin&&actual<=qMax;
     const pctDiff=Math.round((actual-qMax)/qMax*100);
-    return{actual,actualPaid:cmp.actualPaid,paidCash:cmp.paidCash,qMin,qMax,withinRange,pctDiff,name:j.name};
-  });
+    return{actual,actualPaid:cmp.actualPaid,paidCash:cmp.paidCash,qMin,qMax,withinRange,pctDiff,name:j.name,quoteSource:found.source};
+  }).filter(Boolean);
 
   const qaEl=document.getElementById('quote-accuracy-chart');
   const qaHead=document.getElementById('quote-accuracy-headline');
