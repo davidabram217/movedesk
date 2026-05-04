@@ -5754,9 +5754,16 @@ function getAnalyticsJobs(){
   });
 }
 // ── Name normalisation helpers (shared across analytics) ──
-const _sAliases={'johnathan':'John','jonathan':'John','jon':'John'};
+// Build staff filter dynamically from settings — falls back to John & Dave if no crew is configured.
+// This used to be hard-coded, which silently dropped any leads sent by other staff from analytics.
+const _sAliases={'johnathan':'John','jonathan':'John','jon':'John','jonny':'John','johnny':'John','david':'Dave','davey':'Dave','davy':'Dave','davo':'Dave'};
 const _sNorm=n=>{if(!n)return'';const t=n.trim().replace(/\b\w/g,c=>c.toUpperCase());return _sAliases[t.toLowerCase()]||t;};
-const staffFilter=new Set(['John','Dave']);
+function _getStaffFilter(){
+  // Use configured crew if available, otherwise sensible defaults.
+  const crew=(db.settings&&db.settings.crew&&db.settings.crew.length)?db.settings.crew:['John','Dave'];
+  return new Set(crew.map(n=>_sNorm(n)));
+}
+let staffFilter=_getStaffFilter();
 
 // ══════════════════════════════════════════════════════════
 // SHARED ANALYTICS DATA — single source of truth
@@ -5996,6 +6003,8 @@ function calcPackMaterials(){
 }
 
 function renderAnalytics(){
+  // Refresh staff filter from current settings (db.settings.crew may have loaded since page init)
+  staffFilter=_getStaffFilter();
   // Populate year selector
   const yrSel=document.getElementById('analytics-year');
   if(yrSel){
@@ -6041,9 +6050,15 @@ function renderAnalytics(){
     const rows=_ev2.filter(e=>e.estimateType===t);
     return{type:t,tot:rows.length,cl:rows.filter(e=>e.booked).length,rate:rows.length?Math.round(rows.filter(e=>e.booked).length/rows.length*100):0};
   }).filter(x=>x.tot>0);
-  document.getElementById('estimate-chart').innerHTML=_ed2.length?`<div class="bar-chart">${_ed2.map(e=>`<div class="bar-row"><div class="bar-label">${e.type}</div><div class="bar-track"><div class="bar-fill" style="width:${e.rate}%;background:${_ec2[e.type]}">${e.rate}%</div></div><div class="bar-value">${e.cl}/${e.tot}</div></div>`).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
+  document.getElementById('estimate-chart').innerHTML=_ed2.length?`<div class="bar-chart">${_ed2.map(e=>`<div class="bar-row"><div class="bar-label">${e.type}</div><div class="bar-track"><div class="bar-fill" style="width:${e.rate}%;background:${_ec2[e.type]}">${e.rate}%</div></div><div class="bar-value">${e.cl}/${e.tot}</div></div>`).join('')}</div>${(function(){
+    // Diagnostic: if there are estimate events from people who aren't John/Dave, surface their names
+    // so the user knows why their numbers might look low or be missing rough-quote entries.
+    const otherNames=[...new Set(_ev2.filter(e=>e.name&&!staffFilter.has(e.name)).map(e=>e.name))];
+    if(!otherNames.length)return'';
+    return`<div style="margin-top:10px;padding:8px 10px;background:var(--surface2);border-radius:6px;font-size:11.5px;color:var(--text2);line-height:1.5"><strong style="color:var(--text)">Note:</strong> ${otherNames.length} estimate event${otherNames.length>1?'s':''} from <em>${otherNames.join(', ')}</em> ${otherNames.length>1?'are':'is'} not shown — analytics currently only counts John and Dave. If those should be included, let us know.</div>`;
+  })()}`:`<div class="empty-state"><div class="empty-title">No estimate data yet</div></div>`;
   const rbm={};filteredJobs.forEach(j=>{if(j.date){const m=j.date.slice(0,7);rbm[m]=(rbm[m]||0)+(Number(j.paid)||0);}});const mos=Object.keys(rbm).sort();const maxR=Math.max(...Object.values(rbm),1);document.getElementById('revenue-chart').innerHTML=mos.length?`<div class="bar-chart">${mos.map(m=>{const lbl=new Date(m+'-15').toLocaleDateString('en-US',{month:'short',year:'2-digit'});return`<div class="bar-row"><div class="bar-label">${lbl}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(rbm[m]/maxR*100)}%;background:var(--accent)">${fmtMoney(rbm[m])}</div></div></div>`;}).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No revenue data yet</div></div>`;
-  const crewAliases={'johnathan':'John','jonathan':'John','jon':'John'};
+  const crewAliases={'johnathan':'John','jonathan':'John','jon':'John','jonny':'John','johnny':'John','david':'Dave','davey':'Dave','davy':'Dave','davo':'Dave'};
   const crewFilter=new Set(['John','Dave']);
   const cd={};filteredJobs.forEach(j=>{if(j.crew){const norm=j.crew.trim().replace(/\b\w/g,c=>c.toUpperCase());const crewKey=crewAliases[norm.toLowerCase()]||norm;if(!crewFilter.has(crewKey))return;if(!cd[crewKey])cd[crewKey]={jobs:0,rev:0};cd[crewKey].jobs++;cd[crewKey].rev+=Number(j.paid)||0;}});const ce=Object.entries(cd).sort((a,b)=>b[1].rev-a[1].rev);const maxC=Math.max(...ce.map(c=>c[1].rev),1);document.getElementById('crew-chart').innerHTML=ce.length?`<div class="bar-chart">${ce.map(([n,d])=>`<div class="bar-row"><div class="bar-label">${n}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.rev/maxC*100)}%;background:#6c3483">${d.jobs} jobs</div></div><div class="bar-value">${fmtMoney(d.rev)}</div></div>`).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No crew data yet</div></div>`;
 
