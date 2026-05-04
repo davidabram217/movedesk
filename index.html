@@ -2768,6 +2768,25 @@ function saveLead(){
       takenBy:document.getElementById('nl-taken-by').value,estimateType:'',estimateDate:'',estimateQuote:'',estimateNotes:'',notes:document.getElementById('nl-notes').value.trim(),officeNotes:document.getElementById('nl-office-notes').value.trim(),roughQuote:{movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''},
       ...getExtraLocations(),
       status:'New',createdAt:new Date().toISOString().split('T')[0]};
+    // If the new lead form had a rough quote attached, set the top-level fields the
+    // analytics needs (roughQuoteDate, min, max, sentBy). Without these, the lead is
+    // invisible to getEstimateEvents() even though the rough-quote object is saved.
+    const _nlRqRate=Number(document.getElementById('nl-rq-rate')?.value)||0;
+    const _nlRqHrsMin=Number(document.getElementById('nl-rq-hrs-min')?.value)||0;
+    const _nlRqHrsMax=Number(document.getElementById('nl-rq-hrs-max')?.value)||0;
+    const _nlRqFuel=Number(document.getElementById('nl-rq-fuel')?.value)||0;
+    const _nlRqMat=Number(document.getElementById('nl-rq-materials')?.value)||0;
+    const _hasRq=_nlRqRate&&(_nlRqHrsMin||_nlRqHrsMax);
+    if(_hasRq){
+      const _calcMin=Math.round(_nlRqRate*_nlRqHrsMin+_nlRqFuel+_nlRqMat);
+      const _calcMax=Math.round(_nlRqRate*(_nlRqHrsMax||_nlRqHrsMin)+_nlRqFuel+_nlRqMat);
+      lead.roughQuoteDate=new Date().toISOString().split('T')[0];
+      lead.roughQuoteMin=_calcMin;
+      lead.roughQuoteMax=_calcMax;
+      lead.roughQuoteSentBy=lead.takenBy||'';
+      lead.status='Summary + rough quote';
+      lead.statusUpdatedAt=lead.roughQuoteDate;
+    }
     db.leads.push(lead);
     upsertCustomer(lead);
     clearLeadDraft();
@@ -3076,22 +3095,44 @@ function filterArchivedSource(v){archivedFilter.source=v;renderArchivedLeads();}
 function reactivateLead(id){
   const l=db.leads.find(x=>x.id===id);
   if(!l)return;
-  l.status='Need to follow up';
+  // Resume from the furthest stage the lead actually reached, based on preserved data.
+  // Most-progressed first — Quote accepted only happens if the customer had agreed before
+  // backing out, so we don't auto-resurrect that. Stop at "Estimate sent" / "Summary + rough quote".
+  const _q=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='draft'));
+  if(l.estimateDate||l.estimateType||l.estimateSentBy||_q){
+    l.status='Estimate sent';
+  } else if(l.roughQuoteDate||l.roughQuoteMin||(l.roughQuote&&(Number(l.roughQuote.rate)>0||l.roughQuote.movers))){
+    l.status='Summary + rough quote';
+  } else if(l.summarySentAt||(l.summaryLog&&l.summaryLog.length)){
+    l.status='Summary sent';
+  } else if(l.estimateScheduledDate){
+    l.status='Estimate scheduled';
+  } else {
+    l.status='Need to follow up';
+  }
   l.statusUpdatedAt=new Date().toISOString().split('T')[0];
   // Clear did-not-book fields so it's a clean reactivation
   delete l.dnbStage;delete l.dnbReason;delete l.dnbNotes;delete l.dnbDate;
+  // If the linked quote was marked declined when the lead went DNB, restore it to sent
+  // so it shows in the lead view and can be re-accepted without re-quoting.
+  (db.quotes||[]).forEach(q=>{
+    if(q.leadId===l.id&&q.status==='declined')q.status='sent';
+  });
   saveDB();
   renderArchivedLeads();
   renderLeads();
-  showToast('↩ '+l.name+' reactivated — marked as Need to follow up');
+  showToast('↩ '+l.name+' reactivated — resumed at "'+l.status+'"');
 }
 
 function viewLead(id){try{const l=db.leads.find(x=>x.id===id);if(!l)return;document.getElementById('view-modal-title').textContent=l.name;
 document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
 const isPending=l.estimateType&&l.status==='Estimate sent';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
-// Find associated quote for multi-day/extra location display
-const quote=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'))||(l.status==='Did not book'?(db.quotes||[]).filter(q=>q.leadId===l.id).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0]:null);
+// Find associated quote — prefer sent/accepted, but fall back to most recent of any status
+// (covers reactivated leads where the quote may be marked 'declined' from the previous DNB)
+const _qSentOrAccepted=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'));
+const _qMostRecent=(db.quotes||[]).filter(q=>q.leadId===l.id).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
+const quote=_qSentOrAccepted||_qMostRecent||null;
 const quoteHasMultiDay=quote&&quote.days&&quote.days.length>1;
 const quoteDaysBlock=quote&&quote.days&&quote.days.length?`
 <div style="margin-top:14px">
@@ -3116,7 +3157,7 @@ const quoteDaysBlock=quote&&quote.days&&quote.days.length?`
     </div>`).join('')}
   </div>`).join('')}
 </div>`:'';
-const showEstBlock=l.estimateType&&['Estimate sent','Quote accepted','Confirmation sent'].includes(l.status);
+const showEstBlock=(l.estimateType||l.estimateDate||l.estimateQuote||l.estimateSentBy)&&['Estimate sent','Quote accepted','Confirmation sent'].includes(l.status);
 const estStatusLabel=isAccepted?'✓ Quote accepted':'Estimate sent — awaiting response';
 const estBlock=showEstBlock?`<div style="margin-top:12px;padding:12px;background:${isAccepted?'var(--accent-light)':'var(--amber-light)'};border-radius:var(--radius);border:1px solid ${isAccepted?'#a8d5b5':'#f0d080'}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:${isAccepted?'var(--accent)':'var(--amber)'};text-transform:uppercase;letter-spacing:.5px">${estStatusLabel}</div><div style="display:flex;gap:6px">${isAccepted&&quote?`<button class="btn btn-secondary btn-sm" onclick="viewAcceptedQuote('${quote.id}')" style="font-size:11px;color:var(--accent);border-color:var(--accent)">👁 View quote</button>`:''}${l.estimateScheduledDate&&!isAccepted?`<button class="btn btn-secondary btn-sm" onclick="closeModal('view');setTimeout(()=>openScheduleEstimate('${l.id}'),200)" style="font-size:11px">✏️ Edit estimate</button>`:''}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate type</div><div>${estBadge(l.estimateType)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Date sent</div><div>${fmtDate(l.estimateDate)}</div></div>${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Sent by</div><div style="font-weight:600">${l.estimateSentBy}</div></div>`:''}${l.estimateDoneBy&&l.estimateDoneBy!==l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateQuote?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Quoted amount</div><div style="font-weight:600">${fmtMoney(l.estimateQuote)}</div></div>`:''} ${l.estimateNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${l.estimateNotes}</div></div>`:''}</div></div>`:
   l.estimateType&&l.status==='Estimate scheduled'?`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Estimate scheduled</div><button class="btn btn-secondary btn-sm" onclick="closeModal('view');setTimeout(()=>openScheduleEstimate('${l.id}'),200)" style="font-size:11px">✏️ Edit estimate</button></div><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">${estBadge(l.estimateType)}${l.estimateScheduledDate?`<span style="color:var(--text2)">${fmtDate(l.estimateScheduledDate)}${l.estimateScheduledTime?' at '+l.estimateScheduledTime:''}</span>`:''}${l.estimateSetupBy?`<span style="color:var(--text3)">Set up by <strong style="color:var(--text2)">${l.estimateSetupBy}</strong></span>`:''}</div></div>`:'';
@@ -5777,15 +5818,20 @@ function getEstimateEvents(){
   const SENT=['Summary + rough quote','Estimate sent','Quote accepted','Confirmation sent','Booked','Completed','Did not book'];
   const events=[];
   db.leads.forEach(l=>{
+    // Backfill: historical leads may have a roughQuote object set without the top-level
+    // roughQuoteDate/min/max fields the analytics keys off. Treat them as having a rough quote.
+    const _rqObj=l.roughQuote;
+    const _rqObjHasData=_rqObj&&(Number(_rqObj.rate)>0||Number(_rqObj.hrsMin)>0||Number(_rqObj.hrsMax)>0||_rqObj.movers);
+    const _hasRoughQuoteData=l.roughQuoteDate||l.roughQuoteMin||_rqObjHasData;
     // Include if status is in SENT, OR if they had a rough quote (regardless of current status)
-    if(!SENT.includes(l.status)&&!l.roughQuoteDate&&!l.roughQuoteMin)return;
+    if(!SENT.includes(l.status)&&!_hasRoughQuoteData)return;
     // Find linked quote
     const linkedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='sent')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='declined')
       ||(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='draft'&&(q.sentBy||q.estimateType));
     // Determine if a price was actually given
-    const hasRoughQuote=!!(l.roughQuoteDate||l.roughQuoteMin);
+    const hasRoughQuote=_hasRoughQuoteData;
     const hasFormalEstimate=!!(l.estimateType||linkedQ||l.estimateSentBy);
     // Skip if only a summary was sent — no price discussed
     if(!hasRoughQuote&&!hasFormalEstimate)return;
@@ -5794,7 +5840,7 @@ function getEstimateEvents(){
     const name=_sNorm(rawName);
     if(!name)return;
     // Resolve estimate type — map rough quote to correct label
-    const rawEstType=l.estimateType||linkedQ?.estimateType||(l.roughQuoteDate&&!l.estimateType?'Summary + rough quote':'');
+    const rawEstType=l.estimateType||linkedQ?.estimateType||(_hasRoughQuoteData&&!l.estimateType?'Summary + rough quote':'');
     const estimateType=rawEstType==='Rough quote only'?'Summary + rough quote':rawEstType;
     const rate=linkedQ?.days?.[0]?.rate?Math.round(Number(linkedQ.days[0].rate)):0;
     const booked=BOOKED.includes(l.status);
