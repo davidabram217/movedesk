@@ -1228,6 +1228,22 @@
   </div>
 </div>
 
+<div class="modal-bg" id="modal-estimate-breakdown">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="ebd-title">Breakdown</div>
+        <div id="ebd-subtitle" style="margin-top:4px;font-size:12.5px;color:var(--text3)"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('estimate-breakdown')">✕</button>
+    </div>
+    <div class="modal-body" id="ebd-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('estimate-breakdown')">Close</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="modal-bg" id="modal-map">
   <div class="modal" style="max-width:680px">
@@ -6427,6 +6443,93 @@ function calcPackMaterials(){
     <button class="btn btn-primary" style="margin-top:14px" onclick="navigator.clipboard.writeText('$'+${suggestedMin}+' – $'+${suggestedMax});showToast('✓ Copied to clipboard')">📋 Copy range</button>`;
 }
 
+// Drill-down: shows the leads/jobs that contributed to a (staff name, estimate type) cell
+// in the "Quote acceptance by team member" widget. Lets the user verify the count and
+// remove rough-quote data from individual records that shouldn't have been counted.
+function openEstimateBreakdownDrilldown(name,type){
+  const breakdown=window._estimateTypeBreakdown||{};
+  const cell=breakdown[name]&&breakdown[name][type];
+  if(!cell){showToast('No data for that breakdown');return;}
+  const leadIds=cell.leadIds||[];
+  const completedJobIds=cell.completedJobIds||[];
+  // Build records list — combine matching leads + completed jobs
+  const records=[];
+  leadIds.forEach(lid=>{
+    const l=db.leads.find(x=>x.id===lid);
+    if(!l)return;
+    const isBooked=['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status);
+    const isLost=l.status==='Did not book';
+    records.push({
+      kind:'lead',id:l.id,name:l.name,date:l.roughQuoteDate||l.estimateDate||l.createdAt,
+      status:l.status,isBooked,isLost,
+      amount:l.roughQuoteMin?(l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?'$'+l.roughQuoteMin.toLocaleString()+'–$'+l.roughQuoteMax.toLocaleString():'$'+l.roughQuoteMin.toLocaleString()):'',
+    });
+  });
+  completedJobIds.forEach(cjid=>{
+    const cj=db.completedJobs.find(x=>x.id===cjid);
+    if(!cj)return;
+    records.push({
+      kind:'completed',id:cj.id,name:cj.name,date:cj.roughQuoteDate||cj.date,
+      status:'Completed',isBooked:true,isLost:false,
+      amount:cj.roughQuoteMin?(cj.roughQuoteMax&&cj.roughQuoteMax!==cj.roughQuoteMin?'$'+cj.roughQuoteMin.toLocaleString()+'–$'+cj.roughQuoteMax.toLocaleString():'$'+cj.roughQuoteMin.toLocaleString()):'',
+    });
+  });
+  records.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  document.getElementById('ebd-title').textContent=`${name} · ${type}`;
+  document.getElementById('ebd-subtitle').textContent=`${records.length} ${records.length===1?'record':'records'} · ${cell.accepted} booked · ${cell.dnb} lost`;
+  document.getElementById('ebd-body').innerHTML=records.length?`
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Click a name to open the record. Use the trash icon to remove the rough quote data from a record (it won't delete the lead/job, just untag the rough quote).</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Customer</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Date</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Status</th>
+        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Amount</th>
+        <th style="border-bottom:1px solid var(--border);width:30px"></th>
+      </tr></thead>
+      <tbody>
+      ${records.map(r=>{
+        const escName=(r.name||'').replace(/'/g,"\\'");
+        const action=r.kind==='lead'?`closeModal('estimate-breakdown');viewLead('${r.id}')`:`closeModal('estimate-breakdown');viewCompletedJob('${r.id}')`;
+        const statusColor=r.isBooked?'var(--accent)':r.isLost?'var(--error)':'var(--text3)';
+        return`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 10px"><a href="#" onclick="event.preventDefault();${action}" style="color:var(--accent);text-decoration:none;font-weight:500">${r.name||'—'}</a></td>
+          <td style="padding:8px 10px;color:var(--text2)">${r.date?fmtDate(r.date):'—'}</td>
+          <td style="padding:8px 10px;color:${statusColor};font-size:11.5px">${r.status}</td>
+          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.amount||'—'}</td>
+          <td style="padding:8px 6px;text-align:right">
+            <button class="btn btn-secondary btn-sm" onclick="removeRoughQuoteFromRecord('${r.kind}','${r.id}','${escName}')" title="Remove rough quote data from this record" style="font-size:10px;color:var(--error);border-color:var(--error);padding:3px 6px">🗑</button>
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`
+    :'<div class="empty-state"><div class="empty-title">No matching records found</div></div>';
+  openModal('estimate-breakdown');
+}
+
+function removeRoughQuoteFromRecord(kind,id,name){
+  if(!confirm(`Remove rough quote data from ${name}? This will not delete the ${kind==='lead'?'lead':'completed job'} itself, just untag the rough quote so it stops being counted in analytics.`))return;
+  if(kind==='lead'){
+    const l=db.leads.find(x=>x.id===id);
+    if(!l){showToast('Record not found');return;}
+    delete l.roughQuoteDate;delete l.roughQuoteMin;delete l.roughQuoteMax;
+    delete l.roughQuoteSentBy;delete l.roughQuote;delete l.roughQuoteNotes;
+    // If the status was Summary + rough quote, demote it to Summary sent
+    if(l.status==='Summary + rough quote')l.status='Summary sent';
+  } else {
+    const cj=db.completedJobs.find(x=>x.id===id);
+    if(!cj){showToast('Record not found');return;}
+    delete cj.roughQuoteDate;delete cj.roughQuoteMin;delete cj.roughQuoteMax;
+    delete cj.roughQuoteSentBy;delete cj.roughQuote;
+  }
+  saveDB();
+  showToast('✓ Rough quote data removed from '+name);
+  closeModal('estimate-breakdown');
+  // Re-render analytics so the counts update
+  if(document.getElementById('page-analytics')?.classList.contains('active'))renderAnalytics();
+}
+
 function renderAnalytics(){
   // Refresh staff filter from current settings (db.settings.crew may have loaded since page init)
   staffFilter=_getStaffFilter();
@@ -6973,21 +7076,27 @@ function renderAnalytics(){
   _ev.forEach(e=>{
     if(!e.name||!staffFilter.has(e.name)||!e.estimateType)return;
     if(!_ep[e.name])_ep[e.name]={};
-    if(!_ep[e.name][e.estimateType])_ep[e.name][e.estimateType]={sent:0,accepted:0,dnb:0};
+    if(!_ep[e.name][e.estimateType])_ep[e.name][e.estimateType]={sent:0,accepted:0,dnb:0,leadIds:[],completedJobIds:[]};
     _ep[e.name][e.estimateType].sent++;
     if(e.booked)_ep[e.name][e.estimateType].accepted++;
     if(e.lost)_ep[e.name][e.estimateType].dnb++;
+    if(e.leadId)_ep[e.name][e.estimateType].leadIds.push(e.leadId);
+    if(e.completedJobId)_ep[e.name][e.estimateType].completedJobIds.push(e.completedJobId);
   });
   const _epNames=Object.keys(_ep).sort();
   const _allEt=_etTypes.filter(t=>_ev.some(e=>e.estimateType===t));
+  // Stash this so the drill-down modal can re-resolve names → leads
+  window._estimateTypeBreakdown=_ep;
   document.getElementById('estimate-type-chart').innerHTML=_epNames.length?_epNames.map(name=>{
     const types=_ep[name];
     const rows=_allEt.filter(t=>types[t]).map(t=>{
       const d=types[t];
       const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
       const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
-      return`<tr>
-        <td style="padding:7px 10px;border-bottom:1px solid var(--border);padding-left:20px;color:var(--text2)">${t}</td>
+      const escName=name.replace(/'/g,"\\'");
+      const escType=t.replace(/'/g,"\\'");
+      return`<tr style="cursor:pointer" onclick="openEstimateBreakdownDrilldown('${escName}','${escType}')" title="Click to see the leads counted here">
+        <td style="padding:7px 10px;border-bottom:1px solid var(--border);padding-left:20px;color:var(--text2)">${t} <span style="color:var(--text3);font-size:10.5px">▸</span></td>
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.accepted}</td>
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--error)">${d.dnb}</td>
