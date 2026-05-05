@@ -2179,14 +2179,16 @@ async function loadDB(){
     // most recent statusUpdatedAt. This protects in-flight status changes (e.g. user clicked
     // "Need to send estimate" but the cloud row hasn't been refreshed yet) from being silently
     // reverted when the cloud read happens.
-    const cloudLeads=(leads||[]).map(r=>({...r.data,id:r.id}));
+    const cloudLeads=(leads||[]).map(r=>({...r.data,id:r.id})).filter(l=>!l._deleted);
     let localLeads=[];
     try{
       const ld=JSON.parse(localStorage.getItem('movedesk_db')||'{}');
-      if(Array.isArray(ld.leads))localLeads=ld.leads;
+      if(Array.isArray(ld.leads))localLeads=ld.leads.filter(l=>!l._deleted);
     }catch(_){}
     const cloudById=new Map(cloudLeads.map(l=>[l.id,l]));
-    const localById=new Map(localLeads.map(l=>[l.id,l]));
+    // Tombstones from cloud win: if cloud says deleted, remove that local id from the merge.
+    const cloudDeletedIds=new Set((leads||[]).filter(r=>r.data&&r.data._deleted).map(r=>r.id));
+    const localById=new Map(localLeads.filter(l=>!cloudDeletedIds.has(l.id)).map(l=>[l.id,l]));
     const allIds=new Set([...cloudById.keys(),...localById.keys()]);
     db.leads=Array.from(allIds).map(id=>{
       const c=cloudById.get(id);const lc=localById.get(id);
@@ -2197,9 +2199,9 @@ async function loadDB(){
       const lTs=lc.statusUpdatedAt||lc.createdAt||'';
       return lTs>cTs?lc:c;
     });
-    db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id}));
-    db.completedJobs=(completedJobs||[]).map(r=>({...r.data,id:r.id}));
-    db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id}));
+    db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id})).filter(j=>!j._deleted);
+    db.completedJobs=(completedJobs||[]).map(r=>({...r.data,id:r.id})).filter(j=>!j._deleted);
+    db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id})).filter(q=>!q._deleted);
     db.employees=(employees||[]).map(r=>({...r.data,id:r.id}));
     // Payroll weeks keyed by week_key
     db.weeklyPayroll={};
@@ -2281,6 +2283,30 @@ function pruneTombstones(){
       if(db._tombstones[t][i]<cutoff)delete db._tombstones[t][i];
     }
   }
+}
+
+// ── Soft-delete + last-modified ──
+// Background: Supabase's updated_at column doesn't reliably advance on every UPSERT, so the merge
+// logic was missing remote changes. We now stamp _lastModified inside the data JSON ourselves, and
+// when a record is deleted we keep the cloud row but flag it _deleted:true (a tombstone visible to
+// every device). All devices filter _deleted records out on merge, so deletions propagate even when
+// another device has the record cached and would otherwise re-upload it.
+function stampNow(rec){
+  rec._lastModified=new Date().toISOString();
+  return rec;
+}
+async function softDeleteRecord(table,localArr,id){
+  const idx=localArr.findIndex(x=>x.id===id);
+  if(idx<0)return null;
+  const rec=localArr[idx];
+  // Mark and upload the tombstone before removing locally — if the upload fails we still removed
+  // it from this device, but the tombstone will be re-attempted on the next sync via markTombstone.
+  const tombstone={...rec,_deleted:true,_deletedAt:new Date().toISOString(),_lastModified:new Date().toISOString()};
+  localArr.splice(idx,1);
+  markTombstone(table,id);
+  try{await sbFetch(table,'POST',[{id:rec.id,data:tombstone}]);}
+  catch(e){console.warn('[softDelete] cloud upsert of tombstone failed for '+table+' '+id+':',e);}
+  return rec;
 }
 
 async function clearAllDataFromSupabase(){
@@ -2369,11 +2395,13 @@ document.addEventListener('change',_globalAutoSave);
 
 async function syncToSupabase(){
   try{
-    // Upsert all records
-    const leadsRows=db.leads.map(l=>({id:l.id,data:l}));
-    const bookedRows=db.bookedJobs.map(j=>({id:j.id,data:j}));
-    const completedRows=db.completedJobs.map(j=>({id:j.id,data:j}));
-    const quoteRows=(db.quotes||[]).map(q=>({id:q.id,data:q}));
+    // Stamp _lastModified on every record before upload so the merge on other devices
+    // can reliably detect which side has newer data. This sidesteps any uncertainty about
+    // whether Supabase's updated_at column is actually advancing.
+    const leadsRows=db.leads.map(l=>({id:l.id,data:stampNow(l)}));
+    const bookedRows=db.bookedJobs.map(j=>({id:j.id,data:stampNow(j)}));
+    const completedRows=db.completedJobs.map(j=>({id:j.id,data:stampNow(j)}));
+    const quoteRows=(db.quotes||[]).map(q=>({id:q.id,data:stampNow(q)}));
     const empRows=(db.employees||[]).map(e=>({id:e.id,data:e}));
     const weekRows=Object.entries(db.weeklyPayroll||{}).map(([k,v])=>({week_key:k,data:v}));
     const txnRows=(db.cashTransactions||[]).map(t=>({id:t.id,data:t}));
@@ -2430,26 +2458,51 @@ async function refreshFromSupabase(){
       sbFetch('completed_jobs','GET'),
       sbFetch('quotes','GET'),
     ]);
+    // Safety guard: if ALL fetches returned nothing/null (network or auth failure), abort.
+    // We never want a bad fetch to wipe local data via deletion-detection.
+    const fetchHealthy=(leadsRes&&Array.isArray(leadsRes))||(bookedRes&&Array.isArray(bookedRes))||(completedRes&&Array.isArray(completedRes))||(quotesRes&&Array.isArray(quotesRes));
+    if(!fetchHealthy){
+      console.warn('[refresh] all fetches returned null — skipping merge to protect local data');
+      _refreshBusy=false;
+      return;
+    }
     // Merge — update db with any records newer than our last sync
     let updated=0;
     function mergeTable(remote,localArr,key='id',tableName=null){
+      // Only run deletion-detection if the remote fetch is a real array (could be empty
+      // legitimately, but null means the request failed and we shouldn't touch local).
       if(!remote||!Array.isArray(remote))return localArr;
       const localMap={};
       localArr.forEach(r=>{localMap[r[key]]=r;});
+      // Build set of ids returned by cloud so we can detect deletions below.
+      const remoteIds=new Set();
       remote.forEach(row=>{
         const rec=row.data||row;
         const id=rec[key]||row[key];
         if(!id)return;
-        // Tombstoned: user deleted this on this device. Skip it AND re-fire the cloud delete
-        // so a stale row keeps getting cleaned up until everyone agrees it's gone.
+        remoteIds.add(id);
+        // Tombstoned locally: skip + re-fire cloud delete (kept from earlier fix).
         if(tableName&&isTombstoned(tableName,id)){
           sbDelete(tableName,id).catch(()=>{});
+          delete localMap[id];
+          return;
+        }
+        // Soft-deleted in cloud: drop it from local AND remember the deletion so we
+        // don't accidentally re-upload this record from another save.
+        if(rec&&rec._deleted===true){
+          if(localMap[id]){
+            updated++;
+            console.log('[merge] removing locally — cloud has _deleted=true for '+(rec.name||id));
+          }
+          delete localMap[id];
+          if(tableName)markTombstone(tableName,id);
           return;
         }
         const local=localMap[id];
-        // Use remote if: not local, or remote updated_at is newer
-        const remoteTime=row.updated_at||row.inserted_at||'';
-        const localTime=local?._syncedAt||'';
+        // Prefer remote if local is missing OR remote's _lastModified is strictly newer.
+        // We fall back to updated_at/inserted_at for legacy records that don't have _lastModified yet.
+        const remoteTime=(rec&&rec._lastModified)||row.updated_at||row.inserted_at||'';
+        const localTime=(local&&local._lastModified)||(local&&local._syncedAt)||'';
         if(!local||(remoteTime&&remoteTime>localTime)){
           localMap[id]={...rec,_syncedAt:remoteTime};
           if(!local)updated++;
@@ -5197,10 +5250,8 @@ function deleteBookedJob(id){
   if(!confirm('Delete this booked job? This cannot be undone.'))return;
   const j=db.bookedJobs.find(x=>x.id===id);
   if(j&&j.leadId){const l=db.leads.find(x=>x.id===j.leadId);if(l&&l.status==='Booked')l.status='New';}
-  db.bookedJobs=db.bookedJobs.filter(j=>j.id!==id);
-  markTombstone('booked_jobs',id);
+  softDeleteRecord('booked_jobs',db.bookedJobs,id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
-  sbDelete('booked_jobs',id);
   renderBooked();showToast('Booked job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
@@ -5638,11 +5689,15 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   }
   db.completedJobs.push(completed);upsertCustomer(completed);
   const _completedBookedJobId=currentCompleteJobId;
+  // Soft-delete the booked row: writes a tombstone to cloud so other devices remove it on refresh.
+  // (Was previously a hard sbDelete which left another device free to re-upload the row.)
+  const _bookedSnapshot=db.bookedJobs.find(x=>x.id===_completedBookedJobId);
   db.bookedJobs=db.bookedJobs.filter(x=>x.id!==_completedBookedJobId);
   markTombstone('booked_jobs',_completedBookedJobId);
-  // Explicitly delete the booked-jobs row from Supabase, otherwise it lingers in the cloud
-  // and reappears as a duplicate on the next refresh from another device.
-  sbDelete('booked_jobs',_completedBookedJobId);
+  if(_bookedSnapshot){
+    const tomb={..._bookedSnapshot,_deleted:true,_deletedAt:new Date().toISOString(),_lastModified:new Date().toISOString()};
+    sbFetch('booked_jobs','POST',[{id:_completedBookedJobId,data:tomb}]).catch(e=>console.warn('[confirmComplete] tombstone upload failed:',e));
+  }
   if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead)lead.status='Completed';}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
 
 function saveJobForAI(completedJobId){
@@ -5689,10 +5744,8 @@ function saveJobForAI(completedJobId){
 let compFilter={text:'',crew:'',source:'',paid:''};
 function deleteCompletedJob(id){
   if(!confirm('Delete this completed job? This cannot be undone.'))return;
-  db.completedJobs=db.completedJobs.filter(j=>j.id!==id);
-  markTombstone('completed_jobs',id);
+  softDeleteRecord('completed_jobs',db.completedJobs,id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
-  sbDelete('completed_jobs',id);
   renderCompleted();showToast('Job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
@@ -9450,10 +9503,8 @@ async function sendQuote(){
 
 function deleteQuote(id){
   if(!confirm('Delete this quote? This cannot be undone.'))return;
-  db.quotes=db.quotes.filter(q=>q.id!==id);
-  markTombstone('quotes',id);
+  softDeleteRecord('quotes',db.quotes,id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
-  sbDelete('quotes',id);
   renderQuotes();showToast('Quote deleted');
 }
 
@@ -9696,11 +9747,10 @@ function deleteLead(id){
   const l=db.leads.find(x=>x.id===id);
   if(!l)return;
   if(!confirm('Delete '+l.name+'? This cannot be undone.'))return;
-  db.leads=db.leads.filter(x=>x.id!==id);
-  markTombstone('leads',id);
-  // Save to localStorage and delete from Supabase without triggering a full sync
+  // Soft-delete: keeps a tombstone row in cloud so John's computer (and any other device) sees the
+  // deletion on its next sync. softDeleteRecord both marks tombstone locally and uploads.
+  softDeleteRecord('leads',db.leads,id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
-  sbDelete('leads',id);
   closeModal('view');
   showToast('✓ Lead deleted — '+l.name);
   renderLeads();
