@@ -1838,10 +1838,16 @@
   <div class="modal" style="max-width:520px">
     <div class="modal-header"><div class="modal-title">💬 Add rough quote</div><button class="modal-close" onclick="closeModal('rough-quote-prompt')">×</button></div>
     <div class="modal-body">
-      <div class="form-group">
-        <label>Sent by</label>
-        <input type="text" id="rq-sent-by" placeholder="e.g. John" list="rq-sent-by-list">
-        <datalist id="rq-sent-by-list"><option value="John"><option value="Dave"></datalist>
+      <div class="form-grid form-grid-2">
+        <div class="form-group">
+          <label>Sent by</label>
+          <input type="text" id="rq-sent-by" placeholder="e.g. John" list="rq-sent-by-list">
+          <datalist id="rq-sent-by-list"><option value="John"><option value="Dave"></datalist>
+        </div>
+        <div class="form-group">
+          <label>Date sent <span style="font-size:11px;color:var(--text3)">(leave blank for today)</span></label>
+          <input type="date" id="rq-date">
+        </div>
       </div>
       <div class="form-grid form-grid-2">
         <div class="form-group"><label>No. of movers</label>
@@ -3243,7 +3249,10 @@ const roughQuoteBlock=l.roughQuoteDate?`<div style="margin-top:10px;padding:10px
   <div style="font-weight:600;color:var(--accent)">$${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?' – $'+(l.roughQuoteMax).toLocaleString():''}</div>
   ${l.roughQuoteNotes?`<div style="font-size:11.5px;color:var(--text3);margin-top:2px">${l.roughQuoteNotes}</div>`:''}</div>
   <button class="btn btn-secondary btn-sm" onclick="openRoughQuotePrompt('${l.id}')">✏ Edit</button>
-</div>`:'';
+</div>`:`<div style="margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border:1px dashed var(--border2);font-size:12px;color:var(--text3);display:flex;justify-content:space-between;align-items:center">
+  <span>No rough quote on file yet</span>
+  <button class="btn btn-secondary btn-sm" onclick="openRoughQuotePrompt('${l.id}')" title="Backfill an old rough quote — useful if you sent one verbally or by separate email before tracking it here">+ Add rough quote</button>
+</div>`;
 document.getElementById('view-modal-footer').innerHTML=`
   <div style="display:flex;flex-direction:column;gap:8px;width:100%">
     ${roughQuoteBlock}
@@ -3749,9 +3758,15 @@ function openRoughQuotePrompt(leadId){
   _rqLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
+  // Clear all fields first to prevent stale data from a prior open
+  ['rq-sent-by','rq-date','rq-rate','rq-cash-rate','rq-hrs-min','rq-hrs-max','rq-fuel','rq-materials','rq-pack-mat-min','rq-pack-mat-max','rq-other'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  const moversSel=document.getElementById('rq-movers');if(moversSel)moversSel.value='';
   const rq=l.roughQuote||{};
   const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!==undefined&&val!=='')el.value=val;};
   set('rq-sent-by',l.roughQuoteSentBy||l.takenBy||'');
+  set('rq-date',l.roughQuoteDate||'');
   set('rq-movers',rq.movers||'');
   set('rq-rate',rq.rate||'');
   set('rq-cash-rate',rq.cashRate||'');
@@ -3804,12 +3819,21 @@ function confirmRoughQuote(){
   if(!sentBy){showToast('Please fill in who sent this');return;}
   const min=rate&&hrsMin?Math.round(rate*hrsMin+fuel+materials):Number(document.getElementById('rq-pack-mat-min')?.value)||0;
   const max=rate&&hrsMax?Math.round(rate*hrsMax+fuel+materials):Number(document.getElementById('rq-pack-mat-max')?.value)||min;
-  l.status='Summary + rough quote';
-  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  // Don't demote Booked / Confirmation sent / Completed / Did not book leads — preserve their final status
+  // when we're backfilling a rough quote that was sent earlier in their journey.
+  const _terminalStatuses=['Booked','Confirmation sent','Completed','Did not book'];
+  const _isBackfill=_terminalStatuses.includes(l.status);
+  if(!_isBackfill){
+    l.status='Summary + rough quote';
+    l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  }
   l.roughQuoteSentBy=sentBy;
   l.roughQuoteMin=min;
   l.roughQuoteMax=max;
-  l.roughQuoteDate=new Date().toISOString().split('T')[0];
+  // Allow the user to backdate via the input; otherwise use today (or lead's createdAt for backfill)
+  const _explicitDate=document.getElementById('rq-date')?.value;
+  l.roughQuoteDate=_explicitDate
+    ||(_isBackfill?(l.createdAt||new Date().toISOString().split('T')[0]):new Date().toISOString().split('T')[0]);
   l.roughQuote={
     movers:document.getElementById('rq-movers')?.value||'',
     rate:document.getElementById('rq-rate')?.value||'',
