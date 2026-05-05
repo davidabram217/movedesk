@@ -2159,7 +2159,28 @@ async function loadDB(){
       sbFetch('cash_transactions?select=id,data&order=created_at.desc'),
       sbFetch('settings?select=id,data')
     ]);
-    db.leads=(leads||[]).map(r=>({...r.data,id:r.id}));
+    // Merge leads from Supabase with whatever's in localStorage, preferring whichever has the
+    // most recent statusUpdatedAt. This protects in-flight status changes (e.g. user clicked
+    // "Need to send estimate" but the cloud row hasn't been refreshed yet) from being silently
+    // reverted when the cloud read happens.
+    const cloudLeads=(leads||[]).map(r=>({...r.data,id:r.id}));
+    let localLeads=[];
+    try{
+      const ld=JSON.parse(localStorage.getItem('movedesk_db')||'{}');
+      if(Array.isArray(ld.leads))localLeads=ld.leads;
+    }catch(_){}
+    const cloudById=new Map(cloudLeads.map(l=>[l.id,l]));
+    const localById=new Map(localLeads.map(l=>[l.id,l]));
+    const allIds=new Set([...cloudById.keys(),...localById.keys()]);
+    db.leads=Array.from(allIds).map(id=>{
+      const c=cloudById.get(id);const lc=localById.get(id);
+      if(!c)return lc;
+      if(!lc)return c;
+      // Both exist — prefer the one whose status was last updated more recently
+      const cTs=c.statusUpdatedAt||c.createdAt||'';
+      const lTs=lc.statusUpdatedAt||lc.createdAt||'';
+      return lTs>cTs?lc:c;
+    });
     db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id}));
     db.completedJobs=(completedJobs||[]).map(r=>({...r.data,id:r.id}));
     db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id}));
