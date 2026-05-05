@@ -2522,6 +2522,47 @@ const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
+// Resolves the best-available "what was quoted" data for a completed job.
+// Priority: formal quote (db.quotes) → rough quote on the linked lead → rough quote saved
+// directly on the completed job itself (backfill). Returns a uniform object the AI training
+// record and accuracy widgets can read from.
+function resolveQuotedInfo(j){
+  const out={
+    quotedMin:null,quotedMax:null,
+    quotedHoursMin:null,quotedHoursMax:null,
+    quotedRate:null,quotedCrew:null,
+    estimatedVaults:null,
+    source:null // 'formal' | 'rough-on-lead' | 'rough-on-job' | null
+  };
+  const _bk=j.bookedJobId?db.bookedJobs.find(b=>b.id===j.bookedJobId):null;
+  const lead=(_bk?db.leads.find(l=>l.id===_bk.leadId):null)||db.leads.find(l=>l.name===j.name)||null;
+  // Formal quote first
+  const fq=lead?db.quotes.find(q=>q.leadId===lead.id):(j.bookedJobId?db.quotes.find(q=>q.bookedJobId===j.bookedJobId):null);
+  if(fq){
+    out.quotedMin=fq.totalMin||null;
+    out.quotedMax=fq.totalMax||null;
+    out.quotedHoursMin=fq.days?.[0]?.hrsMin||null;
+    out.quotedHoursMax=fq.days?.[0]?.hrsMax||null;
+    out.quotedRate=fq.days?.[0]?.rate||null;
+    out.quotedCrew=fq.days?.[0]?.crew||null;
+    out.estimatedVaults=Number(fq.estimatedVaults)||null;
+    out.source='formal';
+    return out;
+  }
+  // Rough quote on lead, then on job
+  const rqHost=lead&&(lead.roughQuoteMin||lead.roughQuoteMax||(lead.roughQuote&&Object.keys(lead.roughQuote).length))?lead:(j.roughQuoteMin||j.roughQuoteMax||(j.roughQuote&&Object.keys(j.roughQuote).length)?j:null);
+  if(!rqHost)return out;
+  const rqObj=rqHost.roughQuote||{};
+  out.quotedMin=rqHost.roughQuoteMin||null;
+  out.quotedMax=rqHost.roughQuoteMax||rqHost.roughQuoteMin||null;
+  out.quotedHoursMin=Number(rqObj.hrsMin)||null;
+  out.quotedHoursMax=Number(rqObj.hrsMax)||null;
+  out.quotedRate=Number(rqObj.rate)||null;
+  out.quotedCrew=Number(rqObj.movers)||null;
+  out.source=rqHost===lead?'rough-on-lead':'rough-on-job';
+  return out;
+}
+
 // Apples-to-apples comparison helper for quote accuracy.
 // If a customer paid the cash rate, the actual total is artificially low compared to the quote
 // (which was based on the regular rate). This returns the total the job WOULD have cost at the
@@ -5148,6 +5189,44 @@ calLines.push('*Customer responsible for any parking tickets');
 const calText=calLines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 
 document.getElementById('view-modal-body').innerHTML=`
+${(function(){
+  // Sales journey block — surfaces rough quote and formal quote info that led to this booking,
+  // so the rough quote (when no formal quote was sent) is visible throughout the lifecycle.
+  if(!_jLead)return'';
+  const events=[];
+  if(_jLead.summarySentAt||(_jLead.summaryLog&&_jLead.summaryLog.length)){
+    const d=_jLead.summarySentAt||(_jLead.summaryLog&&_jLead.summaryLog[0]?.date)||'';
+    events.push({date:d,kind:'summary',label:'Call summary sent',by:_jLead.summarySentBy||_jLead.takenBy||''});
+  }
+  if(_jLead.roughQuoteDate||_jLead.roughQuoteMin){
+    const min=_jLead.roughQuoteMin||0;
+    const max=_jLead.roughQuoteMax||min;
+    events.push({date:_jLead.roughQuoteDate||'',kind:'rough',label:'Rough quote sent',
+      amount:min?(max&&max!==min?'$'+min.toLocaleString()+' – $'+max.toLocaleString():'$'+min.toLocaleString()):null,
+      by:_jLead.roughQuoteSentBy||''});
+  }
+  if(bookedQuote&&(bookedQuote.totalMin||bookedQuote.totalMax)){
+    const min=bookedQuote.totalMin||0;
+    const max=bookedQuote.totalMax||min;
+    events.push({date:bookedQuote.savedAt?bookedQuote.savedAt.slice(0,10):'',kind:'formal',label:'Formal quote '+(bookedQuote.status||'sent'),
+      amount:min?(max&&max!==min?'$'+min.toLocaleString()+' – $'+max.toLocaleString():'$'+min.toLocaleString()):null,
+      by:bookedQuote.sentBy||''});
+  }
+  if(!events.length)return'';
+  events.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const dot={summary:'#888',rough:'#a3590f',formal:'#2d6a4f'};
+  return `<div style="margin-bottom:16px;padding:11px 13px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
+    <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Sales journey</div>
+    <div style="display:flex;flex-direction:column;gap:6px">${events.map(e=>`
+      <div style="display:flex;align-items:center;gap:10px;font-size:12.5px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${dot[e.kind]||'#888'};flex-shrink:0"></span>
+        <span style="color:var(--text2);min-width:80px;font-size:11.5px">${e.date?fmtDate(e.date):'—'}</span>
+        <span style="color:var(--text);font-weight:500">${e.label}</span>
+        ${e.amount?`<span style="color:var(--accent);font-weight:600">${e.amount}</span>`:''}
+        ${e.by?`<span style="color:var(--text3);font-size:11.5px">by ${e.by}</span>`:''}
+      </div>`).join('')}</div>
+  </div>`;
+})()}
 <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px">
   <div class="tab active" style="padding:8px 16px;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid var(--accent);color:var(--accent);margin-bottom:-1px" onclick="switchJobTab('details','${id}',this)">Job details</div>
   <div class="tab" style="padding:8px 16px;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;color:var(--text2);margin-bottom:-1px" onclick="switchJobTab('calendar','${id}',this)">📋 Calendar entry</div>
@@ -5586,10 +5665,7 @@ let aiRec=db.aiTraining&&(
 // from the completed job + original quote and persist so it shows up forever.
 if(!aiRec&&j.usedForAI){
   const _bookedForAI=db.bookedJobs.find(b=>b.id===j.bookedJobId)||null;
-  const _leadForAI=(_bookedForAI&&db.leads.find(l=>l.id===_bookedForAI.leadId))
-    ||db.leads.find(l=>l.name===j.name)
-    ||null;
-  const _quoteForAI=_leadForAI?db.quotes.find(q=>q.leadId===_leadForAI.id):null;
+  const _qInfo=resolveQuotedInfo(j);
   aiRec={
     id:uid(),
     completedJobId:j.id,
@@ -5597,13 +5673,14 @@ if(!aiRec&&j.usedForAI){
     date:j.date,name:j.name,size:j.size,moveType:j.moveType,
     from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
     accessLoad:j.accessLoad,accessUnload:j.accessUnload,
-    quotedMin:_quoteForAI?_quoteForAI.totalMin:null,
-    quotedMax:_quoteForAI?_quoteForAI.totalMax:null,
-    quotedHoursMin:_quoteForAI?_quoteForAI.days?.[0]?.hrsMin:null,
-    quotedHoursMax:_quoteForAI?_quoteForAI.days?.[0]?.hrsMax:null,
-    quotedRate:_quoteForAI?_quoteForAI.days?.[0]?.rate:null,
-    quotedCrew:_quoteForAI?_quoteForAI.days?.[0]?.crew:null,
-    estimatedVaults:_quoteForAI?Number(_quoteForAI.estimatedVaults)||null:null,
+    quotedMin:_qInfo.quotedMin,
+    quotedMax:_qInfo.quotedMax,
+    quotedHoursMin:_qInfo.quotedHoursMin,
+    quotedHoursMax:_qInfo.quotedHoursMax,
+    quotedRate:_qInfo.quotedRate,
+    quotedCrew:_qInfo.quotedCrew,
+    estimatedVaults:_qInfo.estimatedVaults,
+    quoteSource:_qInfo.source,
     actualHours:Number(j.hours)||null,
     moveMen:Number(j.moveMen)||null,
     packHoursActual:Number(j.packHoursActual)||null,
@@ -5622,7 +5699,32 @@ if(!aiRec&&j.usedForAI){
   db.aiTraining.push(aiRec);
   try{saveDB();}catch(e){}
 }
-// Fall back to the AI training record's quote data if no real quote was found.
+// Rough quote fallback — if no formal quote was sent but a rough quote was given (either
+// on the lead or backfilled directly on the completed job), use it for the comparison.
+if(!quote){
+  const _rqLead=lead||db.leads.find(l=>l.name===j.name)||null;
+  const _rqMin=j.roughQuoteMin||(_rqLead?_rqLead.roughQuoteMin:null);
+  const _rqMax=j.roughQuoteMax||(_rqLead?_rqLead.roughQuoteMax:null);
+  const _rqObj=j.roughQuote||(_rqLead?_rqLead.roughQuote:null)||{};
+  const _rqRate=Number(_rqObj.rate)||null;
+  const _rqHMin=Number(_rqObj.hrsMin)||null;
+  const _rqHMax=Number(_rqObj.hrsMax)||null;
+  const _rqFuel=Number(_rqObj.fuel)||0;
+  const _rqMat=Number(_rqObj.materials)||0;
+  if(_rqMin||_rqMax||_rqHMin||_rqHMax){
+    const fees=[];
+    if(_rqFuel)fees.push({label:'Fuel',amount:_rqFuel});
+    if(_rqMat)fees.push({label:'Materials',amount:_rqMat});
+    quote={
+      _synthetic:true,_fromRoughQuote:true,
+      totalMin:_rqMin||null,
+      totalMax:_rqMax||_rqMin||null,
+      days:[{hrsMin:_rqHMin,hrsMax:_rqHMax,rate:_rqRate,crew:Number(_rqObj.movers)||null}],
+      fees
+    };
+  }
+}
+// Fall back to the AI training record's quote data if still no quote.
 // This rescues the "Quote vs Actual" panel for jobs whose original quote got detached
 // (e.g. lead deleted, booked from rough quote, or completed before tracking existed).
 if(!quote&&aiRec&&(aiRec.quotedMin||aiRec.quotedMax||aiRec.quotedHoursMin||aiRec.quotedHoursMax)){
@@ -5669,8 +5771,52 @@ const aiBlock=aiRec
   :(j.usedForAI?'<div style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text3)">🤖 Flagged for AI training but training record not found.</div>':'');
 
 const quoteBlock=`
+${(function(){
+  // Sales journey block — surfaces the rough quote / formal quote that led to this completed job,
+  // mirroring the same block shown on the booked-job view.
+  const _l=lead||db.leads.find(l=>l.name===j.name)||null;
+  const events=[];
+  if(_l&&(_l.summarySentAt||(_l.summaryLog&&_l.summaryLog.length))){
+    const d=_l.summarySentAt||(_l.summaryLog&&_l.summaryLog[0]?.date)||'';
+    events.push({date:d,kind:'summary',label:'Call summary sent',by:_l.summarySentBy||_l.takenBy||''});
+  }
+  // Rough quote: prefer lead's, fall back to one stored on the completed job itself
+  const rqMin=(_l&&_l.roughQuoteMin)||j.roughQuoteMin||null;
+  const rqMax=(_l&&_l.roughQuoteMax)||j.roughQuoteMax||rqMin;
+  const rqDate=(_l&&_l.roughQuoteDate)||j.roughQuoteDate||'';
+  const rqBy=(_l&&_l.roughQuoteSentBy)||j.roughQuoteSentBy||'';
+  if(rqMin||rqDate){
+    const min=Number(rqMin)||0;
+    const max=Number(rqMax)||min;
+    events.push({date:rqDate,kind:'rough',label:'Rough quote sent',
+      amount:min?(max&&max!==min?'$'+min.toLocaleString()+' – $'+max.toLocaleString():'$'+min.toLocaleString()):null,
+      by:rqBy});
+  }
+  // Formal quote — only if it's a real one, not the synthetic one we built earlier
+  if(quote&&!quote._synthetic&&(quote.totalMin||quote.totalMax)){
+    const min=quote.totalMin||0;
+    const max=quote.totalMax||min;
+    events.push({date:quote.savedAt?quote.savedAt.slice(0,10):'',kind:'formal',label:'Formal quote '+(quote.status||'sent'),
+      amount:min?(max&&max!==min?'$'+min.toLocaleString()+' – $'+max.toLocaleString():'$'+min.toLocaleString()):null,
+      by:quote.sentBy||''});
+  }
+  if(!events.length)return'';
+  events.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const dot={summary:'#888',rough:'#a3590f',formal:'#2d6a4f'};
+  return `<div style="margin-top:16px;padding:11px 13px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
+    <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Sales journey</div>
+    <div style="display:flex;flex-direction:column;gap:6px">${events.map(e=>`
+      <div style="display:flex;align-items:center;gap:10px;font-size:12.5px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${dot[e.kind]||'#888'};flex-shrink:0"></span>
+        <span style="color:var(--text2);min-width:80px;font-size:11.5px">${e.date?fmtDate(e.date):'—'}</span>
+        <span style="color:var(--text);font-weight:500">${e.label}</span>
+        ${e.amount?`<span style="color:var(--accent);font-weight:600">${e.amount}</span>`:''}
+        ${e.by?`<span style="color:var(--text3);font-size:11.5px">by ${e.by}</span>`:''}
+      </div>`).join('')}</div>
+  </div>`;
+})()}
   <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
-    <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Quote vs Actual${quote&&quote._synthetic?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· reconstructed from AI training data</span>':''}</div>
+    <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Quote vs Actual${quote&&quote._fromRoughQuote?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· based on rough quote (no formal quote sent)</span>':quote&&quote._synthetic?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· reconstructed from AI training data</span>':''}</div>
     ${!quote?`<div style="font-size:12.5px;color:var(--text3);padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">No quote found for this job — comparison not available.</div>`:`
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
@@ -5860,23 +6006,34 @@ function saveEditedCompletedJob(){
     // Ensure a training record exists; if it does, refresh actuals (since edit may have changed numbers)
     let _aiRec=db.aiTraining.find(r=>r.completedJobId===j.id);
     if(!_aiRec){
-      const _bk=db.bookedJobs.find(b=>b.id===j.bookedJobId)||null;
-      const _ld=(_bk&&db.leads.find(l=>l.id===_bk.leadId))||db.leads.find(l=>l.name===j.name)||null;
-      const _q=_ld?db.quotes.find(q=>q.leadId===_ld.id):null;
+      const _qInfo=resolveQuotedInfo(j);
       _aiRec={
         id:uid(),completedJobId:j.id,bookedJobId:j.bookedJobId||null,
         date:j.date,name:j.name,size:j.size,moveType:j.moveType,
         from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
         accessLoad:j.accessLoad,accessUnload:j.accessUnload,
-        quotedMin:_q?_q.totalMin:null,quotedMax:_q?_q.totalMax:null,
-        quotedHoursMin:_q?_q.days?.[0]?.hrsMin:null,quotedHoursMax:_q?_q.days?.[0]?.hrsMax:null,
-        quotedRate:_q?_q.days?.[0]?.rate:null,quotedCrew:_q?_q.days?.[0]?.crew:null,
-        estimatedVaults:_q?Number(_q.estimatedVaults)||null:null,
+        quotedMin:_qInfo.quotedMin,quotedMax:_qInfo.quotedMax,
+        quotedHoursMin:_qInfo.quotedHoursMin,quotedHoursMax:_qInfo.quotedHoursMax,
+        quotedRate:_qInfo.quotedRate,quotedCrew:_qInfo.quotedCrew,
+        estimatedVaults:_qInfo.estimatedVaults,
+        quoteSource:_qInfo.source,
         savedAt:new Date().toISOString()
       };
       db.aiTraining.push(_aiRec);
+    } else {
+      // Refresh quote info too — user may have just backfilled a rough quote
+      const _qInfo=resolveQuotedInfo(j);
+      if(_qInfo.source){
+        if(_qInfo.quotedMin&&!_aiRec.quotedMin)_aiRec.quotedMin=_qInfo.quotedMin;
+        if(_qInfo.quotedMax&&!_aiRec.quotedMax)_aiRec.quotedMax=_qInfo.quotedMax;
+        if(_qInfo.quotedHoursMin&&!_aiRec.quotedHoursMin)_aiRec.quotedHoursMin=_qInfo.quotedHoursMin;
+        if(_qInfo.quotedHoursMax&&!_aiRec.quotedHoursMax)_aiRec.quotedHoursMax=_qInfo.quotedHoursMax;
+        if(_qInfo.quotedRate&&!_aiRec.quotedRate)_aiRec.quotedRate=_qInfo.quotedRate;
+        if(_qInfo.quotedCrew&&!_aiRec.quotedCrew)_aiRec.quotedCrew=_qInfo.quotedCrew;
+        _aiRec.quoteSource=_aiRec.quoteSource||_qInfo.source;
+      }
     }
-    // Refresh actuals from current edit
+    // Refresh actuals from current edit (runs whether record was just created or already existed)
     _aiRec.actualHours=Number(j.hours)||null;
     _aiRec.moveMen=Number(j.moveMen)||null;
     _aiRec.packHoursActual=Number(j.packHoursActual)||null;
@@ -10085,12 +10242,8 @@ function selfHealAITraining(){
       ||db.aiTraining.find(r=>r.bookedJobId===j.bookedJobId&&j.bookedJobId)
       ||db.aiTraining.find(r=>r.name===j.name&&r.date===j.date);
     if(existing)return;
-    // Rebuild from completed job + original quote (same logic as viewLead self-heal)
-    const _bookedForAI=db.bookedJobs.find(b=>b.id===j.bookedJobId)||null;
-    const _leadForAI=(_bookedForAI&&db.leads.find(l=>l.id===_bookedForAI.leadId))
-      ||db.leads.find(l=>l.name===j.name)
-      ||null;
-    const _quoteForAI=_leadForAI?db.quotes.find(q=>q.leadId===_leadForAI.id):null;
+    // Rebuild from completed job using best-available quote source (formal → rough on lead → rough on job)
+    const _qInfo=resolveQuotedInfo(j);
     db.aiTraining.push({
       id:uid(),
       completedJobId:j.id,
@@ -10098,13 +10251,14 @@ function selfHealAITraining(){
       date:j.date,name:j.name,size:j.size,moveType:j.moveType,
       from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
       accessLoad:j.accessLoad,accessUnload:j.accessUnload,
-      quotedMin:_quoteForAI?_quoteForAI.totalMin:null,
-      quotedMax:_quoteForAI?_quoteForAI.totalMax:null,
-      quotedHoursMin:_quoteForAI?_quoteForAI.days?.[0]?.hrsMin:null,
-      quotedHoursMax:_quoteForAI?_quoteForAI.days?.[0]?.hrsMax:null,
-      quotedRate:_quoteForAI?_quoteForAI.days?.[0]?.rate:null,
-      quotedCrew:_quoteForAI?_quoteForAI.days?.[0]?.crew:null,
-      estimatedVaults:_quoteForAI?Number(_quoteForAI.estimatedVaults)||null:null,
+      quotedMin:_qInfo.quotedMin,
+      quotedMax:_qInfo.quotedMax,
+      quotedHoursMin:_qInfo.quotedHoursMin,
+      quotedHoursMax:_qInfo.quotedHoursMax,
+      quotedRate:_qInfo.quotedRate,
+      quotedCrew:_qInfo.quotedCrew,
+      estimatedVaults:_qInfo.estimatedVaults,
+      quoteSource:_qInfo.source,
       actualHours:Number(j.hours)||null,
       moveMen:Number(j.moveMen)||null,
       packHoursActual:Number(j.packHoursActual)||null,
