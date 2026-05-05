@@ -6443,16 +6443,29 @@ function calcPackMaterials(){
     <button class="btn btn-primary" style="margin-top:14px" onclick="navigator.clipboard.writeText('$'+${suggestedMin}+' – $'+${suggestedMax});showToast('✓ Copied to clipboard')">📋 Copy range</button>`;
 }
 
-// Drill-down: shows the leads/jobs that contributed to a (staff name, estimate type) cell
-// in the "Quote acceptance by team member" widget. Lets the user verify the count and
-// remove rough-quote data from individual records that shouldn't have been counted.
-function openEstimateBreakdownDrilldown(name,type){
-  const breakdown=window._estimateTypeBreakdown||{};
-  const cell=breakdown[name]&&breakdown[name][type];
+// Drill-down: shows the leads/jobs that contributed to a (staff name, breakdown key) cell
+// in any of the staff analytics widgets. Lets the user verify the count and remove
+// rough-quote / estimate data from individual records that shouldn't have been counted.
+// `which` is one of: 'estimate-type', 'quote-success', 'how-booked'
+function openEstimateBreakdownDrilldown(name,key,which){
+  which=which||'estimate-type';
+  let cell=null,subtitle='';
+  if(which==='estimate-type'){
+    const breakdown=window._estimateTypeBreakdown||{};
+    cell=breakdown[name]&&breakdown[name][key];
+    subtitle=`${name} · ${key}`;
+  } else if(which==='quote-success'){
+    const breakdown=window._quoteSuccessBreakdown||{};
+    cell=breakdown[name];
+    subtitle=`${name} · all estimates`;
+  } else if(which==='how-booked'){
+    const breakdown=window._howBookedBreakdown||{};
+    cell=breakdown[name]&&breakdown[name][key];
+    subtitle=`${name} · ${key}`;
+  }
   if(!cell){showToast('No data for that breakdown');return;}
   const leadIds=cell.leadIds||[];
   const completedJobIds=cell.completedJobIds||[];
-  // Build records list — combine matching leads + completed jobs
   const records=[];
   leadIds.forEach(lid=>{
     const l=db.leads.find(x=>x.id===lid);
@@ -6475,17 +6488,24 @@ function openEstimateBreakdownDrilldown(name,type){
     });
   });
   records.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  document.getElementById('ebd-title').textContent=`${name} · ${type}`;
-  document.getElementById('ebd-subtitle').textContent=`${records.length} ${records.length===1?'record':'records'} · ${cell.accepted} booked · ${cell.dnb} lost`;
+  document.getElementById('ebd-title').textContent=subtitle;
+  let counts;
+  if(which==='estimate-type')counts=`${records.length} ${records.length===1?'record':'records'} · ${cell.accepted} booked · ${cell.dnb} lost`;
+  else if(which==='quote-success')counts=`${cell.sent} sent · ${cell.accepted} accepted · ${cell.declined} declined`;
+  else counts=`${records.length} booked job${records.length===1?'':'s'}`;
+  document.getElementById('ebd-subtitle').textContent=counts;
+  // Show "remove rough quote" button only when the records actually have rough quote data
+  // (i.e. for estimate-type: Summary + rough quote rows). For other widgets, just show the lead.
+  const showRemove=(which==='estimate-type'&&key==='Summary + rough quote');
   document.getElementById('ebd-body').innerHTML=records.length?`
-    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Click a name to open the record. Use the trash icon to remove the rough quote data from a record (it won't delete the lead/job, just untag the rough quote).</div>
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Click a name to open the record.${showRemove?" Use the trash icon to remove the rough quote data from a record (it won't delete the lead/job, just untag the rough quote).":''}</div>
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
         <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Customer</th>
         <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Date</th>
         <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Status</th>
-        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Amount</th>
-        <th style="border-bottom:1px solid var(--border);width:30px"></th>
+        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${showRemove?'Amount':''}</th>
+        ${showRemove?'<th style="border-bottom:1px solid var(--border);width:30px"></th>':''}
       </tr></thead>
       <tbody>
       ${records.map(r=>{
@@ -6496,10 +6516,10 @@ function openEstimateBreakdownDrilldown(name,type){
           <td style="padding:8px 10px"><a href="#" onclick="event.preventDefault();${action}" style="color:var(--accent);text-decoration:none;font-weight:500">${r.name||'—'}</a></td>
           <td style="padding:8px 10px;color:var(--text2)">${r.date?fmtDate(r.date):'—'}</td>
           <td style="padding:8px 10px;color:${statusColor};font-size:11.5px">${r.status}</td>
-          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.amount||'—'}</td>
-          <td style="padding:8px 6px;text-align:right">
+          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${showRemove?(r.amount||'—'):''}</td>
+          ${showRemove?`<td style="padding:8px 6px;text-align:right">
             <button class="btn btn-secondary btn-sm" onclick="removeRoughQuoteFromRecord('${r.kind}','${r.id}','${escName}')" title="Remove rough quote data from this record" style="font-size:10px;color:var(--error);border-color:var(--error);padding:3px 6px">🗑</button>
-          </td>
+          </td>`:''}
         </tr>`;
       }).join('')}
       </tbody>
@@ -7042,11 +7062,14 @@ function renderAnalytics(){
   const _sq={};
   _ev.forEach(e=>{
     if(!e.name||!staffFilter.has(e.name))return;
-    if(!_sq[e.name])_sq[e.name]={sent:0,accepted:0,declined:0};
+    if(!_sq[e.name])_sq[e.name]={sent:0,accepted:0,declined:0,leadIds:[],completedJobIds:[]};
     _sq[e.name].sent++;
     if(e.booked)_sq[e.name].accepted++;
     if(e.lost)_sq[e.name].declined++;
+    if(e.leadId)_sq[e.name].leadIds.push(e.leadId);
+    if(e.completedJobId)_sq[e.name].completedJobIds.push(e.completedJobId);
   });
+  window._quoteSuccessBreakdown=_sq;
   const _sqEntries=Object.entries(_sq).sort((a,b)=>b[1].sent-a[1].sent);
   document.getElementById('staff-quote-chart').innerHTML=_sqEntries.length?`
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
@@ -7060,8 +7083,9 @@ function renderAnalytics(){
       <tbody>${_sqEntries.map(([name,d])=>{
         const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
         const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
-        return`<tr>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${name}</td>
+        const escName=name.replace(/'/g,"\\'");
+        return`<tr style="cursor:pointer" onclick="openEstimateBreakdownDrilldown('${escName}','','quote-success')" title="Click to see the estimates counted here">
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${name} <span style="color:var(--text3);font-size:10.5px">▸</span></td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.accepted}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--error)">${d.declined}</td>
@@ -7095,7 +7119,7 @@ function renderAnalytics(){
       const col=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
       const escName=name.replace(/'/g,"\\'");
       const escType=t.replace(/'/g,"\\'");
-      return`<tr style="cursor:pointer" onclick="openEstimateBreakdownDrilldown('${escName}','${escType}')" title="Click to see the leads counted here">
+      return`<tr style="cursor:pointer" onclick="openEstimateBreakdownDrilldown('${escName}','${escType}','estimate-type')" title="Click to see the leads counted here">
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);padding-left:20px;color:var(--text2)">${t} <span style="color:var(--text3);font-size:10.5px">▸</span></td>
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--accent);font-weight:600">${d.accepted}</td>
@@ -7182,20 +7206,27 @@ function renderAnalytics(){
     if(!name||!staffFilter.has(name))return;
     if(!personPaths[name])personPaths[name]={};
     const path=getBookingPath(l);
-    personPaths[name][path]=(personPaths[name][path]||0)+1;
+    if(!personPaths[name][path])personPaths[name][path]={count:0,leadIds:[]};
+    personPaths[name][path].count++;
+    personPaths[name][path].leadIds.push(l.id);
   });
+  window._howBookedBreakdown=personPaths;
 
   const ppEntries=Object.entries(personPaths).sort((a,b)=>a[0].localeCompare(b[0]));
   document.getElementById('how-booked-person-chart').innerHTML=ppEntries.length?ppEntries.map(([name,paths])=>{
-    const total=Object.values(paths).reduce((s,n)=>s+n,0);
+    const total=Object.values(paths).reduce((s,p)=>s+p.count,0);
+    const escName=name.replace(/'/g,"\\'");
     return`<div style="margin-bottom:16px">
       <div style="font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px;padding:7px 10px;background:var(--surface2);border-radius:var(--radius) var(--radius) 0 0">${name} — ${total} booked</div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px">
-        <tbody>${pathOrder.filter(p=>paths[p]>0).map(p=>`<tr>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${pathColors[p]};margin-right:6px"></span>${p}</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600">${paths[p]}</td>
-          <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${Math.round(paths[p]/total*100)}%</td>
-        </tr>`).join('')}</tbody>
+        <tbody>${pathOrder.filter(p=>paths[p]&&paths[p].count>0).map(p=>{
+          const escPath=p.replace(/'/g,"\\'");
+          return`<tr style="cursor:pointer" onclick="openEstimateBreakdownDrilldown('${escName}','${escPath}','how-booked')" title="Click to see the bookings counted here">
+            <td style="padding:7px 10px;border-bottom:1px solid var(--border)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${pathColors[p]};margin-right:6px"></span>${p} <span style="color:var(--text3);font-size:10.5px">▸</span></td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600">${paths[p].count}</td>
+            <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${Math.round(paths[p].count/total*100)}%</td>
+          </tr>`;
+        }).join('')}</tbody>
       </table>
     </div>`;
   }).join('')
