@@ -582,8 +582,9 @@
               <div class="form-group"><label>Unload zip code</label>
                 <input type="text" id="ai-unload-zip" placeholder="e.g. 94131" maxlength="5">
               </div>
-              <div class="form-group"><label>Hourly rate ($/hr)</label>
-                <input type="number" id="ai-rate" placeholder="e.g. 225" value="225">
+              <div class="form-group"><label>Rate per man ($/hr)</label>
+                <input type="number" id="ai-rate" placeholder="e.g. 75" value="75">
+                <div style="font-size:11px;color:var(--text3);margin-top:3px">Total hourly rate = this × number of movers</div>
               </div>
               <div class="form-group"><label>Number of movers</label>
                 <select id="ai-men">
@@ -10321,7 +10322,7 @@ function generateAIQuote(){
     accessUnload:document.getElementById('ai-access-unload').value,
     loadZip:(document.getElementById('ai-load-zip').value||'').trim(),
     unloadZip:(document.getElementById('ai-unload-zip').value||'').trim(),
-    rate:parseFloat(document.getElementById('ai-rate').value)||225,
+    rate:parseFloat(document.getElementById('ai-rate').value)||75,
     men:parseInt(document.getElementById('ai-men').value)||null,
     notes:(document.getElementById('ai-notes').value||'').trim()
   };
@@ -10350,8 +10351,10 @@ function generateAIQuote(){
 
   const avgHours=wavg('actualHours');
   const avgMen=wavg('moveMen')||3;
-  const rate=inputs.rate;
+  const ratePerMan=inputs.rate;
   const men=inputs.men||Math.round(avgMen);
+  // Effective hourly rate = per-man rate × crew size (e.g. $75/man × 5 men = $375/hr crew rate)
+  const rate=ratePerMan*men;
 
   // Data-driven crew scaling ratios
   const crewRatios={1:0.45,2:0.69,3:1.0,4:1.29,5:1.62,6:1.22};
@@ -10424,6 +10427,7 @@ function generateAIQuote(){
       <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Suggested crew</div>
         <div style="font-size:16px;font-weight:600">${men} men @ $${rate}/hr</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${men} × $${ratePerMan}/man</div>
       </div>
       <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Fuel / tolls charge</div>
