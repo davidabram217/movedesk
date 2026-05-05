@@ -7474,13 +7474,16 @@ function renderActivityPatterns(){
 
   // Booked jobs by day of week (move date)
   const jobsDow=Array(7).fill(0);
-  // Aggressive dedupe for analytics counts. Three protections layered:
-  //   1) An id seen in completedJobs always wins — never count a booked record with the same id twice.
-  //   2) A booked record whose leadId already appears in completedJobs is treated as STALE
-  //      (typically: another device on old code re-uploaded a job that was already completed
-  //      here, so its booked row resurrected with a different field set but the same lead).
-  //      We drop it from the count.
-  //   3) Records with no id are ignored.
+  // Aggressive dedupe for analytics counts. Four protections layered:
+  //   1) An id seen in completedJobs always wins — never count twice.
+  //   2) A booked record whose leadId already has a completed counterpart is dropped (already counted).
+  //   3) A booked record whose lead has status='New' is dropped — when deleteBookedJob runs,
+  //      it resets the lead to 'New', so this is the unambiguous fingerprint of a stale booking
+  //      that another device's old code resurrected. THIS IS THE KEY FILTER for the
+  //      "deleted bookings come back after refresh" symptom.
+  //   4) Records with no id are ignored.
+  const _validLeadById=new Map();
+  (db.leads||[]).forEach(l=>{if(l&&l.id)_validLeadById.set(l.id,l);});
   const _completedLeadIds=new Set();
   db.completedJobs.forEach(j=>{if(j&&j.leadId)_completedLeadIds.add(j.leadId);});
   const _seenIds=new Set();
@@ -7493,8 +7496,12 @@ function renderActivityPatterns(){
   });
   db.bookedJobs.forEach(j=>{
     if(!j||!j.id)return;
-    if(_seenIds.has(j.id))return;                         // protection 1
-    if(j.leadId&&_completedLeadIds.has(j.leadId))return;  // protection 2
+    if(_seenIds.has(j.id))return;                          // protection 1
+    if(j.leadId&&_completedLeadIds.has(j.leadId))return;   // protection 2
+    if(j.leadId){
+      const _lead=_validLeadById.get(j.leadId);
+      if(_lead&&_lead.status==='New')return;                // protection 3 — stale resurrection
+    }
     _seenIds.add(j.id);
     allJobs.push(j);
   });
