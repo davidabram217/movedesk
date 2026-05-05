@@ -2245,7 +2245,15 @@ async function loadDB(){
 }
 
 async function sbDelete(table,id){
-  try{await sbFetch(table+'?id=eq.'+id,'DELETE');}catch(e){console.error('Delete error:',e);}
+  // One retry on transient failures (network blip, brief 5xx). Returns true on success, false otherwise.
+  for(let attempt=1;attempt<=2;attempt++){
+    try{await sbFetch(table+'?id=eq.'+id,'DELETE');return true;}
+    catch(e){
+      if(attempt===2){console.error('[sbDelete] '+table+' id='+id+' failed after retry:',e);return false;}
+      await new Promise(r=>setTimeout(r,400));
+    }
+  }
+  return false;
 }
 
 async function clearAllDataFromSupabase(){
@@ -2421,6 +2429,17 @@ async function refreshFromSupabase(){
     db.bookedJobs=mergeTable(bookedRes,db.bookedJobs);
     db.completedJobs=mergeTable(completedRes,db.completedJobs);
     db.quotes=mergeTable(quotesRes,db.quotes||[]);
+    // Self-heal: remove any booked job that also lives in completedJobs.
+    // mergeTable preserves both sides on merge, so an orphan cloud row would otherwise come back here every 60s.
+    // Awaiting the cloud delete (instead of fire-and-forget) so a failed delete is visible in the console.
+    const completedIdsR=new Set((db.completedJobs||[]).map(j=>j.id));
+    const orphansR=(db.bookedJobs||[]).filter(j=>completedIdsR.has(j.id));
+    if(orphansR.length){
+      console.log('[refresh self-heal] Removing '+orphansR.length+' orphaned booked job(s):',orphansR.map(o=>o.name||o.id).join(', '));
+      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!completedIdsR.has(j.id));
+      await Promise.all(orphansR.map(j=>sbDelete('booked_jobs',j.id).catch(e=>console.error('[refresh self-heal] Failed to delete cloud row for',j.name||j.id,e))));
+      updated+=orphansR.length;
+    }
     if(updated>0){
       // Save merged data to localStorage
       try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
