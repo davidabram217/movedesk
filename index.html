@@ -2309,6 +2309,51 @@ async function softDeleteRecord(table,localArr,id){
   return rec;
 }
 
+// ── One-time cleanup of fee labels that had a long parenthetical description glued onto them ──
+// Background: a customer reported that a sent quote was showing
+//   "Standard Material Fee (Covers professional moving blankets, plastic wrap and tape …)"
+// instead of just "Standard Material Fee". The descriptive text ended up inside the label field
+// of saved quotes — we never identified the exact cause, but the fix is to strip the parenthetical
+// from any label where it's clearly a description (30+ chars inside the parens).
+// Conservative pattern: leaves "Yelp Discount (50%)" / "Tip (per mover)" untouched.
+// Runs once per device, tracked by db.settings._feeLabelCleanupV1.
+async function _oneTimeFeeLabelCleanupV1(){
+  if(db.settings&&db.settings._feeLabelCleanupV1)return;
+  const longParenRe=/^\s*([^()]+?)\s*\([^)]{30,}\)\s*$/;
+  const touchedQuotes=[];
+  let totalCleaned=0;
+  (db.quotes||[]).forEach(q=>{
+    if(!q.fees||!Array.isArray(q.fees))return;
+    let qChanged=false;
+    q.fees.forEach(f=>{
+      if(!f||!f.label)return;
+      const m=f.label.match(longParenRe);
+      if(m){
+        const cleanLabel=m[1].trim();
+        console.log('[fee cleanup] '+(q.customerName||q.id)+': "'+f.label+'" → "'+cleanLabel+'"');
+        f.label=cleanLabel;
+        totalCleaned++;
+        qChanged=true;
+      }
+    });
+    if(qChanged)touchedQuotes.push(q);
+  });
+  if(totalCleaned>0){
+    console.log('[fee cleanup] cleaned '+totalCleaned+' fee label(s) across '+touchedQuotes.length+' quote(s) — uploading to cloud');
+    const rows=touchedQuotes.map(q=>({id:q.id,data:stampNow(q)}));
+    try{
+      await sbFetch('quotes','POST',rows);
+      console.log('[fee cleanup] cloud upload OK');
+    }catch(e){
+      console.error('[fee cleanup] cloud upload failed (will retry on next page load):',e);
+      return; // don't mark as done — let it retry next time
+    }
+  }
+  if(!db.settings)db.settings={};
+  db.settings._feeLabelCleanupV1=true;
+  saveDB();
+}
+
 async function clearAllDataFromSupabase(){
   if(!confirm('This will permanently delete ALL leads, booked jobs, completed jobs and quotes from the database. This cannot be undone. Are you sure?'))return;
   if(!confirm('Last chance — delete everything?'))return;
@@ -11082,6 +11127,9 @@ window.deleteLead=deleteLead;
   document.getElementById('page-title').textContent='Loading…';
   document.getElementById('page-sub').textContent='Connecting to database…';
   await loadDB();
+  // One-time data cleanup for fee labels with long parenthetical descriptions (see helper above).
+  // Marks itself done after first successful run, so this is a no-op on subsequent loads.
+  await _oneTimeFeeLabelCleanupV1();
   // Always rebuild customer list from leads and completed jobs
   // This ensures customers page is always complete regardless of Supabase state
   if(!db.customers)db.customers=[];
