@@ -2230,6 +2230,8 @@ async function loadDB(){
       // Best-effort cloud cleanup so it doesn't come back next refresh
       orphans.forEach(j=>{try{sbDelete('booked_jobs',j.id);}catch(_){}});
     }
+    // Prune tombstones older than 7 days so the list doesn't grow forever
+    pruneTombstones();
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -2254,6 +2256,31 @@ async function sbDelete(table,id){
     }
   }
   return false;
+}
+
+// ── Tombstones ──
+// When the user deletes a record we record its id+table so we can:
+//   (a) skip it if a stale device pushes it back into the cloud
+//   (b) re-fire the cloud delete if we see the row reappear
+// Tombstones live in db._tombstones so they're persisted to localStorage and survive refreshes.
+// They auto-prune after 7 days so the list doesn't grow without bound.
+const TOMBSTONE_TTL_MS=7*24*60*60*1000;
+function markTombstone(table,id){
+  if(!db._tombstones)db._tombstones={};
+  if(!db._tombstones[table])db._tombstones[table]={};
+  db._tombstones[table][id]=Date.now();
+}
+function isTombstoned(table,id){
+  return !!(db._tombstones&&db._tombstones[table]&&db._tombstones[table][id]);
+}
+function pruneTombstones(){
+  if(!db._tombstones)return;
+  const cutoff=Date.now()-TOMBSTONE_TTL_MS;
+  for(const t in db._tombstones){
+    for(const i in db._tombstones[t]){
+      if(db._tombstones[t][i]<cutoff)delete db._tombstones[t][i];
+    }
+  }
 }
 
 async function clearAllDataFromSupabase(){
@@ -2405,7 +2432,7 @@ async function refreshFromSupabase(){
     ]);
     // Merge — update db with any records newer than our last sync
     let updated=0;
-    function mergeTable(remote,localArr,key='id'){
+    function mergeTable(remote,localArr,key='id',tableName=null){
       if(!remote||!Array.isArray(remote))return localArr;
       const localMap={};
       localArr.forEach(r=>{localMap[r[key]]=r;});
@@ -2413,6 +2440,12 @@ async function refreshFromSupabase(){
         const rec=row.data||row;
         const id=rec[key]||row[key];
         if(!id)return;
+        // Tombstoned: user deleted this on this device. Skip it AND re-fire the cloud delete
+        // so a stale row keeps getting cleaned up until everyone agrees it's gone.
+        if(tableName&&isTombstoned(tableName,id)){
+          sbDelete(tableName,id).catch(()=>{});
+          return;
+        }
         const local=localMap[id];
         // Use remote if: not local, or remote updated_at is newer
         const remoteTime=row.updated_at||row.inserted_at||'';
@@ -2425,10 +2458,10 @@ async function refreshFromSupabase(){
       });
       return Object.values(localMap);
     }
-    db.leads=mergeTable(leadsRes,db.leads);
-    db.bookedJobs=mergeTable(bookedRes,db.bookedJobs);
-    db.completedJobs=mergeTable(completedRes,db.completedJobs);
-    db.quotes=mergeTable(quotesRes,db.quotes||[]);
+    db.leads=mergeTable(leadsRes,db.leads,'id','leads');
+    db.bookedJobs=mergeTable(bookedRes,db.bookedJobs,'id','booked_jobs');
+    db.completedJobs=mergeTable(completedRes,db.completedJobs,'id','completed_jobs');
+    db.quotes=mergeTable(quotesRes,db.quotes||[],'id','quotes');
     // Self-heal: remove any booked job that also lives in completedJobs.
     // mergeTable preserves both sides on merge, so an orphan cloud row would otherwise come back here every 60s.
     // Awaiting the cloud delete (instead of fire-and-forget) so a failed delete is visible in the console.
@@ -5165,6 +5198,7 @@ function deleteBookedJob(id){
   const j=db.bookedJobs.find(x=>x.id===id);
   if(j&&j.leadId){const l=db.leads.find(x=>x.id===j.leadId);if(l&&l.status==='Booked')l.status='New';}
   db.bookedJobs=db.bookedJobs.filter(j=>j.id!==id);
+  markTombstone('booked_jobs',id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('booked_jobs',id);
   renderBooked();showToast('Booked job deleted');
@@ -5605,6 +5639,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   db.completedJobs.push(completed);upsertCustomer(completed);
   const _completedBookedJobId=currentCompleteJobId;
   db.bookedJobs=db.bookedJobs.filter(x=>x.id!==_completedBookedJobId);
+  markTombstone('booked_jobs',_completedBookedJobId);
   // Explicitly delete the booked-jobs row from Supabase, otherwise it lingers in the cloud
   // and reappears as a duplicate on the next refresh from another device.
   sbDelete('booked_jobs',_completedBookedJobId);
@@ -5655,6 +5690,7 @@ let compFilter={text:'',crew:'',source:'',paid:''};
 function deleteCompletedJob(id){
   if(!confirm('Delete this completed job? This cannot be undone.'))return;
   db.completedJobs=db.completedJobs.filter(j=>j.id!==id);
+  markTombstone('completed_jobs',id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('completed_jobs',id);
   renderCompleted();showToast('Job deleted');
@@ -9293,6 +9329,34 @@ async function sendQuoteEmail(){
   const htmlBody='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;color:#1a1916"><div style="text-align:center;margin-bottom:28px"><div style="font-family:Georgia,serif;font-size:32px;font-weight:600">CareMore</div><div style="width:80%;height:2px;background:#4a9e6b;margin:8px auto"></div><div style="font-family:Georgia,serif;font-size:22px;font-style:italic">Moving &amp; Storage</div><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9e9b94;margin-top:6px">San Francisco, CA</div></div><div style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#444;margin-bottom:24px">'+body.replace(quoteLink,'').trim()+'</div>'+(quoteLink?'<div style="text-align:center;margin:32px 0"><a href="'+quoteLink+'" style="display:inline-block;background:#2d5a3d;color:#fff;text-decoration:none;padding:16px 48px;border-radius:8px;font-size:16px;font-weight:600">View Your Quote</a></div><p style="font-size:12px;color:#888;text-align:center">Or copy: <a href="'+quoteLink+'" style="color:#2d5a3d">'+quoteLink+'</a></p>':'')+'</div>';
   const btn=document.querySelector('#modal-quote-email .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Sending...';}
+  // ── Verify the quote is actually in the cloud BEFORE we email the customer ──
+  // The customer-facing quote.html on github.io fetches the quote from Supabase by publicId.
+  // If saveDB's debounced syncToSupabase hasn't fired yet (or failed), the cloud row doesn't exist
+  // and the customer's link falls back to the free-quote form. So we explicitly upload and verify here.
+  try{
+    const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+    if(!q||!q.publicId){
+      throw new Error('Quote data is missing locally. Please rebuild the quote and try again.');
+    }
+    // Sanity-check that the body has the link the customer page expects
+    if(!quoteLink||!quoteLink.includes('id='+q.publicId)){
+      throw new Error('Quote link is missing or wrong in the email body. Please re-open the quote and resend.');
+    }
+    if(btn)btn.textContent='Saving quote to cloud...';
+    // Explicit upload — bypasses the 500ms debounce and tells us if it actually succeeded
+    await sbFetch('quotes','POST',[{id:q.id,data:q}]);
+    // Verify it actually exists by reading back the publicId
+    const check=await sbFetch('quotes?select=id&id=eq.'+encodeURIComponent(q.id),'GET');
+    if(!check||!Array.isArray(check)||!check.length){
+      throw new Error('Cloud confirmation failed — the quote did not save. Check your connection and try again.');
+    }
+    if(btn)btn.textContent='Sending...';
+  }catch(e){
+    console.error('[sendQuoteEmail] cloud sync failed:',e);
+    showToast('⚠ '+(e.message||'Could not save quote to cloud — email NOT sent.'));
+    if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
+    return;
+  }
   try{
     await loadEmailJS();
     await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,{
@@ -9387,6 +9451,7 @@ async function sendQuote(){
 function deleteQuote(id){
   if(!confirm('Delete this quote? This cannot be undone.'))return;
   db.quotes=db.quotes.filter(q=>q.id!==id);
+  markTombstone('quotes',id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('quotes',id);
   renderQuotes();showToast('Quote deleted');
@@ -9632,6 +9697,7 @@ function deleteLead(id){
   if(!l)return;
   if(!confirm('Delete '+l.name+'? This cannot be undone.'))return;
   db.leads=db.leads.filter(x=>x.id!==id);
+  markTombstone('leads',id);
   // Save to localStorage and delete from Supabase without triggering a full sync
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('leads',id);
