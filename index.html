@@ -2354,6 +2354,53 @@ async function _oneTimeFeeLabelCleanupV1(){
   saveDB();
 }
 
+// ── One-time cleanup of booked/completed duplicates ──
+// Background: when a job was completed under older code paths, the booked_jobs row in cloud was
+// supposed to be deleted but the DELETE sometimes failed silently. Result: the same id lives in
+// both tables. This causes:
+//   - analytics to double-count (e.g. "7 jobs in May" → "17" after auto-refresh re-pulls duplicates)
+//   - the booked record to keep coming back even after deletion
+// This helper queries both cloud tables, finds shared ids, and writes a proper soft-delete tombstone
+// to the booked side. Marks itself done in db.settings._dupCleanupV1 to never run twice.
+// On any failure, the done flag is NOT set, so it retries next page load.
+async function _oneTimeBookedCompletedDupCleanupV1(){
+  if(db.settings&&db.settings._dupCleanupV1)return;
+  try{
+    const [bookedRows,completedRows]=await Promise.all([
+      sbFetch('booked_jobs?select=id,data','GET'),
+      sbFetch('completed_jobs?select=id,data','GET'),
+    ]);
+    if(!Array.isArray(bookedRows)||!Array.isArray(completedRows)){
+      console.warn('[dup cleanup] could not fetch tables — will retry next page load');
+      return;
+    }
+    const completedIds=new Set(completedRows.map(r=>r.id));
+    const dups=bookedRows.filter(r=>completedIds.has(r.id)&&!(r.data&&r.data._deleted===true));
+    if(dups.length===0){
+      console.log('[dup cleanup] no booked/completed duplicates found');
+    } else {
+      console.log('[dup cleanup] found '+dups.length+' booked row(s) also in completed_jobs — writing tombstones:',dups.map(d=>d.data&&d.data.name||d.id).join(', '));
+      const now=new Date().toISOString();
+      const tombstones=dups.map(r=>({
+        id:r.id,
+        data:{...(r.data||{}),id:r.id,_deleted:true,_deletedAt:now,_lastModified:now}
+      }));
+      await sbFetch('booked_jobs','POST',tombstones);
+      console.log('[dup cleanup] '+tombstones.length+' tombstone(s) uploaded');
+      // Clean up local state too — and tombstone locally so a stray syncToSupabase
+      // (or another device's sync) can't re-introduce them.
+      const dupIds=new Set(dups.map(r=>r.id));
+      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!dupIds.has(j.id));
+      dups.forEach(r=>markTombstone('booked_jobs',r.id));
+    }
+    if(!db.settings)db.settings={};
+    db.settings._dupCleanupV1=true;
+    saveDB();
+  }catch(e){
+    console.error('[dup cleanup] failed (will retry next page load):',e);
+  }
+}
+
 async function clearAllDataFromSupabase(){
   if(!confirm('This will permanently delete ALL leads, booked jobs, completed jobs and quotes from the database. This cannot be undone. Are you sure?'))return;
   if(!confirm('Last chance — delete everything?'))return;
@@ -7427,7 +7474,13 @@ function renderActivityPatterns(){
 
   // Booked jobs by day of week (move date)
   const jobsDow=Array(7).fill(0);
-  const allJobs=[...db.bookedJobs,...db.completedJobs];
+  // Defensive dedupe: if a job id momentarily exists in BOTH bookedJobs and completedJobs
+  // (which can happen in transit when a booked-job tombstone hasn't yet propagated from
+  // another device), we must not count it twice. Completed wins over booked.
+  const _allJobsById=new Map();
+  db.bookedJobs.forEach(j=>{if(j&&j.id)_allJobsById.set(j.id,j);});
+  db.completedJobs.forEach(j=>{if(j&&j.id)_allJobsById.set(j.id,j);}); // completed overwrites booked on conflict
+  const allJobs=[..._allJobsById.values()];
   allJobs.forEach(j=>{if(j.date){const d=new Date(j.date+'T12:00:00');jobsDow[d.getDay()]++;}});
   const jobsDowMax=Math.max(...jobsDow,1);
   document.getElementById('jobs-by-dow').innerHTML=barChart(DAYS.map((d,i)=>[d,jobsDow[i]]),jobsDowMax,'var(--purple,#6c3483)');
@@ -11130,6 +11183,8 @@ window.deleteLead=deleteLead;
   // One-time data cleanup for fee labels with long parenthetical descriptions (see helper above).
   // Marks itself done after first successful run, so this is a no-op on subsequent loads.
   await _oneTimeFeeLabelCleanupV1();
+  // One-time cleanup of legacy booked/completed duplicates (same idempotent pattern).
+  await _oneTimeBookedCompletedDupCleanupV1();
   // Always rebuild customer list from leads and completed jobs
   // This ensures customers page is always complete regardless of Supabase state
   if(!db.customers)db.customers=[];
