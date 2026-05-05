@@ -80,6 +80,17 @@ footer a{color:var(--text2);text-decoration:none}
 
 <div class="main">
 
+<!-- Quote view: shown when the URL has ?id=… (a customer link). Populated by quote-page.js. -->
+<div id="quote-view" style="display:none">
+  <div id="loading" style="text-align:center;padding:80px 24px;color:#6b6760;font-size:15px">Loading your quote…</div>
+  <div id="expired" style="display:none;text-align:center;padding:60px 24px;max-width:480px;margin:0 auto">
+    <div style="font-size:42px;margin-bottom:14px">⏱</div>
+    <div style="font-size:20px;font-weight:600;margin-bottom:10px;color:var(--text)">This quote has expired</div>
+    <p style="color:var(--text2);line-height:1.6">Quotes are valid for 3 months from the date sent. Please contact us at <a href="tel:4158228547" style="color:var(--green);font-weight:500">(415) 822-8547</a> for an updated quote.</p>
+  </div>
+  <div id="quote-content" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);margin:18px 0"></div>
+</div>
+
 <div id="form-page">
   <div class="intro">
     <h1>Tell us about your move</h1>
@@ -207,6 +218,33 @@ footer a{color:var(--text2);text-decoration:none}
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
 <script>
+// ── Router ──
+// If the URL has ?id=… we're showing a quote to a customer (quote-page.js handles rendering).
+// Otherwise we show the intake form (logic below). Done synchronously at the top so the form
+// never flashes for customers visiting a quote link.
+(function(){
+  var publicId=new URLSearchParams(window.location.search).get('id');
+  if(!publicId)return; // No id → leave the form visible, run the form code below.
+  var fp=document.getElementById('form-page');
+  var qv=document.getElementById('quote-view');
+  if(fp)fp.style.display='none';
+  if(qv)qv.style.display='block';
+  // Hide the page intro that's tied to the form
+  var intro=document.querySelector('#form-page .intro');
+  if(intro)intro.style.display='none';
+  // Update the page title for the quote view
+  document.title='Your Move Estimate — CareMore Moving and Storage';
+  // Load the quote renderer. It runs loadQuote() at the bottom, which fills #loading/#quote-content.
+  var s=document.createElement('script');
+  s.src='quote-page.js';
+  s.onerror=function(){
+    var el=document.getElementById('loading');
+    if(el)el.textContent='Unable to load quote viewer. Please contact us at (415) 822-8547.';
+  };
+  document.body.appendChild(s);
+  // Note: the rest of this script (intake-form helpers) is harmless to leave defined —
+  // the form is hidden so its handlers never fire. We just don't run any boot logic for it.
+})();
 // ─────────────────────────────────────────────────────────────
 // CareMore Quote Intake
 // On submit:
