@@ -7474,13 +7474,30 @@ function renderActivityPatterns(){
 
   // Booked jobs by day of week (move date)
   const jobsDow=Array(7).fill(0);
-  // Defensive dedupe: if a job id momentarily exists in BOTH bookedJobs and completedJobs
-  // (which can happen in transit when a booked-job tombstone hasn't yet propagated from
-  // another device), we must not count it twice. Completed wins over booked.
-  const _allJobsById=new Map();
-  db.bookedJobs.forEach(j=>{if(j&&j.id)_allJobsById.set(j.id,j);});
-  db.completedJobs.forEach(j=>{if(j&&j.id)_allJobsById.set(j.id,j);}); // completed overwrites booked on conflict
-  const allJobs=[..._allJobsById.values()];
+  // Aggressive dedupe for analytics counts. Three protections layered:
+  //   1) An id seen in completedJobs always wins — never count a booked record with the same id twice.
+  //   2) A booked record whose leadId already appears in completedJobs is treated as STALE
+  //      (typically: another device on old code re-uploaded a job that was already completed
+  //      here, so its booked row resurrected with a different field set but the same lead).
+  //      We drop it from the count.
+  //   3) Records with no id are ignored.
+  const _completedLeadIds=new Set();
+  db.completedJobs.forEach(j=>{if(j&&j.leadId)_completedLeadIds.add(j.leadId);});
+  const _seenIds=new Set();
+  const allJobs=[];
+  db.completedJobs.forEach(j=>{
+    if(!j||!j.id)return;
+    if(_seenIds.has(j.id))return;
+    _seenIds.add(j.id);
+    allJobs.push(j);
+  });
+  db.bookedJobs.forEach(j=>{
+    if(!j||!j.id)return;
+    if(_seenIds.has(j.id))return;                         // protection 1
+    if(j.leadId&&_completedLeadIds.has(j.leadId))return;  // protection 2
+    _seenIds.add(j.id);
+    allJobs.push(j);
+  });
   allJobs.forEach(j=>{if(j.date){const d=new Date(j.date+'T12:00:00');jobsDow[d.getDay()]++;}});
   const jobsDowMax=Math.max(...jobsDow,1);
   document.getElementById('jobs-by-dow').innerHTML=barChart(DAYS.map((d,i)=>[d,jobsDow[i]]),jobsDowMax,'var(--purple,#6c3483)');
