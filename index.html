@@ -6494,32 +6494,39 @@ function openEstimateBreakdownDrilldown(name,key,which){
   else if(which==='quote-success')counts=`${cell.sent} sent · ${cell.accepted} accepted · ${cell.declined} declined`;
   else counts=`${records.length} booked job${records.length===1?'':'s'}`;
   document.getElementById('ebd-subtitle').textContent=counts;
-  // Show "remove rough quote" button only when the records actually have rough quote data
-  // (i.e. for estimate-type: Summary + rough quote rows). For other widgets, just show the lead.
+  // Show contextual fix-up actions based on which widget we're drilling into:
+  // - estimate-type "Summary + rough quote": rough-quote cleanup
+  // - estimate-type other rows: open the lead to fix the estimate type
+  // - quote-success: open the lead — multiple things could be fixed
+  // - how-booked: open the lead to fix path classification
   const showRemove=(which==='estimate-type'&&key==='Summary + rough quote');
+  const showEditOnly=!showRemove; // every other case: just provide quick "Open" link
   document.getElementById('ebd-body').innerHTML=records.length?`
-    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Click a name to open the record.${showRemove?" Use the trash icon to remove the rough quote data from a record (it won't delete the lead/job, just untag the rough quote).":''}</div>
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">${showRemove
+      ?"Click a name to open the record. Use the trash icon to remove the rough quote data from a record (it won't delete the lead/job, just untag the rough quote)."
+      :"Click a name to open the record. If something looks miscategorized, edit the lead directly to fix the data."}</div>
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
         <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Customer</th>
         <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Date</th>
         <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Status</th>
-        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">${showRemove?'Amount':''}</th>
-        ${showRemove?'<th style="border-bottom:1px solid var(--border);width:30px"></th>':''}
+        ${showRemove?'<th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Amount</th>':''}
+        <th style="border-bottom:1px solid var(--border);width:30px"></th>
       </tr></thead>
       <tbody>
       ${records.map(r=>{
         const escName=(r.name||'').replace(/'/g,"\\'");
         const action=r.kind==='lead'?`closeModal('estimate-breakdown');viewLead('${r.id}')`:`closeModal('estimate-breakdown');viewCompletedJob('${r.id}')`;
         const statusColor=r.isBooked?'var(--accent)':r.isLost?'var(--error)':'var(--text3)';
+        const fixBtn=showRemove
+          ?`<button class="btn btn-secondary btn-sm" onclick="removeRoughQuoteFromRecord('${r.kind}','${r.id}','${escName}')" title="Remove rough quote data from this record" style="font-size:10px;color:var(--error);border-color:var(--error);padding:3px 6px">🗑</button>`
+          :`<button class="btn btn-secondary btn-sm" onclick="${action}" title="Open this record to edit" style="font-size:10px;padding:3px 6px">✏</button>`;
         return`<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:8px 10px"><a href="#" onclick="event.preventDefault();${action}" style="color:var(--accent);text-decoration:none;font-weight:500">${r.name||'—'}</a></td>
           <td style="padding:8px 10px;color:var(--text2)">${r.date?fmtDate(r.date):'—'}</td>
           <td style="padding:8px 10px;color:${statusColor};font-size:11.5px">${r.status}</td>
-          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${showRemove?(r.amount||'—'):''}</td>
-          ${showRemove?`<td style="padding:8px 6px;text-align:right">
-            <button class="btn btn-secondary btn-sm" onclick="removeRoughQuoteFromRecord('${r.kind}','${r.id}','${escName}')" title="Remove rough quote data from this record" style="font-size:10px;color:var(--error);border-color:var(--error);padding:3px 6px">🗑</button>
-          </td>`:''}
+          ${showRemove?`<td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${r.amount||'—'}</td>`:''}
+          <td style="padding:8px 6px;text-align:right">${fixBtn}</td>
         </tr>`;
       }).join('')}
       </tbody>
@@ -7159,9 +7166,18 @@ function renderAnalytics(){
     const hasRoughQuote=!!(l.roughQuoteDate||l.roughQuoteMin);
     const bj=(db.bookedJobs||[]).find(j=>j.leadId===l.id);
     const bookedFromRQ=bj?bj.bookedFromRoughQuote:false;
+    // Status-based fallbacks for orphaned-quote situations:
+    // a lead can be marked "Quote accepted" without a corresponding row in db.quotes
+    // (e.g. quote was deleted, status set manually). Treat those as accepted-quote bookings
+    // rather than "no estimate" — what matters is that an estimate was given to the customer.
+    const statusImpliesQuote=l.status==='Quote accepted'||l.status==='Confirmation sent';
+    const statusImpliesSent=l.status==='Estimate sent';
     if(hasAcceptedQuote)return'Accepted formal quote';
     if(hasSentQuote)return'Quote sent — booked direct';
     if(hasRoughQuote||bookedFromRQ)return'Rough quote only';
+    // Status-based detection — orphaned but clearly went through a quote stage
+    if(statusImpliesQuote)return'Accepted formal quote';
+    if(statusImpliesSent)return'Quote sent — booked direct';
     if(l.summarySentAt||(l.summaryLog&&l.summaryLog.length))return'Summary sent — booked direct';
     return'Booked on call — no estimate';
   }
