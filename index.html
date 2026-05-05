@@ -7474,20 +7474,25 @@ function renderActivityPatterns(){
 
   // Booked jobs by day of week (move date)
   const jobsDow=Array(7).fill(0);
-  // Aggressive dedupe for analytics counts. Four protections layered:
-  //   1) An id seen in completedJobs always wins — never count twice.
-  //   2) A booked record whose leadId already has a completed counterpart is dropped (already counted).
-  //   3) A booked record whose lead has status='New' is dropped — when deleteBookedJob runs,
-  //      it resets the lead to 'New', so this is the unambiguous fingerprint of a stale booking
-  //      that another device's old code resurrected. THIS IS THE KEY FILTER for the
-  //      "deleted bookings come back after refresh" symptom.
-  //   4) Records with no id are ignored.
+  // Aggressive dedupe — five protection layers, each independent:
+  //   1) id seen in completedJobs (already counted)
+  //   2) leadId already represented by a completed job (same lead, completed counterpart exists)
+  //   3) lead is missing entirely (orphan)
+  //   4) lead.status === 'New' (deleteBookedJob's fingerprint of a deleted booking)
+  //   5) past-dated booked record not in completedJobs (jobs in the past should be either
+  //      completed or removed; a past-dated record sitting in bookedJobs is almost always a ghost)
   const _validLeadById=new Map();
   (db.leads||[]).forEach(l=>{if(l&&l.id)_validLeadById.set(l.id,l);});
   const _completedLeadIds=new Set();
-  db.completedJobs.forEach(j=>{if(j&&j.leadId)_completedLeadIds.add(j.leadId);});
+  const _completedIdSet=new Set();
+  db.completedJobs.forEach(j=>{
+    if(j&&j.leadId)_completedLeadIds.add(j.leadId);
+    if(j&&j.id)_completedIdSet.add(j.id);
+  });
+  const _todayStr=new Date().toISOString().split('T')[0];
   const _seenIds=new Set();
   const allJobs=[];
+  let _ghostCount=0;
   db.completedJobs.forEach(j=>{
     if(!j||!j.id)return;
     if(_seenIds.has(j.id))return;
@@ -7496,15 +7501,18 @@ function renderActivityPatterns(){
   });
   db.bookedJobs.forEach(j=>{
     if(!j||!j.id)return;
-    if(_seenIds.has(j.id))return;                          // protection 1
-    if(j.leadId&&_completedLeadIds.has(j.leadId))return;   // protection 2
+    if(_seenIds.has(j.id)){_ghostCount++;return;}                          // protection 1
+    if(j.leadId&&_completedLeadIds.has(j.leadId)){_ghostCount++;return;}   // protection 2
     if(j.leadId){
       const _lead=_validLeadById.get(j.leadId);
-      if(_lead&&_lead.status==='New')return;                // protection 3 — stale resurrection
+      if(!_lead){_ghostCount++;return;}                                     // protection 3
+      if(_lead.status==='New'){_ghostCount++;return;}                       // protection 4
     }
+    if(j.date&&j.date<_todayStr&&!_completedIdSet.has(j.id)){_ghostCount++;return;} // protection 5
     _seenIds.add(j.id);
     allJobs.push(j);
   });
+  window._lastFilteredCount=_ghostCount;
   allJobs.forEach(j=>{if(j.date){const d=new Date(j.date+'T12:00:00');jobsDow[d.getDay()]++;}});
   const jobsDowMax=Math.max(...jobsDow,1);
   document.getElementById('jobs-by-dow').innerHTML=barChart(DAYS.map((d,i)=>[d,jobsDow[i]]),jobsDowMax,'var(--purple,#6c3483)');
@@ -7519,7 +7527,8 @@ function renderActivityPatterns(){
   const jobsMonth=Array(12).fill(0);
   allJobs.forEach(j=>{if(j.date){jobsMonth[new Date(j.date+'T12:00:00').getMonth()]++;}});
   const jobsMonthMax=Math.max(...jobsMonth,1);
-  document.getElementById('jobs-by-month').innerHTML=barChart(MONTHS.map((m,i)=>[m,jobsMonth[i]]),jobsMonthMax,'var(--purple,#6c3483)');
+  const _filterTag='<div style="font-size:10.5px;color:var(--text3);margin-top:8px;text-align:right;font-family:DM Mono,monospace">analytics-filter v7'+(_ghostCount>0?' · filtered '+_ghostCount+' stale booked record'+(_ghostCount===1?'':'s'):'')+'</div>';
+  document.getElementById('jobs-by-month').innerHTML=barChart(MONTHS.map((m,i)=>[m,jobsMonth[i]]),jobsMonthMax,'var(--purple,#6c3483)')+_filterTag;
 
   // Leads by week of year
   const leadsWeek={};
