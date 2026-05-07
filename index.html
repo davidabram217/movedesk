@@ -2187,8 +2187,25 @@ async function loadDB(){
     }catch(_){}
     const cloudById=new Map(cloudLeads.map(l=>[l.id,l]));
     const localById=new Map(localLeads.map(l=>[l.id,l]));
+    // Tombstones — IDs that were deleted locally. Don't resurrect these from cloud.
+    let tombstones={};
+    try{tombstones=JSON.parse(localStorage.getItem('movedesk_lead_tombstones')||'{}');}catch(_){}
+    // Drop tombstones older than 30 days
+    const _now=Date.now();
+    Object.keys(tombstones).forEach(tid=>{
+      if(_now-new Date(tombstones[tid]).getTime()>30*24*60*60*1000)delete tombstones[tid];
+    });
+    try{localStorage.setItem('movedesk_lead_tombstones',JSON.stringify(tombstones));}catch(_){}
+    // For each tombstoned ID still appearing in cloud, re-issue the delete (best effort)
+    Object.keys(tombstones).forEach(tid=>{
+      if(cloudById.has(tid)){
+        try{sbDelete('leads',tid);}catch(_){}
+        cloudById.delete(tid);
+      }
+    });
     const allIds=new Set([...cloudById.keys(),...localById.keys()]);
-    db.leads=Array.from(allIds).map(id=>{
+    // Filter out tombstoned IDs from the merged result
+    db.leads=Array.from(allIds).filter(id=>!tombstones[id]).map(id=>{
       const c=cloudById.get(id);const lc=localById.get(id);
       if(!c)return lc;
       if(!lc)return c;
@@ -9739,6 +9756,13 @@ function deleteLead(id){
   if(!l)return;
   if(!confirm('Delete '+l.name+'? This cannot be undone.'))return;
   db.leads=db.leads.filter(x=>x.id!==id);
+  // Tombstone: record the deletion so the cloud-merge loader doesn't resurrect this record
+  // when the cloud row hasn't been deleted yet. Tombstones expire after 30 days.
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_lead_tombstones')||'{}');
+    tombstones[id]=new Date().toISOString();
+    localStorage.setItem('movedesk_lead_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
   // Save to localStorage and delete from Supabase without triggering a full sync
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('leads',id);
