@@ -2221,12 +2221,21 @@ async function loadDB(){
     if(s&&s.data){db.settings={...db.settings,...s.data};}
     if(!db.settings.crew||!db.settings.crew.length)db.settings.crew=['John','Dave'];
     // Self-heal: remove orphaned booked jobs that also exist in completedJobs.
-    // (Caused by older code paths that didn't sbDelete the booked row when a job was completed.)
-    const completedIds=new Set((db.completedJobs||[]).map(j=>j.id));
-    const orphans=(db.bookedJobs||[]).filter(j=>completedIds.has(j.id));
+    // Match by bookedJobId (the back-reference on the completed job) — NOT by id, which is always
+    // different since a fresh uid is generated for each completed record. Also fall back to
+    // name+date matching for old records that might be missing the bookedJobId link.
+    const completedBookedIds=new Set((db.completedJobs||[]).map(j=>j.bookedJobId).filter(Boolean));
+    const completedNameDates=new Set((db.completedJobs||[]).map(j=>(j.name||'')+'|'+(j.date||'')));
+    const orphans=(db.bookedJobs||[]).filter(j=>{
+      if(completedBookedIds.has(j.id))return true;
+      // Fallback for older records without bookedJobId set
+      if(j.name&&j.date&&completedNameDates.has(j.name+'|'+j.date))return true;
+      return false;
+    });
     if(orphans.length){
       console.log('Cleaning up '+orphans.length+' orphaned booked job(s) that are also completed:',orphans.map(o=>o.name||o.id).join(', '));
-      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!completedIds.has(j.id));
+      const orphanIds=new Set(orphans.map(o=>o.id));
+      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!orphanIds.has(j.id));
       // Best-effort cloud cleanup so it doesn't come back next refresh
       orphans.forEach(j=>{try{sbDelete('booked_jobs',j.id);}catch(_){}});
     }
