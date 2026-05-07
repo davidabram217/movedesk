@@ -4406,36 +4406,43 @@ function openBooking(leadId){
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
   document.getElementById('book-job-summary').innerHTML=`<strong>${l.name}</strong> · ${l.phone||''} · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;
-  document.getElementById('bj-date').value=l.date||'';
+  // Reset all fields first
   ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes','bj-do-not-exceed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bj-time').value='8:30–9:30am';
   document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  // Auto-populate from quote if one exists
-  const quote=db.quotes.filter(q=>q.leadId===leadId).sort((a,b)=>b.savedAt>a.savedAt?1:-1)[0];
+  document.getElementById('bj-date').value=l.date||'';
+  // Helper to set a field only if it's empty AND we have a value to set
+  const setIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val===undefined||val===null||val==='')return;if(!el.value)el.value=val;};
+  // Auto-populate from formal quote if one exists (most authoritative)
+  const quote=db.quotes.filter(q=>q.leadId===leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
   if(quote){
     const day=quote.days&&quote.days[0];
     if(day){
-      if(day.rate)document.getElementById('bj-rate-regular').value=day.rate;
-      if(quote.cashRate)document.getElementById('bj-rate-cash').value=quote.cashRate;
+      setIfEmpty('bj-rate-regular',day.rate);
+      setIfEmpty('bj-rate-cash',quote.cashRate||day.cashRate);
       if(day.crew){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=day.crew;}
-      if(day.hrsMin||day.hrsMax){
-        const d=document.getElementById('bj-date');
-        if(day.date&&!d.value)d.value=day.date;
-      }
+      if(day.date)setIfEmpty('bj-date',day.date);
       if(day.arrivalStart)document.getElementById('bj-time').value=day.arrivalStart+(day.arrivalEnd?' – '+day.arrivalEnd:'');
     }
-    if(quote.totalMin)document.getElementById('bj-quote').value=quote.totalMax||quote.totalMin;
-    if(quote.estimatedVaults)document.getElementById('bj-volume').value=quote.estimatedVaults+' vaults';
-    // Fees — use label field
+    setIfEmpty('bj-quote',quote.totalMax||quote.totalMin);
+    setIfEmpty('bj-do-not-exceed',quote.totalMax);
+    if(quote.estimatedVaults)setIfEmpty('bj-volume',quote.estimatedVaults+' vaults');
     if(quote.fees){
       const fuel=quote.fees.find(f=>(f.label||f.name||'').toLowerCase().includes('fuel'));
-      if(fuel&&fuel.amount)document.getElementById('bj-fee-fuel').value=fuel.amount;
+      if(fuel)setIfEmpty('bj-fee-fuel',fuel.amount);
       const materials=quote.fees.find(f=>(f.label||f.name||'').toLowerCase().includes('material')&&!(f.label||f.name||'').toLowerCase().includes('packing'));
-      if(materials&&materials.amount)document.getElementById('bj-fee-materials').value=materials.amount;
+      if(materials)setIfEmpty('bj-fee-materials',materials.amount);
       const packMat=quote.fees.find(f=>(f.label||f.name||'').toLowerCase().includes('packing'));
       if(packMat){
-        if(packMat.hrsMin)document.getElementById('bj-pack-mat-min').value=packMat.hrsMin;
-        if(packMat.hrsMax)document.getElementById('bj-pack-mat-max').value=packMat.hrsMax;
+        setIfEmpty('bj-pack-mat-min',packMat.hrsMin||packMat.amount);
+        setIfEmpty('bj-pack-mat-max',packMat.hrsMax||packMat.amount);
+      }
+    }
+    // Insurance type from quote
+    if(quote.insuranceType){
+      const sel=document.getElementById('bj-insurance-type');
+      if(sel){
+        for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===quote.insuranceType||sel.options[i].text===quote.insuranceType){sel.selectedIndex=i;break;}}
       }
     }
     // Build scope from quote days
@@ -4451,42 +4458,42 @@ function openBooking(leadId){
         if(parts.length)scopeParts.push(quote.days.length>1?`Day ${i+1}: `+parts.join(', '):parts.join(', '));
       });
     }
-    if(scopeParts.length)document.getElementById('bj-scope').value=scopeParts.join('\n');
-    if(quote.officeNotes||l?.officeNotes){const _bjOn=document.getElementById('bj-office-notes');if(_bjOn)_bjOn.value=quote.officeNotes||l?.officeNotes||'';}
-  } else {
-    // No formal quote — try to populate from rough quote
-    const rq=l.roughQuote||{};
-    const hasRQ=rq.rate||rq.hrsMin||l.roughQuoteMin;
-    if(hasRQ){
-      if(rq.rate)document.getElementById('bj-rate-regular').value=rq.rate;
-      if(rq.cashRate)document.getElementById('bj-rate-cash').value=rq.cashRate;
-      if(rq.movers){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=rq.movers;}
-      if(rq.fuel)document.getElementById('bj-fee-fuel').value=rq.fuel;
-      if(rq.materials)document.getElementById('bj-fee-materials').value=rq.materials;
-      if(rq.packMatMin)document.getElementById('bj-pack-mat-min').value=rq.packMatMin;
-      if(rq.packMatMax)document.getElementById('bj-pack-mat-max').value=rq.packMatMax;
-      // Build scope from rough quote
-      const rqParts=[];
-      if(rq.movers&&rq.rate)rqParts.push(rq.movers+' movers @ $'+rq.rate+'/hr'+(rq.cashRate?' or $'+rq.cashRate+' cash':''));
-      if(rq.hrsMin||rq.hrsMax)rqParts.push('Est. '+(rq.hrsMin||'?')+(rq.hrsMax&&rq.hrsMax!==rq.hrsMin?' – '+rq.hrsMax:'')+' hrs');
-      if(rqParts.length)document.getElementById('bj-scope').value=rqParts.join('\n');
-      // Estimated total from rough quote
-      if(l.roughQuoteMax||l.roughQuoteMin)document.getElementById('bj-quote').value=l.roughQuoteMax||l.roughQuoteMin;
-      else if(rq.rate&&rq.hrsMax){
-        const total=Math.round(Number(rq.rate)*Number(rq.hrsMax)+(Number(rq.fuel)||0)+(Number(rq.materials)||0));
-        document.getElementById('bj-quote').value=total;
-      }
-    } else {
-      document.getElementById('bj-quote').value=l.estimateQuote||'';
-    }
-    if(l.officeNotes){const _bjOn2=document.getElementById('bj-office-notes');if(_bjOn2&&!_bjOn2.value)_bjOn2.value=l.officeNotes;}
+    if(scopeParts.length)setIfEmpty('bj-scope',scopeParts.join('\n'));
+    setIfEmpty('bj-office-notes',quote.officeNotes);
   }
-  // Restore booking draft if available for this lead
+  // Always also try to fill from rough quote (fills any gap left by formal quote, e.g. cash rate)
+  const rq=l.roughQuote||{};
+  setIfEmpty('bj-rate-regular',rq.rate||l.roughQuoteRate);
+  setIfEmpty('bj-rate-cash',rq.cashRate);
+  setIfEmpty('bj-fee-fuel',rq.fuel);
+  setIfEmpty('bj-fee-materials',rq.materials);
+  setIfEmpty('bj-pack-mat-min',rq.packMatMin);
+  setIfEmpty('bj-pack-mat-max',rq.packMatMax);
+  setIfEmpty('bj-quote',l.roughQuoteMax||l.roughQuoteMin);
+  if(rq.movers){const mEl=document.getElementById('bj-movers');if(mEl&&!mEl.value)mEl.value=rq.movers;}
+  // Build scope from rough quote IF no scope yet
+  const scopeEl=document.getElementById('bj-scope');
+  if(scopeEl&&!scopeEl.value&&(rq.movers||rq.rate||rq.hrsMin)){
+    const rqParts=[];
+    if(rq.movers&&rq.rate)rqParts.push(rq.movers+' movers @ $'+rq.rate+'/hr'+(rq.cashRate?' or $'+rq.cashRate+' cash':''));
+    if(rq.hrsMin||rq.hrsMax)rqParts.push('Est. '+(rq.hrsMin||'?')+(rq.hrsMax&&rq.hrsMax!==rq.hrsMin?' – '+rq.hrsMax:'')+' hrs');
+    if(rqParts.length)scopeEl.value=rqParts.join('\n');
+  }
+  // Lead-level fallbacks
+  setIfEmpty('bj-quote',l.estimateQuote);
+  setIfEmpty('bj-office-notes',l.officeNotes||l.estimateOfficeNotes);
+  // Carry the lead's "Additional notes" into the booking's email-note field as a starting point
+  setIfEmpty('bj-email-note',l.notes);
+  // If the lead's packing field has a packer count or scope, set up the pack-crew block
+  if(l.packing&&(l.packing.toLowerCase().includes('full')||l.packing.toLowerCase().includes('partial')||l.packing.toLowerCase().includes('kitchen'))){
+    document.getElementById('bj-pack-crew').checked=true;
+    document.getElementById('bj-pack-crew-fields').style.display='block';
+  }
+  // Restore booking draft if available for this lead (overrides everything above)
   try{
     const bjDraftStr=localStorage.getItem('bj_draft_'+leadId);
     if(bjDraftStr){
       const bjDraft=JSON.parse(bjDraftStr);
-      // Only restore if saved in last 2 hours
       if(bjDraft.savedAt&&new Date()-new Date(bjDraft.savedAt)<7200000){
         ['date','time','movers','rateRegular','rateCash','feeFuel','feeMaterials','quote','scope','crewNotes','officeNotes','emailNote','doNotExceed','packMatMin','packMatMax'].forEach(k=>{
           const el=document.getElementById('bj-'+k.replace(/([A-Z])/g,'-$1').toLowerCase());
