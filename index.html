@@ -3257,7 +3257,7 @@ function reactivateLead(id){
 
 function viewLead(id){try{const l=db.leads.find(x=>x.id===id);if(!l)return;document.getElementById('view-modal-title').textContent=l.name;
 document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
-const isPending=l.estimateType&&l.status==='Estimate sent';
+const isPending=l.status==='Estimate sent'||l.status==='Summary + rough quote';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
 // Find associated quote — prefer sent/accepted, but fall back to most recent of any status
 // (covers reactivated leads where the quote may be marked 'declined' from the previous DNB)
