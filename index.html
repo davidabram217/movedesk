@@ -3486,6 +3486,10 @@ function sendConfirmationEmail(){
     if(l.status==='Quote accepted'){
       l.status='Confirmation sent';
     }
+    // Parse the email body and stash structured data on the lead so booking can pull it later
+    const _body=document.getElementById('ce-body')?.value||'';
+    const _parsed=parseConfirmEmailBody(_body);
+    if(_parsed)l._confirmEmailParsed=_parsed;
   }
   const j=db.bookedJobs.find(x=>x.id===bookedJobId);
   if(j){j.confirmEmailSent=true;}
@@ -4461,6 +4465,20 @@ function openBooking(leadId){
     if(scopeParts.length)setIfEmpty('bj-scope',scopeParts.join('\n'));
     setIfEmpty('bj-office-notes',quote.officeNotes);
   }
+  // Highest-priority "what the customer agreed to" source — the parsed confirmation email.
+  // If the user already drafted/sent a confirmation email, those numbers ARE the deal.
+  // Pull them before rough quote / repeat customer so they take priority.
+  const ceParsed=l._confirmEmailParsed||null;
+  if(ceParsed){
+    if(ceParsed.movers){const mEl=document.getElementById('bj-movers');if(mEl&&!mEl.value)mEl.value=ceParsed.movers;}
+    setIfEmpty('bj-rate-regular',ceParsed.rateRegular);
+    setIfEmpty('bj-rate-cash',ceParsed.rateCash);
+    setIfEmpty('bj-fee-fuel',ceParsed.feeFuel);
+    setIfEmpty('bj-fee-materials',ceParsed.feeMaterials);
+    setIfEmpty('bj-pack-mat-min',ceParsed.packMatMin);
+    setIfEmpty('bj-pack-mat-max',ceParsed.packMatMax);
+    if(ceParsed.arrival){const tEl=document.getElementById('bj-time');if(tEl&&(!tEl.value||tEl.value==='8:30–9:30am'))tEl.value=ceParsed.arrival;}
+  }
   // Always also try to fill from rough quote (fills any gap left by formal quote, e.g. cash rate)
   const rq=l.roughQuote||{};
   setIfEmpty('bj-rate-regular',rq.rate||l.roughQuoteRate);
@@ -4488,6 +4506,36 @@ function openBooking(leadId){
   if(l.packing&&(l.packing.toLowerCase().includes('full')||l.packing.toLowerCase().includes('partial')||l.packing.toLowerCase().includes('kitchen'))){
     document.getElementById('bj-pack-crew').checked=true;
     document.getElementById('bj-pack-crew-fields').style.display='block';
+  }
+  // Repeat-customer fallback — if no quote and no rough quote, see if this is a repeat customer
+  // and pull defaults from their most recent prior job. The customer info (name/phone/email/address)
+  // is the strongest match, then we use that job's crew size, rates, and fees as a starting point.
+  const hasQuoteData=(quote&&quote.totalMin)||l.roughQuoteMin||(rq&&(rq.rate||rq.hrsMin));
+  if(!hasQuoteData&&l.phone){
+    const cleanPhone=l.phone.replace(/\D/g,'');
+    if(cleanPhone){
+      // Look across completed and booked jobs (not this lead's own draft) for the same phone
+      const priorJobs=[
+        ...(db.completedJobs||[]).map(j=>({...j,_kind:'completed'})),
+        ...(db.bookedJobs||[]).filter(j=>j.leadId!==leadId).map(j=>({...j,_kind:'booked'}))
+      ].filter(j=>j.phone&&j.phone.replace(/\D/g,'')===cleanPhone)
+       .sort((a,b)=>(b.completedAt||b.bookedAt||b.date||'').localeCompare(a.completedAt||a.bookedAt||a.date||''));
+      const prior=priorJobs[0];
+      if(prior){
+        if(prior.movers){const mEl=document.getElementById('bj-movers');if(mEl&&!mEl.value)mEl.value=prior.movers;}
+        setIfEmpty('bj-rate-regular',prior.rateRegular||prior.hourlyRateCharged);
+        setIfEmpty('bj-rate-cash',prior.rateCash);
+        setIfEmpty('bj-fee-fuel',prior.feeFuel);
+        setIfEmpty('bj-fee-materials',prior.feeMaterials);
+        setIfEmpty('bj-pack-mat-min',prior.feePackMaterials);
+        setIfEmpty('bj-pack-mat-max',prior.feePackMaterials);
+        setIfEmpty('bj-volume',prior.vaults?prior.vaults+' vaults':'');
+        setIfEmpty('bj-scope','Repeat customer — last move on '+fmtDate(prior.date)+(prior.movers&&prior.rateRegular?': '+prior.movers+' movers @ $'+prior.rateRegular+'/hr'+(prior.rateCash?' or $'+prior.rateCash+' cash':''):''));
+        // Repeat customer flag in office notes if not already there
+        const onEl=document.getElementById('bj-office-notes');
+        if(onEl&&!onEl.value)onEl.value='⭐ REPEAT CUSTOMER — previously moved '+fmtDate(prior.date);
+      }
+    }
   }
   // Restore booking draft if available for this lead (overrides everything above)
   try{
@@ -5008,9 +5056,50 @@ function autoSaveConfirmEmail(){
   l._confirmEmailDraft={
     to:document.getElementById('ce-to')?.value||'',
     subject:document.getElementById('ce-subject')?.value||'',
-    body:document.getElementById('ce-body')?.value||''
+    body:document.getElementById('ce-body')?.value||'',
+    savedAt:new Date().toISOString()
   };
+  // Also extract structured pricing/scope data from the email body so the booking modal
+  // can auto-populate from it. The customer agreed to these numbers — they shouldn't be
+  // re-entered later.
+  const _parsed=parseConfirmEmailBody(l._confirmEmailDraft.body);
+  if(_parsed)l._confirmEmailParsed=_parsed;
   saveDB();
+}
+
+// Parses a confirmation email body and extracts structured details: movers, rate, cashRate,
+// fuelFee, materialFee, packMatMin, packMatMax, arrival window, date.
+// The email template is predictable enough that simple regexes work. Returns null if no
+// usable data found.
+function parseConfirmEmailBody(body){
+  if(!body||typeof body!=='string')return null;
+  const out={};
+  // "4 Movers @ $300 Per Hour ($280 If Paid Cash)" or "4 Movers @ $300 Per Hour"
+  const rateMatch=body.match(/(\d+)\s+Movers?\s*@\s*\$([\d,]+(?:\.\d+)?)\s*Per\s*Hour(?:\s*\(\s*\$([\d,]+(?:\.\d+)?)\s*If\s*Paid\s*Cash\s*\))?/i);
+  if(rateMatch){
+    out.movers=Number(rateMatch[1])||null;
+    out.rateRegular=Number(rateMatch[2].replace(/,/g,''))||null;
+    if(rateMatch[3])out.rateCash=Number(rateMatch[3].replace(/,/g,''))||null;
+  }
+  // "$80 Fuel Fee" / "$80 fuel"
+  const fuelMatch=body.match(/\$([\d,]+(?:\.\d+)?)\s+Fuel/i);
+  if(fuelMatch)out.feeFuel=Number(fuelMatch[1].replace(/,/g,''))||null;
+  // "$50 Material Fee"
+  const matMatch=body.match(/\$([\d,]+(?:\.\d+)?)\s+Material(?!s)/i);
+  if(matMatch)out.feeMaterials=Number(matMatch[1].replace(/,/g,''))||null;
+  // "$50 – $150 Packing Materials" range
+  const packMatchRange=body.match(/\$([\d,]+)\s*[–-]\s*\$([\d,]+)\s*Packing\s*Material/i);
+  if(packMatchRange){
+    out.packMatMin=Number(packMatchRange[1].replace(/,/g,''))||null;
+    out.packMatMax=Number(packMatchRange[2].replace(/,/g,''))||null;
+  }
+  // "arriving 8:30–9:30am" or "arriving between 8:30–9:30am"
+  const arrMatch=body.match(/arriving\s+(?:between\s+)?([\d:]+\s*(?:am|pm)?\s*[–-]\s*[\d:]+\s*(?:am|pm)?)/i);
+  if(arrMatch)out.arrival=arrMatch[1].trim();
+  // "X hour minimum"
+  const minMatch=body.match(/(\d+(?:\.\d+)?)\s+hour\s+minimum/i);
+  if(minMatch)out.hrsMin=Number(minMatch[1])||null;
+  return Object.keys(out).length?out:null;
 }
 
 async function sendConfirmEmailViaEJS(){
