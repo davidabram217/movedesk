@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MoveDesk CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>:root{--bg:#f5f3ee;--surface:#fff;--surface2:#f0ede6;--border:#e0dbd0;--border2:#ccc8bc;--text:#1a1916;--text2:#6b6760;--text3:#9e9b94;--accent:#2d5a3d;--accent-light:#e8f0ea;--danger:#c0392b;--danger-light:#fceaea;--info:#1a5276;--info-light:#eaf2fb;--amber:#b7860b;--amber-light:#fdf6e3;--purple:#6c3483;--purple-light:#f5eef8;--radius:10px;--radius-lg:16px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);--shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04)}*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5}.app{display:flex;height:100vh;overflow:hidden}.sidebar{width:200px;background:var(--text);color:#fff;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}.sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.08)}.logo-mark{font-size:16px;font-weight:600;letter-spacing:-.5px}.logo-sub{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;font-family:'DM Mono',monospace;letter-spacing:.5px}.sidebar-nav{flex:1;padding:10px 0}.nav-section-label{font-size:9px;font-weight:500;letter-spacing:1px;color:rgba(255,255,255,.3);padding:10px 16px 5px;text-transform:uppercase;font-family:'DM Mono',monospace}.nav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;transition:all .15s;border-left:2px solid transparent}.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}.nav-item.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:#6ec98a;font-weight:500}.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:rgba(255,255,255,.3);font-family:'DM Mono',monospace}.main{flex:1;display:flex;flex-direction:column;overflow:hidden}.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}.topbar-title{font-size:14px;font-weight:600}.topbar-sub{font-size:11px;color:var(--text3);margin-top:1px}.content{padding:20px 24px;flex:1;overflow-y:auto}.page{display:none}.page.active{display:block}.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all .15s;white-space:nowrap}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:#234a31}.btn-secondary{background:var(--surface);color:var(--text);border-color:var(--border2)}.btn-secondary:hover{background:var(--surface2)}.btn-danger{background:var(--danger-light);color:var(--danger);border-color:#f5c6c2}.btn-sm{padding:4px 10px;font-size:12px}.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow)}.card-header{padding:14px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}.card-title{font-size:13px;font-weight:600}.card-body{padding:16px 18px}.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow)}.stat-label{font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.stat-value{font-size:22px;font-weight:600;line-height:1}.stat-sub{font-size:11px;color:var(--text3);margin-top:3px}.pill-green{background:var(--accent-light);color:var(--accent)}.pill-amber{background:var(--amber-light);color:var(--amber)}.pill-red{background:var(--danger-light);color:var(--danger)}.pill-blue{background:var(--info-light);color:var(--info)}.pill-purple{background:var(--purple-light);color:var(--purple)}.pill-gray{background:var(--surface2);color:var(--text2)}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:middle}tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg)}.td-name{font-weight:500}.td-mono{font-family:'DM Mono',monospace;font-size:11.5px}.form-grid{display:grid;gap:13px}.form-grid-2{grid-template-columns:1fr 1fr}.form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}.form-group.full{grid-column:1/-1}label{font-size:11.5px;font-weight:500;color:var(--text2)}input,select,textarea{font-family:'DM Sans',sans-serif;font-size:12.5px;padding:7px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:none;width:100%;transition:border-color .15s,box-shadow .15s}input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(45,90,61,.1)}textarea{resize:vertical;min-height:70px}select{cursor:pointer}.form-hint{font-size:10.5px;color:var(--text3);margin-top:1px}.modal-bg{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center;padding:16px}.modal-bg.open{display:flex}.modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);width:100%;max-width:600px;max-height:88vh;overflow-y:auto}.modal-body{padding:18px 20px}.modal-header{padding:16px 20px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1;border-radius:var(--radius-lg) var(--radius-lg) 0 0}.modal-title{font-size:14px;font-weight:600}.modal-body{padding:18px 20px}.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface);border-radius:0 0 var(--radius-lg) var(--radius-lg);flex-shrink:0;flex-wrap:wrap;align-items:center}.modal-close{background:none;border:none;cursor:pointer;font-size:17px;color:var(--text2);padding:3px}.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:18px}.tab{padding:9px 16px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}.tab:hover{color:var(--text)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.pipeline-col-header{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:6px 10px;display:flex;align-items:center;justify-content:space-between}.pipeline-col-count{background:var(--surface2);color:var(--text2);font-size:10px;font-weight:500;padding:1px 6px;border-radius:10px;font-family:'DM Mono',monospace}.pipeline-cards{display:flex;flex-direction:column;gap:7px}.pipeline-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow)}.pipeline-card:hover{box-shadow:var(--shadow-md);border-color:var(--border2);transform:translateY(-1px)}.pipeline-card-name{font-weight:500;font-size:12.5px;margin-bottom:3px}.pipeline-card-meta{font-size:11px;color:var(--text2)}.pipeline-card-footer{margin-top:7px;display:flex;gap:5px;flex-wrap:wrap}.bar-chart{display:flex;flex-direction:column;gap:9px}.bar-row{display:flex;align-items:center;gap:9px}input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}.bar-label{font-size:11.5px;color:var(--text2);width:120px;flex-shrink:0;text-align:right;line-height:1.3;word-break:break-word}.bar-track{flex:1;background:var(--surface2);border-radius:4px;height:20px;overflow:hidden}.bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:7px;font-size:11px;font-weight:500;color:#fff;transition:width .6s}.bar-value{font-size:11px;color:var(--text2);width:34px;text-align:right;font-family:'DM Mono',monospace}.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.cal-day-header{text-align:center;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;padding:3px 0}.cal-day{min-height:80px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:6px 7px}.cal-day.other-month{opacity:.4}.cal-day.today{border-color:var(--accent);background:var(--accent-light)}.cal-day-num{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:2px}.cal-day.today .cal-day-num{color:var(--accent)}.cal-event{font-size:10px;background:var(--accent);color:#fff;border-radius:3px;padding:2px 5px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.5}.cal-event.estimate{background:var(--info)}.badge{display:inline-block;font-size:10.5px;font-weight:500;padding:2px 7px;border-radius:20px;white-space:nowrap}.empty-state{text-align:center;padding:36px 16px;color:var(--text3)}.empty-icon{font-size:28px;margin-bottom:10px}.empty-title{font-size:13px;font-weight:500;color:var(--text2);margin-bottom:4px}.empty-sub{font-size:12px}#toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:#fff;padding:10px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:999;opacity:0;transform:translateY(6px);transition:all .25s;pointer-events:none;max-width:280px}#toast.show{opacity:1;transform:translateY(0)}.divider{border:none;border-top:1px solid var(--border);margin:16px 0}.search-bar{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;width:200px}.search-bar input{background:none;border:none;outline:none;font-size:12.5px;padding:0;width:100%}.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}.filter-bar select{width:auto;padding:5px 9px;font-size:12px}.owe-badge{color:var(--danger);font-weight:600;font-family:'DM Mono',monospace}.loc-section-label{margin-top:20px;margin-bottom:10px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid var(--border2)}.ac-dropdown{position:absolute;top:calc(100%+2px);left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:500;max-height:210px;overflow-y:auto;display:none}.ac-dropdown.open{display:block}.ac-item{padding:9px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--border)}.ac-item:last-child{border-bottom:none}.ac-item:hover,.ac-item.active{background:var(--surface2)}.ac-main{font-weight:500;color:var(--text)}.ac-sub{font-size:11px;color:var(--text3);margin-top:1px}.ac-notice{padding:7px 12px;font-size:11px;color:var(--text3);background:var(--surface2);border-top:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius);cursor:default}</style>
 </head>
 <body>
@@ -2039,10 +2038,6 @@ let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTrainin
 // ── SUPABASE CONFIG ──
 const SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
-// App version — bumped every time we deploy a new index.html. Two computers running different
-// versions get out of sync, so we use this value to (a) detect when a new version is available
-// and offer to reload, and (b) show in the analytics-filter tag for visual confirmation.
-const APP_VERSION='2026-05-05-v8';
 
 // ── GMAIL API CONFIG ──
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2184,16 +2179,14 @@ async function loadDB(){
     // most recent statusUpdatedAt. This protects in-flight status changes (e.g. user clicked
     // "Need to send estimate" but the cloud row hasn't been refreshed yet) from being silently
     // reverted when the cloud read happens.
-    const cloudLeads=(leads||[]).map(r=>({...r.data,id:r.id})).filter(l=>!l._deleted);
+    const cloudLeads=(leads||[]).map(r=>({...r.data,id:r.id}));
     let localLeads=[];
     try{
       const ld=JSON.parse(localStorage.getItem('movedesk_db')||'{}');
-      if(Array.isArray(ld.leads))localLeads=ld.leads.filter(l=>!l._deleted);
+      if(Array.isArray(ld.leads))localLeads=ld.leads;
     }catch(_){}
     const cloudById=new Map(cloudLeads.map(l=>[l.id,l]));
-    // Tombstones from cloud win: if cloud says deleted, remove that local id from the merge.
-    const cloudDeletedIds=new Set((leads||[]).filter(r=>r.data&&r.data._deleted).map(r=>r.id));
-    const localById=new Map(localLeads.filter(l=>!cloudDeletedIds.has(l.id)).map(l=>[l.id,l]));
+    const localById=new Map(localLeads.map(l=>[l.id,l]));
     const allIds=new Set([...cloudById.keys(),...localById.keys()]);
     db.leads=Array.from(allIds).map(id=>{
       const c=cloudById.get(id);const lc=localById.get(id);
@@ -2204,9 +2197,9 @@ async function loadDB(){
       const lTs=lc.statusUpdatedAt||lc.createdAt||'';
       return lTs>cTs?lc:c;
     });
-    db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id})).filter(j=>!j._deleted);
-    db.completedJobs=(completedJobs||[]).map(r=>({...r.data,id:r.id})).filter(j=>!j._deleted);
-    db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id})).filter(q=>!q._deleted);
+    db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id}));
+    db.completedJobs=(completedJobs||[]).map(r=>({...r.data,id:r.id}));
+    db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id}));
     db.employees=(employees||[]).map(r=>({...r.data,id:r.id}));
     // Payroll weeks keyed by week_key
     db.weeklyPayroll={};
@@ -2237,8 +2230,6 @@ async function loadDB(){
       // Best-effort cloud cleanup so it doesn't come back next refresh
       orphans.forEach(j=>{try{sbDelete('booked_jobs',j.id);}catch(_){}});
     }
-    // Prune tombstones older than 7 days so the list doesn't grow forever
-    pruneTombstones();
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -2254,156 +2245,7 @@ async function loadDB(){
 }
 
 async function sbDelete(table,id){
-  // One retry on transient failures (network blip, brief 5xx). Returns true on success, false otherwise.
-  for(let attempt=1;attempt<=2;attempt++){
-    try{await sbFetch(table+'?id=eq.'+id,'DELETE');return true;}
-    catch(e){
-      if(attempt===2){console.error('[sbDelete] '+table+' id='+id+' failed after retry:',e);return false;}
-      await new Promise(r=>setTimeout(r,400));
-    }
-  }
-  return false;
-}
-
-// ── Tombstones ──
-// When the user deletes a record we record its id+table so we can:
-//   (a) skip it if a stale device pushes it back into the cloud
-//   (b) re-fire the cloud delete if we see the row reappear
-// Tombstones live in db._tombstones so they're persisted to localStorage and survive refreshes.
-// They auto-prune after 7 days so the list doesn't grow without bound.
-const TOMBSTONE_TTL_MS=7*24*60*60*1000;
-function markTombstone(table,id){
-  if(!db._tombstones)db._tombstones={};
-  if(!db._tombstones[table])db._tombstones[table]={};
-  db._tombstones[table][id]=Date.now();
-}
-function isTombstoned(table,id){
-  return !!(db._tombstones&&db._tombstones[table]&&db._tombstones[table][id]);
-}
-function pruneTombstones(){
-  if(!db._tombstones)return;
-  const cutoff=Date.now()-TOMBSTONE_TTL_MS;
-  for(const t in db._tombstones){
-    for(const i in db._tombstones[t]){
-      if(db._tombstones[t][i]<cutoff)delete db._tombstones[t][i];
-    }
-  }
-}
-
-// ── Soft-delete + last-modified ──
-// Background: Supabase's updated_at column doesn't reliably advance on every UPSERT, so the merge
-// logic was missing remote changes. We now stamp _lastModified inside the data JSON ourselves, and
-// when a record is deleted we keep the cloud row but flag it _deleted:true (a tombstone visible to
-// every device). All devices filter _deleted records out on merge, so deletions propagate even when
-// another device has the record cached and would otherwise re-upload it.
-function stampNow(rec){
-  rec._lastModified=new Date().toISOString();
-  return rec;
-}
-async function softDeleteRecord(table,localArr,id){
-  const idx=localArr.findIndex(x=>x.id===id);
-  if(idx<0)return null;
-  const rec=localArr[idx];
-  // Mark and upload the tombstone before removing locally — if the upload fails we still removed
-  // it from this device, but the tombstone will be re-attempted on the next sync via markTombstone.
-  const tombstone={...rec,_deleted:true,_deletedAt:new Date().toISOString(),_lastModified:new Date().toISOString()};
-  localArr.splice(idx,1);
-  markTombstone(table,id);
-  try{await sbFetch(table,'POST',[{id:rec.id,data:tombstone}]);}
-  catch(e){console.warn('[softDelete] cloud upsert of tombstone failed for '+table+' '+id+':',e);}
-  return rec;
-}
-
-// ── One-time cleanup of fee labels that had a long parenthetical description glued onto them ──
-// Background: a customer reported that a sent quote was showing
-//   "Standard Material Fee (Covers professional moving blankets, plastic wrap and tape …)"
-// instead of just "Standard Material Fee". The descriptive text ended up inside the label field
-// of saved quotes — we never identified the exact cause, but the fix is to strip the parenthetical
-// from any label where it's clearly a description (30+ chars inside the parens).
-// Conservative pattern: leaves "Yelp Discount (50%)" / "Tip (per mover)" untouched.
-// Runs once per device, tracked by db.settings._feeLabelCleanupV1.
-async function _oneTimeFeeLabelCleanupV1(){
-  if(db.settings&&db.settings._feeLabelCleanupV1)return;
-  const longParenRe=/^\s*([^()]+?)\s*\([^)]{30,}\)\s*$/;
-  const touchedQuotes=[];
-  let totalCleaned=0;
-  (db.quotes||[]).forEach(q=>{
-    if(!q.fees||!Array.isArray(q.fees))return;
-    let qChanged=false;
-    q.fees.forEach(f=>{
-      if(!f||!f.label)return;
-      const m=f.label.match(longParenRe);
-      if(m){
-        const cleanLabel=m[1].trim();
-        console.log('[fee cleanup] '+(q.customerName||q.id)+': "'+f.label+'" → "'+cleanLabel+'"');
-        f.label=cleanLabel;
-        totalCleaned++;
-        qChanged=true;
-      }
-    });
-    if(qChanged)touchedQuotes.push(q);
-  });
-  if(totalCleaned>0){
-    console.log('[fee cleanup] cleaned '+totalCleaned+' fee label(s) across '+touchedQuotes.length+' quote(s) — uploading to cloud');
-    const rows=touchedQuotes.map(q=>({id:q.id,data:stampNow(q)}));
-    try{
-      await sbFetch('quotes','POST',rows);
-      console.log('[fee cleanup] cloud upload OK');
-    }catch(e){
-      console.error('[fee cleanup] cloud upload failed (will retry on next page load):',e);
-      return; // don't mark as done — let it retry next time
-    }
-  }
-  if(!db.settings)db.settings={};
-  db.settings._feeLabelCleanupV1=true;
-  saveDB();
-}
-
-// ── One-time cleanup of booked/completed duplicates ──
-// Background: when a job was completed under older code paths, the booked_jobs row in cloud was
-// supposed to be deleted but the DELETE sometimes failed silently. Result: the same id lives in
-// both tables. This causes:
-//   - analytics to double-count (e.g. "7 jobs in May" → "17" after auto-refresh re-pulls duplicates)
-//   - the booked record to keep coming back even after deletion
-// This helper queries both cloud tables, finds shared ids, and writes a proper soft-delete tombstone
-// to the booked side. Marks itself done in db.settings._dupCleanupV1 to never run twice.
-// On any failure, the done flag is NOT set, so it retries next page load.
-async function _oneTimeBookedCompletedDupCleanupV1(){
-  if(db.settings&&db.settings._dupCleanupV1)return;
-  try{
-    const [bookedRows,completedRows]=await Promise.all([
-      sbFetch('booked_jobs?select=id,data','GET'),
-      sbFetch('completed_jobs?select=id,data','GET'),
-    ]);
-    if(!Array.isArray(bookedRows)||!Array.isArray(completedRows)){
-      console.warn('[dup cleanup] could not fetch tables — will retry next page load');
-      return;
-    }
-    const completedIds=new Set(completedRows.map(r=>r.id));
-    const dups=bookedRows.filter(r=>completedIds.has(r.id)&&!(r.data&&r.data._deleted===true));
-    if(dups.length===0){
-      console.log('[dup cleanup] no booked/completed duplicates found');
-    } else {
-      console.log('[dup cleanup] found '+dups.length+' booked row(s) also in completed_jobs — writing tombstones:',dups.map(d=>d.data&&d.data.name||d.id).join(', '));
-      const now=new Date().toISOString();
-      const tombstones=dups.map(r=>({
-        id:r.id,
-        data:{...(r.data||{}),id:r.id,_deleted:true,_deletedAt:now,_lastModified:now}
-      }));
-      await sbFetch('booked_jobs','POST',tombstones);
-      console.log('[dup cleanup] '+tombstones.length+' tombstone(s) uploaded');
-      // Clean up local state too — and tombstone locally so a stray syncToSupabase
-      // (or another device's sync) can't re-introduce them.
-      const dupIds=new Set(dups.map(r=>r.id));
-      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!dupIds.has(j.id));
-      dups.forEach(r=>markTombstone('booked_jobs',r.id));
-    }
-    if(!db.settings)db.settings={};
-    db.settings._dupCleanupV1=true;
-    saveDB();
-  }catch(e){
-    console.error('[dup cleanup] failed (will retry next page load):',e);
-  }
+  try{await sbFetch(table+'?id=eq.'+id,'DELETE');}catch(e){console.error('Delete error:',e);}
 }
 
 async function clearAllDataFromSupabase(){
@@ -2492,13 +2334,11 @@ document.addEventListener('change',_globalAutoSave);
 
 async function syncToSupabase(){
   try{
-    // Stamp _lastModified on every record before upload so the merge on other devices
-    // can reliably detect which side has newer data. This sidesteps any uncertainty about
-    // whether Supabase's updated_at column is actually advancing.
-    const leadsRows=db.leads.map(l=>({id:l.id,data:stampNow(l)}));
-    const bookedRows=db.bookedJobs.map(j=>({id:j.id,data:stampNow(j)}));
-    const completedRows=db.completedJobs.map(j=>({id:j.id,data:stampNow(j)}));
-    const quoteRows=(db.quotes||[]).map(q=>({id:q.id,data:stampNow(q)}));
+    // Upsert all records
+    const leadsRows=db.leads.map(l=>({id:l.id,data:l}));
+    const bookedRows=db.bookedJobs.map(j=>({id:j.id,data:j}));
+    const completedRows=db.completedJobs.map(j=>({id:j.id,data:j}));
+    const quoteRows=(db.quotes||[]).map(q=>({id:q.id,data:q}));
     const empRows=(db.employees||[]).map(e=>({id:e.id,data:e}));
     const weekRows=Object.entries(db.weeklyPayroll||{}).map(([k,v])=>({week_key:k,data:v}));
     const txnRows=(db.cashTransactions||[]).map(t=>({id:t.id,data:t}));
@@ -2555,51 +2395,20 @@ async function refreshFromSupabase(){
       sbFetch('completed_jobs','GET'),
       sbFetch('quotes','GET'),
     ]);
-    // Safety guard: if ALL fetches returned nothing/null (network or auth failure), abort.
-    // We never want a bad fetch to wipe local data via deletion-detection.
-    const fetchHealthy=(leadsRes&&Array.isArray(leadsRes))||(bookedRes&&Array.isArray(bookedRes))||(completedRes&&Array.isArray(completedRes))||(quotesRes&&Array.isArray(quotesRes));
-    if(!fetchHealthy){
-      console.warn('[refresh] all fetches returned null — skipping merge to protect local data');
-      _refreshBusy=false;
-      return;
-    }
     // Merge — update db with any records newer than our last sync
     let updated=0;
-    function mergeTable(remote,localArr,key='id',tableName=null){
-      // Only run deletion-detection if the remote fetch is a real array (could be empty
-      // legitimately, but null means the request failed and we shouldn't touch local).
+    function mergeTable(remote,localArr,key='id'){
       if(!remote||!Array.isArray(remote))return localArr;
       const localMap={};
       localArr.forEach(r=>{localMap[r[key]]=r;});
-      // Build set of ids returned by cloud so we can detect deletions below.
-      const remoteIds=new Set();
       remote.forEach(row=>{
         const rec=row.data||row;
         const id=rec[key]||row[key];
         if(!id)return;
-        remoteIds.add(id);
-        // Tombstoned locally: skip + re-fire cloud delete (kept from earlier fix).
-        if(tableName&&isTombstoned(tableName,id)){
-          sbDelete(tableName,id).catch(()=>{});
-          delete localMap[id];
-          return;
-        }
-        // Soft-deleted in cloud: drop it from local AND remember the deletion so we
-        // don't accidentally re-upload this record from another save.
-        if(rec&&rec._deleted===true){
-          if(localMap[id]){
-            updated++;
-            console.log('[merge] removing locally — cloud has _deleted=true for '+(rec.name||id));
-          }
-          delete localMap[id];
-          if(tableName)markTombstone(tableName,id);
-          return;
-        }
         const local=localMap[id];
-        // Prefer remote if local is missing OR remote's _lastModified is strictly newer.
-        // We fall back to updated_at/inserted_at for legacy records that don't have _lastModified yet.
-        const remoteTime=(rec&&rec._lastModified)||row.updated_at||row.inserted_at||'';
-        const localTime=(local&&local._lastModified)||(local&&local._syncedAt)||'';
+        // Use remote if: not local, or remote updated_at is newer
+        const remoteTime=row.updated_at||row.inserted_at||'';
+        const localTime=local?._syncedAt||'';
         if(!local||(remoteTime&&remoteTime>localTime)){
           localMap[id]={...rec,_syncedAt:remoteTime};
           if(!local)updated++;
@@ -2608,21 +2417,10 @@ async function refreshFromSupabase(){
       });
       return Object.values(localMap);
     }
-    db.leads=mergeTable(leadsRes,db.leads,'id','leads');
-    db.bookedJobs=mergeTable(bookedRes,db.bookedJobs,'id','booked_jobs');
-    db.completedJobs=mergeTable(completedRes,db.completedJobs,'id','completed_jobs');
-    db.quotes=mergeTable(quotesRes,db.quotes||[],'id','quotes');
-    // Self-heal: remove any booked job that also lives in completedJobs.
-    // mergeTable preserves both sides on merge, so an orphan cloud row would otherwise come back here every 60s.
-    // Awaiting the cloud delete (instead of fire-and-forget) so a failed delete is visible in the console.
-    const completedIdsR=new Set((db.completedJobs||[]).map(j=>j.id));
-    const orphansR=(db.bookedJobs||[]).filter(j=>completedIdsR.has(j.id));
-    if(orphansR.length){
-      console.log('[refresh self-heal] Removing '+orphansR.length+' orphaned booked job(s):',orphansR.map(o=>o.name||o.id).join(', '));
-      db.bookedJobs=(db.bookedJobs||[]).filter(j=>!completedIdsR.has(j.id));
-      await Promise.all(orphansR.map(j=>sbDelete('booked_jobs',j.id).catch(e=>console.error('[refresh self-heal] Failed to delete cloud row for',j.name||j.id,e))));
-      updated+=orphansR.length;
-    }
+    db.leads=mergeTable(leadsRes,db.leads);
+    db.bookedJobs=mergeTable(bookedRes,db.bookedJobs);
+    db.completedJobs=mergeTable(completedRes,db.completedJobs);
+    db.quotes=mergeTable(quotesRes,db.quotes||[]);
     if(updated>0){
       // Save merged data to localStorage
       try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
@@ -3383,7 +3181,10 @@ function renderDashboard(){
 }
 let leadFilter={text:'',source:'',est:''};
 function renderLeads(){const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=db.leads.filter(l=>l.status==='Did not book').length;renderPipeline();renderLeadsTable();}
-function renderPipeline(){const stages=['New','Need to follow up','Need to send summary','Summary sent','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'];const sc={'New':'#1a5276','Need to follow up':'#b7860b','Need to send summary':'#b7860b','Summary sent':'#2d5a3d','Summary + rough quote':'#2d5a3d','Estimate scheduled':'#6c3483','Need to send estimate':'#b7860b','Estimate sent':'#b7860b','Quote accepted':'#2d5a3d','Confirmation sent':'#2d5a3d'};document.getElementById('pipeline-board').style.gridTemplateColumns='repeat(4,1fr)';document.getElementById('pipeline-board').innerHTML=stages.map(stage=>{const cards=db.leads.filter(l=>l.status===stage);return`<div class="pipeline-col"><div class="pipeline-col-header"><span style="color:${sc[stage]};font-size:10px">${stage}</span><span class="pipeline-col-count">${cards.length}</span></div><div class="pipeline-cards">${cards.length?cards.map(l=>`<div class="pipeline-card" onclick="viewLead('${l.id}')"><div class="pipeline-card-name">${l.name}</div><div class="pipeline-card-meta">${l.size||'Size TBD'} · ${fmtDate(l.date)}</div><div class="pipeline-card-footer">${sourceBadge(l.source,l.sourceDetail)} ${l.estimateType?estBadge(l.estimateType):'<span class="badge pill-gray">No estimate</span>'}</div></div>`).join(''):'<div style="font-size:11px;color:var(--text3);padding:10px;text-align:center">No leads</div>'}</div></div>`;}).join('');}
+function renderPipeline(){const stages=['New','Need to follow up','Need to send summary','Summary sent','Summary + rough quote','Estimate scheduled','Need to send estimate','Estimate sent','Quote accepted','Confirmation sent'];const sc={'New':'#1a5276','Need to follow up':'#b7860b','Need to send summary':'#b7860b','Summary sent':'#2d5a3d','Summary + rough quote':'#a3590f','Estimate scheduled':'#6c3483','Need to send estimate':'#b7860b','Estimate sent':'#b7860b','Quote accepted':'#2d5a3d','Confirmation sent':'#2d5a3d'};const colCount=Math.min(stages.length,5);document.getElementById('pipeline-board').style.gridTemplateColumns=`repeat(${colCount},1fr)`;document.getElementById('pipeline-board').innerHTML=stages.map(stage=>{const cards=db.leads.filter(l=>l.status===stage);return`<div class="pipeline-col"><div class="pipeline-col-header"><span style="color:${sc[stage]};font-size:10px">${stage}</span><span class="pipeline-col-count">${cards.length}</span></div><div class="pipeline-cards">${cards.length?cards.map(l=>{
+  const rqBadge=(l.roughQuoteMin||l.roughQuoteDate)?`<span class="badge pill-amber" style="font-size:10px">$${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?'–$'+l.roughQuoteMax.toLocaleString():''}</span>`:'';
+  return `<div class="pipeline-card" onclick="viewLead('${l.id}')"><div class="pipeline-card-name">${l.name}</div><div class="pipeline-card-meta">${l.size||'Size TBD'} · ${fmtDate(l.date)}</div><div class="pipeline-card-footer">${sourceBadge(l.source,l.sourceDetail)} ${l.estimateType?estBadge(l.estimateType):rqBadge||'<span class="badge pill-gray">No estimate</span>'}</div></div>`;
+}).join(''):'<div style="font-size:11px;color:var(--text3);padding:10px;text-align:center">No leads</div>'}</div></div>`;}).join('');}
 function renderLeadsTable(){let leads=db.leads.filter(l=>l.status!=='Did not book'&&l.status!=='Booked'&&l.status!=='Completed');if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td><td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;}
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
 function filterLeadsSource(v){leadFilter.source=v;renderLeadsTable();}
@@ -5347,8 +5148,9 @@ function deleteBookedJob(id){
   if(!confirm('Delete this booked job? This cannot be undone.'))return;
   const j=db.bookedJobs.find(x=>x.id===id);
   if(j&&j.leadId){const l=db.leads.find(x=>x.id===j.leadId);if(l&&l.status==='Booked')l.status='New';}
-  softDeleteRecord('booked_jobs',db.bookedJobs,id);
+  db.bookedJobs=db.bookedJobs.filter(j=>j.id!==id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  sbDelete('booked_jobs',id);
   renderBooked();showToast('Booked job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
@@ -5786,15 +5588,10 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   }
   db.completedJobs.push(completed);upsertCustomer(completed);
   const _completedBookedJobId=currentCompleteJobId;
-  // Soft-delete the booked row: writes a tombstone to cloud so other devices remove it on refresh.
-  // (Was previously a hard sbDelete which left another device free to re-upload the row.)
-  const _bookedSnapshot=db.bookedJobs.find(x=>x.id===_completedBookedJobId);
   db.bookedJobs=db.bookedJobs.filter(x=>x.id!==_completedBookedJobId);
-  markTombstone('booked_jobs',_completedBookedJobId);
-  if(_bookedSnapshot){
-    const tomb={..._bookedSnapshot,_deleted:true,_deletedAt:new Date().toISOString(),_lastModified:new Date().toISOString()};
-    sbFetch('booked_jobs','POST',[{id:_completedBookedJobId,data:tomb}]).catch(e=>console.warn('[confirmComplete] tombstone upload failed:',e));
-  }
+  // Explicitly delete the booked-jobs row from Supabase, otherwise it lingers in the cloud
+  // and reappears as a duplicate on the next refresh from another device.
+  sbDelete('booked_jobs',_completedBookedJobId);
   if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead)lead.status='Completed';}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
 
 function saveJobForAI(completedJobId){
@@ -5841,8 +5638,9 @@ function saveJobForAI(completedJobId){
 let compFilter={text:'',crew:'',source:'',paid:''};
 function deleteCompletedJob(id){
   if(!confirm('Delete this completed job? This cannot be undone.'))return;
-  softDeleteRecord('completed_jobs',db.completedJobs,id);
+  db.completedJobs=db.completedJobs.filter(j=>j.id!==id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  sbDelete('completed_jobs',id);
   renderCompleted();showToast('Job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
@@ -7479,45 +7277,7 @@ function renderActivityPatterns(){
 
   // Booked jobs by day of week (move date)
   const jobsDow=Array(7).fill(0);
-  // Aggressive dedupe — five protection layers, each independent:
-  //   1) id seen in completedJobs (already counted)
-  //   2) leadId already represented by a completed job (same lead, completed counterpart exists)
-  //   3) lead is missing entirely (orphan)
-  //   4) lead.status === 'New' (deleteBookedJob's fingerprint of a deleted booking)
-  //   5) past-dated booked record not in completedJobs (jobs in the past should be either
-  //      completed or removed; a past-dated record sitting in bookedJobs is almost always a ghost)
-  const _validLeadById=new Map();
-  (db.leads||[]).forEach(l=>{if(l&&l.id)_validLeadById.set(l.id,l);});
-  const _completedLeadIds=new Set();
-  const _completedIdSet=new Set();
-  db.completedJobs.forEach(j=>{
-    if(j&&j.leadId)_completedLeadIds.add(j.leadId);
-    if(j&&j.id)_completedIdSet.add(j.id);
-  });
-  const _todayStr=new Date().toISOString().split('T')[0];
-  const _seenIds=new Set();
-  const allJobs=[];
-  let _ghostCount=0;
-  db.completedJobs.forEach(j=>{
-    if(!j||!j.id)return;
-    if(_seenIds.has(j.id))return;
-    _seenIds.add(j.id);
-    allJobs.push(j);
-  });
-  db.bookedJobs.forEach(j=>{
-    if(!j||!j.id)return;
-    if(_seenIds.has(j.id)){_ghostCount++;return;}                          // protection 1
-    if(j.leadId&&_completedLeadIds.has(j.leadId)){_ghostCount++;return;}   // protection 2
-    if(j.leadId){
-      const _lead=_validLeadById.get(j.leadId);
-      if(!_lead){_ghostCount++;return;}                                     // protection 3
-      if(_lead.status==='New'){_ghostCount++;return;}                       // protection 4
-    }
-    if(j.date&&j.date<_todayStr&&!_completedIdSet.has(j.id)){_ghostCount++;return;} // protection 5
-    _seenIds.add(j.id);
-    allJobs.push(j);
-  });
-  window._lastFilteredCount=_ghostCount;
+  const allJobs=[...db.bookedJobs,...db.completedJobs];
   allJobs.forEach(j=>{if(j.date){const d=new Date(j.date+'T12:00:00');jobsDow[d.getDay()]++;}});
   const jobsDowMax=Math.max(...jobsDow,1);
   document.getElementById('jobs-by-dow').innerHTML=barChart(DAYS.map((d,i)=>[d,jobsDow[i]]),jobsDowMax,'var(--purple,#6c3483)');
@@ -7532,8 +7292,7 @@ function renderActivityPatterns(){
   const jobsMonth=Array(12).fill(0);
   allJobs.forEach(j=>{if(j.date){jobsMonth[new Date(j.date+'T12:00:00').getMonth()]++;}});
   const jobsMonthMax=Math.max(...jobsMonth,1);
-  const _filterTag='<div style="font-size:10.5px;color:var(--text3);margin-top:8px;text-align:right;font-family:DM Mono,monospace">analytics-filter '+APP_VERSION+(_ghostCount>0?' · filtered '+_ghostCount+' stale booked record'+(_ghostCount===1?'':'s'):'')+'</div>';
-  document.getElementById('jobs-by-month').innerHTML=barChart(MONTHS.map((m,i)=>[m,jobsMonth[i]]),jobsMonthMax,'var(--purple,#6c3483)')+_filterTag;
+  document.getElementById('jobs-by-month').innerHTML=barChart(MONTHS.map((m,i)=>[m,jobsMonth[i]]),jobsMonthMax,'var(--purple,#6c3483)');
 
   // Leads by week of year
   const leadsWeek={};
@@ -9518,34 +9277,6 @@ async function sendQuoteEmail(){
   const htmlBody='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;color:#1a1916"><div style="text-align:center;margin-bottom:28px"><div style="font-family:Georgia,serif;font-size:32px;font-weight:600">CareMore</div><div style="width:80%;height:2px;background:#4a9e6b;margin:8px auto"></div><div style="font-family:Georgia,serif;font-size:22px;font-style:italic">Moving &amp; Storage</div><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9e9b94;margin-top:6px">San Francisco, CA</div></div><div style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#444;margin-bottom:24px">'+body.replace(quoteLink,'').trim()+'</div>'+(quoteLink?'<div style="text-align:center;margin:32px 0"><a href="'+quoteLink+'" style="display:inline-block;background:#2d5a3d;color:#fff;text-decoration:none;padding:16px 48px;border-radius:8px;font-size:16px;font-weight:600">View Your Quote</a></div><p style="font-size:12px;color:#888;text-align:center">Or copy: <a href="'+quoteLink+'" style="color:#2d5a3d">'+quoteLink+'</a></p>':'')+'</div>';
   const btn=document.querySelector('#modal-quote-email .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Sending...';}
-  // ── Verify the quote is actually in the cloud BEFORE we email the customer ──
-  // The customer-facing quote.html on github.io fetches the quote from Supabase by publicId.
-  // If saveDB's debounced syncToSupabase hasn't fired yet (or failed), the cloud row doesn't exist
-  // and the customer's link falls back to the free-quote form. So we explicitly upload and verify here.
-  try{
-    const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
-    if(!q||!q.publicId){
-      throw new Error('Quote data is missing locally. Please rebuild the quote and try again.');
-    }
-    // Sanity-check that the body has the link the customer page expects
-    if(!quoteLink||!quoteLink.includes('id='+q.publicId)){
-      throw new Error('Quote link is missing or wrong in the email body. Please re-open the quote and resend.');
-    }
-    if(btn)btn.textContent='Saving quote to cloud...';
-    // Explicit upload — bypasses the 500ms debounce and tells us if it actually succeeded
-    await sbFetch('quotes','POST',[{id:q.id,data:q}]);
-    // Verify it actually exists by reading back the publicId
-    const check=await sbFetch('quotes?select=id&id=eq.'+encodeURIComponent(q.id),'GET');
-    if(!check||!Array.isArray(check)||!check.length){
-      throw new Error('Cloud confirmation failed — the quote did not save. Check your connection and try again.');
-    }
-    if(btn)btn.textContent='Sending...';
-  }catch(e){
-    console.error('[sendQuoteEmail] cloud sync failed:',e);
-    showToast('⚠ '+(e.message||'Could not save quote to cloud — email NOT sent.'));
-    if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
-    return;
-  }
   try{
     await loadEmailJS();
     await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,{
@@ -9639,8 +9370,9 @@ async function sendQuote(){
 
 function deleteQuote(id){
   if(!confirm('Delete this quote? This cannot be undone.'))return;
-  softDeleteRecord('quotes',db.quotes,id);
+  db.quotes=db.quotes.filter(q=>q.id!==id);
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  sbDelete('quotes',id);
   renderQuotes();showToast('Quote deleted');
 }
 
@@ -9883,10 +9615,10 @@ function deleteLead(id){
   const l=db.leads.find(x=>x.id===id);
   if(!l)return;
   if(!confirm('Delete '+l.name+'? This cannot be undone.'))return;
-  // Soft-delete: keeps a tombstone row in cloud so John's computer (and any other device) sees the
-  // deletion on its next sync. softDeleteRecord both marks tombstone locally and uploads.
-  softDeleteRecord('leads',db.leads,id);
+  db.leads=db.leads.filter(x=>x.id!==id);
+  // Save to localStorage and delete from Supabase without triggering a full sync
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  sbDelete('leads',id);
   closeModal('view');
   showToast('✓ Lead deleted — '+l.name);
   renderLeads();
@@ -11212,95 +10944,12 @@ function markDayDone(jobId,dayId){
 
 // ── END MULTI-DAY JOBS ──
 
-// ── REAL-TIME SYNC via Supabase Realtime ──
-// When either device makes a change in Supabase (any of leads/booked_jobs/completed_jobs/quotes),
-// the websocket subscription fires and we kick off a normal refreshFromSupabase(). This means the
-// other device sees the change in ~1 second instead of waiting up to 60 seconds for the next poll.
-// Multiple changes in a burst are debounced into a single refresh (1.5s window) to avoid thrashing.
-// Falls back gracefully to the existing 60s polling if the supabase-js library isn't available
-// or the websocket can't connect.
-let _realtimeChannel=null;
-let _realtimeRefreshTimer=null;
-function _scheduleRealtimeRefresh(reason){
-  if(_realtimeRefreshTimer)clearTimeout(_realtimeRefreshTimer);
-  _realtimeRefreshTimer=setTimeout(()=>{
-    _realtimeRefreshTimer=null;
-    if(typeof refreshFromSupabase==='function'){
-      console.log('[realtime] refreshing — '+reason);
-      refreshFromSupabase().catch(e=>console.warn('[realtime] refresh failed:',e));
-    }
-  },1500);
-}
-function setupRealtimeSync(retries){
-  retries=retries||0;
-  if(_realtimeChannel)return;
-  if(typeof window.supabase==='undefined'||!window.supabase.createClient){
-    if(retries<5){
-      console.warn('[realtime] supabase-js not loaded yet (try '+(retries+1)+'/5), retrying in 2s');
-      setTimeout(()=>setupRealtimeSync(retries+1),2000);
-    } else {
-      console.warn('[realtime] supabase-js failed to load — staying on 60s polling');
-    }
-    return;
-  }
-  try{
-    const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-    _realtimeChannel=client.channel('movedesk-changes')
-      .on('postgres_changes',{event:'*',schema:'public',table:'leads'},()=>_scheduleRealtimeRefresh('leads changed'))
-      .on('postgres_changes',{event:'*',schema:'public',table:'booked_jobs'},()=>_scheduleRealtimeRefresh('booked_jobs changed'))
-      .on('postgres_changes',{event:'*',schema:'public',table:'completed_jobs'},()=>_scheduleRealtimeRefresh('completed_jobs changed'))
-      .on('postgres_changes',{event:'*',schema:'public',table:'quotes'},()=>_scheduleRealtimeRefresh('quotes changed'))
-      .subscribe(status=>console.log('[realtime] subscription status:',status));
-  }catch(e){
-    console.warn('[realtime] setup failed (will keep polling):',e);
-    _realtimeChannel=null;
-  }
-}
-
-// ── AUTO-UPDATE CHECK ──
-// Every 5 minutes, fetch the live index.html from the same origin (with cache busting) and look
-// for the APP_VERSION constant. If the deployed version is newer than the one currently running,
-// show a non-intrusive banner offering to reload. The banner stays until the user clicks Reload
-// or dismisses it; we never reload automatically because that could lose unsaved input.
-async function checkForUpdate(){
-  try{
-    const res=await fetch(window.location.pathname+'?_v='+Date.now(),{cache:'no-store'});
-    if(!res.ok)return;
-    const text=await res.text();
-    const m=text.match(/APP_VERSION\s*=\s*'([^']+)'/);
-    if(!m)return;
-    const remoteVersion=m[1];
-    if(remoteVersion!==APP_VERSION){
-      console.log('[auto-update] new version available — current:',APP_VERSION,'remote:',remoteVersion);
-      _showUpdateBanner(remoteVersion);
-    }
-  }catch(e){
-    console.warn('[auto-update] check failed:',e);
-  }
-}
-function _showUpdateBanner(remoteVersion){
-  if(document.getElementById('mvd-update-banner'))return;
-  const banner=document.createElement('div');
-  banner.id='mvd-update-banner';
-  banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#2d5a3d;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:14px;font-family:DM Sans,sans-serif;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.15)';
-  banner.innerHTML=
-    '<span>🔄 A new version of MoveDesk is available ('+remoteVersion+'). Reload to apply.</span>'+
-    '<button onclick="location.reload(true)" style="background:#fff;color:#2d5a3d;border:none;padding:6px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12.5px">Reload now</button>'+
-    '<button onclick="document.getElementById(\'mvd-update-banner\').remove()" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12.5px">Later</button>';
-  document.body.appendChild(banner);
-}
-
 // App init — loadDB is now async
 window.deleteLead=deleteLead;
 (async function(){
   document.getElementById('page-title').textContent='Loading…';
   document.getElementById('page-sub').textContent='Connecting to database…';
   await loadDB();
-  // One-time data cleanup for fee labels with long parenthetical descriptions (see helper above).
-  // Marks itself done after first successful run, so this is a no-op on subsequent loads.
-  await _oneTimeFeeLabelCleanupV1();
-  // One-time cleanup of legacy booked/completed duplicates (same idempotent pattern).
-  await _oneTimeBookedCompletedDupCleanupV1();
   // Always rebuild customer list from leads and completed jobs
   // This ensures customers page is always complete regardless of Supabase state
   if(!db.customers)db.customers=[];
@@ -11315,11 +10964,6 @@ window.deleteLead=deleteLead;
   setInterval(checkAcceptedQuotes, 2*60*1000);
   document.getElementById('page-title').textContent='Dashboard';
   document.getElementById('page-sub').textContent='Your business at a glance';
-  // Start the websocket-based realtime sync (changes from other devices propagate in ~1s).
-  setupRealtimeSync();
-  // Check immediately and every 5 minutes for newer versions of this file on the host.
-  checkForUpdate();
-  setInterval(checkForUpdate,5*60*1000);
 })();
 </script>
 </body>
