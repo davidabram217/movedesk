@@ -3119,7 +3119,25 @@ function renderDashboard(){
     db.leads.filter(l=>l.status==='Booked'&&!bookedLeadIds.has(l.id)).forEach(l=>{
       l.status='Quote accepted';recovered=true;
     });
+    // Customer-accepted quotes via the public quote page mark the quote as accepted in Supabase.
+    // The CRM needs to notice and flip the corresponding lead's status from "Estimate sent"
+    // (or "Summary + rough quote") to "Quote accepted" so it shows up in the right place.
+    const _bumpableStatuses=['Estimate sent','Summary + rough quote','Need to send estimate','Estimate scheduled'];
+    db.leads.filter(l=>_bumpableStatuses.includes(l.status)).forEach(l=>{
+      const acceptedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted');
+      if(acceptedQ){
+        l.status='Quote accepted';
+        l.statusUpdatedAt=acceptedQ.acceptedAt?acceptedQ.acceptedAt.split('T')[0]:new Date().toISOString().split('T')[0];
+        recovered=true;
+        // Show a toast on next render so the user knows it happened
+        if(typeof window!=='undefined')window._customerAcceptedLead=l.name;
+      }
+    });
     if(recovered)saveDB();
+    // Surface a toast if a customer just accepted (only visible once)
+    if(typeof window!=='undefined'&&window._customerAcceptedLead&&typeof showToast==='function'){
+      setTimeout(()=>{showToast('🎉 '+window._customerAcceptedLead+' accepted the quote');delete window._customerAcceptedLead;},800);
+    }
   }
   const today=new Date().toISOString().split('T')[0];
   const tm=today.slice(0,7);
