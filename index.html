@@ -2308,6 +2308,22 @@ async function loadDB(){
     // (Removed: auto-flip-to-Completed self-heal. It was over-aggressive and silently
     // changed lead statuses based on name+date matches, which caused leads to disappear
     // unexpectedly. Users should manually mark leads as Completed.)
+    // Narrow self-heal — fixes the specific case where a lead has a booked job linked by
+    // leadId but the lead status was never advanced to "Booked" (e.g. checklist skipped).
+    // ONLY runs when the leadId match is direct — no name+date guessing.
+    const _bookedLeadIdSet=new Set((db.bookedJobs||[]).map(j=>j.leadId).filter(Boolean));
+    let _bookedFixed=0;
+    (db.leads||[]).forEach(l=>{
+      if(!l||!l.id||!_bookedLeadIdSet.has(l.id))return;
+      // Only flip if the lead's current status is pre-booked (not already terminal)
+      const _terminal=['Booked','Completed','Did not book'];
+      if(_terminal.includes(l.status))return;
+      l.status='Booked';
+      l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+      l._statusChangedAt=new Date().toISOString();
+      _bookedFixed++;
+    });
+    if(_bookedFixed)console.log('Self-healed '+_bookedFixed+' lead(s) to "Booked" status (had matching booked-jobs entry)');
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -5422,7 +5438,10 @@ function confirmBooking(){
     multiDay:isMultiDayQuote,quoteDays:isMultiDayQuote?leadQuote.days:[],quoteFees:leadQuote?leadQuote.fees||[]:[]
   };
   db.bookedJobs.push(job);
-  if(l)l.status='Quote accepted';
+  // Set lead status to "Booked" immediately so the lead disappears from the active leads list.
+  // Was previously "Quote accepted" until the post-booking checklist completed — but that
+  // left the lead visible in both Leads and Booked Jobs if the checklist was skipped.
+  if(l){l.status='Booked';l.statusUpdatedAt=new Date().toISOString().split('T')[0];}
   currentBookedJobId=job.id;
   window._bookingCalUrl=buildJobCalUrl(job);
   saveDB();closeModal('book-job');renderLeads();
