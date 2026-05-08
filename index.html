@@ -2359,6 +2359,22 @@ async function clearAllDataFromSupabase(){
 
 let _saveTimer=null;
 function saveDB(){
+  // Ensure every lead with a changed status has a fresh statusUpdatedAt — protects against
+  // status flips being overwritten by stale cloud data on next refresh
+  try{
+    const _prev=JSON.parse(localStorage.getItem('movedesk_db')||'{}');
+    const _prevById={};
+    (_prev.leads||[]).forEach(l=>{_prevById[l.id]=l;});
+    const _today=new Date().toISOString().split('T')[0];
+    (db.leads||[]).forEach(l=>{
+      if(!l||!l.id)return;
+      const before=_prevById[l.id];
+      if(before&&before.status!==l.status){
+        // Status was just changed locally — ensure statusUpdatedAt reflects this
+        l.statusUpdatedAt=_today;
+      }
+    });
+  }catch(_){}
   // Save to localStorage immediately as fast fallback
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   // Debounce Supabase saves to avoid hammering the API
@@ -2510,7 +2526,7 @@ async function refreshFromSupabase(){
     const completedResFiltered=applyTombstones(completedRes,'completed_jobs');
     // Merge — update db with any records newer than our last sync
     let updated=0;
-    function mergeTable(remote,localArr,key='id'){
+    function mergeTable(remote,localArr,key='id',table=null){
       if(!remote||!Array.isArray(remote))return localArr;
       const localMap={};
       localArr.forEach(r=>{localMap[r[key]]=r;});
@@ -2519,9 +2535,20 @@ async function refreshFromSupabase(){
         const id=rec[key]||row[key];
         if(!id)return;
         const local=localMap[id];
-        // Use remote if: not local, or remote updated_at is newer
         const remoteTime=row.updated_at||row.inserted_at||'';
         const localTime=local?._syncedAt||'';
+        // For leads specifically — prefer whichever version has a more recent statusUpdatedAt.
+        // This protects local status changes (like "Did not book") from being overwritten
+        // when the cloud row hasn't been refreshed yet OR when sync race conditions occur.
+        if(table==='leads'&&local&&rec){
+          const localStatusTs=local.statusUpdatedAt||local.createdAt||'';
+          const remoteStatusTs=rec.statusUpdatedAt||rec.createdAt||'';
+          if(localStatusTs>remoteStatusTs){
+            // Keep local — it has a newer status. Don't overwrite.
+            return;
+          }
+        }
+        // Use remote if: not local, or remote updated_at is newer than our last sync
         if(!local||(remoteTime&&remoteTime>localTime)){
           localMap[id]={...rec,_syncedAt:remoteTime};
           if(!local)updated++;
@@ -2530,7 +2557,7 @@ async function refreshFromSupabase(){
       });
       return Object.values(localMap);
     }
-    db.leads=mergeTable(leadsResFiltered,db.leads);
+    db.leads=mergeTable(leadsResFiltered,db.leads,'id','leads');
     // Final safety net: also strip any tombstoned IDs that survived merge somehow
     if(Object.keys(_allTombstones.leads).length){
       const before=db.leads.length;
@@ -4557,6 +4584,7 @@ function confirmDidNotBook(){
   const stage=document.getElementById('dnb-stage').value;
   if(!stage){showToast('Please select where we lost them');return;}
   l.status='Did not book';
+  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
   l.dnbStage=stage;
   l.dnbReason=document.getElementById('dnb-reason').value;
   l.dnbNotes=document.getElementById('dnb-notes').value;
