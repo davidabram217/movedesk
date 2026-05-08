@@ -2234,10 +2234,17 @@ async function loadDB(){
       const c=cloudById.get(id);const lc=localById.get(id);
       if(!c)return lc;
       if(!lc)return c;
-      // Both exist — prefer the one whose status was last updated more recently
+      // Both exist — prefer the one whose status was last updated more recently.
+      // Use _statusChangedAt (ISO timestamp) when available, fall back to statusUpdatedAt
+      // (date-only) for legacy records. For ties, prefer local.
+      const cIso=c._statusChangedAt||'';
+      const lIso=lc._statusChangedAt||'';
+      if(cIso&&lIso){
+        return lIso>=cIso?lc:c;
+      }
       const cTs=c.statusUpdatedAt||c.createdAt||'';
       const lTs=lc.statusUpdatedAt||lc.createdAt||'';
-      return lTs>cTs?lc:c;
+      return lTs>=cTs?lc:c;
     });
     // Apply tombstones for booked + completed jobs — same protection leads have
     let _bookedTombs={},_completedTombs={};
@@ -2366,12 +2373,15 @@ function saveDB(){
     const _prevById={};
     (_prev.leads||[]).forEach(l=>{_prevById[l.id]=l;});
     const _today=new Date().toISOString().split('T')[0];
+    const _nowIso=new Date().toISOString();
     (db.leads||[]).forEach(l=>{
       if(!l||!l.id)return;
       const before=_prevById[l.id];
       if(before&&before.status!==l.status){
-        // Status was just changed locally — ensure statusUpdatedAt reflects this
+        // Status was just changed locally — bump both the date-only field (used by display
+        // logic) AND the full-ISO field (used for sub-day-precision tiebreaking)
         l.statusUpdatedAt=_today;
+        l._statusChangedAt=_nowIso;
       }
     });
   }catch(_){}
@@ -2537,15 +2547,18 @@ async function refreshFromSupabase(){
         const local=localMap[id];
         const remoteTime=row.updated_at||row.inserted_at||'';
         const localTime=local?._syncedAt||'';
-        // For leads specifically — prefer whichever version has a more recent statusUpdatedAt.
-        // This protects local status changes (like "Did not book") from being overwritten
-        // when the cloud row hasn't been refreshed yet OR when sync race conditions occur.
+        // For leads specifically — prefer whichever version has a more recent status change.
+        // Use _statusChangedAt (full ISO timestamp) as primary tiebreaker, fall back to
+        // statusUpdatedAt (date-only) for older records that don't have the new field yet.
         if(table==='leads'&&local&&rec){
-          const localStatusTs=local.statusUpdatedAt||local.createdAt||'';
-          const remoteStatusTs=rec.statusUpdatedAt||rec.createdAt||'';
-          if(localStatusTs>remoteStatusTs){
-            // Keep local — it has a newer status. Don't overwrite.
-            return;
+          const localStatusIso=local._statusChangedAt||'';
+          const remoteStatusIso=rec._statusChangedAt||'';
+          if(localStatusIso&&remoteStatusIso){
+            if(localStatusIso>=remoteStatusIso)return;
+          } else {
+            const localStatusTs=local.statusUpdatedAt||local.createdAt||'';
+            const remoteStatusTs=rec.statusUpdatedAt||rec.createdAt||'';
+            if(localStatusTs>=remoteStatusTs)return;
           }
         }
         // Use remote if: not local, or remote updated_at is newer than our last sync
