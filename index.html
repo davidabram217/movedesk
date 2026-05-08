@@ -3744,6 +3744,27 @@ function renderLeadsTable(){
     if(l.name&&l.date&&_completedNameDate.has(key))return false;
     return true;
   });
+  // Sort by status using pipeline workflow order (New first, Confirmation sent last),
+  // then by move date (soonest first) within each status group.
+  const _statusOrder={
+    'New':1,
+    'Need to follow up':2,
+    'Need to send summary':3,
+    'Summary sent':4,
+    'Summary + rough quote':5,
+    'Estimate scheduled':6,
+    'Need to send estimate':7,
+    'Estimate sent':8,
+    'Quote accepted':9,
+    'Confirmation sent':10
+  };
+  leads.sort((a,b)=>{
+    const aOrd=_statusOrder[a.status]||99;
+    const bOrd=_statusOrder[b.status]||99;
+    if(aOrd!==bOrd)return aOrd-bOrd;
+    // Within same status — soonest move date first
+    return (a.date||'').localeCompare(b.date||'');
+  });
   if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td><td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
 }
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
