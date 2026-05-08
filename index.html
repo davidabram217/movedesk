@@ -3737,11 +3737,20 @@ function renderLeadsTable(){
   const _completedNameDate=new Set((db.completedJobs||[]).map(j=>(j.name||'').toLowerCase().trim()+'|'+(j.date||'')));
   let leads=db.leads.filter(l=>{
     if(l.status==='Did not book'||l.status==='Booked'||l.status==='Completed')return false;
-    if(_bookedLeadIds.has(l.id))return false;
-    if(_completedLeadIds.has(l.id))return false;
+    if(_bookedLeadIds.has(l.id)){
+      console.log('[Leads filter] Hiding "'+l.name+'" — has matching booked job (leadId='+l.id+')');
+      return false;
+    }
+    if(_completedLeadIds.has(l.id)){
+      console.log('[Leads filter] Hiding "'+l.name+'" — has matching completed job by leadId');
+      return false;
+    }
     // Fallback: name + date matches a completed job — the link may have been lost
     const key=(l.name||'').toLowerCase().trim()+'|'+(l.date||'');
-    if(l.name&&l.date&&_completedNameDate.has(key))return false;
+    if(l.name&&l.date&&_completedNameDate.has(key)){
+      console.log('[Leads filter] Hiding "'+l.name+'" — name+date matches a completed job');
+      return false;
+    }
     return true;
   });
   // Sort by status using pipeline workflow order (New first, Confirmation sent last),
@@ -3918,6 +3927,32 @@ const roughQuoteBlock=l.roughQuoteDate?`<div style="margin-top:10px;padding:10px
 </div>`;
 document.getElementById('view-modal-footer').innerHTML=`
   <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+    ${(()=>{
+      // Diagnostic: detect when this lead is being filtered out of the Leads list because it
+      // has a matching booked or completed job. Show the user what's happening + an option
+      // to clean up phantom records that shouldn't exist.
+      const _isActiveStatus=!['Did not book','Booked','Completed'].includes(l.status);
+      if(!_isActiveStatus)return '';
+      const _myBooked=(db.bookedJobs||[]).filter(j=>j.leadId===l.id);
+      const _myCompletedById=(db.completedJobs||[]).filter(j=>j.leadId===l.id);
+      const _key=(l.name||'').toLowerCase().trim()+'|'+(l.date||'');
+      const _myCompletedByName=l.name&&l.date?(db.completedJobs||[]).filter(j=>((j.name||'').toLowerCase().trim()+'|'+(j.date||''))===_key&&!_myCompletedById.find(c=>c.id===j.id)):[];
+      if(!_myBooked.length&&!_myCompletedById.length&&!_myCompletedByName.length)return '';
+      const allReasons=[];
+      _myBooked.forEach(j=>allReasons.push({type:'booked',id:j.id,label:'Booked job · '+fmtDate(j.date),idLabel:j.id}));
+      _myCompletedById.forEach(j=>allReasons.push({type:'completed',id:j.id,label:'Completed job · '+fmtDate(j.date),idLabel:j.id}));
+      _myCompletedByName.forEach(j=>allReasons.push({type:'completed',id:j.id,label:'Completed job · '+fmtDate(j.date)+' (matched by name+date)',idLabel:j.id}));
+      return `<div style="padding:9px 11px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12px">
+        <div style="font-weight:600;color:#b7860b;margin-bottom:5px">⚠ This lead is being hidden from the active Leads list</div>
+        <div style="color:var(--text2);margin-bottom:6px">It has ${allReasons.length} matching record${allReasons.length>1?'s':''} that automatically hide it. If any of these are wrong, you can remove them:</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${allReasons.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 7px;background:rgba(255,255,255,0.5);border-radius:3px">
+            <span style="font-size:11.5px;color:var(--text2)">${r.label}</span>
+            <button class="btn btn-secondary btn-sm" style="font-size:11px;color:#c0392b;border-color:#c0392b" onclick="removePhantom${r.type==='booked'?'Booked':'Completed'}('${r.id}','${l.id}')">Remove</button>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    })()}
     ${roughQuoteBlock}
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
@@ -3929,6 +3964,35 @@ document.getElementById('view-modal-footer').innerHTML=`
     <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
   </div>`;
 openModal('view');}catch(err){console.error('viewLead failed for id',id,err);showToast('⚠ Could not open this lead — '+(err&&err.message?err.message:'unknown error')+' (check console)');}}
+
+function removePhantomBooked(bookedId,leadId){
+  const j=(db.bookedJobs||[]).find(x=>x.id===bookedId);
+  if(!j){showToast('Already removed');return;}
+  if(!confirm('Remove this booked job for "'+(j.name||'?')+'" ('+fmtDate(j.date||'')+')? This will also tombstone it so it can\u2019t come back via cloud sync.'))return;
+  db.bookedJobs=db.bookedJobs.filter(x=>x.id!==bookedId);
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+    tombstones[bookedId]=new Date().toISOString();
+    localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
+  try{sbDelete('booked_jobs',bookedId);}catch(_){}
+  saveDB();showToast('✓ Phantom booked job removed');closeModal('view');
+  setTimeout(()=>{viewLead(leadId);renderLeads();},120);
+}
+function removePhantomCompleted(completedId,leadId){
+  const j=(db.completedJobs||[]).find(x=>x.id===completedId);
+  if(!j){showToast('Already removed');return;}
+  if(!confirm('Remove this completed job for "'+(j.name||'?')+'" ('+fmtDate(j.date||'')+')? This will also tombstone it so it can\u2019t come back via cloud sync.'))return;
+  db.completedJobs=db.completedJobs.filter(x=>x.id!==completedId);
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_completed_tombstones')||'{}');
+    tombstones[completedId]=new Date().toISOString();
+    localStorage.setItem('movedesk_completed_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
+  try{sbDelete('completed_jobs',completedId);}catch(_){}
+  saveDB();showToast('✓ Phantom completed job removed');closeModal('view');
+  setTimeout(()=>{viewLead(leadId);renderLeads();},120);
+}
 
 function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';l.statusUpdatedAt=new Date().toISOString().split('T')[0];
 // Also mark the linked quote as accepted
