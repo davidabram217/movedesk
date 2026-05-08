@@ -8792,7 +8792,14 @@ function parkingOpts(cur){
 function updateQbDay(id,field,val){
   const d=qbDays.find(x=>x.id===id);
   if(!d)return;
-  d[field]=['crew','hrsMin','hrsMax','rate'].includes(field)?Number(val)||0:val;
+  if(field==='flatRate'){
+    // Boolean toggle — accept both real bools and the string version
+    d.flatRate=(val===true||val==='true');
+  } else if(['crew','hrsMin','hrsMax','rate','flatPrice','flatPriceCash','flatHrs','packCrewSize','packRate','packHrsMin','packHrsMax'].includes(field)){
+    d[field]=val===''||val==null?'':Number(val)||0;
+  } else {
+    d[field]=val;
+  }
   updateQbTotal();
   qbAutoSave();
 }
