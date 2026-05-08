@@ -2214,8 +2214,25 @@ async function loadDB(){
       const lTs=lc.statusUpdatedAt||lc.createdAt||'';
       return lTs>cTs?lc:c;
     });
-    db.bookedJobs=(bookedJobs||[]).map(r=>({...r.data,id:r.id}));
-    db.completedJobs=(completedJobs||[]).map(r=>({...r.data,id:r.id}));
+    // Apply tombstones for booked + completed jobs — same protection leads have
+    let _bookedTombs={},_completedTombs={};
+    try{_bookedTombs=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');}catch(_){}
+    try{_completedTombs=JSON.parse(localStorage.getItem('movedesk_completed_tombstones')||'{}');}catch(_){}
+    // Drop tombstones older than 30 days
+    const _now2=Date.now();
+    Object.keys(_bookedTombs).forEach(tid=>{
+      if(_now2-new Date(_bookedTombs[tid]).getTime()>30*24*60*60*1000)delete _bookedTombs[tid];
+    });
+    Object.keys(_completedTombs).forEach(tid=>{
+      if(_now2-new Date(_completedTombs[tid]).getTime()>30*24*60*60*1000)delete _completedTombs[tid];
+    });
+    try{localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(_bookedTombs));}catch(_){}
+    try{localStorage.setItem('movedesk_completed_tombstones',JSON.stringify(_completedTombs));}catch(_){}
+    // For each tombstoned ID still present in cloud, re-issue the delete
+    (bookedJobs||[]).forEach(r=>{if(_bookedTombs[r.id]){try{sbDelete('booked_jobs',r.id);}catch(_){}}});
+    (completedJobs||[]).forEach(r=>{if(_completedTombs[r.id]){try{sbDelete('completed_jobs',r.id);}catch(_){}}});
+    db.bookedJobs=(bookedJobs||[]).filter(r=>!_bookedTombs[r.id]).map(r=>({...r.data,id:r.id}));
+    db.completedJobs=(completedJobs||[]).filter(r=>!_completedTombs[r.id]).map(r=>({...r.data,id:r.id}));
     db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id}));
     db.employees=(employees||[]).map(r=>({...r.data,id:r.id}));
     // Payroll weeks keyed by week_key
@@ -2436,25 +2453,36 @@ async function refreshFromSupabase(){
       sbFetch('completed_jobs','GET'),
       sbFetch('quotes','GET'),
     ]);
-    // Load lead tombstones — IDs deleted locally that must NOT be merged back from cloud
-    let _tombstones={};
-    try{_tombstones=JSON.parse(localStorage.getItem('movedesk_lead_tombstones')||'{}');}catch(_){}
-    // Drop any cloud lead row whose id is tombstoned, and re-issue the delete (best effort)
-    if(Array.isArray(leadsRes)&&Object.keys(_tombstones).length){
+    // Load tombstones for every table we sync — IDs deleted locally that must NOT be merged back
+    const _tombstoneStores={
+      leads:'movedesk_lead_tombstones',
+      booked_jobs:'movedesk_booked_tombstones',
+      completed_jobs:'movedesk_completed_tombstones'
+    };
+    const _allTombstones={};
+    Object.keys(_tombstoneStores).forEach(table=>{
+      try{_allTombstones[table]=JSON.parse(localStorage.getItem(_tombstoneStores[table])||'{}');}
+      catch(_){_allTombstones[table]={};}
+    });
+    // Strip tombstoned rows from each cloud response and re-issue the cloud delete (best effort)
+    function applyTombstones(rows,table){
+      const tombs=_allTombstones[table];
+      if(!Array.isArray(rows)||!Object.keys(tombs).length)return rows;
       const _deletedFromCloud=[];
-      const _filtered=leadsRes.filter(row=>{
+      const _filtered=rows.filter(row=>{
         const recId=(row.data&&row.data.id)||row.id;
-        if(recId&&_tombstones[recId]){
+        if(recId&&tombs[recId]){
           _deletedFromCloud.push(recId);
           return false;
         }
         return true;
       });
-      _deletedFromCloud.forEach(id=>{try{sbDelete('leads',id);}catch(_){}});
-      // Replace leadsRes content
-      leadsRes.length=0;
-      _filtered.forEach(r=>leadsRes.push(r));
+      _deletedFromCloud.forEach(id=>{try{sbDelete(table,id);}catch(_){}});
+      return _filtered;
     }
+    const leadsResFiltered=applyTombstones(leadsRes,'leads');
+    const bookedResFiltered=applyTombstones(bookedRes,'booked_jobs');
+    const completedResFiltered=applyTombstones(completedRes,'completed_jobs');
     // Merge — update db with any records newer than our last sync
     let updated=0;
     function mergeTable(remote,localArr,key='id'){
@@ -2477,15 +2505,25 @@ async function refreshFromSupabase(){
       });
       return Object.values(localMap);
     }
-    db.leads=mergeTable(leadsRes,db.leads);
+    db.leads=mergeTable(leadsResFiltered,db.leads);
     // Final safety net: also strip any tombstoned IDs that survived merge somehow
-    if(Object.keys(_tombstones).length){
+    if(Object.keys(_allTombstones.leads).length){
       const before=db.leads.length;
-      db.leads=db.leads.filter(l=>!_tombstones[l.id]);
+      db.leads=db.leads.filter(l=>!_allTombstones.leads[l.id]);
       if(db.leads.length<before)updated++;
     }
-    db.bookedJobs=mergeTable(bookedRes,db.bookedJobs);
-    db.completedJobs=mergeTable(completedRes,db.completedJobs);
+    db.bookedJobs=mergeTable(bookedResFiltered,db.bookedJobs);
+    if(Object.keys(_allTombstones.booked_jobs).length){
+      const before=db.bookedJobs.length;
+      db.bookedJobs=db.bookedJobs.filter(j=>!_allTombstones.booked_jobs[j.id]);
+      if(db.bookedJobs.length<before)updated++;
+    }
+    db.completedJobs=mergeTable(completedResFiltered,db.completedJobs);
+    if(Object.keys(_allTombstones.completed_jobs).length){
+      const before=db.completedJobs.length;
+      db.completedJobs=db.completedJobs.filter(j=>!_allTombstones.completed_jobs[j.id]);
+      if(db.completedJobs.length<before)updated++;
+    }
     db.quotes=mergeTable(quotesRes,db.quotes||[]);
     if(updated>0){
       // Save merged data to localStorage
@@ -5355,6 +5393,12 @@ function deleteBookedJob(id){
   const j=db.bookedJobs.find(x=>x.id===id);
   if(j&&j.leadId){const l=db.leads.find(x=>x.id===j.leadId);if(l&&l.status==='Booked')l.status='New';}
   db.bookedJobs=db.bookedJobs.filter(j=>j.id!==id);
+  // Tombstone the deletion so cloud sync can't bring it back
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+    tombstones[id]=new Date().toISOString();
+    localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('booked_jobs',id);
   renderBooked();showToast('Booked job deleted');
@@ -5845,6 +5889,12 @@ let compFilter={text:'',crew:'',source:'',paid:''};
 function deleteCompletedJob(id){
   if(!confirm('Delete this completed job? This cannot be undone.'))return;
   db.completedJobs=db.completedJobs.filter(j=>j.id!==id);
+  // Tombstone the deletion so cloud sync can't bring it back
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_completed_tombstones')||'{}');
+    tombstones[id]=new Date().toISOString();
+    localStorage.setItem('movedesk_completed_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   sbDelete('completed_jobs',id);
   renderCompleted();showToast('Job deleted');
