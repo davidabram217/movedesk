@@ -2776,7 +2776,7 @@ function extractLeadFromText(text){
   return out;
 }
 
-function parsePasteToLead(){
+async function parsePasteToLead(){
   const text=(document.getElementById('ptl-text').value||'').trim();
   const statusEl=document.getElementById('ptl-status');
   const previewEl=document.getElementById('ptl-preview');
@@ -2784,14 +2784,42 @@ function parsePasteToLead(){
   if(!text){statusEl.textContent='Please paste some text first.';statusEl.style.color='var(--error)';return;}
   if(text.length<20){statusEl.textContent='That looks too short — paste more context.';statusEl.style.color='var(--error)';return;}
 
+  btn.disabled=true;
+  btn.innerHTML='⏳ Reading…';
+  statusEl.textContent='Asking Claude to extract details…';
+  statusEl.style.color='var(--text3)';
+
   let extracted;
   try{
-    extracted=extractLeadFromText(text);
+    // Call our Supabase Edge Function which proxies to Anthropic with our API key
+    const response=await fetch(SUPABASE_URL+'/functions/v1/parse-lead',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+SUPABASE_KEY,
+        'apikey':SUPABASE_KEY
+      },
+      body:JSON.stringify({text})
+    });
+    const data=await response.json();
+    if(!response.ok||!data.ok){
+      throw new Error(data.error||('Edge function error '+response.status));
+    }
+    extracted=data.extracted;
   }catch(e){
-    console.error('Extract error:',e);
-    statusEl.textContent='Sorry — couldn\u2019t parse that. You can still fill the form manually.';
-    statusEl.style.color='var(--error)';
-    return;
+    console.error('Paste-to-lead error:',e);
+    // Fall back to local regex parser if the edge function fails
+    statusEl.textContent='⚠ Cloud parsing failed ('+(e.message||'unknown')+'). Falling back to basic parser…';
+    statusEl.style.color='var(--amber)';
+    try{
+      extracted=extractLeadFromText(text);
+    }catch(e2){
+      statusEl.textContent='Sorry — couldn\u2019t parse that. You can still fill the form manually.';
+      statusEl.style.color='var(--error)';
+      btn.disabled=false;
+      btn.innerHTML='✨ Try again →';
+      return;
+    }
   }
 
   // Build the friendly preview
@@ -2800,8 +2828,8 @@ function parsePasteToLead(){
   if(extracted.phone)found.push(['Phone',extracted.phone]);
   if(extracted.email)found.push(['Email',extracted.email]);
   if(extracted.moveDate)found.push(['Move date',extracted.moveDate]);
-  if(extracted.fromAddress)found.push(['From',(extracted.fromAddress||'')+(extracted.fromZip?' '+extracted.fromZip:'')]);
-  if(extracted.toAddress)found.push(['To',(extracted.toAddress||'')+(extracted.toZip?' '+extracted.toZip:'')]);
+  if(extracted.fromAddress)found.push(['From',(extracted.fromAddress||'')+(extracted.fromCity?', '+extracted.fromCity:'')+(extracted.fromZip?' '+extracted.fromZip:'')]);
+  if(extracted.toAddress)found.push(['To',(extracted.toAddress||'')+(extracted.toCity?', '+extracted.toCity:'')+(extracted.toZip?' '+extracted.toZip:'')]);
   if(extracted.size)found.push(['Size',extracted.size]);
   if(extracted.moveType)found.push(['Move type',extracted.moveType]);
   if(extracted.source)found.push(['Source',extracted.source+(extracted.sourceDetail?' ('+extracted.sourceDetail+')':'')]);
@@ -2812,6 +2840,8 @@ function parsePasteToLead(){
   if(!found.length){
     statusEl.textContent='Couldn\u2019t find any lead info. Try a longer or more detailed message — names, phone numbers, addresses, dates work best.';
     statusEl.style.color='var(--amber)';
+    btn.disabled=false;
+    btn.innerHTML='✨ Try again →';
     return;
   }
 
@@ -2828,9 +2858,9 @@ function parsePasteToLead(){
           <td style="padding:3px 0;color:var(--text);font-weight:500">${String(v).replace(/</g,'&lt;')}</td>
         </tr>`).join('')}
       </table>
-      <div style="margin-top:8px;font-size:11px;color:var(--text3);font-style:italic">Note: this is a basic pattern-matcher. Anything it missed, just type into the form below after applying.</div>
     </div>
   `;
+  btn.disabled=false;
   btn.innerHTML='✓ Apply to form →';
   btn.onclick=()=>applyPastedToForm(extracted);
 }
