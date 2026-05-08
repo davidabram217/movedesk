@@ -2587,8 +2587,17 @@ document.addEventListener('visibilitychange',function(){
 });
 const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type']};
 function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();}
-// Paste-to-lead: takes free-form text (email, SMS, notes) and uses the Anthropic API to
-// extract structured lead fields, then auto-fills the New Lead form for review.
+// Paste-to-lead: takes free-form text (email, SMS, notes) and extracts structured lead fields
+// using regex pattern matching, then auto-fills the New Lead form for review.
+//
+// FUTURE UPGRADE PATH: This currently uses regex which catches well-formatted info but misses
+// things buried in conversational text. A smarter version would call the Anthropic API via a
+// Supabase Edge Function (the API can't be called directly from the browser due to CORS + the
+// security risk of embedding the API key in client-side code). To upgrade:
+//   1. Create a Supabase Edge Function that proxies to api.anthropic.com with a stored secret
+//   2. Replace parsePasteToLead's body with a fetch() to that edge function URL
+//   3. Use the existing buildPasteExtractPreview() to render the result
+// Estimated cost: ~1¢ per paste, ~$1/month for 100 pastes. Free tier covers it.
 function openPasteToLead(){
   document.getElementById('ptl-text').value='';
   document.getElementById('ptl-status').textContent='';
@@ -2597,123 +2606,233 @@ function openPasteToLead(){
   const btn=document.getElementById('ptl-parse-btn');
   btn.disabled=false;
   btn.innerHTML='✨ Extract info →';
+  btn.onclick=parsePasteToLead;
   openModal('paste-to-lead');
   setTimeout(()=>document.getElementById('ptl-text').focus(),100);
 }
 
-async function parsePasteToLead(){
+// Local regex-based extraction. No network needed, no API costs, instant.
+function extractLeadFromText(text){
+  const out={};
+  if(!text||typeof text!=='string')return out;
+  const t=text.trim();
+
+  // Phone — flexible patterns: (415) 555-0123, 415-555-0123, 415.555.0123, 4155550123, +1 415 555 0123
+  const phoneMatch=t.match(/(?:\+?1[\s.-]?)?\(?([2-9]\d{2})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})/);
+  if(phoneMatch)out.phone='('+phoneMatch[1]+') '+phoneMatch[2]+'-'+phoneMatch[3];
+
+  // Email
+  const emailMatch=t.match(/[\w.+-]+@[\w-]+\.[\w-]+(?:\.[\w-]+)*/);
+  if(emailMatch)out.email=emailMatch[0].toLowerCase().replace(/[.,;:!?]+$/,'');
+
+  // Name — try several signals in priority order
+  // 1. "From: [Name]" or "Name: [Name]" headers
+  let nameMatch=t.match(/^(?:From|Name)\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/m);
+  // 2. "I'm [Name]" / "My name is [Name]" / "This is [Name]"
+  if(!nameMatch)nameMatch=t.match(/(?:I'?m|My name is|This is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  // 3. Email signoff: "Thanks, [Name]" / "Best, [Name]" / etc., with optional newline OR dash separator
+  if(!nameMatch)nameMatch=t.match(/(?:Thanks|Best|Sincerely|Regards|Cheers|Thank you)[!,]?\s*[\n\r-]+\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
+  // 4. "- [Name]" at end of message
+  if(!nameMatch)nameMatch=t.match(/(?:^|\n)\s*[-–—]\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*$/m);
+  // 5. Standalone name on a line near the end (last 3 lines, capitalized words only)
+  if(!nameMatch){
+    const lines=t.split('\n').map(l=>l.trim()).filter(Boolean);
+    const tail=lines.slice(-3);
+    for(const line of tail){
+      if(line.length>40)continue;
+      const m=line.match(/^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?(?:\s+[A-Z][a-z]+)+)$/);
+      if(m){nameMatch=[null,m[1]];break;}
+    }
+  }
+  if(nameMatch&&nameMatch[1])out.name=nameMatch[1].trim();
+
+  // ZIP codes — find all 5-digit numbers that look like ZIPs (94110, 94612, etc.)
+  const zips=Array.from(t.matchAll(/\b(\d{5})\b/g)).map(m=>m[1]).filter(z=>z>='90000'&&z<='99999'||z>='80000'&&z<='99999'); // CA-ish range
+  // Simpler: just any 5-digit number context check
+  const allZips=Array.from(t.matchAll(/\b\d{5}\b/g)).map(m=>m[0]);
+  if(allZips[0])out.fromZip=allZips[0];
+  if(allZips[1])out.toZip=allZips[1];
+
+  // Move date — "May 24", "May 24 2026", "5/24/26", "5-24-2026", "next Saturday", "in 2 weeks"
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthIdx={};monthNames.forEach((m,i)=>{monthIdx[m.toLowerCase()]=i;monthIdx[m.toLowerCase().slice(0,3)]=i;});
+  const today=new Date();
+  // Pattern: May 24 or May 24, 2026
+  const dateNamed=t.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+(\d{1,2})(?:(?:st|nd|rd|th))?(?:,?\s+(\d{4}))?/i);
+  if(dateNamed){
+    const m=monthIdx[dateNamed[1].toLowerCase()];
+    const d=parseInt(dateNamed[2]);
+    let y=dateNamed[3]?parseInt(dateNamed[3]):today.getFullYear();
+    // If date is in the past for this year, assume next year
+    const candidate=new Date(y,m,d);
+    if(!dateNamed[3]&&candidate<today)y++;
+    out.moveDate=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  } else {
+    // MM/DD/YYYY or MM/DD/YY or MM-DD-YYYY
+    const dateNum=t.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?\b/);
+    if(dateNum){
+      const m=parseInt(dateNum[1]);
+      const d=parseInt(dateNum[2]);
+      let y=dateNum[3]?parseInt(dateNum[3]):today.getFullYear();
+      if(y<100)y+=2000;
+      if(m>=1&&m<=12&&d>=1&&d<=31){
+        out.moveDate=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      }
+    }
+  }
+  // "next Saturday" / "this Friday" / "tomorrow"
+  if(!out.moveDate){
+    const days=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const dayMatch=t.toLowerCase().match(/\b(?:next|this)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/);
+    if(dayMatch){
+      const target=days.indexOf(dayMatch[1]);
+      const cur=today.getDay();
+      let diff=target-cur;
+      if(diff<=0||t.toLowerCase().includes('next '+dayMatch[1]))diff+=7;
+      const d=new Date(today);d.setDate(d.getDate()+diff);
+      out.moveDate=d.toISOString().split('T')[0];
+    } else if(/\btomorrow\b/i.test(t)){
+      const d=new Date(today);d.setDate(d.getDate()+1);
+      out.moveDate=d.toISOString().split('T')[0];
+    }
+  }
+
+  // Addresses — "from <X> to <Y>" pattern (most common in moving emails)
+  // Tightened to capture only the actual street address (digits + street name + suffix)
+  const addrCore='(\\d+\\s+[A-Z][A-Za-z]*(?:\\s+[A-Z][A-Za-z]*){0,4}\\s+(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Way|Ln|Lane|Ct|Court|Pl|Place|Pkwy|Hwy|Highway|Ter|Terrace)\\.?)';
+  const fromTo=t.match(new RegExp('from\\s+(?:[\\w\\s]*?at\\s+)?'+addrCore+'\\s+(?:to|->|→|moving\\s+to)\\s+(?:[\\w\\s]*?at\\s+)?'+addrCore,'i'));
+  if(fromTo){
+    out.fromAddress=fromTo[1].trim();
+    out.toAddress=fromTo[2].trim();
+  } else {
+    // Try individual address patterns
+    const addrs=Array.from(t.matchAll(new RegExp('\\b'+addrCore+'\\b','gi'))).map(m=>m[1].trim());
+    if(addrs[0])out.fromAddress=addrs[0];
+    if(addrs[1])out.toAddress=addrs[1];
+  }
+
+  // Home size — Studio, 1BR, 2 bedroom, etc
+  const sizeMatch=t.match(/\b(studio|(\d+)\s*(?:br|bdr|bed(?:room)?s?))\b/i);
+  if(sizeMatch){
+    const lower=sizeMatch[0].toLowerCase();
+    if(lower.includes('studio'))out.size='Studio';
+    else{
+      const n=parseInt(sizeMatch[2]);
+      if(n===1)out.size='1 Bedroom';
+      else if(n===2)out.size='2 Bedroom';
+      else if(n===3)out.size='3 Bedroom';
+      else if(n>=4)out.size='4+ Bedroom';
+    }
+  } else if(/\boffice\b/i.test(t))out.size='Office';
+
+  // Move type
+  if(/\bpack(?:ing)?\s+(?:and|&)\s+move\b|\bmove\s+(?:and|&)\s+pack\b|\bfull\s+pack\b/i.test(t))out.moveType='Move & Pack';
+  else if(/\bpack\s+only\b|\bjust\s+packing\b/i.test(t))out.moveType='Pack only';
+  else if(/\blong[\s-]?distance\b|\binter[\s-]?state\b/i.test(t))out.moveType='Long distance';
+  else if(/\bstorage\b/i.test(t))out.moveType='Storage';
+
+  // Storage flag
+  if(/\b(?:need|want|require)s?\s+storage\b|\bstorage\s+(?:needed|required)\b/i.test(t))out.storage=true;
+
+  // Packing service
+  if(/\bfull\s+pack\b/i.test(t))out.packing='Full pack';
+  else if(/\bpartial\s+pack\b/i.test(t))out.packing='Partial pack';
+  else if(/\bkitchen\s+(?:only|pack)\b/i.test(t))out.packing='Kitchen only';
+
+  // Source — Yelp, Google, etc.
+  const sources=['Yelp','Google','ChatGPT','Thumbtack','Referral','Realtor','Building','Social media','Instagram','Facebook'];
+  for(const s of sources){
+    if(new RegExp('\\b'+s+'\\b','i').test(t)){
+      // Map common variants
+      if(s==='Instagram'||s==='Facebook')out.source='Social media';
+      else if(s==='Thumbtack')out.source='Other';
+      else out.source=s;
+      break;
+    }
+  }
+  // "Referred by [name]" / "[name] referred us" / "friend X told me"
+  const referMatch=t.match(/(?:referred\s+by|friend\s+|recommended\s+by)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  if(referMatch){
+    out.source='Referral';
+    out.sourceDetail=referMatch[1];
+  }
+
+  // Notes — pull out anything that looks like context worth keeping (special items, concerns)
+  const noteSignals=[];
+  if(/\bpiano\b/i.test(t))noteSignals.push('has piano');
+  if(/\b(?:art(?:work)?|painting|fragile)\b/i.test(t))noteSignals.push('fragile/art mentioned');
+  if(/\b(?:elevator|no\s+elevator|stairs|flights?\s+of\s+stairs)\b/i.test(t)){
+    const m=t.match(/(\d+)\s+flights?\s+of\s+stairs/i);
+    if(m)noteSignals.push(m[1]+' flights of stairs');
+    else if(/no\s+elevator/i.test(t))noteSignals.push('no elevator');
+    else if(/\belevator\b/i.test(t))noteSignals.push('elevator');
+    else noteSignals.push('stairs');
+  }
+  if(/\bheavy\b/i.test(t))noteSignals.push('heavy items mentioned');
+  if(/\b(?:asap|urgent|rush|quickly|soon)\b/i.test(t))noteSignals.push('time-sensitive');
+  if(/\b(?:cat|dog|pet)s?\b/i.test(t))noteSignals.push('has pets');
+  if(noteSignals.length)out.notes=noteSignals.join(', ');
+
+  return out;
+}
+
+function parsePasteToLead(){
   const text=(document.getElementById('ptl-text').value||'').trim();
   const statusEl=document.getElementById('ptl-status');
   const previewEl=document.getElementById('ptl-preview');
   const btn=document.getElementById('ptl-parse-btn');
   if(!text){statusEl.textContent='Please paste some text first.';statusEl.style.color='var(--error)';return;}
   if(text.length<20){statusEl.textContent='That looks too short — paste more context.';statusEl.style.color='var(--error)';return;}
-  btn.disabled=true;
-  btn.innerHTML='⏳ Reading…';
-  statusEl.textContent='Asking Claude to extract details…';
-  statusEl.style.color='var(--text3)';
 
-  // Build the prompt — strict JSON output for reliable parsing
-  const today=new Date().toISOString().split('T')[0];
-  const prompt=`Today's date is ${today}. Extract moving-lead information from the text below. Return ONLY a JSON object (no markdown fences, no explanation) with these fields. Use null for any field you cannot determine. Be conservative — don't guess.
-
-{
-  "name": "Full customer name (first + last if available)",
-  "phone": "Phone number, normalized to (XXX) XXX-XXXX format",
-  "email": "Email address",
-  "moveDate": "YYYY-MM-DD format. If they say 'next Saturday', resolve relative to today. If only a month is given, use the 1st.",
-  "fromAddress": "Pickup street address only (no city/state/zip)",
-  "fromZip": "Pickup ZIP, 5 digits",
-  "fromCity": "Pickup city name",
-  "toAddress": "Drop-off street address only",
-  "toZip": "Drop-off ZIP, 5 digits",
-  "toCity": "Drop-off city name",
-  "size": "One of: Studio, 1 Bedroom, 2 Bedroom, 3 Bedroom, 4+ Bedroom, Office. Match closest.",
-  "moveType": "One of: Local move, Long distance, Move & Pack, Pack only, Storage. Match closest.",
-  "source": "One of: Yelp, Google, ChatGPT, Referral, Building, Realtor, Social media, Repeat customer, Other. Use Other if mentioned source doesn't match.",
-  "sourceDetail": "If source is Referral or Other, who/what referred them",
-  "packing": "If they mention packing services. One of: Full pack, Partial pack, Kitchen only, No packing",
-  "storage": "true if they mention needing storage, else false",
-  "notes": "Any other relevant info: special items (piano, art, fragile), access concerns (stairs, elevator), preferences, timeline urgency. Keep concise."
-}
-
-Text to extract from:
-"""
-${text}
-"""`;
-
+  let extracted;
   try{
-    const response=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    if(!response.ok){
-      throw new Error('API returned '+response.status);
-    }
-    const data=await response.json();
-    const responseText=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('').trim();
-    // Strip any code fences if present
-    const cleanText=responseText.replace(/^```json\s*|^```\s*|```$/gm,'').trim();
-    let extracted;
-    try{
-      extracted=JSON.parse(cleanText);
-    }catch(e){
-      console.error('Parse failed. Response:',responseText);
-      throw new Error('Could not parse the response as JSON');
-    }
-    // Build a friendly preview of what was found
-    const found=[];
-    if(extracted.name)found.push(['Name',extracted.name]);
-    if(extracted.phone)found.push(['Phone',extracted.phone]);
-    if(extracted.email)found.push(['Email',extracted.email]);
-    if(extracted.moveDate)found.push(['Move date',extracted.moveDate]);
-    if(extracted.fromAddress)found.push(['From',(extracted.fromAddress||'')+(extracted.fromCity?', '+extracted.fromCity:'')+(extracted.fromZip?' '+extracted.fromZip:'')]);
-    if(extracted.toAddress)found.push(['To',(extracted.toAddress||'')+(extracted.toCity?', '+extracted.toCity:'')+(extracted.toZip?' '+extracted.toZip:'')]);
-    if(extracted.size)found.push(['Size',extracted.size]);
-    if(extracted.moveType)found.push(['Move type',extracted.moveType]);
-    if(extracted.source)found.push(['Source',extracted.source+(extracted.sourceDetail?' ('+extracted.sourceDetail+')':'')]);
-    if(extracted.packing)found.push(['Packing',extracted.packing]);
-    if(extracted.storage)found.push(['Storage','Yes']);
-    if(extracted.notes)found.push(['Notes',extracted.notes]);
-
-    if(!found.length){
-      statusEl.textContent='Couldn\u2019t find any lead info in that text. Try a longer or more detailed message.';
-      statusEl.style.color='var(--amber)';
-      btn.disabled=false;
-      btn.innerHTML='✨ Extract info →';
-      return;
-    }
-
-    statusEl.textContent='✓ Extracted '+found.length+' field'+(found.length>1?'s':'')+'. Review below, then apply.';
-    statusEl.style.color='var(--accent)';
-
-    previewEl.style.display='block';
-    previewEl.innerHTML=`
-      <div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
-        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What we found</div>
-        <table style="width:100%;font-size:12.5px">
-          ${found.map(([k,v])=>`<tr>
-            <td style="padding:3px 0;color:var(--text3);width:90px;vertical-align:top">${k}</td>
-            <td style="padding:3px 0;color:var(--text);font-weight:500">${String(v).replace(/</g,'&lt;')}</td>
-          </tr>`).join('')}
-        </table>
-      </div>
-    `;
-    btn.disabled=false;
-    btn.innerHTML='✓ Apply to form →';
-    btn.onclick=()=>applyPastedToForm(extracted);
+    extracted=extractLeadFromText(text);
   }catch(e){
-    console.error('Paste-to-lead error:',e);
-    statusEl.textContent='Sorry — couldn\u2019t parse that. '+(e.message||'')+'. You can still fill the form manually.';
+    console.error('Extract error:',e);
+    statusEl.textContent='Sorry — couldn\u2019t parse that. You can still fill the form manually.';
     statusEl.style.color='var(--error)';
-    btn.disabled=false;
-    btn.innerHTML='✨ Try again →';
+    return;
   }
+
+  // Build the friendly preview
+  const found=[];
+  if(extracted.name)found.push(['Name',extracted.name]);
+  if(extracted.phone)found.push(['Phone',extracted.phone]);
+  if(extracted.email)found.push(['Email',extracted.email]);
+  if(extracted.moveDate)found.push(['Move date',extracted.moveDate]);
+  if(extracted.fromAddress)found.push(['From',(extracted.fromAddress||'')+(extracted.fromZip?' '+extracted.fromZip:'')]);
+  if(extracted.toAddress)found.push(['To',(extracted.toAddress||'')+(extracted.toZip?' '+extracted.toZip:'')]);
+  if(extracted.size)found.push(['Size',extracted.size]);
+  if(extracted.moveType)found.push(['Move type',extracted.moveType]);
+  if(extracted.source)found.push(['Source',extracted.source+(extracted.sourceDetail?' ('+extracted.sourceDetail+')':'')]);
+  if(extracted.packing)found.push(['Packing',extracted.packing]);
+  if(extracted.storage)found.push(['Storage','Yes']);
+  if(extracted.notes)found.push(['Notes',extracted.notes]);
+
+  if(!found.length){
+    statusEl.textContent='Couldn\u2019t find any lead info. Try a longer or more detailed message — names, phone numbers, addresses, dates work best.';
+    statusEl.style.color='var(--amber)';
+    return;
+  }
+
+  statusEl.textContent='✓ Extracted '+found.length+' field'+(found.length>1?'s':'')+'. Review below, then apply.';
+  statusEl.style.color='var(--accent)';
+
+  previewEl.style.display='block';
+  previewEl.innerHTML=`
+    <div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
+      <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What we found</div>
+      <table style="width:100%;font-size:12.5px">
+        ${found.map(([k,v])=>`<tr>
+          <td style="padding:3px 0;color:var(--text3);width:90px;vertical-align:top">${k}</td>
+          <td style="padding:3px 0;color:var(--text);font-weight:500">${String(v).replace(/</g,'&lt;')}</td>
+        </tr>`).join('')}
+      </table>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3);font-style:italic">Note: this is a basic pattern-matcher. Anything it missed, just type into the form below after applying.</div>
+    </div>
+  `;
+  btn.innerHTML='✓ Apply to form →';
+  btn.onclick=()=>applyPastedToForm(extracted);
 }
 
 function applyPastedToForm(d){
