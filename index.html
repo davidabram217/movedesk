@@ -8871,12 +8871,13 @@ function renderQbDays(){
             </div>
             ${d.flatRate?`
             <div class="form-grid form-grid-2">
-              <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+              <div class="form-group"><label>No. of movers <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><select oninput="updateQbDay('${d.id}','crew',this.value)"><option value="">— none —</option>${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
               <div class="form-group"><label>Estimated hours <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><input type="number" value="${d.flatHrs||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','flatHrs',this.value)" placeholder="e.g. 5"></div>
               <div class="form-group"><label>Flat rate price ($)</label><input type="number" value="${d.flatPrice||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPrice',this.value)" placeholder="e.g. 1500"></div>
               <div class="form-group"><label>Flat rate cash price ($) <span style="font-size:10.5px;color:var(--text3)">(optional)</span></label><input type="number" value="${d.flatPriceCash||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPriceCash',this.value)" placeholder="e.g. 1400"></div>
+              <div class="form-group full"><label>Line description <span style="font-size:10.5px;color:var(--text3)">(what the customer sees in the billing table)</span></label><input type="text" value="${escHtml(d.flatDescription||'')}" oninput="updateQbDay('${d.id}','flatDescription',this.value)" placeholder="e.g. Move services, Local move flat rate, etc."></div>
             </div>
-            <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.5">Flat-rate quotes show a single fixed price instead of an hourly range. Both prices appear on the customer's quote when filled in.</div>
+            <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.5">Internal-only fields (movers, estimated hours) won't appear on the customer quote. Leave the description blank to default to "Move services".</div>
             `:`
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
@@ -9184,7 +9185,8 @@ function renderQuoteHTML(q,lead){
       // Flat-rate billing row — customer sees only the price, no crew count or hours
       const flatPrice=Number(d.flatPrice)||0;
       const flatCash=Number(d.flatPriceCash)||0;
-      const flatLabel=isMulti?`Day ${i+1} – Move services`:'Move services';
+      const flatDescBase=(d.flatDescription||'').trim()||'Move services';
+      const flatLabel=isMulti?`Day ${i+1} – ${flatDescBase}`:flatDescBase;
       html+=`<tr style="border-bottom:1px solid #f0ece4">
         <td style="padding:11px 6px">${esc(flatLabel)}</td>
         <td style="padding:11px 6px;text-align:right;color:#9e9b94">—</td>

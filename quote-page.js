@@ -141,7 +141,8 @@ function renderQuote(q){
     if(d.flatRate){
       var flatPrice=Number(d.flatPrice)||0;
       var flatCash=Number(d.flatPriceCash)||0;
-      var flatLabel=isMulti?'Day '+(i+1)+' \u2013 Move services':'Move services';
+      var flatDescBase=(d.flatDescription||'').trim()||'Move services';
+      var flatLabel=isMulti?'Day '+(i+1)+' \u2013 '+flatDescBase:flatDescBase;
       html+='<tr style="border-bottom:1px solid #f0ece4">'+
         '<td style="padding:11px 6px">'+esc(flatLabel)+'</td>'+
         '<td style="padding:11px 6px;text-align:right;color:#9e9b94">\u2014</td>'+
