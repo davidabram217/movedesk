@@ -4945,7 +4945,34 @@ function openBooking(leadId){
   currentBookingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
-  document.getElementById('book-job-summary').innerHTML=`<strong>${l.name}</strong> · ${l.phone||''} · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;
+  // Detect multi-day quote so we can flag this clearly in the booking UI
+  const _leadQuote=(db.quotes||[]).filter(q=>q.leadId===leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
+  const _isMultiDay=_leadQuote&&_leadQuote.jobType==='multi'&&_leadQuote.days&&_leadQuote.days.length>1;
+  let summaryHtml=`<strong>${l.name}</strong> · ${l.phone||''} · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;
+  if(_isMultiDay){
+    // Banner listing every day of the multi-day quote, so the user knows what's coming
+    const dayRows=_leadQuote.days.map((d,i)=>{
+      const crew=d.crewLoadDiff?(d.crewLoad||d.crew)+'/'+(d.crewUnload||d.crew):d.crew;
+      const rateInfo=d.flatRate?
+        ('Flat $'+(Number(d.flatPrice)||0).toLocaleString()+(d.flatPriceCash?' / $'+(Number(d.flatPriceCash)||0).toLocaleString()+' cash':'')):
+        ((d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr · '+crew+' movers');
+      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:12px">
+        <span style="color:var(--text);font-weight:500;min-width:80px">Day ${i+1}</span>
+        <span style="color:var(--text2);flex:1">${d.date?fmtDate(d.date):'date TBD'}</span>
+        <span style="color:var(--text3);text-align:right">${rateInfo}</span>
+      </div>`;
+    }).join('');
+    summaryHtml+=`
+      <div style="margin-top:10px;padding:9px 11px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px">
+        <div style="font-size:11px;font-weight:600;color:#b7860b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚠ Multi-day move — ${_leadQuote.days.length} days</div>
+        ${dayRows}
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">The fields below are for <strong>Day 1</strong>. The other days from the accepted quote will be saved with the booking automatically — you can adjust per-day specifics later from the booked job view.</div>
+      </div>`;
+  }
+  document.getElementById('book-job-summary').innerHTML=summaryHtml;
+  // Stash for label adjustments below
+  window._bjIsMultiDay=_isMultiDay;
+  window._bjMultiDayCount=_isMultiDay?_leadQuote.days.length:0;
   // Reset all fields first
   ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes','bj-do-not-exceed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bj-time').value='8:30–9:30am';
@@ -5088,6 +5115,18 @@ function openBooking(leadId){
       }
     }
   }catch(e){}
+  // Adjust date/time labels for multi-day jobs so the user knows these apply to Day 1
+  try{
+    const dateLabel=document.querySelector('label[for="bj-date"]')||document.getElementById('bj-date')?.previousElementSibling;
+    const timeLabel=document.querySelector('label[for="bj-time"]')||document.getElementById('bj-time')?.previousElementSibling;
+    if(_isMultiDay){
+      if(dateLabel)dateLabel.textContent='Day 1 date *';
+      if(timeLabel)timeLabel.textContent='Day 1 arrival window';
+    } else {
+      if(dateLabel&&dateLabel.tagName==='LABEL')dateLabel.textContent='Confirmed date *';
+      if(timeLabel&&timeLabel.tagName==='LABEL')timeLabel.textContent='Arrival window';
+    }
+  }catch(_){}
   openModal('book-job');
 }
 function buildJobCalUrl(j){
