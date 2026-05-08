@@ -3932,7 +3932,15 @@ function openConfirmEmail(leadId,bookedJob){
       if(hasUnloads){unloads.filter(function(u){return u.address;}).forEach(function(u){moveDetailsSection+='\nTo: '+u.address+(u.unit?' #'+u.unit:'');});}
       else{moveDetailsSection+='\nTo: Load trucks only';}
       moveDetailsSection+='\n*Customer responsible for any parking tickets should they be incurred';
-      if(rate){
+      if(day.flatRate){
+        // Flat-rate day — show flat price + optional cash price
+        var flatPrice=Number(day.flatPrice)||0;
+        var flatCash=Number(day.flatPriceCash)||0;
+        if(flatPrice){
+          var flatLabelLine=(day.flatDescription||'Move services')+': $'+fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+fmtRate(flatCash)+' If Paid Cash)':'');
+          moveDetailsSection+='\n'+flatLabelLine;
+        }
+      } else if(rate){
         moveDetailsSection+='\n'+crew+' Movers @ $'+fmtRate(rate)+' Per Hour'+(dayCash?' ($'+fmtRate(dayCash)+' If Paid Cash)':'');
         if(day.hrsMin)moveDetailsSection+='\n'+day.hrsMin+' hour minimum';
       }
@@ -3977,7 +3985,14 @@ function openConfirmEmail(leadId,bookedJob){
     loads.filter(function(u){return u.address;}).forEach(function(u,li){moveDetailsSection+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)moveDetailsSection+=' · '+u.access;if(u.parking)moveDetailsSection+=' · '+u.parking;});
     unloads.filter(function(u){return u.address;}).forEach(function(u,li){moveDetailsSection+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)moveDetailsSection+=' · '+u.access;if(u.parking)moveDetailsSection+=' · '+u.parking;});
     moveDetailsSection+='\n';
-    if(rate){moveDetailsSection+='\n'+crew+' Movers @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
+    if(d.flatRate){
+      // Flat-rate single day
+      var flatPrice=Number(d.flatPrice)||0;
+      var flatCash=Number(d.flatPriceCash)||0;
+      if(flatPrice){
+        moveDetailsSection+='\n'+(d.flatDescription||'Move services')+': $'+Number(flatPrice).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' flat rate'+(flatCash?' ($'+Number(flatCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
+      }
+    } else if(rate){moveDetailsSection+='\n'+crew+' Movers @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
     (q.fees||[]).filter(function(f){return f.included&&(f.amount||f.hrsMin||f.hrsMax);}).forEach(function(f){var lbl=f.label||f.name||'';if(f.type==='range'){moveDetailsSection+='\n$'+(f.hrsMin||0)+' – $'+(f.hrsMax||0)+' '+lbl;}else{moveDetailsSection+='\n$'+Number(f.amount||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' '+lbl;}});
     if(l?.packing&&l.packing!=='No — just moving')moveDetailsSection+='\nPacking Materials Used - TBD';
     moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
@@ -3998,7 +4013,7 @@ function openConfirmEmail(leadId,bookedJob){
   var body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:'
     +moveDetailsSection
     +'\n\n*No small packing needed\n'+(lPacking&&lPacking!=='No'?'*'+lPacking+' packing included\n':'')
-    +'\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nIf utilizing the Cash Discount you will need to have the full amount on hand as we cannot offer the discount if splitting the bill or using an alternate payment method. Try having more than enough cash handy as we would have to charge for time to get more.\n\nIf you have any questions feel free to reply to this email or you can always call the shop at (415) 822-8547.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the following important documents before your move:\n\nInsurance Options Form 2026:\nhttps://davidabram217.github.io/movedesk/insurance-2026.pdf\n\nMove Confirmation Letter 2026:\nhttps://davidabram217.github.io/movedesk/move-confirmation-2026.pdf\n'+(lStorage?'\nStorage Guidelines 2026:\nhttps://davidabram217.github.io/movedesk/storage-guidelines-2026.pdf\n':'')+'\nPlease let us know your insurance option choice prior to your move.\n\nWe look forward to seeing you soon.\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com\n\nCheck out our Yelp reviews: https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco';
+    +'\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nIf utilizing the Cash Discount you will need to have the full amount on hand as we cannot offer the discount if splitting the bill or using an alternate payment method. Try having more than enough cash handy as we would have to charge for time to get more.\n\nIf you have any questions feel free to reply to this email or you can always call the shop at (415) 822-8547.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the important documents linked below before your move'+(lStorage?' (including the Storage Guidelines)':'')+'.\n\nPlease let us know your insurance option choice prior to your move.\n\nWe look forward to seeing you soon.\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
 
   document.getElementById('ce-to').value=lEmail;
   document.getElementById('ce-subject').value=subject;
@@ -5206,6 +5221,15 @@ function buildJobCalUrl(j){
   if(isMultiDay){
     const costLines=[];
     j.quoteDays.forEach((day,i)=>{
+      if(day.flatRate){
+        // Flat-rate day in calendar
+        const flatPrice=Number(day.flatPrice)||0;
+        const flatCash=Number(day.flatPriceCash)||0;
+        if(!flatPrice)return;
+        const flatLine='Day'+(i+1)+' '+(day.flatDescription||'Move services')+': $'+flatPrice.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' flat rate'+(flatCash?' ($'+flatCash.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
+        costLines.push(flatLine);
+        return;
+      }
       const rate=Number(day.rate||0);
       if(!rate)return;
       const crewDesc=day.crewLoadDiff
@@ -5216,6 +5240,14 @@ function buildJobCalUrl(j){
       costLines.push(`Day${i+1} ${crewDesc} @ $${rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Per Hour${cashStr}`);
     });
     if(costLines.length)lines.push('Cost: '+costLines.join('\n      '));
+  } else if(j.quoteDays&&j.quoteDays[0]&&j.quoteDays[0].flatRate){
+    // Single-day flat-rate
+    const day=j.quoteDays[0];
+    const flatPrice=Number(day.flatPrice)||0;
+    const flatCash=Number(day.flatPriceCash)||0;
+    if(flatPrice){
+      lines.push((day.flatDescription||'Move services')+': $'+flatPrice.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' flat rate'+(flatCash?' ($'+flatCash.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':''));
+    }
   } else if(j.rateRegular){
     const crewDesc=j.crewDiff
       ?(j.crewLoad||j.movers||'?')+' load / '+(j.crewUnload||j.movers||'?')+' unload movers'
