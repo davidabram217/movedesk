@@ -3468,16 +3468,13 @@ let currentNextStepLeadId=null;
 function nextStepAction(action){
   closeModal('next-step');
   if(action==='book'){
-    const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){
-      const hasAcceptedQuote=(db.quotes||[]).some(q=>q.leadId===l.id&&q.status==='accepted');
-      l.status=hasAcceptedQuote?'Quote accepted':'Confirmation sent';
-      saveDB();renderLeads();
-    }
+    // Don't change lead status here — the booking modal save will set the right status,
+    // and "Confirmation sent" should ONLY be set when the customer actually receives the
+    // confirmation email (handled in sendConfirmationEmail).
     setTimeout(()=>openBooking(currentNextStepLeadId),200);
   } else if(action==='quote'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){l.status='Estimate scheduled';saveDB();renderLeads();}
+    if(l){l.status='Estimate scheduled';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
     setTimeout(()=>openQuoteBuilder(currentNextStepLeadId),200);
   } else if(action==='summary'){
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
