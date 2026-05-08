@@ -750,6 +750,10 @@
   <div class="modal" style="max-width:600px;max-height:88vh;overflow-y:auto">
     <div class="modal-header"><div class="modal-title">New lead intake</div><button class="modal-close" onclick="closeModal('new-lead')">✕</button></div>
     <div class="modal-body">
+      <div style="margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="font-size:12.5px;color:var(--text2)">📋 Got an email or message from a customer? Paste it and we'll auto-fill what we can.</div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openPasteToLead()" style="white-space:nowrap;font-size:12px">✨ Paste from email</button>
+      </div>
       <div class="form-grid form-grid-2">
         <div class="form-group" style="position:relative"><label>Full name *</label><input type="text" id="nl-name" placeholder="Customer name" autocomplete="off" oninput="customerAutocomplete(this.value)"><div id="nl-name-ac" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:200;max-height:180px;overflow-y:auto"></div></div>
         <div class="form-group"><label>Phone *</label><input type="tel" id="nl-phone" placeholder="(555) 000-0000" onblur="checkRepeatByPhone(this.value)"></div>
@@ -1225,6 +1229,27 @@
     </div>
     <div class="modal-body" id="view-modal-body"></div>
     <div class="modal-footer" id="view-modal-footer"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-paste-to-lead">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">✨ Paste from email</div>
+        <div style="margin-top:4px;font-size:12.5px;color:var(--text3)">Paste any email, text message, or notes — we'll extract the lead info</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('paste-to-lead')">✕</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="ptl-text" placeholder="Paste the email body, text message, or notes here…&#10;&#10;Example:&#10;Hi! My name is Sarah Johnson and I'm looking to move from my 2BR apartment at 1247 Sanchez St in SF to a place in Oakland on May 24th. You can reach me at (415) 555-0123. Got your number from Yelp. Thanks!" style="width:100%;min-height:220px;font-size:13px;line-height:1.5"></textarea>
+      <div id="ptl-status" style="margin-top:10px;font-size:12px;color:var(--text3);min-height:18px"></div>
+      <div id="ptl-preview" style="margin-top:10px;display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('paste-to-lead')">Cancel</button>
+      <button id="ptl-parse-btn" class="btn btn-primary" onclick="parsePasteToLead()">✨ Extract info →</button>
+    </div>
   </div>
 </div>
 
@@ -2562,6 +2587,183 @@ document.addEventListener('visibilitychange',function(){
 });
 const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type']};
 function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();}
+// Paste-to-lead: takes free-form text (email, SMS, notes) and uses the Anthropic API to
+// extract structured lead fields, then auto-fills the New Lead form for review.
+function openPasteToLead(){
+  document.getElementById('ptl-text').value='';
+  document.getElementById('ptl-status').textContent='';
+  document.getElementById('ptl-preview').style.display='none';
+  document.getElementById('ptl-preview').innerHTML='';
+  const btn=document.getElementById('ptl-parse-btn');
+  btn.disabled=false;
+  btn.innerHTML='✨ Extract info →';
+  openModal('paste-to-lead');
+  setTimeout(()=>document.getElementById('ptl-text').focus(),100);
+}
+
+async function parsePasteToLead(){
+  const text=(document.getElementById('ptl-text').value||'').trim();
+  const statusEl=document.getElementById('ptl-status');
+  const previewEl=document.getElementById('ptl-preview');
+  const btn=document.getElementById('ptl-parse-btn');
+  if(!text){statusEl.textContent='Please paste some text first.';statusEl.style.color='var(--error)';return;}
+  if(text.length<20){statusEl.textContent='That looks too short — paste more context.';statusEl.style.color='var(--error)';return;}
+  btn.disabled=true;
+  btn.innerHTML='⏳ Reading…';
+  statusEl.textContent='Asking Claude to extract details…';
+  statusEl.style.color='var(--text3)';
+
+  // Build the prompt — strict JSON output for reliable parsing
+  const today=new Date().toISOString().split('T')[0];
+  const prompt=`Today's date is ${today}. Extract moving-lead information from the text below. Return ONLY a JSON object (no markdown fences, no explanation) with these fields. Use null for any field you cannot determine. Be conservative — don't guess.
+
+{
+  "name": "Full customer name (first + last if available)",
+  "phone": "Phone number, normalized to (XXX) XXX-XXXX format",
+  "email": "Email address",
+  "moveDate": "YYYY-MM-DD format. If they say 'next Saturday', resolve relative to today. If only a month is given, use the 1st.",
+  "fromAddress": "Pickup street address only (no city/state/zip)",
+  "fromZip": "Pickup ZIP, 5 digits",
+  "fromCity": "Pickup city name",
+  "toAddress": "Drop-off street address only",
+  "toZip": "Drop-off ZIP, 5 digits",
+  "toCity": "Drop-off city name",
+  "size": "One of: Studio, 1 Bedroom, 2 Bedroom, 3 Bedroom, 4+ Bedroom, Office. Match closest.",
+  "moveType": "One of: Local move, Long distance, Move & Pack, Pack only, Storage. Match closest.",
+  "source": "One of: Yelp, Google, ChatGPT, Referral, Building, Realtor, Social media, Repeat customer, Other. Use Other if mentioned source doesn't match.",
+  "sourceDetail": "If source is Referral or Other, who/what referred them",
+  "packing": "If they mention packing services. One of: Full pack, Partial pack, Kitchen only, No packing",
+  "storage": "true if they mention needing storage, else false",
+  "notes": "Any other relevant info: special items (piano, art, fragile), access concerns (stairs, elevator), preferences, timeline urgency. Keep concise."
+}
+
+Text to extract from:
+"""
+${text}
+"""`;
+
+  try{
+    const response=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    if(!response.ok){
+      throw new Error('API returned '+response.status);
+    }
+    const data=await response.json();
+    const responseText=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('').trim();
+    // Strip any code fences if present
+    const cleanText=responseText.replace(/^```json\s*|^```\s*|```$/gm,'').trim();
+    let extracted;
+    try{
+      extracted=JSON.parse(cleanText);
+    }catch(e){
+      console.error('Parse failed. Response:',responseText);
+      throw new Error('Could not parse the response as JSON');
+    }
+    // Build a friendly preview of what was found
+    const found=[];
+    if(extracted.name)found.push(['Name',extracted.name]);
+    if(extracted.phone)found.push(['Phone',extracted.phone]);
+    if(extracted.email)found.push(['Email',extracted.email]);
+    if(extracted.moveDate)found.push(['Move date',extracted.moveDate]);
+    if(extracted.fromAddress)found.push(['From',(extracted.fromAddress||'')+(extracted.fromCity?', '+extracted.fromCity:'')+(extracted.fromZip?' '+extracted.fromZip:'')]);
+    if(extracted.toAddress)found.push(['To',(extracted.toAddress||'')+(extracted.toCity?', '+extracted.toCity:'')+(extracted.toZip?' '+extracted.toZip:'')]);
+    if(extracted.size)found.push(['Size',extracted.size]);
+    if(extracted.moveType)found.push(['Move type',extracted.moveType]);
+    if(extracted.source)found.push(['Source',extracted.source+(extracted.sourceDetail?' ('+extracted.sourceDetail+')':'')]);
+    if(extracted.packing)found.push(['Packing',extracted.packing]);
+    if(extracted.storage)found.push(['Storage','Yes']);
+    if(extracted.notes)found.push(['Notes',extracted.notes]);
+
+    if(!found.length){
+      statusEl.textContent='Couldn\u2019t find any lead info in that text. Try a longer or more detailed message.';
+      statusEl.style.color='var(--amber)';
+      btn.disabled=false;
+      btn.innerHTML='✨ Extract info →';
+      return;
+    }
+
+    statusEl.textContent='✓ Extracted '+found.length+' field'+(found.length>1?'s':'')+'. Review below, then apply.';
+    statusEl.style.color='var(--accent)';
+
+    previewEl.style.display='block';
+    previewEl.innerHTML=`
+      <div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
+        <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What we found</div>
+        <table style="width:100%;font-size:12.5px">
+          ${found.map(([k,v])=>`<tr>
+            <td style="padding:3px 0;color:var(--text3);width:90px;vertical-align:top">${k}</td>
+            <td style="padding:3px 0;color:var(--text);font-weight:500">${String(v).replace(/</g,'&lt;')}</td>
+          </tr>`).join('')}
+        </table>
+      </div>
+    `;
+    btn.disabled=false;
+    btn.innerHTML='✓ Apply to form →';
+    btn.onclick=()=>applyPastedToForm(extracted);
+  }catch(e){
+    console.error('Paste-to-lead error:',e);
+    statusEl.textContent='Sorry — couldn\u2019t parse that. '+(e.message||'')+'. You can still fill the form manually.';
+    statusEl.style.color='var(--error)';
+    btn.disabled=false;
+    btn.innerHTML='✨ Try again →';
+  }
+}
+
+function applyPastedToForm(d){
+  // Helper: only set fields that aren't already filled, so we don't overwrite anything user typed
+  const setIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val==null||val==='')return;if(!el.value)el.value=val;};
+  const setSelectIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val==null||val==='')return;if(el.selectedIndex>0)return;for(let i=0;i<el.options.length;i++){if(el.options[i].value===val||el.options[i].text===val){el.selectedIndex=i;break;}}};
+  setIfEmpty('nl-name',d.name);
+  setIfEmpty('nl-phone',d.phone);
+  setIfEmpty('nl-email',d.email);
+  setIfEmpty('nl-from',d.fromAddress);
+  setIfEmpty('nl-from-zip',d.fromZip);
+  setIfEmpty('nl-to',d.toAddress);
+  setIfEmpty('nl-to-zip',d.toZip);
+  // The "date" field on a lead is the move date
+  const dateEl=document.getElementById('nl-date');
+  if(dateEl&&d.moveDate&&!dateEl.value)dateEl.value=d.moveDate;
+  setSelectIfEmpty('nl-size',d.size);
+  setSelectIfEmpty('nl-move-type',d.moveType);
+  setSelectIfEmpty('nl-source',d.source);
+  setSelectIfEmpty('nl-packing',d.packing);
+  // Source detail (Referral / Other / etc)
+  if(d.sourceDetail){
+    const detailGroup=document.getElementById('nl-source-detail-group');
+    const detailEl=document.getElementById('nl-source-detail');
+    if(detailEl&&!detailEl.value){detailEl.value=d.sourceDetail;if(detailGroup)detailGroup.style.display='';}
+  }
+  // Storage
+  if(d.storage){
+    const storSel=document.getElementById('nl-storage-select');
+    if(storSel&&storSel.value==='no')storSel.value='yes';
+  }
+  // Notes — append rather than overwrite if there's already content
+  if(d.notes){
+    const notesEl=document.getElementById('nl-notes');
+    if(notesEl){
+      if(notesEl.value){
+        if(!notesEl.value.includes(d.notes))notesEl.value=notesEl.value.trim()+'\n\n'+d.notes;
+      } else {
+        notesEl.value=d.notes;
+      }
+    }
+  }
+  closeModal('paste-to-lead');
+  showToast('✓ Form filled — review and save');
+  // Trigger any side-effects from the source change (e.g. show source-detail field)
+  if(typeof toggleSourceDetail==='function')toggleSourceDetail();
+  // Run repeat-customer check on the phone number
+  if(d.phone&&typeof checkRepeatByPhone==='function')checkRepeatByPhone(d.phone);
+}
+
 function openModal(n){
   if(n==='new-lead'){
     resetNewLeadForm();
