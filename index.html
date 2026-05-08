@@ -2822,22 +2822,32 @@ async function parsePasteToLead(){
     }
   }
 
-  // Build the friendly preview
-  const found=[];
-  if(extracted.name)found.push(['Name',extracted.name]);
-  if(extracted.phone)found.push(['Phone',extracted.phone]);
-  if(extracted.email)found.push(['Email',extracted.email]);
-  if(extracted.moveDate)found.push(['Move date',extracted.moveDate]);
-  if(extracted.fromAddress)found.push(['From',(extracted.fromAddress||'')+(extracted.fromCity?', '+extracted.fromCity:'')+(extracted.fromZip?' '+extracted.fromZip:'')]);
-  if(extracted.toAddress)found.push(['To',(extracted.toAddress||'')+(extracted.toCity?', '+extracted.toCity:'')+(extracted.toZip?' '+extracted.toZip:'')]);
-  if(extracted.size)found.push(['Size',extracted.size]);
-  if(extracted.moveType)found.push(['Move type',extracted.moveType]);
-  if(extracted.source)found.push(['Source',extracted.source+(extracted.sourceDetail?' ('+extracted.sourceDetail+')':'')]);
-  if(extracted.packing)found.push(['Packing',extracted.packing]);
-  if(extracted.storage)found.push(['Storage','Yes']);
-  if(extracted.notes)found.push(['Notes',extracted.notes]);
+  // Each row in the preview is editable. Fields have a unique key matching the extracted object.
+  // The user can change any value, or click ✕ to remove a field they don't want imported.
+  // The "Apply to form" button below reads the current state of these inputs.
+  const fieldDefs=[
+    {key:'name',label:'Name',type:'text'},
+    {key:'phone',label:'Phone',type:'text'},
+    {key:'email',label:'Email',type:'email'},
+    {key:'moveDate',label:'Move date',type:'date'},
+    {key:'fromAddress',label:'From',type:'text'},
+    {key:'fromZip',label:'From ZIP',type:'text'},
+    {key:'fromCity',label:'From city',type:'text'},
+    {key:'toAddress',label:'To',type:'text'},
+    {key:'toZip',label:'To ZIP',type:'text'},
+    {key:'toCity',label:'To city',type:'text'},
+    {key:'size',label:'Size',type:'text'},
+    {key:'moveType',label:'Move type',type:'text'},
+    {key:'source',label:'Source',type:'text'},
+    {key:'sourceDetail',label:'Source detail',type:'text'},
+    {key:'packing',label:'Packing',type:'text'},
+    {key:'storage',label:'Storage',type:'checkbox'},
+    {key:'notes',label:'Notes',type:'textarea'}
+  ];
+  // Only render rows for fields that were actually extracted
+  const populatedFields=fieldDefs.filter(f=>extracted[f.key]!=null&&extracted[f.key]!=='');
 
-  if(!found.length){
+  if(!populatedFields.length){
     statusEl.textContent='Couldn\u2019t find any lead info. Try a longer or more detailed message — names, phone numbers, addresses, dates work best.';
     statusEl.style.color='var(--amber)';
     btn.disabled=false;
@@ -2845,24 +2855,51 @@ async function parsePasteToLead(){
     return;
   }
 
-  statusEl.textContent='✓ Extracted '+found.length+' field'+(found.length>1?'s':'')+'. Review below, then apply.';
+  statusEl.textContent='✓ Extracted '+populatedFields.length+' field'+(populatedFields.length>1?'s':'')+'. Review and edit anything below, then apply.';
   statusEl.style.color='var(--accent)';
+
+  const escAttr=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const renderRow=(f)=>{
+    const val=extracted[f.key];
+    let inputHtml='';
+    if(f.type==='textarea'){
+      inputHtml=`<textarea data-ptl-key="${f.key}" rows="2" style="width:100%;font-size:12.5px;padding:5px 7px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:inherit;resize:vertical">${escAttr(val)}</textarea>`;
+    } else if(f.type==='checkbox'){
+      inputHtml=`<label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" data-ptl-key="${f.key}" ${val?'checked':''}> Yes</label>`;
+    } else {
+      inputHtml=`<input type="${f.type}" data-ptl-key="${f.key}" value="${escAttr(val)}" style="width:100%;font-size:12.5px;padding:5px 7px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">`;
+    }
+    return `<tr data-ptl-row="${f.key}">
+      <td style="padding:5px 8px 5px 0;color:var(--text3);width:90px;vertical-align:top;font-size:11.5px">${f.label}</td>
+      <td style="padding:5px 0;vertical-align:top">${inputHtml}</td>
+      <td style="padding:5px 0 5px 6px;vertical-align:top;width:24px"><button type="button" onclick="this.closest('tr').remove()" title="Remove this field" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1">✕</button></td>
+    </tr>`;
+  };
 
   previewEl.style.display='block';
   previewEl.innerHTML=`
     <div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
-      <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What we found</div>
-      <table style="width:100%;font-size:12.5px">
-        ${found.map(([k,v])=>`<tr>
-          <td style="padding:3px 0;color:var(--text3);width:90px;vertical-align:top">${k}</td>
-          <td style="padding:3px 0;color:var(--text);font-weight:500">${String(v).replace(/</g,'&lt;')}</td>
-        </tr>`).join('')}
+      <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">What we found <span style="text-transform:none;font-weight:400;color:var(--text3);letter-spacing:0">— edit anything that's wrong, or click ✕ to skip a field</span></div>
+      <table style="width:100%">
+        ${populatedFields.map(renderRow).join('')}
       </table>
     </div>
   `;
   btn.disabled=false;
   btn.innerHTML='✓ Apply to form →';
-  btn.onclick=()=>applyPastedToForm(extracted);
+  btn.onclick=()=>{
+    // Read the (possibly edited) values from the preview inputs
+    const finalData={};
+    previewEl.querySelectorAll('[data-ptl-key]').forEach(el=>{
+      const key=el.getAttribute('data-ptl-key');
+      if(el.type==='checkbox')finalData[key]=el.checked;
+      else{
+        const v=el.value.trim();
+        if(v)finalData[key]=v;
+      }
+    });
+    applyPastedToForm(finalData);
+  };
 }
 
 function applyPastedToForm(d){
