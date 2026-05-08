@@ -8726,7 +8726,7 @@ function toggleQbCrewDiff(dayId,checked){
 function toggleQbPackCrew(dayId,checked){
   const d=qbDays.find(x=>x.id===dayId);if(!d)return;
   d.packCrew=checked;
-  if(checked){d.packCrewSize=d.packCrewSize||1;d.packRate=d.packRate||0;d.packHrsMin=d.packHrsMin||0;d.packHrsMax=d.packHrsMax||0;}
+  if(checked){d.packRate=d.packRate||0;d.packHrsMin=d.packHrsMin||0;d.packHrsMax=d.packHrsMax||0;}
   renderQbDays();qbAutoSave();
 }
 function addQbLocation(dayId,type){
@@ -8914,7 +8914,7 @@ function renderQbDays(){
           <div style="padding:10px 12px;border-top:1px solid var(--border2);background:var(--surface)">
             <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">📦 Packing crew</div>
             <div class="form-grid form-grid-2">
-              <div class="form-group"><label>No. of packers</label><select oninput="updateQbDay('${d.id}','packCrewSize',this.value)">${[1,2,3,4,5,6].map(n=>`<option value="${n}"${(d.packCrewSize||1)==n?' selected':''}>${n} packer${n>1?'s':''}</option>`).join('')}</select></div>
+              <div class="form-group"><label>No. of packers <span style="font-size:10.5px;color:var(--text3)">(optional)</span></label><select oninput="updateQbDay('${d.id}','packCrewSize',this.value)"><option value="">— none —</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}"${d.packCrewSize==n?' selected':''}>${n} packer${n>1?'s':''}</option>`).join('')}</select></div>
               <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.packRate||''}" oninput="updateQbDay('${d.id}','packRate',this.value)" placeholder="e.g. 180"></div>
               <div class="form-group"><label>Min hours</label><input type="number" value="${d.packHrsMin||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','packHrsMin',this.value)" placeholder="e.g. 2"></div>
               <div class="form-group"><label>Max hours</label><input type="number" value="${d.packHrsMax||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','packHrsMax',this.value)" placeholder="e.g. 4"></div>
@@ -8925,10 +8925,26 @@ function renderQbDays(){
         <!-- Day subtotal -->
         <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:13px">
           ${(()=>{
-            const moveMin=(d.hrsMin||0)*d.rate;
-            const moveMax=(d.hrsMax||0)*d.rate;
             const packMin=d.packCrew&&d.packRate&&d.packHrsMin?(d.packHrsMin||0)*d.packRate:0;
             const packMax=d.packCrew&&d.packRate&&d.packHrsMax?(d.packHrsMax||0)*d.packRate:0;
+            if(d.flatRate){
+              // Flat-rate display
+              const flatPrice=Number(d.flatPrice)||0;
+              const flatCash=Number(d.flatPriceCash)||0;
+              const totalMin=flatPrice+packMin;
+              const totalMax=flatPrice+packMax;
+              const cashMin=flatCash?flatCash+packMin:0;
+              const cashMax=flatCash?flatCash+packMax:0;
+              let out=`<strong>${dayLabel} estimate:</strong> ${totalMin===totalMax?fmtMoney(totalMin):fmtMoney(totalMin)+' – '+fmtMoney(totalMax)}`;
+              if(flatCash)out+=` <span style="color:var(--accent);font-weight:500">or ${cashMin===cashMax?fmtMoney(cashMin):fmtMoney(cashMin)+' – '+fmtMoney(cashMax)} cash</span>`;
+              out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Flat rate${d.crew?' · '+d.crew+' movers':''}${d.flatHrs?' · ~'+d.flatHrs+' hrs estimated':''}`;
+              if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
+              out+='</div>';
+              return out;
+            }
+            // Hourly display (original)
+            const moveMin=(d.hrsMin||0)*d.rate;
+            const moveMax=(d.hrsMax||0)*d.rate;
             const crewDesc=d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} movers`;
             let out=`<strong>${dayLabel} estimate:</strong> ${fmtMoney(moveMin+packMin)} – ${fmtMoney(moveMax+packMax)}`;
             out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${d.hrsMin}–${d.hrsMax} hrs · $${d.rate}/hr`;
@@ -9202,7 +9218,8 @@ function renderQuoteHTML(q,lead){
       </tr>`;
     }
     if(d.packCrew&&d.packRate){
-      const pl=(isMulti?`Day ${i+1} – `:'')+(d.packCrewSize||1)+' Packer'+((d.packCrewSize||1)>1?'s':'');
+      const pCount=Number(d.packCrewSize)||0;
+      const pl=(isMulti?`Day ${i+1} – `:'')+(pCount?pCount+' Packer'+(pCount>1?'s':''):'Packing crew');
       html+=`<tr style="border-bottom:1px solid #f0ece4">
         <td style="padding:11px 6px">${esc(pl)}</td>
         <td style="padding:11px 6px;text-align:right;color:#6b6860">${d.packHrsMin||'?'} – ${d.packHrsMax||'?'} hrs</td>

@@ -158,7 +158,8 @@ function renderQuote(q){
         '</tr>';
     }
     if(d.packCrew&&d.packRate){
-      var pl=(isMulti?'Day '+(i+1)+' \u2013 ':'')+( d.packCrewSize||1)+' Packer'+((d.packCrewSize||1)>1?'s':'');
+      var pCount=Number(d.packCrewSize)||0;
+      var pl=(isMulti?'Day '+(i+1)+' \u2013 ':'')+(pCount?pCount+' Packer'+(pCount>1?'s':''):'Packing crew');
       html+='<tr style="border-bottom:1px solid #f0ece4">'+
         '<td style="padding:11px 6px">'+esc(pl)+'</td>'+
         '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+(d.packHrsMin||'?')+' \u2013 '+(d.packHrsMax||'?')+' hrs</td>'+
