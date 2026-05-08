@@ -2436,6 +2436,25 @@ async function refreshFromSupabase(){
       sbFetch('completed_jobs','GET'),
       sbFetch('quotes','GET'),
     ]);
+    // Load lead tombstones — IDs deleted locally that must NOT be merged back from cloud
+    let _tombstones={};
+    try{_tombstones=JSON.parse(localStorage.getItem('movedesk_lead_tombstones')||'{}');}catch(_){}
+    // Drop any cloud lead row whose id is tombstoned, and re-issue the delete (best effort)
+    if(Array.isArray(leadsRes)&&Object.keys(_tombstones).length){
+      const _deletedFromCloud=[];
+      const _filtered=leadsRes.filter(row=>{
+        const recId=(row.data&&row.data.id)||row.id;
+        if(recId&&_tombstones[recId]){
+          _deletedFromCloud.push(recId);
+          return false;
+        }
+        return true;
+      });
+      _deletedFromCloud.forEach(id=>{try{sbDelete('leads',id);}catch(_){}});
+      // Replace leadsRes content
+      leadsRes.length=0;
+      _filtered.forEach(r=>leadsRes.push(r));
+    }
     // Merge — update db with any records newer than our last sync
     let updated=0;
     function mergeTable(remote,localArr,key='id'){
@@ -2459,6 +2478,12 @@ async function refreshFromSupabase(){
       return Object.values(localMap);
     }
     db.leads=mergeTable(leadsRes,db.leads);
+    // Final safety net: also strip any tombstoned IDs that survived merge somehow
+    if(Object.keys(_tombstones).length){
+      const before=db.leads.length;
+      db.leads=db.leads.filter(l=>!_tombstones[l.id]);
+      if(db.leads.length<before)updated++;
+    }
     db.bookedJobs=mergeTable(bookedRes,db.bookedJobs);
     db.completedJobs=mergeTable(completedRes,db.completedJobs);
     db.quotes=mergeTable(quotesRes,db.quotes||[]);
