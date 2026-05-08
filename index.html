@@ -8862,13 +8862,28 @@ function renderQbDays(){
 
           <!-- Move crew (always shown) -->
           <div style="padding:10px 12px;background:var(--surface)">
-            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">🚛 Move crew</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+              <div style="font-size:11px;font-weight:600;color:var(--text2)">🚛 Move crew</div>
+              <div style="display:flex;gap:0;border:1px solid var(--border2);border-radius:5px;overflow:hidden;font-size:11px">
+                <button type="button" onclick="updateQbDay('${d.id}','flatRate',false);renderQbDays()" style="padding:4px 10px;border:none;background:${d.flatRate?'var(--surface2)':'var(--accent)'};color:${d.flatRate?'var(--text2)':'#fff'};cursor:pointer">Hourly</button>
+                <button type="button" onclick="updateQbDay('${d.id}','flatRate',true);renderQbDays()" style="padding:4px 10px;border:none;background:${d.flatRate?'var(--accent)':'var(--surface2)'};color:${d.flatRate?'#fff':'var(--text2)'};cursor:pointer;border-left:1px solid var(--border2)">Flat rate</button>
+              </div>
+            </div>
+            ${d.flatRate?`
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+              <div class="form-group"><label>Estimated hours <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><input type="number" value="${d.flatHrs||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','flatHrs',this.value)" placeholder="e.g. 5"></div>
+              <div class="form-group"><label>Flat rate price ($)</label><input type="number" value="${d.flatPrice||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPrice',this.value)" placeholder="e.g. 1500"></div>
+              <div class="form-group"><label>Flat rate cash price ($) <span style="font-size:10.5px;color:var(--text3)">(optional)</span></label><input type="number" value="${d.flatPriceCash||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPriceCash',this.value)" placeholder="e.g. 1400"></div>
+            </div>
+            <div style="margin-top:6px;font-size:11px;color:var(--text3);line-height:1.5">Flat-rate quotes show a single fixed price instead of an hourly range. Both prices appear on the customer's quote when filled in.</div>
+            `:`
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
               <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
               <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMin||2}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
               <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMax||4}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
-            </div>
+            </div>`}
             ${(d.crewLoadDiff)?`<div style="margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius);font-size:11.5px;color:var(--text3)">Load: ${d.crewLoad||d.crew} movers · Unload: ${d.crewUnload||d.crew} movers</div>`:''}
           </div>
 
@@ -8985,30 +9000,57 @@ function renderQbFees(){
 
 function calcQbTotals(){
   let laborMin=0,laborMax=0,fees=0,feesMax=0;
+  let cashMin=null,cashMax=null,hasFlatCash=false;
   qbDays.forEach(d=>{
-    laborMin+=(d.hrsMin||0)*d.rate;
-    laborMax+=(d.hrsMax||0)*d.rate;
-    // Add packing crew if set
-    if(d.packCrew&&d.packRate){
-      laborMin+=(d.packHrsMin||0)*d.packRate;
-      laborMax+=(d.packHrsMax||0)*d.packRate;
+    if(d.flatRate){
+      // Flat-rate day: single fixed price (or single price + cash discount price)
+      const flat=Number(d.flatPrice)||0;
+      laborMin+=flat;
+      laborMax+=flat;
+      if(d.flatPriceCash){
+        hasFlatCash=true;
+        if(cashMin===null){cashMin=0;cashMax=0;}
+        cashMin+=Number(d.flatPriceCash)||0;
+        cashMax+=Number(d.flatPriceCash)||0;
+      } else if(hasFlatCash){
+        // Other flat-rate days had cash but this one didn't — fall back to flat price for cash
+        if(cashMin===null){cashMin=0;cashMax=0;}
+        cashMin+=flat;cashMax+=flat;
+      }
+    } else {
+      laborMin+=(d.hrsMin||0)*d.rate;
+      laborMax+=(d.hrsMax||0)*d.rate;
+      // Add packing crew if set
+      if(d.packCrew&&d.packRate){
+        laborMin+=(d.packHrsMin||0)*d.packRate;
+        laborMax+=(d.packHrsMax||0)*d.packRate;
+      }
     }
   });
   qbFees.filter(f=>f.included).forEach(f=>{
     if(f.type==='range'){fees+=f.hrsMin||0;feesMax+=f.hrsMax||0;}
     else{fees+=f.amount||0;feesMax+=f.amount||0;}
   });
-  return{laborMin,laborMax,fees,feesMax,totalMin:laborMin+fees,totalMax:laborMax+feesMax};
+  const totals={laborMin,laborMax,fees,feesMax,totalMin:laborMin+fees,totalMax:laborMax+feesMax};
+  if(hasFlatCash){
+    totals.cashTotalMin=(cashMin||0)+fees;
+    totals.cashTotalMax=(cashMax||0)+feesMax;
+  }
+  return totals;
 }
 
 function updateQbTotal(){
   const t=calcQbTotals();
   const isMulti=qbJobType==='multi';
+  const hasFlat=qbDays.some(d=>d.flatRate);
+  const totalLabel=hasFlat?'Total':isMulti?'Grand total':'Total estimate';
+  const totalDisplay=t.totalMin===t.totalMax?fmtMoney(t.totalMin):fmtMoney(t.totalMin)+' — '+fmtMoney(t.totalMax);
+  const cashDisplay=t.cashTotalMin!=null?(t.cashTotalMin===t.cashTotalMax?fmtMoney(t.cashTotalMin):fmtMoney(t.cashTotalMin)+' — '+fmtMoney(t.cashTotalMax)):'';
   document.getElementById('qb-total-bar').innerHTML=`
     <div style="display:flex;gap:24px;flex-wrap:wrap">
-      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Labour estimate</div><div style="font-size:15px;font-weight:600">${fmtMoney(t.laborMin)} — ${fmtMoney(t.laborMax)}</div></div>
+      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${hasFlat?'Labour':'Labour estimate'}</div><div style="font-size:15px;font-weight:600">${t.laborMin===t.laborMax?fmtMoney(t.laborMin):fmtMoney(t.laborMin)+' — '+fmtMoney(t.laborMax)}</div></div>
       <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Fees</div><div style="font-size:15px;font-weight:600">${fmtMoney(t.fees)}${t.feesMax!==t.fees?' — '+fmtMoney(t.feesMax):''}</div></div>
-      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${isMulti?'Grand total':'Total estimate'}</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${fmtMoney(t.totalMin)} — ${fmtMoney(t.totalMax)}</div></div>
+      <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${totalLabel}</div><div style="font-size:18px;font-weight:700;color:var(--accent)">${totalDisplay}</div>${cashDisplay?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px">or ${cashDisplay} cash</div>`:''}</div>
     </div>`;
 }
 
@@ -9138,12 +9180,25 @@ function renderQuoteHTML(q,lead){
   days.forEach((d,i)=>{
     const crewDesc=d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} Movers`;
     const label=isMulti?`Day ${i+1} – ${crewDesc}`:crewDesc;
-    html+=`<tr style="border-bottom:1px solid #f0ece4">
-      <td style="padding:11px 6px">${esc(label)}</td>
-      <td style="padding:11px 6px;text-align:right;color:#6b6860">${d.hrsMin} – ${d.hrsMax} hrs</td>
-      <td style="padding:11px 6px;text-align:right;color:#6b6860">${fmt(d.rate)}/hr</td>
-      <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(d.hrsMin*d.rate)} – ${fmt(d.hrsMax*d.rate)}</td>
-    </tr>`;
+    if(d.flatRate){
+      // Flat-rate billing row — customer sees only the price, no crew count or hours
+      const flatPrice=Number(d.flatPrice)||0;
+      const flatCash=Number(d.flatPriceCash)||0;
+      const flatLabel=isMulti?`Day ${i+1} – Move services`:'Move services';
+      html+=`<tr style="border-bottom:1px solid #f0ece4">
+        <td style="padding:11px 6px">${esc(flatLabel)}</td>
+        <td style="padding:11px 6px;text-align:right;color:#9e9b94">—</td>
+        <td style="padding:11px 6px;text-align:right;color:#9e9b94">—</td>
+        <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(flatPrice)}${flatCash?'<div style="font-size:11px;color:#2d5a3d;margin-top:2px">or '+fmt(flatCash)+' cash</div>':''}</td>
+      </tr>`;
+    } else {
+      html+=`<tr style="border-bottom:1px solid #f0ece4">
+        <td style="padding:11px 6px">${esc(label)}</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${d.hrsMin} – ${d.hrsMax} hrs</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${fmt(d.rate)}/hr</td>
+        <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(d.hrsMin*d.rate)} – ${fmt(d.hrsMax*d.rate)}</td>
+      </tr>`;
+    }
     if(d.packCrew&&d.packRate){
       const pl=(isMulti?`Day ${i+1} – `:'')+(d.packCrewSize||1)+' Packer'+((d.packCrewSize||1)>1?'s':'');
       html+=`<tr style="border-bottom:1px solid #f0ece4">
@@ -9167,8 +9222,8 @@ function renderQuoteHTML(q,lead){
 
   html+=`</tbody>
       <tfoot><tr style="border-top:2px solid #e8e4dc">
-        <td colspan="3" style="padding:14px 6px;font-weight:700;font-size:15px">Estimated Total</td>
-        <td style="padding:14px 6px;text-align:right;font-weight:700;font-size:16px;color:#2d5a3d">${fmt(q.totalMin)} – ${fmt(q.totalMax)}</td>
+        <td colspan="3" style="padding:14px 6px;font-weight:700;font-size:15px">${q.totalMin===q.totalMax?'Total':'Estimated Total'}</td>
+        <td style="padding:14px 6px;text-align:right;font-weight:700;font-size:16px;color:#2d5a3d">${q.totalMin===q.totalMax?fmt(q.totalMin):fmt(q.totalMin)+' – '+fmt(q.totalMax)}${q.cashTotalMin?'<div style="font-size:14px;color:#2d5a3d;margin-top:4px;font-weight:600">or '+(q.cashTotalMin===q.cashTotalMax?fmt(q.cashTotalMin):fmt(q.cashTotalMin)+' – '+fmt(q.cashTotalMax))+' cash</div>':''}</td>
       </tr></tfoot>
     </table>
     ${q.cashDiscount?`<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Cash discount:</strong> ${esc(q.cashDiscount)}</div>`:''}
@@ -9241,6 +9296,7 @@ function saveQuote(status){
     notes:document.getElementById('qb-notes').value,officeNotes:(()=>{const _qbOn=document.getElementById('qb-office-notes')?.value||'';const _qbL=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;if(_qbL&&_qbOn)_qbL.officeNotes=_qbOn;return _qbOn;})(),estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
     sentBy:document.getElementById('qb-sent-by')?.value||'',estimateType:document.getElementById('qb-estimate-type')?.value||'',
     totalMin:t.totalMin,totalMax:t.totalMax,
+    cashTotalMin:t.cashTotalMin||null,cashTotalMax:t.cashTotalMax||null,
     status:status||'draft',
     createdAt:new Date().toISOString().split('T')[0],
     savedAt:new Date().toISOString(),

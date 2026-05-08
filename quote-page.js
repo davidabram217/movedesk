@@ -138,12 +138,24 @@ function renderQuote(q){
   days.forEach(function(d,i){
     var crewDesc=d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':d.crew+' Movers';
     var label=isMulti?'Day '+(i+1)+' \u2013 '+crewDesc:crewDesc;
-    html+='<tr style="border-bottom:1px solid #f0ece4">'+
-      '<td style="padding:11px 6px">'+esc(label)+'</td>'+
-      '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+d.hrsMin+' \u2013 '+d.hrsMax+' hrs</td>'+
-      '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(d.rate)+'/hr</td>'+
-      '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(d.hrsMin*d.rate)+' \u2013 '+fmt(d.hrsMax*d.rate)+'</td>'+
-      '</tr>';
+    if(d.flatRate){
+      var flatPrice=Number(d.flatPrice)||0;
+      var flatCash=Number(d.flatPriceCash)||0;
+      var flatLabel=isMulti?'Day '+(i+1)+' \u2013 Move services':'Move services';
+      html+='<tr style="border-bottom:1px solid #f0ece4">'+
+        '<td style="padding:11px 6px">'+esc(flatLabel)+'</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#9e9b94">\u2014</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#9e9b94">\u2014</td>'+
+        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(flatPrice)+(flatCash?'<div style="font-size:11px;color:#2d5a3d;margin-top:2px">or '+fmt(flatCash)+' cash</div>':'')+'</td>'+
+        '</tr>';
+    } else {
+      html+='<tr style="border-bottom:1px solid #f0ece4">'+
+        '<td style="padding:11px 6px">'+esc(label)+'</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+d.hrsMin+' \u2013 '+d.hrsMax+' hrs</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(d.rate)+'/hr</td>'+
+        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(d.hrsMin*d.rate)+' \u2013 '+fmt(d.hrsMax*d.rate)+'</td>'+
+        '</tr>';
+    }
     if(d.packCrew&&d.packRate){
       var pl=(isMulti?'Day '+(i+1)+' \u2013 ':'')+( d.packCrewSize||1)+' Packer'+((d.packCrewSize||1)>1?'s':'');
       html+='<tr style="border-bottom:1px solid #f0ece4">'+
@@ -166,8 +178,8 @@ function renderQuote(q){
   });
 
   html+='</tbody><tfoot><tr style="border-top:2px solid #e8e4dc">'+
-    '<td colspan="3" style="padding:14px 6px;font-weight:700;font-size:15px">Estimated Total</td>'+
-    '<td style="padding:14px 6px;text-align:right;font-weight:700;font-size:16px;color:#2d5a3d">'+fmt(q.totalMin)+' \u2013 '+fmt(q.totalMax)+'</td>'+
+    '<td colspan="3" style="padding:14px 6px;font-weight:700;font-size:15px">'+(q.totalMin===q.totalMax?'Total':'Estimated Total')+'</td>'+
+    '<td style="padding:14px 6px;text-align:right;font-weight:700;font-size:16px;color:#2d5a3d">'+(q.totalMin===q.totalMax?fmt(q.totalMin):fmt(q.totalMin)+' \u2013 '+fmt(q.totalMax))+(q.cashTotalMin?'<div style="font-size:14px;color:#2d5a3d;margin-top:4px;font-weight:600">or '+(q.cashTotalMin===q.cashTotalMax?fmt(q.cashTotalMin):fmt(q.cashTotalMin)+' \u2013 '+fmt(q.cashTotalMax))+' cash</div>':'')+'</td>'+
     '</tr></tfoot></table>';
 
   if(q.cashDiscount){
