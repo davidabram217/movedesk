@@ -1463,6 +1463,9 @@
         <button class="btn btn-primary" style="width:100%;opacity:0.4;pointer-events:none" id="bk-confirm-btn" onclick="bookingNextDone()">✓ Confirm &amp; move to Booked Jobs</button>
         <div style="font-size:11.5px;color:var(--text3);text-align:center;margin-top:6px" id="bk-confirm-sub">Complete both steps above first</div>
       </div>
+      <div style="margin-top:10px;text-align:center">
+        <button class="btn btn-secondary btn-sm" onclick="bookingNextCancel()" style="font-size:11.5px">← Cancel and go back</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2369,6 +2372,69 @@ async function clearAllDataFromSupabase(){
 }
 
 let _saveTimer=null;
+// Keeps "Additional notes" (customer-facing) and "Office notes" (internal) in sync between
+// a lead and any booked or completed job that traces back to it.
+// Call after editing the lead, booked job, or completed job — pass the kind of source and
+// any fields to propagate. The lead is the master record for both note fields.
+//   propagateNotesEdits('lead', l.id, {notes: l.notes, officeNotes: l.officeNotes})
+//   propagateNotesEdits('booked', j.id, {emailNote: j.emailNote, officeNotes: j.officeNotes})
+//   propagateNotesEdits('completed', j.id, {notes: j.notes})
+function propagateNotesEdits(sourceType,sourceId,fields){
+  if(!fields)return;
+  fields=fields||{};
+  let lead=null;
+  // 1) Locate the master lead
+  if(sourceType==='lead'){
+    lead=(db.leads||[]).find(l=>l.id===sourceId);
+  } else if(sourceType==='booked'){
+    const bj=(db.bookedJobs||[]).find(j=>j.id===sourceId);
+    if(bj&&bj.leadId)lead=(db.leads||[]).find(l=>l.id===bj.leadId);
+    // Update the lead's master copy from the booked-job edit
+    if(lead){
+      if('emailNote' in fields){
+        const v=(fields.emailNote||'').trim();
+        if(v)lead.notes=fields.emailNote;
+      }
+      if('officeNotes' in fields){
+        const v=(fields.officeNotes||'').trim();
+        if(v)lead.officeNotes=fields.officeNotes;
+      }
+    }
+  } else if(sourceType==='completed'){
+    const cj=(db.completedJobs||[]).find(j=>j.id===sourceId);
+    if(cj){
+      // Find the booked job first, then the lead
+      const bj=cj.bookedJobId?(db.bookedJobs||[]).find(j=>j.id===cj.bookedJobId):null;
+      if(bj&&bj.leadId)lead=(db.leads||[]).find(l=>l.id===bj.leadId);
+      if(!lead&&cj.name&&cj.date)lead=(db.leads||[]).find(l=>l.name===cj.name&&l.date===cj.date);
+      if(lead){
+        if('notes' in fields){
+          const v=(fields.notes||'').trim();
+          if(v)lead.notes=fields.notes;
+        }
+      }
+    }
+  }
+  if(!lead)return;
+  // 2) Push the lead's authoritative notes/officeNotes forward to ALL linked records
+  // Booked jobs: lead.notes → bj.emailNote, lead.officeNotes → bj.officeNotes
+  (db.bookedJobs||[]).filter(j=>j.leadId===lead.id).forEach(bj=>{
+    if(typeof lead.notes==='string')bj.emailNote=lead.notes;
+    if(typeof lead.officeNotes==='string')bj.officeNotes=lead.officeNotes;
+  });
+  // Completed jobs: lead.notes → cj.notes (completed only has one notes field)
+  // Match by leadId via booked job, then fall back to name+date.
+  (db.completedJobs||[]).forEach(cj=>{
+    let isMatch=false;
+    if(cj.bookedJobId){
+      const bj=(db.bookedJobs||[]).find(j=>j.id===cj.bookedJobId);
+      if(bj&&bj.leadId===lead.id)isMatch=true;
+    }
+    if(!isMatch&&cj.name===lead.name&&cj.date===lead.date)isMatch=true;
+    if(isMatch&&typeof lead.notes==='string')cj.notes=lead.notes;
+  });
+}
+
 function saveDB(){
   // Ensure every lead with a changed status has a fresh statusUpdatedAt — protects against
   // status flips being overwritten by stale cloud data on next refresh
@@ -3403,8 +3469,8 @@ function saveLead(){
       l.notes=document.getElementById('nl-notes').value.trim();
       const _editedOfficeNotes=document.getElementById('nl-office-notes').value.trim();
       l.officeNotes=_editedOfficeNotes;
-      // Sync to any booked jobs for this lead
-      if(_editedOfficeNotes)(db.bookedJobs||[]).filter(bj=>bj.leadId===l.id).forEach(bj=>{bj.officeNotes=_editedOfficeNotes;});l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',cashRate:document.getElementById('nl-rq-cash-rate')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
+      // Propagate notes + officeNotes to all linked booked and completed jobs
+      propagateNotesEdits('lead',l.id,{notes:l.notes,officeNotes:l.officeNotes});l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',cashRate:document.getElementById('nl-rq-cash-rate')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
       l.takenBy=document.getElementById('nl-taken-by').value;
     }
     editingLeadId=null;
@@ -5047,9 +5113,9 @@ function bjWriteFields(j){
   j.emailNote=document.getElementById('bj-email-note').value;
   const _newOfficeNotes=document.getElementById('bj-office-notes')?.value||'';
   j.officeNotes=_newOfficeNotes;
-  // Sync office notes back to lead as master copy
-  const _bjLead=db.leads.find(x=>x.id===j.leadId);
-  if(_bjLead&&_newOfficeNotes)_bjLead.officeNotes=_newOfficeNotes;
+  // Propagate notes through the chain: this booked job's notes update the lead's master copy,
+  // then the lead pushes them forward to any completed jobs and other booked jobs
+  propagateNotesEdits('booked',j.id,{emailNote:j.emailNote,officeNotes:_newOfficeNotes});
   j.crewDiff=document.getElementById('bj-crew-diff').checked;
   j.crewLoad=document.getElementById('bj-crew-load')?.value||'';
   j.crewUnload=document.getElementById('bj-crew-unload')?.value||'';
@@ -5438,10 +5504,9 @@ function confirmBooking(){
     multiDay:isMultiDayQuote,quoteDays:isMultiDayQuote?leadQuote.days:[],quoteFees:leadQuote?leadQuote.fees||[]:[]
   };
   db.bookedJobs.push(job);
-  // Set lead status to "Booked" immediately so the lead disappears from the active leads list.
-  // Was previously "Quote accepted" until the post-booking checklist completed — but that
-  // left the lead visible in both Leads and Booked Jobs if the checklist was skipped.
-  if(l){l.status='Booked';l.statusUpdatedAt=new Date().toISOString().split('T')[0];}
+  // Don't flip lead status to "Booked" yet — only when the checklist is finished. Until then,
+  // the job is a draft (filtered out of Booked Jobs) and the lead stays at its previous status.
+  job._draft=true;
   currentBookedJobId=job.id;
   window._bookingCalUrl=buildJobCalUrl(job);
   saveDB();closeModal('book-job');renderLeads();
@@ -5891,11 +5956,39 @@ function bookingNextDone(){
   if(!allCalDone){showToast(isMulti?'⚠ Please add all day calendar entries first':'⚠ Please add to Google Calendar first');return;}
   if(!j.confirmEmailSent&&j.email){showToast('⚠ Please send the confirmation email first');return;}
   j.pendingConfirmation=false;
+  // Remove the draft flag — the booking is now committed and will appear in Booked Jobs
+  delete j._draft;
+  // Flip the lead status to Booked, hiding it from the active leads list
   const l=db.leads.find(x=>x.id===j.leadId);
-  if(l)l.status='Booked';
+  if(l){l.status='Booked';l.statusUpdatedAt=new Date().toISOString().split('T')[0];l._statusChangedAt=new Date().toISOString();}
   saveDB();renderBooked();renderLeads();
   closeModal('booking-next');
   showToast('✓ Job confirmed & booked — '+j.name);
+}
+
+// Cancel an in-progress booking — discards the draft and reopens the booking form so the user
+// can adjust details, OR closes everything if they want to fully back out.
+function bookingNextCancel(){
+  const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
+  if(!j||!j._draft){
+    // Already committed — just close
+    closeModal('booking-next');
+    return;
+  }
+  if(!confirm('Cancel this booking? The job will not be saved and you can come back to it later from the lead.'))return;
+  // Discard the draft booked-job entry (and its cloud copy)
+  db.bookedJobs=db.bookedJobs.filter(x=>x.id!==j.id);
+  try{sbDelete('booked_jobs',j.id);}catch(_){}
+  // Tombstone so a stale cloud copy can't resurrect it
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+    tombstones[j.id]=new Date().toISOString();
+    localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
+  saveDB();
+  closeModal('booking-next');
+  showToast('Booking cancelled — lead returned to leads list');
+  if(document.getElementById('page-leads').classList.contains('active'))renderLeads();
 }
 
 function bookingNextAction(action){
@@ -6859,6 +6952,8 @@ function saveEditedCompletedJob(){
   j.owing=Math.max(0,total-paid);
   j.paymentState=j.owing<=0?'paid':'owing';
   j.notes=document.getElementById('ecj-notes').value;
+  // Propagate this completed job's notes back to the lead and any other linked records
+  propagateNotesEdits('completed',j.id,{notes:j.notes});
   // Vaults — store on the completed job
   const _ecjVaults=document.getElementById('ecj-vaults')?.value||'';
   j.vaults=_ecjVaults?Number(_ecjVaults):j.vaults;
