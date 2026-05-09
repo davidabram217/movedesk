@@ -839,10 +839,10 @@
         <button type="button" class="btn btn-secondary btn-sm" onclick="addUnloadLocation()" id="nl-add-unload-btn">＋ Add another drop-off location</button>
       </div>
       <div class="form-grid form-grid-2" style="margin-top:13px">
-        <div class="form-group full"><label>Additional notes <span style="font-size:11px;font-weight:500;color:var(--amber)">— THESE NOTES ARE SHOWN TO CUSTOMER IN EMAIL</span></label><textarea id="nl-notes" placeholder="Anything else from the call…"></textarea></div>
+        <div class="form-group full"><label>Additional notes <span style="font-size:11px;font-weight:500;color:var(--amber)">— THESE NOTES ARE SHOWN TO CUSTOMER IN EMAIL</span></label><textarea id="nl-notes" placeholder="Anything else from the call…" oninput="if(editingLeadId)liveAutosaveNotes('lead',editingLeadId,{notes:this.value})"></textarea></div>
         <div class="form-group full" style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
           <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">🔒 Office notes only <span style="font-size:10px;font-weight:400;color:var(--text3)">— never shared with client</span></label>
-          <textarea id="nl-office-notes" placeholder="Internal notes — pricing flags, special considerations, anything not for the client…" style="min-height:55px;width:100%"></textarea>
+          <textarea id="nl-office-notes" placeholder="Internal notes — pricing flags, special considerations, anything not for the client…" style="min-height:55px;width:100%" oninput="if(editingLeadId)liveAutosaveNotes('lead',editingLeadId,{officeNotes:this.value})"></textarea>
         </div>
 
         
@@ -1130,10 +1130,10 @@
         <div class="form-group full"><label>Scope of work / items of note</label><textarea id="bj-scope" placeholder="Key items, fragile pieces, special handling notes…" style="min-height:70px"></textarea></div>
         <div class="form-group full"><label>Special crew notes</label><textarea id="bj-crew-notes" placeholder="Instructions specifically for the crew on the day…" style="min-height:60px"></textarea></div>
         <div class="form-group"><label>Do not exceed price ($)</label><input type="number" id="bj-do-not-exceed" placeholder="e.g. 5755"></div>
-        <div class="form-group full"><label>Additional notes</label><textarea id="bj-email-note" placeholder="Any other details…" style="min-height:60px"></textarea></div>
+        <div class="form-group full"><label>Additional notes</label><textarea id="bj-email-note" placeholder="Any other details…" style="min-height:60px" oninput="if(editingBookedJobId)liveAutosaveNotes('booked',editingBookedJobId,{emailNote:this.value})"></textarea></div>
         <div class="form-group full" style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
           <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">🔒 Office notes only <span style="font-size:10px;font-weight:400;color:var(--text3)">— never shared with client, appears at top of calendar entry</span></label>
-          <textarea id="bj-office-notes" placeholder="Internal notes — flags, special considerations, pricing context…" style="min-height:55px;width:100%"></textarea>
+          <textarea id="bj-office-notes" placeholder="Internal notes — flags, special considerations, pricing context…" style="min-height:55px;width:100%" oninput="if(editingBookedJobId)liveAutosaveNotes('booked',editingBookedJobId,{officeNotes:this.value})"></textarea>
         </div>
       </div>
     </div>
@@ -1426,7 +1426,7 @@
         <div class="form-group"><label>Amount paid ($)</label><input type="number" id="ecj-paid" placeholder="0.00"></div>
       </div>
 
-      <div class="form-group"><label>Notes</label><textarea id="ecj-notes" style="min-height:60px"></textarea></div>
+      <div class="form-group"><label>Notes</label><textarea id="ecj-notes" style="min-height:60px" oninput="if(currentEditCompletedJobId)liveAutosaveNotes('completed',currentEditCompletedJobId,{notes:this.value})"></textarea></div>
 
       <div style="margin-top:16px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500">
@@ -2327,6 +2327,29 @@ async function loadDB(){
       _bookedFixed++;
     });
     if(_bookedFixed)console.log('Self-healed '+_bookedFixed+' lead(s) to "Booked" status (had matching booked-jobs entry)');
+    // Notes reconciliation: lead is master, push lead.notes/officeNotes to every linked
+    // booked + completed job. This fixes mismatches that existed before the live-autosave
+    // helper was in place, and keeps things consistent on every page load.
+    let _notesReconciled=0;
+    (db.leads||[]).forEach(l=>{
+      if(!l||!l.id)return;
+      const ln=typeof l.notes==='string'?l.notes:'';
+      const lon=typeof l.officeNotes==='string'?l.officeNotes:'';
+      (db.bookedJobs||[]).filter(bj=>bj.leadId===l.id).forEach(bj=>{
+        if(bj.emailNote!==ln){bj.emailNote=ln;_notesReconciled++;}
+        if(bj.officeNotes!==lon){bj.officeNotes=lon;_notesReconciled++;}
+      });
+      (db.completedJobs||[]).forEach(cj=>{
+        let isMatch=false;
+        if(cj.bookedJobId){
+          const bj=(db.bookedJobs||[]).find(j=>j.id===cj.bookedJobId);
+          if(bj&&bj.leadId===l.id)isMatch=true;
+        }
+        if(!isMatch&&cj.name===l.name&&cj.date===l.date)isMatch=true;
+        if(isMatch&&cj.notes!==ln){cj.notes=ln;_notesReconciled++;}
+      });
+    });
+    if(_notesReconciled)console.log('Reconciled '+_notesReconciled+' note field(s) across linked records');
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -2379,51 +2402,73 @@ let _saveTimer=null;
 //   propagateNotesEdits('lead', l.id, {notes: l.notes, officeNotes: l.officeNotes})
 //   propagateNotesEdits('booked', j.id, {emailNote: j.emailNote, officeNotes: j.officeNotes})
 //   propagateNotesEdits('completed', j.id, {notes: j.notes})
+// Live autosave: triggered on every keystroke in any notes textarea. Debounced 600ms so
+// rapid typing doesn't hammer storage. Updates the underlying record AND propagates the
+// change to all linked records so notes never go out of sync between views.
+let _notesAutosaveTimer=null;
+function liveAutosaveNotes(sourceType,sourceId,fieldsObj){
+  clearTimeout(_notesAutosaveTimer);
+  _notesAutosaveTimer=setTimeout(()=>{
+    try{
+      // Apply the edits onto the source record FIRST (so user's typing is what's saved)
+      if(sourceType==='lead'){
+        const l=(db.leads||[]).find(x=>x.id===sourceId);
+        if(l){
+          if('notes' in fieldsObj)l.notes=fieldsObj.notes;
+          if('officeNotes' in fieldsObj)l.officeNotes=fieldsObj.officeNotes;
+        }
+      } else if(sourceType==='booked'){
+        const j=(db.bookedJobs||[]).find(x=>x.id===sourceId);
+        if(j){
+          if('emailNote' in fieldsObj)j.emailNote=fieldsObj.emailNote;
+          if('officeNotes' in fieldsObj)j.officeNotes=fieldsObj.officeNotes;
+        }
+      } else if(sourceType==='completed'){
+        const j=(db.completedJobs||[]).find(x=>x.id===sourceId);
+        if(j){
+          if('notes' in fieldsObj)j.notes=fieldsObj.notes;
+        }
+      }
+      propagateNotesEdits(sourceType,sourceId,fieldsObj);
+      saveDB();
+    }catch(e){console.warn('liveAutosaveNotes:',e);}
+  },600);
+}
+
 function propagateNotesEdits(sourceType,sourceId,fields){
   if(!fields)return;
   fields=fields||{};
   let lead=null;
-  // 1) Locate the master lead
+  // 1) Locate the master lead, then update its fields from this source.
+  // Empty values DO propagate — clearing notes in one place clears them everywhere.
   if(sourceType==='lead'){
     lead=(db.leads||[]).find(l=>l.id===sourceId);
   } else if(sourceType==='booked'){
     const bj=(db.bookedJobs||[]).find(j=>j.id===sourceId);
     if(bj&&bj.leadId)lead=(db.leads||[]).find(l=>l.id===bj.leadId);
-    // Update the lead's master copy from the booked-job edit
+    // Mirror the booked-job edit onto the lead's master copy
     if(lead){
-      if('emailNote' in fields){
-        const v=(fields.emailNote||'').trim();
-        if(v)lead.notes=fields.emailNote;
-      }
-      if('officeNotes' in fields){
-        const v=(fields.officeNotes||'').trim();
-        if(v)lead.officeNotes=fields.officeNotes;
-      }
+      if('emailNote' in fields)lead.notes=fields.emailNote||'';
+      if('officeNotes' in fields)lead.officeNotes=fields.officeNotes||'';
     }
   } else if(sourceType==='completed'){
     const cj=(db.completedJobs||[]).find(j=>j.id===sourceId);
     if(cj){
-      // Find the booked job first, then the lead
       const bj=cj.bookedJobId?(db.bookedJobs||[]).find(j=>j.id===cj.bookedJobId):null;
       if(bj&&bj.leadId)lead=(db.leads||[]).find(l=>l.id===bj.leadId);
       if(!lead&&cj.name&&cj.date)lead=(db.leads||[]).find(l=>l.name===cj.name&&l.date===cj.date);
       if(lead){
-        if('notes' in fields){
-          const v=(fields.notes||'').trim();
-          if(v)lead.notes=fields.notes;
-        }
+        if('notes' in fields)lead.notes=fields.notes||'';
       }
     }
   }
   if(!lead)return;
-  // 2) Push the lead's authoritative notes/officeNotes forward to ALL linked records
-  // Booked jobs: lead.notes → bj.emailNote, lead.officeNotes → bj.officeNotes
+  // 2) Push the lead's authoritative notes/officeNotes forward to ALL linked records.
+  // Empty values overwrite non-empty ones — the lead is the single source of truth.
   (db.bookedJobs||[]).filter(j=>j.leadId===lead.id).forEach(bj=>{
-    if(typeof lead.notes==='string')bj.emailNote=lead.notes;
-    if(typeof lead.officeNotes==='string')bj.officeNotes=lead.officeNotes;
+    bj.emailNote=lead.notes||'';
+    bj.officeNotes=lead.officeNotes||'';
   });
-  // Completed jobs: lead.notes → cj.notes (completed only has one notes field)
-  // Match by leadId via booked job, then fall back to name+date.
   (db.completedJobs||[]).forEach(cj=>{
     let isMatch=false;
     if(cj.bookedJobId){
@@ -2431,7 +2476,7 @@ function propagateNotesEdits(sourceType,sourceId,fields){
       if(bj&&bj.leadId===lead.id)isMatch=true;
     }
     if(!isMatch&&cj.name===lead.name&&cj.date===lead.date)isMatch=true;
-    if(isMatch&&typeof lead.notes==='string')cj.notes=lead.notes;
+    if(isMatch)cj.notes=lead.notes||'';
   });
 }
 
