@@ -4111,6 +4111,129 @@ if(q){q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];}
 saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
 
 let currentConfirmEmailLeadId=null;
+// Builds the "Here are the details as I understand them" block — the same block that goes
+// into the confirmation email body, but extracted so the calendar entry can include it
+// verbatim without requiring the email modal to be opened first. Returns a plain text block.
+function buildMoveDetailsBlock(l,bj){
+  function _fmtRate(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
+  // Locate the most relevant quote for this lead/booking — accepted > sent > any with days
+  const leadId=(bj&&bj.leadId)||(l&&l.id)||null;
+  const q=leadId?((db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
+    ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')
+    ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.days&&qt.days.length)):null;
+  const isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
+  let s='';
+
+  if(isMulti){
+    q.days.forEach(function(day,i){
+      const bjDay=bj&&bj.quoteDays&&bj.quoteDays[i]||{};
+      const rate=Number(day.rate)||Number(bjDay.rate)||0;
+      const cashBase=Number(q.cashRate)||0;
+      const day1Rate=Number(q.days[0].rate)||rate;
+      const dayCash=cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0;
+      const crew=Number(day.crew)||Number(bjDay.crew)||0;
+      const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||''}];
+      const unloads=(day.unloads&&day.unloads.length)?day.unloads:[{address:day.to||bjDay.to||''}];
+      const hasUnloads=unloads.some(function(u){return u.address;});
+      s+='\nDay '+(i+1);
+      if(day.date)s+='\nWhen: '+fmtDate(day.date)+(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
+      loads.filter(function(u){return u.address;}).forEach(function(u){s+='\nFrom: '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
+      if(hasUnloads){unloads.filter(function(u){return u.address;}).forEach(function(u){s+='\nTo: '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});}
+      else{s+='\nTo: Load trucks only';}
+      s+='\n*Customer responsible for any parking tickets should they be incurred';
+      if(day.flatRate){
+        const flatPrice=Number(day.flatPrice)||0;
+        const flatCash=Number(day.flatPriceCash)||0;
+        if(flatPrice)s+='\n'+(day.flatDescription||'Move services')+': $'+_fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+_fmtRate(flatCash)+' If Paid Cash)':'');
+      } else if(rate){
+        s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(dayCash?' ($'+_fmtRate(dayCash)+' If Paid Cash)':'');
+        if(day.hrsMin)s+='\n'+day.hrsMin+' hour minimum';
+      }
+      // Day-specific fees
+      (q.fees||[]).filter(function(f){
+        if(!f.included||(f.amount===0&&!f.hrsMin&&!f.hrsMax))return false;
+        var lbl=(f.label||f.name||'').toLowerCase();
+        if(lbl.includes('packing material'))return false;
+        var mentionsDay=q.days.some(function(_,j){return lbl.includes('day '+(j+1))||lbl.includes('day'+(j+1));});
+        if(mentionsDay)return lbl.includes('day '+(i+1))||lbl.includes('day'+(i+1));
+        if(lbl.includes('pack day')||lbl.includes('packing day'))return i===0;
+        if(lbl.includes('move day')||lbl.includes('delivery day'))return i===q.days.length-1;
+        return i===0;
+      }).forEach(function(f){
+        var lbl=f.label||f.name||'';
+        if(f.type==='range')s+='\n$'+(f.hrsMin||0)+' – $'+(f.hrsMax||0)+' '+lbl;
+        else s+='\n$'+_fmtRate(f.amount)+' '+lbl;
+      });
+      if(i===0){
+        var packFee=(q.fees||[]).find(function(f){return f.included&&(f.label||f.name||'').toLowerCase().includes('packing material');});
+        if(packFee){
+          if(packFee.type==='range')s+='\n$'+(packFee.hrsMin||'?')+' – $'+(packFee.hrsMax||'?')+' '+(packFee.label||packFee.name||'Packing Materials');
+          else if(packFee.amount)s+='\n$'+_fmtRate(packFee.amount)+' '+(packFee.label||packFee.name||'Packing Materials');
+        } else if(l?.packing&&l.packing!=='No — just moving'){
+          s+='\nPacking Materials Used - TBD';
+        }
+      }
+      s+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
+      if(i<q.days.length-1)s+='\n';
+    });
+    if(q.totalMin||q.totalMax)s+='\nTotal estimate: $'+Number(q.totalMin||0).toLocaleString()+' – $'+Number(q.totalMax||0).toLocaleString()+' (all days combined)';
+  } else if(q&&q.days&&q.days.length){
+    var d=q.days[0];
+    var bjDay=bj&&bj.quoteDays&&bj.quoteDays[0]||{};
+    var rate=Number(d.rate)||Number(bjDay.rate)||Number(bj?.rateRegular)||0;
+    var cashRate=Number(q.cashRate)||Number(bj?.rateCash)||0;
+    var crew=Number(d.crew)||Number(bj?.movers)||0;
+    var loads=(d.loads&&d.loads.length)?d.loads:[{address:d.from||l?.from||bj?.from||'',access:l?.accessLoad||bj?.accessLoad||'',parking:l?.parkingLoad||bj?.parkingLoad||''}];
+    var unloads=(d.unloads&&d.unloads.length)?d.unloads:[{address:d.to||l?.to||bj?.to||'',access:l?.accessUnload||bj?.accessUnload||'',parking:l?.parkingUnload||bj?.parkingUnload||''}];
+    if(d.date)s+='\nWhen: '+fmtDate(d.date)+(d.arrivalStart?', arriving '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:''):(bj?.time?', arriving '+bj.time:''));
+    else if(bj?.date)s+='\nWhen: '+fmtDate(bj.date)+(bj.time?', arriving '+bj.time:'');
+    loads.filter(function(u){return u.address;}).forEach(function(u,li){s+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
+    unloads.filter(function(u){return u.address;}).forEach(function(u,li){s+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
+    if(d.flatRate){
+      var flatPrice=Number(d.flatPrice)||0;
+      var flatCash=Number(d.flatPriceCash)||0;
+      if(flatPrice)s+='\n'+(d.flatDescription||'Move services')+': $'+_fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+_fmtRate(flatCash)+' If Paid Cash)':'');
+    } else if(rate){
+      s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(cashRate?' ($'+_fmtRate(cashRate)+' If Paid Cash)':'');
+      if(d.hrsMin)s+='\n'+d.hrsMin+' hour minimum';
+    }
+    (q.fees||[]).filter(function(f){return f.included&&(f.amount||f.hrsMin||f.hrsMax);}).forEach(function(f){var lbl=f.label||f.name||'';if(f.type==='range')s+='\n$'+(f.hrsMin||0)+' – $'+(f.hrsMax||0)+' '+lbl;else s+='\n$'+_fmtRate(f.amount)+' '+lbl;});
+    if(l?.packing&&l.packing!=='No — just moving')s+='\nPacking Materials Used - TBD';
+    s+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
+  } else {
+    // Fallback when there's no quote — pull from the booked job + lead directly
+    var moveDate=fmtDate(l?.date||bj?.date||'');
+    s='\nWhen: '+moveDate+(bj?.time?', arriving '+bj.time:'');
+    // From with access/parking
+    const fromAddr=l?.from||bj?.from||'';
+    const fromAcc=l?.accessLoad||bj?.accessLoad||'';
+    const fromPark=l?.parkingLoad||bj?.parkingLoad||'';
+    if(fromAddr){s+='\nFrom: '+fromAddr;if(fromAcc)s+=' · '+fromAcc;if(fromPark)s+=' · '+fromPark;}
+    (l?.extraLoads||bj?.extraLoads||[]).forEach(function(ex,i){if(ex.address){s+='\nPickup '+(i+2)+': '+ex.address;if(ex.access)s+=' · '+ex.access;if(ex.parking)s+=' · '+ex.parking;}});
+    // To with access/parking
+    const toAddr=l?.to||bj?.to||'';
+    const toAcc=l?.accessUnload||bj?.accessUnload||'';
+    const toPark=l?.parkingUnload||bj?.parkingUnload||'';
+    if(toAddr){s+='\nTo: '+toAddr;if(toAcc)s+=' · '+toAcc;if(toPark)s+=' · '+toPark;}
+    (l?.extraUnloads||bj?.extraUnloads||[]).forEach(function(ex,i){if(ex.address){s+='\nDrop-off '+(i+2)+': '+ex.address;if(ex.access)s+=' · '+ex.access;if(ex.parking)s+=' · '+ex.parking;}});
+    if(bj?.rateRegular){
+      const _crew=bj.crewDiff?(bj.crewLoad||bj.movers||'?')+' load / '+(bj.crewUnload||bj.movers||'?')+' unload movers':(bj.movers||'?')+' Movers';
+      s+='\n'+_crew+' @ $'+_fmtRate(bj.rateRegular)+' Per Hour'+(bj.rateCash?' ($'+_fmtRate(bj.rateCash)+' If Paid Cash)':'');
+    }
+    // Hour minimum from quoteDays if present
+    const qd0=bj&&bj.quoteDays&&bj.quoteDays[0];
+    if(qd0&&qd0.hrsMin)s+='\n'+qd0.hrsMin+' hour minimum';
+    if(bj?.feeFuel)s+='\n$'+_fmtRate(bj.feeFuel)+' Fuel Fee';
+    if(bj?.feeMaterials)s+='\n$'+_fmtRate(bj.feeMaterials)+' Material Fee';
+    if((l?.packing||bj?.packing)&&(l?.packing||bj?.packing)!=='No — just moving')s+='\nPacking Materials Used - TBD';
+    s+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
+    if(l?.storage||bj?.storage)s+='\nStorage costs $200 per month';
+    const _packing=l?.packing||bj?.packing||'';
+    if(_packing&&_packing!=='No'&&_packing!=='No — just moving')s+='\n*'+_packing+' packing included';
+  }
+  return s.replace(/^\n+/,'');
+}
+
 function openConfirmEmail(leadId,bookedJob){
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='600';
@@ -5453,13 +5576,21 @@ function buildJobCalUrl(j){
   // ───────────────────────────────────────────────────────────
   // 6. CONFIRMATION EMAIL MOVE-DETAILS BLOCK
   // (the "Here are the details as I understand them" section the customer was sent)
-  // Stashed on j._moveDetailsBlock when the confirmation email was generated.
+  // Built on-demand from the same logic as the email body, so the calendar always has it
+  // even if the email modal hasn't been opened yet for this booking.
   // ───────────────────────────────────────────────────────────
-  if(j._moveDetailsBlock){
+  let _moveBlock=j._moveDetailsBlock;
+  if(!_moveBlock){
+    try{
+      const _l=j.leadId?(db.leads||[]).find(x=>x.id===j.leadId):null;
+      _moveBlock=buildMoveDetailsBlock(_l,j);
+    }catch(e){_moveBlock='';}
+  }
+  if(_moveBlock){
     lines.push('───────────────────────────');
     lines.push('📋 SENT TO CUSTOMER (per confirmation email):');
     lines.push('───────────────────────────');
-    lines.push(j._moveDetailsBlock);
+    lines.push(_moveBlock);
     lines.push('');
   }
 
