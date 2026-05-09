@@ -6286,7 +6286,21 @@ function renderBooked(){
 function deleteBookedJob(id){
   if(!confirm('Delete this booked job? This cannot be undone.'))return;
   const j=db.bookedJobs.find(x=>x.id===id);
-  if(j&&j.leadId){const l=db.leads.find(x=>x.id===j.leadId);if(l&&l.status==='Booked')l.status='New';}
+  // If the lead's status reflects the booking (Booked / Confirmation sent / Quote accepted),
+  // reset it to "Quote accepted" so the lead reappears in the leads list. Update the status
+  // timestamps so cloud sync can't overwrite the change.
+  if(j&&j.leadId){
+    const l=db.leads.find(x=>x.id===j.leadId);
+    if(l){
+      const _postBookingStatuses=['Booked','Confirmation sent','Quote accepted'];
+      if(_postBookingStatuses.includes(l.status)){
+        // Drop back to "Quote accepted" so they're visible again. User can adjust further if needed.
+        l.status='Quote accepted';
+        l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+        l._statusChangedAt=new Date().toISOString();
+      }
+    }
+  }
   db.bookedJobs=db.bookedJobs.filter(j=>j.id!==id);
   // Tombstone the deletion so cloud sync can't bring it back
   try{
@@ -6294,10 +6308,13 @@ function deleteBookedJob(id){
     tombstones[id]=new Date().toISOString();
     localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
   }catch(_){}
-  try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  saveDB();
   sbDelete('booked_jobs',id);
-  renderBooked();showToast('Booked job deleted');
+  renderBooked();
+  // Re-render Leads so the freed-up lead reappears immediately if that page is active
+  if(document.getElementById('page-leads').classList.contains('active'))renderLeads();
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
+  showToast('Booked job deleted');
 }
 function filterBooked(v){bookedFilter.text=v;renderBooked();}
 function filterBookedCrew(v){bookedFilter.crew=v;renderBooked();}
