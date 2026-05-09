@@ -5577,7 +5577,9 @@ function buildJobCalUrl(j){
   // 6. CONFIRMATION EMAIL MOVE-DETAILS BLOCK
   // (the "Here are the details as I understand them" section the customer was sent)
   // Built on-demand from the same logic as the email body, so the calendar always has it
-  // even if the email modal hasn't been opened yet for this booking.
+  // even if the email modal hasn't been opened yet for this booking. We strip the address
+  // lines (From/To/Pickup/Drop-off) because the calendar already has dedicated LOAD/UNLOAD
+  // sections above with the same information.
   // ───────────────────────────────────────────────────────────
   let _moveBlock=j._moveDetailsBlock;
   if(!_moveBlock){
@@ -5587,11 +5589,20 @@ function buildJobCalUrl(j){
     }catch(e){_moveBlock='';}
   }
   if(_moveBlock){
-    lines.push('───────────────────────────');
-    lines.push('📋 SENT TO CUSTOMER (per confirmation email):');
-    lines.push('───────────────────────────');
-    lines.push(_moveBlock);
-    lines.push('');
+    // Strip address lines — they're already in the LOAD/UNLOAD sections above
+    const _calMoveBlock=_moveBlock
+      .split('\n')
+      .filter(line=>!/^(From|To|Pickup\s+\d+|Drop-off\s+\d+)\s*:/i.test(line.trim()))
+      .join('\n')
+      .replace(/\n{3,}/g,'\n\n')
+      .trim();
+    if(_calMoveBlock){
+      lines.push('───────────────────────────');
+      lines.push('📋 SENT TO CUSTOMER (per confirmation email):');
+      lines.push('───────────────────────────');
+      lines.push(_calMoveBlock);
+      lines.push('');
+    }
   }
 
   // ───────────────────────────────────────────────────────────
