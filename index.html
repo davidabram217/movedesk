@@ -3992,7 +3992,10 @@ document.getElementById('view-modal-footer').innerHTML=`
     ${(()=>{
       // Diagnostic: detect when this lead is being filtered out of the Leads list because it
       // has a matching booked or completed job. Show the user what's happening + an option
-      // to clean up phantom records that shouldn't exist.
+      // Diagnostic: surface when this lead has linked booked or completed job records, so the
+      // user can see what exists and remove anything bogus. Only shows for leads with active
+      // statuses (not already terminal like Booked/Completed/Did-not-book) — for those, the
+      // matching record is expected.
       const _isActiveStatus=!['Did not book','Booked','Completed'].includes(l.status);
       if(!_isActiveStatus)return '';
       const _myBooked=(db.bookedJobs||[]).filter(j=>j.leadId===l.id);
@@ -4005,8 +4008,8 @@ document.getElementById('view-modal-footer').innerHTML=`
       _myCompletedById.forEach(j=>allReasons.push({type:'completed',id:j.id,label:'Completed job · '+fmtDate(j.date),idLabel:j.id}));
       _myCompletedByName.forEach(j=>allReasons.push({type:'completed',id:j.id,label:'Completed job · '+fmtDate(j.date)+' (matched by name+date)',idLabel:j.id}));
       return `<div style="padding:9px 11px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12px">
-        <div style="font-weight:600;color:#b7860b;margin-bottom:5px">⚠ This lead is being hidden from the active Leads list</div>
-        <div style="color:var(--text2);margin-bottom:6px">It has ${allReasons.length} matching record${allReasons.length>1?'s':''} that automatically hide it. If any of these are wrong, you can remove them:</div>
+        <div style="font-weight:600;color:#b7860b;margin-bottom:5px">⚠ This lead has ${allReasons.length} linked job record${allReasons.length>1?'s':''}</div>
+        <div style="color:var(--text2);margin-bottom:6px">The lead status is "${l.status}" but a booked/completed job record already exists for this customer. If any of these are wrong (e.g. an old test booking), you can remove them:</div>
         <div style="display:flex;flex-direction:column;gap:5px">
           ${allReasons.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 7px;background:rgba(255,255,255,0.5);border-radius:3px">
             <span style="font-size:11.5px;color:var(--text2)">${r.label}</span>
