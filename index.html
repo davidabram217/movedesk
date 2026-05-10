@@ -7043,9 +7043,8 @@ ${(function(){
       </div>`).join('')}</div>
   </div>`;
 })()}
-  <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
-    <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Quote vs Actual${quote&&quote._fromRoughQuote?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· based on rough quote (no formal quote sent)</span>':quote&&quote._synthetic?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· reconstructed from AI training data</span>':''}</div>
-    ${!quote?`<div style="font-size:12.5px;color:var(--text3);padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">No quote found for this job — comparison not available.</div>`:`
+  ${quote?`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Quote vs Actual${quote._fromRoughQuote?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· based on rough quote (no formal quote sent)</span>':quote._synthetic?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· reconstructed from AI training data</span>':''}</div>
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
         <th style="padding:7px 10px;text-align:left;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:2px solid var(--border)">Item</th>
@@ -7088,8 +7087,8 @@ ${(function(){
           })()}</td>
         </tr>
       </tbody>
-    </table>`}
-  </div>`;
+    </table>
+  </div>`:''}`;
 document.getElementById('view-modal-body').innerHTML=`
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px">
     ${field('Date',fmtDate(j.date))}
