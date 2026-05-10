@@ -3266,17 +3266,35 @@ function resolveQuotedInfo(j){
 // (which was based on the regular rate). This returns the total the job WOULD have cost at the
 // regular rate, plus a flag so the UI can show both numbers when they differ.
 function getQuoteCompareTotal(j){
-  const actualTotal=Number(j.total)||Number(j.actualTotal)||Number(j.paid)||0;
+  // When a do-not-exceed cap activated, the actual cost of the job differs from what we
+  // charged. For quote-accuracy comparison we want the REAL value of the work, not the
+  // capped amount — otherwise we wrongly conclude "within quoted range" when really the
+  // quote was too low and we absorbed the difference.
+  const capDiscount=Number(j.capDiscount)||0;
+  const realJobValue=capDiscount>0&&Number(j.actualTotal)?Number(j.actualTotal):(Number(j.total)||Number(j.actualTotal)||Number(j.paid)||0);
+  const charged=Number(j.total)||0;
   if(!j.paidCashRate||!j.quotedRate||!j.cashRate||!j.hours){
-    return{compareTotal:actualTotal,actualPaid:actualTotal,paidCash:false,regularEquiv:null};
+    return{
+      compareTotal:realJobValue,
+      actualPaid:charged||realJobValue,
+      paidCash:false,
+      regularEquiv:null,
+      capDiscountApplied:capDiscount>0
+    };
   }
   // Reconstruct the regular-rate-equivalent: replace the labour line with hours × quoted rate
   const hours=Number(j.hours)||0;
   const regularLabour=hours*Number(j.quotedRate);
   const cashLabour=hours*Number(j.cashRate);
-  // Take what they actually paid, swap cash labour for regular labour
-  const regularEquiv=Math.round(actualTotal-cashLabour+regularLabour);
-  return{compareTotal:regularEquiv,actualPaid:actualTotal,paidCash:true,regularEquiv};
+  // Take the real job value (or what they actually paid), swap cash labour for regular labour
+  const regularEquiv=Math.round(realJobValue-cashLabour+regularLabour);
+  return{
+    compareTotal:regularEquiv,
+    actualPaid:charged,
+    paidCash:true,
+    regularEquiv,
+    capDiscountApplied:capDiscount>0
+  };
 }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -6700,9 +6718,9 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
   calcTotal();calcBalance();openModal('complete-job');}
 function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;const paid=document.getElementById('cj-paid').value;
   const actualTotal=document.getElementById('cj-actual-total')?.value?Number(document.getElementById('cj-actual-total').value):null;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
-  // Cap discount: if actualTotal is greater than what we charged, that gap is what we
-  // gave away to honor a do-not-exceed cap. Lets us track how often caps activate and
-  // how much revenue we leave on the table to keep our word.
+  // Cap discount: if actualTotal (real job value) is greater than what we charged, that gap
+  // is what we gave away to honor a do-not-exceed cap. Both totals are entered as the full
+  // customer-facing amounts (including insurance, COI, etc.) so a simple subtraction works.
   const _resolvedTotal=Number(total)||Number(labour)||0;
   const _resolvedActual=Number(actualTotal)||0;
   const capDiscount=(_resolvedActual>_resolvedTotal)?Math.round((_resolvedActual-_resolvedTotal)*100)/100:0;
@@ -7076,7 +7094,13 @@ ${(function(){
         <tr style="border-top:2px solid var(--border)">
           <td style="padding:9px 10px;font-size:13px;font-weight:700">Final total</td>
           <td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;font-family:'DM Mono',monospace;color:var(--text3)">${qTotalMin&&qTotalMax?fmtMoney(qTotalMin)+'–'+fmtMoney(qTotalMax):'—'}</td>
-          <td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;font-family:'DM Mono',monospace">${(function(){const _c=getQuoteCompareTotal(j);return _c.paidCash?fmtMoney(_c.actualPaid)+'<div style="font-size:10.5px;color:var(--text3);font-weight:400;font-family:inherit;margin-top:2px">@ regular rate: '+fmtMoney(_c.compareTotal)+'</div>':fmtMoney(j.total);})()}</td>
+          <td style="padding:9px 10px;font-size:13px;font-weight:700;text-align:right;font-family:'DM Mono',monospace">${(function(){
+            const _c=getQuoteCompareTotal(j);
+            if(_c.capDiscountApplied&&!_c.paidCash){
+              return fmtMoney(_c.compareTotal)+'<div style="font-size:10.5px;color:var(--text3);font-weight:400;font-family:inherit;margin-top:2px">Customer charged '+fmtMoney(_c.actualPaid)+' (cap applied)</div>';
+            }
+            return _c.paidCash?fmtMoney(_c.actualPaid)+'<div style="font-size:10.5px;color:var(--text3);font-weight:400;font-family:inherit;margin-top:2px">@ regular rate: '+fmtMoney(_c.compareTotal)+'</div>':fmtMoney(j.total);
+          })()}</td>
           <td style="padding:9px 10px">${(function(){
             if(!qTotalMax||!j.total)return'';
             const _cmp=getQuoteCompareTotal(j);
@@ -7104,7 +7128,7 @@ document.getElementById('view-modal-body').innerHTML=`
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Total charged</div><div style="font-weight:600;font-size:15px">${fmtMoney(j.total)}</div></div>
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Amount paid</div><div>${fmtMoney(j.paid)}</div></div>
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Balance</div><div>${owed>0?`<span class="badge pill-amber">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid in full ✓</span>'}</div></div>
-    ${Number(j.capDiscount)>0?`<div style="grid-column:1/-1;padding:10px 12px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px"><div style="font-size:10.5px;color:#b7860b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">⚠ Cap discount given</div><div style="font-size:13px;color:var(--text)">Job would have been <strong>${fmtMoney(j.actualTotal||0)}</strong> · charged <strong>${fmtMoney(j.total)}</strong> due to do-not-exceed cap · <span style="color:#b7860b;font-weight:600">${fmtMoney(j.capDiscount)} given away</span></div></div>`:''}
+    ${Number(j.capDiscount)>0?`<div style="grid-column:1/-1;padding:10px 12px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px"><div style="font-size:10.5px;color:#b7860b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">⚠ Cap discount given${j.paidCashRate?' (at cash rate)':''}</div><div style="font-size:13px;color:var(--text);line-height:1.5">Real job value was <strong>${fmtMoney(j.actualTotal||0)}</strong> · charged <strong>${fmtMoney(j.total)}</strong> due to do-not-exceed cap · <span style="color:#b7860b;font-weight:600">${fmtMoney(j.capDiscount)} given away</span></div></div>`:''}
   </div>
   ${j.from||j.to?`
   <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -7219,7 +7243,8 @@ function saveEditedCompletedJob(){
   j.feeYelp=document.getElementById('ecj-yelp').value;
   j.total=total;
   j.paid=paid;
-  // Recompute cap discount: any positive gap between actualTotal and what we charged
+  // Recompute cap discount: simple gap between actualTotal (real job value, including
+  // insurance/add-ons) and what we charged (also including insurance/add-ons).
   const _editActual=Number(j.actualTotal)||0;
   j.capDiscount=(_editActual>total)?Math.round((_editActual-total)*100)/100:0;
   j.owing=Math.max(0,total-paid);
