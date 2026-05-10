@@ -204,6 +204,16 @@
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
           <div>
+            <div class="card-title">Cap discounts given</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Jobs where do-not-exceed caps activated and revenue was given up to honor them</div>
+          </div>
+        </div>
+        <div class="card-body" id="cap-discount-report"></div>
+      </div>
+      
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div>
             <div class="card-title">Fee breakdown report</div>
             <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Jobs charged, total collected, and avg per job — filtered by selected period</div>
           </div>
@@ -6690,6 +6700,12 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
   calcTotal();calcBalance();openModal('complete-job');}
 function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;const paid=document.getElementById('cj-paid').value;
   const actualTotal=document.getElementById('cj-actual-total')?.value?Number(document.getElementById('cj-actual-total').value):null;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
+  // Cap discount: if actualTotal is greater than what we charged, that gap is what we
+  // gave away to honor a do-not-exceed cap. Lets us track how often caps activate and
+  // how much revenue we leave on the table to keep our word.
+  const _resolvedTotal=Number(total)||Number(labour)||0;
+  const _resolvedActual=Number(actualTotal)||0;
+  const capDiscount=(_resolvedActual>_resolvedTotal)?Math.round((_resolvedActual-_resolvedTotal)*100)/100:0;
   const vaults=document.getElementById('cj-vaults').value;
   // Find the original quote for this job
   const lead=j?db.leads.find(l=>l.id===j.leadId):null;
@@ -6702,7 +6718,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   // Detect cash payment: charged rate matches cash rate (within $5) AND payment method is Cash
   const _paymentMethod=document.getElementById('cj-payment').value;
   const _paidCash=_paymentMethod==='Cash'||(_cashRate&&_chargedRate&&Math.abs(_chargedRate-_cashRate)<=5);
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -7089,6 +7105,7 @@ document.getElementById('view-modal-body').innerHTML=`
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Total charged</div><div style="font-weight:600;font-size:15px">${fmtMoney(j.total)}</div></div>
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Amount paid</div><div>${fmtMoney(j.paid)}</div></div>
     <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Balance</div><div>${owed>0?`<span class="badge pill-amber">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid in full ✓</span>'}</div></div>
+    ${Number(j.capDiscount)>0?`<div style="grid-column:1/-1;padding:10px 12px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px"><div style="font-size:10.5px;color:#b7860b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">⚠ Cap discount given</div><div style="font-size:13px;color:var(--text)">Job would have been <strong>${fmtMoney(j.actualTotal||0)}</strong> · charged <strong>${fmtMoney(j.total)}</strong> due to do-not-exceed cap · <span style="color:#b7860b;font-weight:600">${fmtMoney(j.capDiscount)} given away</span></div></div>`:''}
   </div>
   ${j.from||j.to?`
   <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -7203,6 +7220,9 @@ function saveEditedCompletedJob(){
   j.feeYelp=document.getElementById('ecj-yelp').value;
   j.total=total;
   j.paid=paid;
+  // Recompute cap discount: any positive gap between actualTotal and what we charged
+  const _editActual=Number(j.actualTotal)||0;
+  j.capDiscount=(_editActual>total)?Math.round((_editActual-total)*100)/100:0;
   j.owing=Math.max(0,total-paid);
   j.paymentState=j.owing<=0?'paid':'owing';
   j.notes=document.getElementById('ecj-notes').value;
@@ -7879,6 +7899,46 @@ function renderAnalytics(){
         </tbody>
       </table>
     </div>`:`<div class="empty-state"><div class="empty-title">No completed jobs in this period yet</div><div class="empty-sub">Complete some jobs to see the fee breakdown</div></div>`;
+
+  // ── Cap discount report ──
+  // Surfaces jobs where do-not-exceed caps activated, summing how often + how much we
+  // gave up to honor those caps. Uses filteredJobs (period filter respected).
+  const _capJobs=filteredJobs.filter(j=>Number(j.capDiscount)>0);
+  const _capTotal=_capJobs.reduce((s,j)=>s+(Number(j.capDiscount)||0),0);
+  const _capAvg=_capJobs.length?Math.round(_capTotal/_capJobs.length):0;
+  const _capPct=filteredJobs.length?Math.round(_capJobs.length/filteredJobs.length*100):0;
+  const _capRevenue=filteredJobs.reduce((s,j)=>s+(Number(j.actualTotal||j.total)||0),0);
+  const _capLossPct=_capRevenue?Math.round(_capTotal/_capRevenue*1000)/10:0;
+  document.getElementById('cap-discount-report').innerHTML=_capJobs.length?`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+      <div style="background:var(--surface2);border-radius:6px;padding:10px 12px"><div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Jobs capped</div><div style="font-size:18px;font-weight:600">${_capJobs.length}</div><div style="font-size:11px;color:var(--text3)">${_capPct}% of jobs</div></div>
+      <div style="background:#fff5e6;border-radius:6px;padding:10px 12px"><div style="font-size:10.5px;color:#b7860b;margin-bottom:3px;font-weight:600">Total given up</div><div style="font-size:18px;font-weight:600;color:#b7860b">${fmtMoney(_capTotal)}</div><div style="font-size:11px;color:var(--text3)">${_capLossPct}% of total job value</div></div>
+      <div style="background:var(--surface2);border-radius:6px;padding:10px 12px"><div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Avg discount per capped job</div><div style="font-size:18px;font-weight:600">${fmtMoney(_capAvg)}</div></div>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:1px solid var(--border)">Customer</th>
+            <th style="text-align:left;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:1px solid var(--border)">Date</th>
+            <th style="text-align:right;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:1px solid var(--border)">Job value</th>
+            <th style="text-align:right;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:1px solid var(--border)">Charged</th>
+            <th style="text-align:right;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;border-bottom:1px solid var(--border)">Discount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${_capJobs.sort((a,b)=>(Number(b.capDiscount)||0)-(Number(a.capDiscount)||0)).map(j=>`
+          <tr>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer" onclick="viewCompletedJob('${j.id}')">${j.name}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;font-family:'DM Mono',monospace;color:var(--text2)">${fmtDate(j.date)}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;text-align:right;font-family:'DM Mono',monospace">${fmtMoney(j.actualTotal||0)}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${fmtMoney(j.total)}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;color:#b7860b">${fmtMoney(j.capDiscount)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `:`<div class="empty-state"><div class="empty-title">No cap discounts in this period</div><div class="empty-sub">When you charge less than a job's actual value due to a do-not-exceed cap, it'll show here</div></div>`;
 
   // Payment method breakdown
   // Collect all payments: initial payment on job + any subsequent payments in paymentHistory
