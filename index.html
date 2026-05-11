@@ -4258,7 +4258,8 @@ function buildMoveDetailsBlock(l,bj){
     if(bj?.feeMaterials)s+='\n$'+_fmtRate(bj.feeMaterials)+' Material Fee';
     if((l?.packing||bj?.packing)&&(l?.packing||bj?.packing)!=='No — just moving')s+='\nPacking Materials Used - TBD';
     s+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
-    if(l?.storage||bj?.storage)s+='\nStorage costs $200 per month';
+    const _hasStorage=(l?.storage===true||l?.storage==='yes'||bj?.storage===true||bj?.storage==='yes');
+    if(_hasStorage)s+='\nStorage costs $200 per month';
     const _packing=l?.packing||bj?.packing||'';
     if(_packing&&_packing!=='No'&&_packing!=='No — just moving')s+='\n*'+_packing+' packing included';
   }
@@ -4381,7 +4382,7 @@ function openConfirmEmail(leadId,bookedJob){
 
   var lEmail=l?.email||bj?.email||'';
   var lPacking=l?.packing||bj?.packing||'';
-  var lStorage=l?.storage||bj?.storage||false;
+  var lStorage=(l?.storage===true||l?.storage==='yes'||bj?.storage===true||bj?.storage==='yes');
   // Stash the move-details block on the booked job so the calendar entry can include it
   // verbatim (so the crew sees exactly what the customer was told).
   if(bj){
@@ -5646,7 +5647,7 @@ function buildJobCalUrl(j){
   // ───────────────────────────────────────────────────────────
   // 8. WHEN (only if there's no move-details block to avoid duplication)
   // ───────────────────────────────────────────────────────────
-  if(!j._moveDetailsBlock){
+  if(!_moveBlock){
     lines.push(`When: ${fmtDate(j.date)}, arriving ${j.time||'TBD'}`);
     lines.push('');
   }
@@ -5654,7 +5655,7 @@ function buildJobCalUrl(j){
   // ───────────────────────────────────────────────────────────
   // 9. RATES & FEES (only if there's no move-details block — otherwise the email block has them)
   // ───────────────────────────────────────────────────────────
-  if(!j._moveDetailsBlock){
+  if(!_moveBlock){
     const isMultiDay=j.multiDay&&j.quoteDays&&j.quoteDays.length>1;
     if(isMultiDay){
       const costLines=[];
@@ -6160,7 +6161,7 @@ async function sendConfirmEmailViaEJS(){
   try{
     const _l=(typeof currentConfirmEmailLeadId!=='undefined')?db.leads.find(x=>x.id===currentConfirmEmailLeadId):null;
     const _bj=(typeof currentBookedJobId!=='undefined'&&currentBookedJobId)?db.bookedJobs.find(x=>x.id===currentBookedJobId):null;
-    lStorage=!!((_l&&_l.storage)||(_bj&&_bj.storage));
+    lStorage=((_l&&(_l.storage===true||_l.storage==='yes'))||(_bj&&(_bj.storage===true||_bj.storage==='yes')));
   }catch(_){}
   const btn=document.querySelector('#modal-confirm-email .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Sending...';}
