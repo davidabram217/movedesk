@@ -6153,6 +6153,15 @@ async function sendConfirmEmailViaEJS(){
   const subject=document.getElementById('ce-subject').value.trim();
   const body=document.getElementById('ce-body').value.trim();
   if(!to){showToast('Please enter a recipient email');return;}
+  // Re-derive whether storage is involved so the html_content conditional below has access
+  // to lStorage in this function's scope. (openConfirmEmail defines its own lStorage but
+  // that variable doesn't carry across function boundaries.)
+  let lStorage=false;
+  try{
+    const _l=(typeof currentConfirmEmailLeadId!=='undefined')?db.leads.find(x=>x.id===currentConfirmEmailLeadId):null;
+    const _bj=(typeof currentBookedJobId!=='undefined'&&currentBookedJobId)?db.bookedJobs.find(x=>x.id===currentBookedJobId):null;
+    lStorage=!!((_l&&_l.storage)||(_bj&&_bj.storage));
+  }catch(_){}
   const btn=document.querySelector('#modal-confirm-email .btn-primary');
   if(btn){btn.disabled=true;btn.textContent='Sending...';}
   try{
