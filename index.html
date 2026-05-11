@@ -2250,9 +2250,14 @@ async function loadDB(){
       const c=cloudById.get(id);const lc=localById.get(id);
       if(!c)return lc;
       if(!lc)return c;
-      // Both exist — prefer the one whose status was last updated more recently.
-      // Use _statusChangedAt (ISO timestamp) when available, fall back to statusUpdatedAt
-      // (date-only) for legacy records. For ties, prefer local.
+      // Both exist — pick whichever was most recently edited locally (any field), falling
+      // back to status-change timestamps. For ties, prefer local. The general edit timestamp
+      // covers cases like correcting a phone number where status didn't change.
+      const cEditIso=c._localEditedAt||'';
+      const lEditIso=lc._localEditedAt||'';
+      if(cEditIso||lEditIso){
+        return lEditIso>=cEditIso?lc:c;
+      }
       const cIso=c._statusChangedAt||'';
       const lIso=lc._statusChangedAt||'';
       if(cIso&&lIso){
@@ -2510,22 +2515,40 @@ function propagateNotesEdits(sourceType,sourceId,fields){
 }
 
 function saveDB(){
-  // Ensure every lead with a changed status has a fresh statusUpdatedAt — protects against
-  // status flips being overwritten by stale cloud data on next refresh
+  // Detect local edits to leads and stamp timestamps that protect them from being overwritten
+  // by stale cloud data on the next sync. Two timestamps:
+  //   - statusUpdatedAt / _statusChangedAt: bumped only when status itself changes
+  //   - _localEditedAt: bumped on ANY content change (phone, name, addresses, etc.)
   try{
     const _prev=JSON.parse(localStorage.getItem('movedesk_db')||'{}');
     const _prevById={};
     (_prev.leads||[]).forEach(l=>{_prevById[l.id]=l;});
     const _today=new Date().toISOString().split('T')[0];
     const _nowIso=new Date().toISOString();
+    // Fields we ignore when deciding whether a "real edit" happened — these are bookkeeping
+    // metadata, not user-facing content. Updating them shouldn't count as an edit.
+    const _metaKeys=new Set(['_syncedAt','_localEditedAt','_statusChangedAt','statusUpdatedAt']);
     (db.leads||[]).forEach(l=>{
       if(!l||!l.id)return;
       const before=_prevById[l.id];
+      // Status change → bump both timestamps
       if(before&&before.status!==l.status){
-        // Status was just changed locally — bump both the date-only field (used by display
-        // logic) AND the full-ISO field (used for sub-day-precision tiebreaking)
         l.statusUpdatedAt=_today;
         l._statusChangedAt=_nowIso;
+      }
+      // Any non-meta field change → bump _localEditedAt so cloud sync can't overwrite this edit
+      if(before){
+        let changed=false;
+        const allKeys=new Set([...Object.keys(before||{}),...Object.keys(l||{})]);
+        for(const k of allKeys){
+          if(_metaKeys.has(k))continue;
+          // Use JSON comparison so nested objects (roughQuote, etc.) compare deeply enough
+          if(JSON.stringify(before[k])!==JSON.stringify(l[k])){changed=true;break;}
+        }
+        if(changed)l._localEditedAt=_nowIso;
+      } else {
+        // Brand new lead → stamp it
+        l._localEditedAt=l._localEditedAt||_nowIso;
       }
     });
   }catch(_){}
@@ -2691,9 +2714,12 @@ async function refreshFromSupabase(){
         const local=localMap[id];
         const remoteTime=row.updated_at||row.inserted_at||'';
         const localTime=local?._syncedAt||'';
-        // For leads specifically — prefer whichever version has a more recent status change.
-        // Use _statusChangedAt (full ISO timestamp) as primary tiebreaker, fall back to
-        // statusUpdatedAt (date-only) for older records that don't have the new field yet.
+        // For leads specifically — protect local edits from being overwritten by stale cloud.
+        // Two checks (in order):
+        //   1. Status timestamp: if local status change is newer than remote, keep local
+        //   2. General edit timestamp (_localEditedAt): if local was edited more recently
+        //      than the cloud row was last updated, keep local (handles non-status edits
+        //      like phone/name/address corrections)
         if(table==='leads'&&local&&rec){
           const localStatusIso=local._statusChangedAt||'';
           const remoteStatusIso=rec._statusChangedAt||'';
@@ -2703,6 +2729,15 @@ async function refreshFromSupabase(){
             const localStatusTs=local.statusUpdatedAt||local.createdAt||'';
             const remoteStatusTs=rec.statusUpdatedAt||rec.createdAt||'';
             if(localStatusTs>=remoteStatusTs)return;
+          }
+          // Any general edit since last cloud sync? If so, local wins.
+          const localEditIso=local._localEditedAt||'';
+          if(localEditIso){
+            // Compare local edit time against the cloud row's updated_at
+            if(localEditIso>=remoteTime)return;
+            // Also compare against remote's own _localEditedAt (newer wins)
+            const remoteEditIso=rec._localEditedAt||'';
+            if(remoteEditIso&&localEditIso>=remoteEditIso)return;
           }
         }
         // Use remote if: not local, or remote updated_at is newer than our last sync
