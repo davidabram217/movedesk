@@ -2340,6 +2340,22 @@ async function loadDB(){
       _bookedFixed++;
     });
     if(_bookedFixed)console.log('Self-healed '+_bookedFixed+' lead(s) to "Booked" status (had matching booked-jobs entry)');
+    // Same narrow self-heal for completed jobs — a lead with a matching completed-jobs entry
+    // by direct leadId should have status "Completed". This catches jobs that were completed
+    // but the lead-status update missed (e.g. broken leadId link at the moment of completion).
+    // Only matches by direct leadId — no name+date guessing — to avoid silently changing data.
+    const _completedLeadIdSet=new Set((db.completedJobs||[]).map(j=>j.leadId).filter(Boolean));
+    let _completedFixed=0;
+    (db.leads||[]).forEach(l=>{
+      if(!l||!l.id||!_completedLeadIdSet.has(l.id))return;
+      const _terminal=['Completed','Did not book'];
+      if(_terminal.includes(l.status))return;
+      l.status='Completed';
+      l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+      l._statusChangedAt=new Date().toISOString();
+      _completedFixed++;
+    });
+    if(_completedFixed)console.log('Self-healed '+_completedFixed+' lead(s) to "Completed" status (had matching completed-jobs entry)');
     // Notes reconciliation: lead is master, push lead.notes/officeNotes to every linked
     // booked + completed job. This fixes mismatches that existed before the live-autosave
     // helper was in place, and keeps things consistent on every page load.
