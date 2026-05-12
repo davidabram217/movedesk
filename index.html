@@ -1178,6 +1178,7 @@
         <div class="form-group"><label>No. of movers</label><select id="cj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="cj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="cj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="cj-vaults" placeholder="e.g. 6" step="0.5"></div>
         <div class="form-group"><label>Payment method</label><select id="cj-payment" onchange="calcTotal()"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
       </div>
@@ -1431,6 +1432,7 @@
         <div class="form-group"><label>No. of movers</label><select id="ecj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="ecj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="ecj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="ecj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
         <div class="form-group"><label>Payment method</label><select id="ecj-payment"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
         <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="ecj-rate" placeholder="e.g. 145"></div>
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="ecj-vaults" placeholder="e.g. 6" step="0.5"></div>
@@ -6823,7 +6825,24 @@ function calcTotal(){
   calcBalance();
 }
 function calcBalance(){const total=Number(document.getElementById('cj-total').value)||0;const paid=Number(document.getElementById('cj-paid').value)||0;const bar=document.getElementById('cj-balance-bar');const label=document.getElementById('cj-balance-label');const amount=document.getElementById('cj-balance-amount');const btnOwing=document.getElementById('cj-btn-owing');const btnPaid=document.getElementById('cj-btn-paid');if(total<=0){bar.style.display='none';btnOwing.style.display='none';btnPaid.style.display='';return;}const owing=total-paid;if(owing>0.01){bar.style.display='flex';bar.style.background='var(--amber-light)';bar.style.borderColor='#f0d080';label.textContent='Balance owing';label.style.color='var(--amber)';amount.textContent='$'+owing.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});amount.style.color='var(--amber)';btnOwing.style.display='';btnPaid.textContent='Mark complete — paid in full';btnPaid.style.background='var(--surface2)';btnPaid.style.color='var(--text2)';btnPaid.style.borderColor='var(--border2)';}else{bar.style.display='flex';bar.style.background='var(--accent-light)';bar.style.borderColor='#a8d5b5';label.textContent='Paid in full ✓';label.style.color='var(--accent)';amount.textContent='$'+paid.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});amount.style.color='var(--accent)';btnOwing.style.display='none';btnPaid.textContent='Mark complete — paid in full';btnPaid.style.background='var(--accent)';btnPaid.style.color='#fff';btnPaid.style.borderColor='var(--accent)';}}
-function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.find(x=>x.id===jobId);if(!j)return;document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';if(j.quote)document.getElementById('cj-labour').value=j.quote;if(j._completeDraft){const d=j._completeDraft;['crew','hours','labour','materials','fuel','vaults','notes'].forEach(k=>{const el=document.getElementById('cj-'+k);if(el&&d[k])el.value=d[k];});if(d.packHours&&document.getElementById('cj-pack-hours'))document.getElementById('cj-pack-hours').value=d.packHours;if(d.packMaterials&&document.getElementById('cj-pack-materials'))document.getElementById('cj-pack-materials').value=d.packMaterials;if(d.moveMen&&document.getElementById('cj-movers'))document.getElementById('cj-movers').value=d.moveMen;if(d.packMen&&document.getElementById('cj-pack-movers'))document.getElementById('cj-pack-movers').value=d.packMen;calcTotal();}
+function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.find(x=>x.id===jobId);if(!j)return;document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
+  // Pre-fill packing scope from the booked job (which inherits from the lead). The packer
+  // will confirm or change this on the completion form — that's what gets recorded.
+  const _packEl=document.getElementById('cj-packing');
+  if(_packEl){
+    let _packPreset=j.packing||'';
+    if(!_packPreset&&j.leadId){
+      const _l=db.leads.find(x=>x.id===j.leadId);
+      if(_l)_packPreset=_l.packing||'';
+    }
+    // Map legacy values onto the new dropdown options
+    if(_packPreset==='Full'||(_packPreset||'').toLowerCase().includes('full'))_packEl.value='Full';
+    else if((_packPreset||'').toLowerCase().includes('kitchen'))_packEl.value='Kitchen pack only';
+    else if((_packPreset||'').toLowerCase().includes('breakable'))_packEl.value='All breakables';
+    else if((_packPreset||'').toLowerCase().includes('partial'))_packEl.value='All breakables';
+    else _packEl.value='No';
+  }
+  if(j.quote)document.getElementById('cj-labour').value=j.quote;if(j._completeDraft){const d=j._completeDraft;['crew','hours','labour','materials','fuel','vaults','notes'].forEach(k=>{const el=document.getElementById('cj-'+k);if(el&&d[k])el.value=d[k];});if(d.packHours&&document.getElementById('cj-pack-hours'))document.getElementById('cj-pack-hours').value=d.packHours;if(d.packMaterials&&document.getElementById('cj-pack-materials'))document.getElementById('cj-pack-materials').value=d.packMaterials;if(d.moveMen&&document.getElementById('cj-movers'))document.getElementById('cj-movers').value=d.moveMen;if(d.packMen&&document.getElementById('cj-pack-movers'))document.getElementById('cj-pack-movers').value=d.packMen;if(d.packing&&_packEl)_packEl.value=d.packing;calcTotal();}
   // Pre-fill vaults from booking volume — extract max number from text like "4–5 vaults"
   if(j.volume){const nums=(j.volume.match(/[\d.]+/g)||[]).map(Number);if(nums.length)document.getElementById('cj-vaults').value=Math.max(...nums);}
   calcTotal();calcBalance();openModal('complete-job');}
@@ -6857,7 +6876,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const subtotal=Math.max(0,subSum-yelp);
     return Math.round(subtotal*0.035*100)/100;
   })();
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',sqft:j?j.sqft:null,packing:j?j.packing:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',sqft:j?j.sqft:null,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -7316,6 +7335,16 @@ function openEditCompletedJob(jobId){
   if(document.getElementById('ecj-movers'))document.getElementById('ecj-movers').value=j.moveMen||'';
   if(document.getElementById('ecj-pack-hours'))document.getElementById('ecj-pack-hours').value=j.packHoursActual||'';
   if(document.getElementById('ecj-pack-movers'))document.getElementById('ecj-pack-movers').value=j.packMen||'';
+  // Preload packing scope, mapping any legacy values to the new dropdown options
+  const _ecjPack=document.getElementById('ecj-packing');
+  if(_ecjPack){
+    const _v=(j.packing||'').toLowerCase();
+    if(j.packing==='Full'||_v.includes('full'))_ecjPack.value='Full';
+    else if(_v.includes('kitchen'))_ecjPack.value='Kitchen pack only';
+    else if(_v.includes('breakable'))_ecjPack.value='All breakables';
+    else if(_v.includes('partial'))_ecjPack.value='All breakables';
+    else _ecjPack.value='No';
+  }
   document.getElementById('ecj-rate').value=j.hourlyRateCharged||'';
   document.getElementById('ecj-labour').value=j.feeLabour||'';
   document.getElementById('ecj-materials').value=j.feeMaterials||'';
@@ -7352,6 +7381,21 @@ function saveEditedCompletedJob(){
   j.moveMen=document.getElementById('ecj-movers')?.value||j.moveMen||'';
   j.packHoursActual=document.getElementById('ecj-pack-hours')?.value||j.packHoursActual||'';
   j.packMen=document.getElementById('ecj-pack-movers')?.value||j.packMen||'';
+  // Save packing scope (also updates the AI training record below via selfHeal flow)
+  if(document.getElementById('ecj-packing'))j.packing=document.getElementById('ecj-packing').value;
+  // Propagate the edit to the matching AI training record so future quotes use the corrected info
+  try{
+    const _aiMatch=(db.aiTraining||[]).find(r=>r.completedJobId===j.id);
+    if(_aiMatch){
+      _aiMatch.packing=j.packing||'';
+      _aiMatch.size=j.size||_aiMatch.size;
+      _aiMatch.moveType=j.moveType||_aiMatch.moveType;
+      _aiMatch.moveMen=Number(j.moveMen)||_aiMatch.moveMen;
+      _aiMatch.packMen=Number(j.packMen)||_aiMatch.packMen;
+      _aiMatch.actualHours=Number(j.hours)||_aiMatch.actualHours;
+      _aiMatch.packHoursActual=Number(j.packHoursActual)||_aiMatch.packHoursActual;
+    }
+  }catch(_){}
   j.hourlyRateCharged=document.getElementById('ecj-rate').value||null;
   j.ratePerHour=labour>0&&hrs>0?Math.round(labour/hrs):j.ratePerHour;
   j.payment=document.getElementById('ecj-payment').value;
