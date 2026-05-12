@@ -9969,6 +9969,27 @@ let _qbAutoSaveTimer=null;
 function qbAutoSave(){
   clearTimeout(_qbAutoSaveTimer);
   _qbAutoSaveTimer=setTimeout(function(){
+    // CRITICAL: never auto-overwrite a quote that has already been sent or accepted.
+    // The customer's link points at the saved record — silently saving the form state on top
+    // of a sent quote would change what the customer sees. Autosave is for drafts only.
+    if(currentQuoteId){
+      const _existing=(db.quotes||[]).find(q=>q.id===currentQuoteId);
+      if(_existing&&(_existing.status==='sent'||_existing.status==='accepted')){
+        // Show a subtle reminder instead of silently overwriting
+        const bar=document.getElementById('qb-total-bar');
+        if(bar){
+          const existing=bar.querySelector('.autosave-note');
+          if(existing)existing.remove();
+          const note=document.createElement('div');
+          note.className='autosave-note';
+          note.style.cssText='font-size:11px;color:#b7860b;margin-top:6px;text-align:right;font-style:italic';
+          note.textContent='Quote already sent — edits are not auto-saved. Use "Resend" if needed.';
+          bar.appendChild(note);
+          setTimeout(function(){if(note.parentNode)note.remove();},3500);
+        }
+        return;
+      }
+    }
     saveQuote('draft');
     // Show subtle indicator
     const bar=document.getElementById('qb-total-bar');
@@ -10617,12 +10638,19 @@ function renderQuoteHTML(q,lead){
   return html;
 }
 
-function saveQuote(status){
+function saveQuote(status,opts){
+  opts=opts||{};
   if(!db.quotes)db.quotes=[];
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const t=calcQbTotals();
   // Generate a public ID for the shareable link (keep existing one if re-saving)
   const existingQ=currentQuoteId?db.quotes.find(q=>q.id===currentQuoteId):null;
+  // HARD LOCK: if the existing quote is already sent or accepted, refuse to overwrite it
+  // unless the caller explicitly passes opts.force=true (e.g. resend flow). This blocks every
+  // accidental write path — autosaves, stray timers, refresh merges that pull and re-save.
+  if(existingQ&&(existingQ.status==='sent'||existingQ.status==='accepted')&&!opts.force&&status!=='sent'&&status!=='accepted'){
+    return existingQ;
+  }
   const publicId=existingQ?.publicId||('q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
   // Expires 3 months from now
   const expiresAt=existingQ?.expiresAt||(()=>{const d=new Date();d.setMonth(d.getMonth()+3);return d.toISOString().split('T')[0];})();
@@ -10679,7 +10707,8 @@ function viewAcceptedQuote(quoteId){
 
 function previewQuote(){
   if(!qbDays||!qbDays.length){showToast('Please add at least one day to the quote.');return;}
-  saveQuote('draft');
+  // force:true so previewing a re-opened sent quote captures any edits made before resend
+  saveQuote('draft',{force:true});
   document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
   closeModal('quote-builder');
   // Check if quote was already sent
@@ -10793,7 +10822,10 @@ async function openQuoteGmail(){
   if(!sentBy){showToast('Please fill in who is sending this quote (Sent by field).');return;}
   const estType=document.getElementById('qb-estimate-type')?.value;
   if(!estType){showToast('Please select an estimate type (Onsite, Video, FaceTime, or Unseen).');return;}
-  const q=saveQuote('draft');
+  // For resend flows, the existing quote is locked (status='sent'). Pass force:true so the
+  // save can overwrite it with the current form state. For first-time sends, the lock isn't
+  // in effect anyway (status is 'draft'), so this is harmless.
+  const q=saveQuote('draft',{force:true});
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const name=l?l.name.split(' ')[0]:'there';
   const to=q.customerEmail||l?.email||'';
@@ -10849,6 +10881,12 @@ async function sendQuoteEmail(){
     });
     const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
     if(q){q.status='sent';q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
+    // Cancel any pending autosave timers — both the global one and the qb-specific one.
+    // Without this, a queued event from before the send could fire qbAutoSave() AFTER status
+    // flipped to 'sent', and (without our status guard) would overwrite the just-sent quote
+    // with the form's current state.
+    clearTimeout(_qbAutoSaveTimer);
+    if(typeof _globalAutoSaveTimer!=='undefined')clearTimeout(_globalAutoSaveTimer);
     const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
     if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];const _q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;if(_q&&_q.sentBy&&!l.estimateSentBy)l.estimateSentBy=_q.sentBy;if(_q&&_q.estimateType)l.estimateType=_q.estimateType;saveDB();renderLeads();}
     showToast('✓ Quote email sent to '+to);
