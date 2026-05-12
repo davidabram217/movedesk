@@ -1170,7 +1170,7 @@
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="cj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="cj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="cj-vaults" placeholder="e.g. 6" step="0.5"></div>
-        <div class="form-group"><label>Payment method</label><select id="cj-payment"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
+        <div class="form-group"><label>Payment method</label><select id="cj-payment" onchange="calcTotal()"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
       </div>
       <div style="padding:8px 12px;background:var(--accent-light);border-radius:var(--radius);border:1px solid #a8d5b5;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.6">
         <strong>🤖 AI tip:</strong> Log move hours and pack hours separately. If 3 movers worked 6 hrs and 1 packer worked 3 hrs, enter: Move hours = 6, Movers = 3, Pack hours = 3, Packers = 1. This helps the AI learn the real breakdown.
@@ -1193,6 +1193,10 @@
       </div>
 
       <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px">
+        <div id="cj-cc-fee-row" style="display:none;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:8px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">
+          <span style="color:var(--text2)">⚠ Credit card surcharge (3.5%)</span>
+          <span id="cj-cc-fee-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
+        </div>
         <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Total charged</div><div style="font-size:18px;font-weight:600" id="cj-total-display">$0</div></div>
           <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Rate per hour</div><div style="font-size:18px;font-weight:600;color:var(--accent)" id="cj-rate-display">—</div></div>
@@ -6780,7 +6784,35 @@ function autoFillInsuranceFee(){
     calcTotal();
   }
 }
-function calcTotal(){const ids=['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage'];const discount=Number(document.getElementById('cj-yelp').value)||0;const sum=ids.reduce((s,id)=>s+(Number(document.getElementById(id).value)||0),0);const total=Math.max(0,sum-discount);document.getElementById('cj-total').value=total;document.getElementById('cj-total-display').textContent='$'+total.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});document.getElementById('cj-paid').value=total||'';const labour=Number(document.getElementById('cj-labour').value)||0;const hours=Number(document.getElementById('cj-hours').value)||0;const rateEl=document.getElementById('cj-rate-display');if(labour>0&&hours>0){rateEl.textContent='$'+Math.round(labour/hours)+'/hr';}else{rateEl.textContent='—';}calcBalance();}
+function calcTotal(){
+  const ids=['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage'];
+  const discount=Number(document.getElementById('cj-yelp').value)||0;
+  const sum=ids.reduce((s,id)=>s+(Number(document.getElementById(id).value)||0),0);
+  let subtotal=Math.max(0,sum-discount);
+  // Credit card surcharge — 3.5% of the subtotal added on top when payment method is CC
+  const _payment=document.getElementById('cj-payment')?.value||'';
+  const _ccFee=(_payment==='Credit card')?Math.round(subtotal*0.035*100)/100:0;
+  const total=Math.round((subtotal+_ccFee)*100)/100;
+  // Show or hide the CC-fee indicator above the totals
+  const _ccRow=document.getElementById('cj-cc-fee-row');
+  const _ccAmt=document.getElementById('cj-cc-fee-amount');
+  if(_ccRow&&_ccAmt){
+    if(_ccFee>0){
+      _ccRow.style.display='flex';
+      _ccAmt.textContent='$'+_ccFee.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    } else {
+      _ccRow.style.display='none';
+    }
+  }
+  document.getElementById('cj-total').value=total;
+  document.getElementById('cj-total-display').textContent='$'+total.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+  document.getElementById('cj-paid').value=total||'';
+  const labour=Number(document.getElementById('cj-labour').value)||0;
+  const hours=Number(document.getElementById('cj-hours').value)||0;
+  const rateEl=document.getElementById('cj-rate-display');
+  if(labour>0&&hours>0){rateEl.textContent='$'+Math.round(labour/hours)+'/hr';}else{rateEl.textContent='—';}
+  calcBalance();
+}
 function calcBalance(){const total=Number(document.getElementById('cj-total').value)||0;const paid=Number(document.getElementById('cj-paid').value)||0;const bar=document.getElementById('cj-balance-bar');const label=document.getElementById('cj-balance-label');const amount=document.getElementById('cj-balance-amount');const btnOwing=document.getElementById('cj-btn-owing');const btnPaid=document.getElementById('cj-btn-paid');if(total<=0){bar.style.display='none';btnOwing.style.display='none';btnPaid.style.display='';return;}const owing=total-paid;if(owing>0.01){bar.style.display='flex';bar.style.background='var(--amber-light)';bar.style.borderColor='#f0d080';label.textContent='Balance owing';label.style.color='var(--amber)';amount.textContent='$'+owing.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});amount.style.color='var(--amber)';btnOwing.style.display='';btnPaid.textContent='Mark complete — paid in full';btnPaid.style.background='var(--surface2)';btnPaid.style.color='var(--text2)';btnPaid.style.borderColor='var(--border2)';}else{bar.style.display='flex';bar.style.background='var(--accent-light)';bar.style.borderColor='#a8d5b5';label.textContent='Paid in full ✓';label.style.color='var(--accent)';amount.textContent='$'+paid.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});amount.style.color='var(--accent)';btnOwing.style.display='none';btnPaid.textContent='Mark complete — paid in full';btnPaid.style.background='var(--accent)';btnPaid.style.color='#fff';btnPaid.style.borderColor='var(--accent)';}}
 function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.find(x=>x.id===jobId);if(!j)return;document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';if(j.quote)document.getElementById('cj-labour').value=j.quote;if(j._completeDraft){const d=j._completeDraft;['crew','hours','labour','materials','fuel','vaults','notes'].forEach(k=>{const el=document.getElementById('cj-'+k);if(el&&d[k])el.value=d[k];});if(d.packHours&&document.getElementById('cj-pack-hours'))document.getElementById('cj-pack-hours').value=d.packHours;if(d.packMaterials&&document.getElementById('cj-pack-materials'))document.getElementById('cj-pack-materials').value=d.packMaterials;if(d.moveMen&&document.getElementById('cj-movers'))document.getElementById('cj-movers').value=d.moveMen;if(d.packMen&&document.getElementById('cj-pack-movers'))document.getElementById('cj-pack-movers').value=d.packMen;calcTotal();}
   // Pre-fill vaults from booking volume — extract max number from text like "4–5 vaults"
@@ -6806,12 +6838,22 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   // Detect cash payment: charged rate matches cash rate (within $5) AND payment method is Cash
   const _paymentMethod=document.getElementById('cj-payment').value;
   const _paidCash=_paymentMethod==='Cash'||(_cashRate&&_chargedRate&&Math.abs(_chargedRate-_cashRate)<=5);
+  // Compute the 3.5% CC surcharge so we can store it on the record. Calculated from the
+  // subtotal (all fees before the surcharge) so the math reconciles with calcTotal().
+  const _ccFee=(function(){
+    if(_paymentMethod!=='Credit card')return 0;
+    const subtotalIds=['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage'];
+    const yelp=Number(document.getElementById('cj-yelp')?.value)||0;
+    const subSum=subtotalIds.reduce((s,id)=>s+(Number(document.getElementById(id)?.value)||0),0);
+    const subtotal=Math.max(0,subSum-yelp);
+    return Math.round(subtotal*0.035*100)/100;
+  })();
   const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
     paidCashRate:_paidCash&&!!_cashRate,
-    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
@@ -7156,6 +7198,7 @@ ${(function(){
           <td style="padding:7px 10px;border-bottom:1px solid var(--border)" colspan="2"></td>
         </tr>
         ${Number(j.feeInsurance)?compRow('Insurance (add-on)',null,j.feeInsurance,true,false):''}
+        ${Number(j.feeCC)?compRow('Credit card surcharge (3.5%)',null,j.feeCC,true,false):''}
         ${Number(j.feeCOI)?compRow('COI (add-on)',null,j.feeCOI,true,false):''}
         ${Number(j.feeDump)?compRow('Dump fee (add-on)',null,j.feeDump,true,false):''}
         ${Number(j.feeParkingPermit)?compRow('Parking permits (add-on)',null,j.feeParkingPermit,true,false):''}
