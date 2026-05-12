@@ -43,12 +43,15 @@ async function loadQuote(){
 }
 
 function renderQuote(q){
+  // Ported from renderQuoteHTML in index.html — kept in sync to guarantee customer page
+  // shows exactly the same content the office sees in preview.
   var isMulti=q.jobType==='multi';
   var days=q.days||[];
   var fees=(q.fees||[]).filter(function(f){return f.included;});
   var d0=days[0]||{};
   var isAccepted=q.status==='accepted';
-  var fmt=fmtMoney;
+  function fmt(n){return'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
+  function fmtD(d){if(!d)return'--';var dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});}
 
   function renderLocs(locs,type){
     return locs.filter(function(loc){return loc&&loc.address;}).map(function(loc,i){
@@ -62,7 +65,7 @@ function renderQuote(q){
     }).join('');
   }
 
-  var html='<div style="font-family:\'DM Sans\',Arial,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto">';
+  var html='<div style="font-family:DM Sans,Arial,sans-serif;color:#1a1a1a;max-width:680px;margin:0 auto">';
 
   // Header
   html+='<div style="text-align:center;padding:32px 24px 20px;border-bottom:2px solid #e8e4dc">'+
@@ -105,7 +108,7 @@ function renderQuote(q){
       html+='<div style="margin-bottom:20px;padding-bottom:16px;'+(i<days.length-1?'border-bottom:1px dashed #e8e4dc':'')+'">'+
         '<div style="font-weight:700;font-size:15px;color:#2d5a3d;margin-bottom:10px">Day '+(i+1)+'</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-        (d.date?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Date</div><div style="font-weight:500;font-size:14px">'+esc(fmtDate(d.date))+'</div></div>':'')+
+        (d.date?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Date</div><div style="font-weight:500;font-size:14px">'+fmtD(d.date)+'</div></div>':'')+
         (d.arrivalStart?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Arrival window</div><div style="font-weight:500;font-size:14px">'+esc(d.arrivalStart+(d.arrivalEnd?' \u2013 '+d.arrivalEnd:''))+'</div></div>':'')+
         '</div>'+
         renderLocs(loads,'load')+
@@ -116,7 +119,7 @@ function renderQuote(q){
     var loads=d0.loads&&d0.loads.length?d0.loads:[{address:d0.from||'',unit:d0.fromUnit||'',floor:d0.fromFloor||'',access:d0.fromAccess||'',parking:d0.fromParking||''}];
     var unloads=d0.unloads&&d0.unloads.length?d0.unloads:[{address:d0.to||'',unit:d0.toUnit||'',floor:d0.toFloor||'',access:d0.toAccess||'',parking:d0.toParking||''}];
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-      (d0.date?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Move date</div><div style="font-weight:500;font-size:14px">'+esc(fmtDate(d0.date))+'</div></div>':'')+
+      (d0.date?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Move date</div><div style="font-weight:500;font-size:14px">'+fmtD(d0.date)+'</div></div>':'')+
       (d0.arrivalStart?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Arrival window</div><div style="font-weight:500;font-size:14px">'+esc(d0.arrivalStart+(d0.arrivalEnd?' \u2013 '+d0.arrivalEnd:''))+'</div></div>':'')+
       '</div>'+
       renderLocs(loads,'load')+
@@ -124,7 +127,7 @@ function renderQuote(q){
   }
   html+='</div>';
 
-  // Billing
+  // Billing table
   html+='<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">'+
     '<div style="font-size:10px;font-weight:600;color:#9e9b94;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px">Billing</div>'+
     '<table style="width:100%;border-collapse:collapse;font-size:13.5px">'+
@@ -179,15 +182,13 @@ function renderQuote(q){
       '</tr>';
   });
 
-  html+='</tbody><tfoot><tr style="border-top:2px solid #e8e4dc">'+
+  html+='</tbody>'+
+    '<tfoot><tr style="border-top:2px solid #e8e4dc">'+
     '<td colspan="3" style="padding:14px 6px;font-weight:700;font-size:15px">'+(q.totalMin===q.totalMax?'Total':'Estimated Total')+'</td>'+
     '<td style="padding:14px 6px;text-align:right;font-weight:700;font-size:16px;color:#2d5a3d">'+(q.totalMin===q.totalMax?fmt(q.totalMin):fmt(q.totalMin)+' \u2013 '+fmt(q.totalMax))+(q.cashTotalMin?'<div style="font-size:14px;color:#2d5a3d;margin-top:4px;font-weight:600">or '+(q.cashTotalMin===q.cashTotalMax?fmt(q.cashTotalMin):fmt(q.cashTotalMin)+' \u2013 '+fmt(q.cashTotalMax))+' cash</div>':'')+'</td>'+
-    '</tr></tfoot></table>';
-
-  if(q.cashDiscount){
-    html+='<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Cash discount:</strong> '+esc(q.cashDiscount)+'</div>';
-  }
-  html+='</div>';
+    '</tr></tfoot></table>'+
+    (q.cashDiscount?'<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Cash discount:</strong> '+esc(q.cashDiscount)+'</div>':'')+
+    '</div>';
 
   // Stipulations
   if(q.stipulations){
