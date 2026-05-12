@@ -10708,8 +10708,13 @@ function viewAcceptedQuote(quoteId){
 function previewQuote(){
   if(!qbDays||!qbDays.length){showToast('Please add at least one day to the quote.');return;}
   // force:true so previewing a re-opened sent quote captures any edits made before resend
-  saveQuote('draft',{force:true});
-  document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
+  const _saved=saveQuote('draft',{force:true});
+  // Render the preview from the SAVED quote object — not from form state directly. This is
+  // the same object the customer's page will fetch from Supabase. By rendering preview from
+  // the same data structure that the customer sees, we make it structurally impossible for
+  // preview and customer page to differ.
+  const _previewLead=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
+  document.getElementById('quote-preview-body').innerHTML=renderQuoteHTML({..._saved,_preview:true},_previewLead);
   closeModal('quote-builder');
   // Check if quote was already sent
   const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
@@ -10857,7 +10862,62 @@ async function sendQuoteEmail(){
   const quoteLink=(body.match(/https:\/\/davidabram217\.github\.io\/movedesk\/quote\.html\?id=\S+/)||[])[0]||'';
   const htmlBody='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;color:#1a1916"><div style="text-align:center;margin-bottom:28px"><div style="font-family:Georgia,serif;font-size:32px;font-weight:600">CareMore</div><div style="width:80%;height:2px;background:#4a9e6b;margin:8px auto"></div><div style="font-family:Georgia,serif;font-size:22px;font-style:italic">Moving &amp; Storage</div><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9e9b94;margin-top:6px">San Francisco, CA</div></div><div style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#444;margin-bottom:24px">'+body.replace(quoteLink,'').trim()+'</div>'+(quoteLink?'<div style="text-align:center;margin:32px 0"><a href="'+quoteLink+'" style="display:inline-block;background:#2d5a3d;color:#fff;text-decoration:none;padding:16px 48px;border-radius:8px;font-size:16px;font-weight:600">View Your Quote</a></div><p style="font-size:12px;color:#888;text-align:center">Or copy: <a href="'+quoteLink+'" style="color:#2d5a3d">'+quoteLink+'</a></p>':'')+'</div>';
   const btn=document.querySelector('#modal-quote-email .btn-primary');
-  if(btn){btn.disabled=true;btn.textContent='Sending...';}
+  if(btn){btn.disabled=true;btn.textContent='Saving quote...';}
+
+  // ── PHASE 1: SECURE THE QUOTE IN THE CLOUD BEFORE THE EMAIL GOES OUT ──
+  // The customer's email will point them at quote.html?id=PUBLIC_ID, which fetches the row
+  // from Supabase. We MUST guarantee that row has the correct content before sending the
+  // email. So: kill any pending autosaves, flip the local quote to 'sent', push DIRECTLY to
+  // Supabase (not the debounced saveDB), and verify by reading the row back.
+  clearTimeout(_qbAutoSaveTimer);
+  if(typeof _globalAutoSaveTimer!=='undefined')clearTimeout(_globalAutoSaveTimer);
+  clearTimeout(_saveTimer); // kill the debounced DB save too — we're doing it directly
+  const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+  if(!q){
+    if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
+    showToast('Quote not found — please rebuild');return;
+  }
+  q.status='sent';
+  q.sentAt=new Date().toISOString().split('T')[0];
+  // Direct upsert (not via saveDB debounce) so we can await the result and verify
+  try{
+    if(btn)btn.textContent='Verifying...';
+    await sbFetch('quotes','POST',[{id:q.id,data:q}]);
+    // Read it back to be sure the cloud has what we just wrote. Cache-busted.
+    const verifyUrl=SUPABASE_URL+'/rest/v1/quotes?id=eq.'+encodeURIComponent(q.id)+'&select=id,data&_t='+Date.now();
+    const verifyRes=await fetch(verifyUrl,{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Cache-Control':'no-cache'}
+    });
+    if(!verifyRes.ok)throw new Error('Verify fetch returned '+verifyRes.status);
+    const verifyRows=await verifyRes.json();
+    const cloudRow=verifyRows[0];
+    if(!cloudRow||!cloudRow.data){
+      throw new Error('Quote not found in cloud after save');
+    }
+    // Compare the rendered HTML of cloud vs local — that's what the customer will see.
+    // If they don't match, refuse to send the email.
+    const cloudRendered=renderQuoteHTML(cloudRow.data);
+    const localRendered=renderQuoteHTML(q);
+    if(cloudRendered!==localRendered){
+      console.error('[Verify failed] Cloud quote does not match local quote');
+      console.error('Local:',q);
+      console.error('Cloud:',cloudRow.data);
+      throw new Error('Saved quote does not match preview. Email NOT sent. Please try again.');
+    }
+    // Persist locally too so localStorage matches cloud
+    saveDB();
+  }catch(verifyErr){
+    if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
+    // Revert local status flip so we're not in an inconsistent state
+    q.status='draft';
+    q.sentAt='';
+    saveDB();
+    showToast('⚠ Could not verify quote on server — email NOT sent. '+(verifyErr.message||''));
+    return;
+  }
+
+  // ── PHASE 2: SEND THE EMAILS — cloud is now confirmed in sync with preview ──
+  if(btn)btn.textContent='Sending email...';
   try{
     await loadEmailJS();
     await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,{
@@ -10879,16 +10939,8 @@ async function sendQuoteEmail(){
       message:body,
       html_content:htmlBody
     });
-    const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
-    if(q){q.status='sent';q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
-    // Cancel any pending autosave timers — both the global one and the qb-specific one.
-    // Without this, a queued event from before the send could fire qbAutoSave() AFTER status
-    // flipped to 'sent', and (without our status guard) would overwrite the just-sent quote
-    // with the form's current state.
-    clearTimeout(_qbAutoSaveTimer);
-    if(typeof _globalAutoSaveTimer!=='undefined')clearTimeout(_globalAutoSaveTimer);
     const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
-    if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];const _q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;if(_q&&_q.sentBy&&!l.estimateSentBy)l.estimateSentBy=_q.sentBy;if(_q&&_q.estimateType)l.estimateType=_q.estimateType;saveDB();renderLeads();}
+    if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];if(q.sentBy&&!l.estimateSentBy)l.estimateSentBy=q.sentBy;if(q.estimateType)l.estimateType=q.estimateType;saveDB();renderLeads();}
     showToast('✓ Quote email sent to '+to);
     closeModal('quote-email');
   }catch(e){
