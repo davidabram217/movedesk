@@ -577,6 +577,15 @@
                   <option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Storage Out</option><option>Internal</option>
                 </select>
               </div>
+              <div class="form-group"><label>Packing service</label>
+                <select id="ai-packing">
+                  <option value="">Select…</option>
+                  <option>No — just moving</option>
+                  <option>Kitchen pack only</option>
+                  <option>All breakables</option>
+                  <option>Full pack</option>
+                </select>
+              </div>
               <div class="form-group"><label>Access at load</label>
                 <select id="ai-access-load">
                   <option value="">Select…</option>
@@ -800,7 +809,7 @@
           <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select>
         </div>
         <div class="form-group"><label>Packing needed?</label>
-          <select id="nl-packing"><option value="No">No — just moving</option><option value="Partial">Partial packing</option><option value="Full">Full packing service</option></select>
+          <select id="nl-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select>
         </div>
         <div class="form-group"><label>Call taken by</label><input type="text" id="nl-taken-by" placeholder="e.g. John" list="nl-taken-by-list"><datalist id="nl-taken-by-list"><option value="John"><option value="Dave"></datalist></div>
       </div>
@@ -6848,7 +6857,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const subtotal=Math.max(0,subSum-yelp);
     return Math.round(subtotal*0.035*100)/100;
   })();
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',sqft:j?j.sqft:null,packing:j?j.packing:'',moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -6864,6 +6873,8 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       date:completed.date,
       name:completed.name,
       size:completed.size,
+      sqft:completed.sqft||null,
+      packing:completed.packing||'',
       moveType:completed.moveType,
       from:completed.from,
       fromZip:completed.fromZip,
@@ -11901,9 +11912,39 @@ function getAllTrainingData(){
   // This catches records that never synced to Supabase (e.g. completed on another device,
   // or before ai_training table existed in Supabase).
   selfHealAITraining();
+  // Backfill: for records that pre-date the packing+sqft fields, look up the source
+  // lead/completed job and fill those fields in so similarity scoring can use them.
+  backfillTrainingPackingAndSqft();
   const spreadsheet=SPREADSHEET_TRAINING;
   const fromApp=(db.aiTraining||[]);
   return [...spreadsheet,...fromApp];
+}
+
+function backfillTrainingPackingAndSqft(){
+  if(!db.aiTraining||!db.aiTraining.length)return;
+  let filled=0;
+  db.aiTraining.forEach(r=>{
+    if(r.packing!==undefined&&r.packing!==null&&r.sqft!==undefined&&r.sqft!==null)return;
+    // Find the source lead via completedJob → bookedJob → leadId
+    let lead=null;
+    const cj=r.completedJobId?(db.completedJobs||[]).find(c=>c.id===r.completedJobId):null;
+    if(cj){
+      if(cj.packing&&!r.packing){r.packing=cj.packing;filled++;}
+      if(cj.sqft&&!r.sqft){r.sqft=cj.sqft;filled++;}
+      const bj=cj.bookedJobId?(db.bookedJobs||[]).find(b=>b.id===cj.bookedJobId):null;
+      if(bj&&bj.leadId)lead=(db.leads||[]).find(l=>l.id===bj.leadId);
+    }
+    if(!lead&&r.bookedJobId){
+      const bj=(db.bookedJobs||[]).find(b=>b.id===r.bookedJobId);
+      if(bj&&bj.leadId)lead=(db.leads||[]).find(l=>l.id===bj.leadId);
+    }
+    if(!lead&&r.name)lead=(db.leads||[]).find(l=>l.name===r.name);
+    if(lead){
+      if(!r.packing&&lead.packing){r.packing=lead.packing;filled++;}
+      if(!r.sqft&&lead.sqft){r.sqft=lead.sqft;filled++;}
+    }
+  });
+  if(filled){try{saveDB();}catch(e){}console.log('Backfilled '+filled+' packing/sqft field(s) on AI training records');}
 }
 
 function selfHealAITraining(){
@@ -11922,7 +11963,7 @@ function selfHealAITraining(){
       id:uid(),
       completedJobId:j.id,
       bookedJobId:j.bookedJobId||null,
-      date:j.date,name:j.name,size:j.size,moveType:j.moveType,
+      date:j.date,name:j.name,size:j.size,sqft:j.sqft||null,packing:j.packing||'',moveType:j.moveType,
       from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
       accessLoad:j.accessLoad,accessUnload:j.accessUnload,
       quotedMin:_qInfo.quotedMin,
@@ -11965,6 +12006,36 @@ function similarity(job,inputs){
     const norm=s=>s.toLowerCase().replace(/\s+/g,'');
     score+=norm(job.size)===norm(inputs.size)?40:0;
   }
+  // Packing match — a pack-and-move job is fundamentally different work from a move-only,
+  // so we weight this heavily. Buckets ordered by pack scope:
+  //   none (move only) → kitchen only → all breakables → full pack
+  // Adjacent buckets get partial credit, non-adjacent zero.
+  const _normPack=p=>{
+    const s=(p||'').toLowerCase().trim();
+    if(!s||s==='no'||s.includes('just moving'))return 'none';
+    if(s.includes('kitchen'))return 'kitchen';
+    if(s.includes('breakable'))return 'breakables';
+    if(s.includes('full')||s==='yes')return 'full';
+    // Legacy "Partial" maps closest to "all breakables" since old partial usually meant
+    // kitchen + bathrooms + breakables. "All breakables" is the closest modern bucket.
+    if(s.includes('partial')||s.includes('part'))return 'breakables';
+    return 'unknown';
+  };
+  if(job.packing!==undefined&&job.packing!==null&&inputs.packing){
+    const jp=_normPack(job.packing);
+    const ip=_normPack(inputs.packing);
+    if(jp!=='unknown'&&ip!=='unknown'){
+      // Ordered scale so we can measure "distance" between buckets
+      const _scale={none:0,kitchen:1,breakables:2,full:3};
+      const dist=Math.abs(_scale[jp]-_scale[ip]);
+      if(dist===0)score+=25;       // exact match
+      else if(dist===1)score+=12;  // adjacent (e.g. breakables vs full)
+      else if(dist===2)score+=3;   // 2 buckets apart (e.g. kitchen vs full)
+      // dist === 3: opposite ends (none vs full) — no score, fundamentally different work
+    }
+  }
+  // Move type — but down-weighted because moveType often correlates with packing already
+  if(job.moveType&&inputs.moveType&&job.moveType.toLowerCase()===inputs.moveType.toLowerCase())score+=10;
   // Vaults — weighted
   if(job.estimatedVaults&&inputs.vaults){
     const diff=Math.abs(job.estimatedVaults-inputs.vaults);
@@ -11975,8 +12046,6 @@ function similarity(job,inputs){
   const unloadDiff=Math.abs(accessScore(job.accessUnload)-accessScore(inputs.accessUnload));
   score+=Math.max(0,10-(loadDiff*3));
   score+=Math.max(0,10-(unloadDiff*3));
-  // Move type
-  if(job.moveType&&inputs.moveType&&job.moveType.toLowerCase()===inputs.moveType.toLowerCase())score+=10;
   // Sqft
   if(job.sqft&&inputs.sqft){
     const diff=Math.abs(job.sqft-inputs.sqft);
@@ -11991,6 +12060,7 @@ function generateAIQuote(){
     vaults:parseFloat(document.getElementById('ai-vaults').value)||null,
     sqft:parseFloat(document.getElementById('ai-sqft').value)||null,
     moveType:document.getElementById('ai-movetype').value,
+    packing:document.getElementById('ai-packing')?.value||'',
     accessLoad:document.getElementById('ai-access-load').value,
     accessUnload:document.getElementById('ai-access-unload').value,
     loadZip:(document.getElementById('ai-load-zip').value||'').trim(),
