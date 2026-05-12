@@ -9990,20 +9990,62 @@ let qbJobType='single';
 let qbDays=[];
 let qbFees=[];
 
-function openQuoteBuilder(leadId){
+function _quoteChooserClose(){const m=document.getElementById('modal-quote-chooser');if(m)m.remove();}
+function _quoteChooserEdit(quoteId,leadId){
+  _quoteChooserClose();
+  const q=(db.quotes||[]).find(x=>x.id===quoteId);
+  if(!q)return;
+  currentQuoteLeadId=leadId;
+  currentQuoteId=quoteId;
+  loadQuoteIntoBuilder(q);
+  openModal('quote-builder');
+}
+function _quoteChooserNew(leadId){
+  _quoteChooserClose();
+  openQuoteBuilder(leadId,{forceNew:true});
+}
+
+function openQuoteBuilder(leadId,opts){
+  opts=opts||{};
   currentQuoteLeadId=leadId;
   currentQuoteId=null;
   qbJobType='single';
   const l=leadId?db.leads.find(x=>x.id===leadId):null;
   document.getElementById('qb-lead-summary').textContent=l?`${l.name} · ${l.phone||''} · ${fmtDate(l.date)}`:'New quote';
-  // Check for existing quote on this lead — draft, sent, or accepted
-  if(l&&db.quotes){
-    const existing=db.quotes.find(q=>q.leadId===leadId&&q.status==='draft')
-      ||db.quotes.find(q=>q.leadId===leadId&&q.status==='sent')
-      ||db.quotes.find(q=>q.leadId===leadId&&q.status==='accepted');
-    if(existing){currentQuoteId=existing.id;loadQuoteIntoBuilder(existing);openModal('quote-builder');return;}
+  // Check for existing quote(s) on this lead. If multiple exist OR if a sent/accepted quote
+  // already exists, ask the user whether to edit one or build a fresh new one. Otherwise
+  // (only a single draft exists), load it silently — same as before.
+  if(l&&db.quotes&&!opts.forceNew){
+    const _existing=db.quotes.filter(q=>q.leadId===leadId&&q.status!=='superseded'&&q.status!=='declined');
+    const _hasSent=_existing.some(q=>q.status==='sent'||q.status==='accepted');
+    if(_existing.length===1&&!_hasSent){
+      // Single draft — load silently, preserve old behaviour
+      currentQuoteId=_existing[0].id;loadQuoteIntoBuilder(_existing[0]);openModal('quote-builder');return;
+    }
+    if(_existing.length>=1){
+      // Show a chooser: edit which one, or build a brand new one
+      const _list=_existing.map(q=>{
+        const _statusLabel=q.status==='sent'?'✉ Sent':q.status==='accepted'?'✓ Accepted':q.status==='draft'?'✏ Draft':q.status;
+        const _label=q.jobType==='multi'?(q.days?.length||0)+' day':((q.days?.[0]?.crew||'?')+' movers');
+        const _packing=(q.packing||'').toLowerCase();
+        const _packTag=_packing&&!_packing.includes('no')?' · '+q.packing:'';
+        const _totals=q.totalMin&&q.totalMax?fmtMoney(q.totalMin)+'–'+fmtMoney(q.totalMax):'TBD';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:4px;margin-bottom:6px">
+          <div style="font-size:12.5px">
+            <strong>${_totals}</strong> · ${_label}${_packTag}
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${_statusLabel}${q.sentAt?' on '+fmtDate(q.sentAt):''}</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" style="font-size:11px" onclick="_quoteChooserEdit('${q.id}','${l.id}')">Edit this →</button>
+        </div>`;
+      }).join('');
+      const _chooserHtml=`<div class="modal-bg open" id="modal-quote-chooser" style="z-index:600"><div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title">${_existing.length>1?'Multiple quotes on this lead':'A quote already exists'}</div><button class="modal-close" onclick="_quoteChooserClose()">✕</button></div><div class="modal-body"><div style="font-size:13px;color:var(--text2);margin-bottom:12px">Pick one to edit, or build a brand new quote (the customer will get a separate link for each).</div>${_list}<div style="margin-top:12px;text-align:center"><button class="btn btn-primary" onclick="_quoteChooserNew('${l.id}')">+ Build a brand new quote</button></div></div></div></div>`;
+      const _existingChooser=document.getElementById('modal-quote-chooser');
+      if(_existingChooser)_existingChooser.remove();
+      document.body.insertAdjacentHTML('beforeend',_chooserHtml);
+      return;
+    }
   }
-  // Default values from lead
+  // Default values from lead — fresh new quote
   const rate=db.settings.rateBase||225;
   qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromParking:l?l.parkingLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toParking:l?l.parkingUnload||'':'',toType:l?l.toType:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
   qbFees=[{id:uid(),label:'Fuel Fee',amount:75,included:true},{id:uid(),label:'Standard Material Fee',amount:40,included:true}];
