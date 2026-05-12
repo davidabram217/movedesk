@@ -9941,7 +9941,10 @@ function openQuoteBuilder(leadId){
 function loadQuoteIntoBuilder(q){
   const l=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
   qbJobType=q.jobType||'single';
-  qbDays=q.days||[];
+  // DEEP-CLONE so subsequent form edits don't mutate the saved quote record. Without this,
+  // qbDays would share object references with db.quotes[...].days — and any in-memory edit
+  // (e.g. day rate, hours, crew) would silently corrupt the already-sent quote.
+  qbDays=JSON.parse(JSON.stringify(q.days||[]));
   // Ensure each day has loads/unloads arrays initialized
   qbDays.forEach(d=>{
     if(!d.loads||!d.loads.length){
@@ -9952,7 +9955,7 @@ function loadQuoteIntoBuilder(q){
     }
     d.locations=true;
   });
-  qbFees=q.fees||[];
+  qbFees=JSON.parse(JSON.stringify(q.fees||[]));
   document.getElementById('qb-project-name').value=q.projectName||'';
   document.getElementById('qb-description').value=q.description||'';
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
@@ -10623,6 +10626,11 @@ function saveQuote(status){
   const publicId=existingQ?.publicId||('q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
   // Expires 3 months from now
   const expiresAt=existingQ?.expiresAt||(()=>{const d=new Date();d.setMonth(d.getMonth()+3);return d.toISOString().split('T')[0];})();
+  // DEEP-CLONE the form arrays so the stored quote is a frozen snapshot — any later edit to
+  // qbDays/qbFees (which happens on every keystroke via qbAutoSave) can NEVER mutate the
+  // already-saved quote record. JSON round-trip is sufficient — all fields are plain values.
+  const _frozenDays=JSON.parse(JSON.stringify(qbDays||[]));
+  const _frozenFees=JSON.parse(JSON.stringify(qbFees||[]));
   const quote={
     id:currentQuoteId||uid(),
     publicId,
@@ -10630,10 +10638,10 @@ function saveQuote(status){
     leadId:currentQuoteLeadId,
     customerName:l?l.name:'',
     customerEmail:l?l.email:'',
-    moveDate:qbDays[0]?qbDays[0].date:l?l.date:'',
+    moveDate:_frozenDays[0]?_frozenDays[0].date:l?l.date:'',
     jobType:qbJobType,
-    days:[...qbDays],
-    fees:[...qbFees],
+    days:_frozenDays,
+    fees:_frozenFees,
     projectName:document.getElementById('qb-project-name').value,moveType:document.getElementById('qb-move-type')?.value||'',packing:document.getElementById('qb-packing')?.value||'',
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
@@ -10643,7 +10651,7 @@ function saveQuote(status){
     totalMin:t.totalMin,totalMax:t.totalMax,
     cashTotalMin:t.cashTotalMin||null,cashTotalMax:t.cashTotalMax||null,
     status:status||'draft',
-    createdAt:new Date().toISOString().split('T')[0],
+    createdAt:existingQ?.createdAt||new Date().toISOString().split('T')[0],
     savedAt:new Date().toISOString(),
     sentAt:status==='sent'?new Date().toISOString().split('T')[0]:(existingQ?.sentAt||'')
   };
