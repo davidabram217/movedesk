@@ -12029,8 +12029,10 @@ function generateAIQuote(){
   // Effective hourly rate = per-man rate × crew size (e.g. $75/man × 5 men = $375/hr crew rate)
   const rate=ratePerMan*men;
 
-  // Data-driven crew scaling ratios
-  const crewRatios={1:0.45,2:0.69,3:1.0,4:1.29,5:1.62,6:1.22};
+  // Crew scaling — how many hours a job takes relative to a 3-man baseline as crew size changes.
+  // Reflects diminishing returns: a 5-man crew finishes faster than 3 but not 5/3 = 1.67× faster.
+  // 1 mover takes 2.5× baseline, 6 men take ~0.55× baseline. Indexed at 3 = 1.0.
+  const crewRatios={1:2.5,2:1.55,3:1.0,4:0.78,5:0.65,6:0.58,7:0.54,8:0.5};
   const dataRatioFrom=crewRatios[Math.round(avgMen)]||1.0;
   const dataRatioTo=crewRatios[men]||1.0;
   const crewAdjust=dataRatioTo/dataRatioFrom;
@@ -12047,8 +12049,9 @@ function generateAIQuote(){
     return s+(ls+us);
   },0)/scored.length;
 
-  // Access delta per access point: 0.81 hrs at 3-man baseline, scaled by crew ratio
-  const accessPerPoint=0.81*(crewRatios[3]/crewRatios[men]||1.0);
+  // Access delta per access point: 0.81 hrs at 3-man baseline, scaled DOWN by crew size
+  // (more movers means stairs / long carries get shared — fewer wall-clock hours per access point).
+  const accessPerPoint=0.81*(crewRatios[men]/crewRatios[3]||1.0);
   const accessHourDelta=(inputAccessScore-avgAccessScore)*accessPerPoint;
 
   // Apply crew adjustment first (scales the base hours), then add access delta
