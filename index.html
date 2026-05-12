@@ -560,25 +560,25 @@
           <div class="card-body">
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>Home size</label>
-                <select id="ai-size">
+                <select id="ai-size" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
                   <option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option><option>4+ Bedroom</option><option>Office</option>
                 </select>
               </div>
               <div class="form-group"><label>Number of vaults</label>
-                <input type="number" id="ai-vaults" placeholder="e.g. 6" step="0.5" min="0" max="20">
+                <input type="number" id="ai-vaults" placeholder="e.g. 6" step="0.5" min="0" max="20" oninput="saveAIQuoteDraft()">
               </div>
               <div class="form-group"><label>Square footage</label>
-                <input type="number" id="ai-sqft" placeholder="e.g. 900">
+                <input type="number" id="ai-sqft" placeholder="e.g. 900" oninput="saveAIQuoteDraft()">
               </div>
               <div class="form-group"><label>Type of move</label>
-                <select id="ai-movetype">
+                <select id="ai-movetype" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
                   <option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Storage Out</option><option>Internal</option>
                 </select>
               </div>
               <div class="form-group"><label>Packing service</label>
-                <select id="ai-packing">
+                <select id="ai-packing" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
                   <option>No — just moving</option>
                   <option>Kitchen pack only</option>
@@ -587,29 +587,29 @@
                 </select>
               </div>
               <div class="form-group"><label>Access at load</label>
-                <select id="ai-access-load">
+                <select id="ai-access-load" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
                   <option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option>
                 </select>
               </div>
               <div class="form-group"><label>Access at unload</label>
-                <select id="ai-access-unload">
+                <select id="ai-access-unload" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
                   <option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option>
                 </select>
               </div>
               <div class="form-group"><label>Load zip code</label>
-                <input type="text" id="ai-load-zip" placeholder="e.g. 94115" maxlength="5">
+                <input type="text" id="ai-load-zip" placeholder="e.g. 94115" maxlength="5" oninput="saveAIQuoteDraft()">
               </div>
               <div class="form-group"><label>Unload zip code</label>
-                <input type="text" id="ai-unload-zip" placeholder="e.g. 94131" maxlength="5">
+                <input type="text" id="ai-unload-zip" placeholder="e.g. 94131" maxlength="5" oninput="saveAIQuoteDraft()">
               </div>
               <div class="form-group"><label>Rate per man ($/hr)</label>
-                <input type="number" id="ai-rate" placeholder="e.g. 75" value="75">
+                <input type="number" id="ai-rate" placeholder="e.g. 75" value="75" oninput="saveAIQuoteDraft()">
                 <div style="font-size:11px;color:var(--text3);margin-top:3px">Total hourly rate = this × number of movers</div>
               </div>
               <div class="form-group"><label>Number of movers</label>
-                <select id="ai-men">
+                <select id="ai-men" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
                   <option>2</option><option>3</option><option>4</option><option>5</option>
                 </select>
@@ -617,7 +617,7 @@
             </div>
             <div class="form-group full" style="margin-top:4px">
                 <label>Additional notes <span style="font-size:11px;font-weight:400;color:var(--text3)">— affects the estimate</span></label>
-                <textarea id="ai-notes" placeholder="e.g. Lots of disassembly needed, piano, fragile art, very long walk from elevator, customer has a lot of books…" style="min-height:70px"></textarea>
+                <textarea id="ai-notes" placeholder="e.g. Lots of disassembly needed, piano, fragile art, very long walk from elevator, customer has a lot of books…" style="min-height:70px" oninput="saveAIQuoteDraft()"></textarea>
               </div>
               <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="generateAIQuote()">🤖 Generate instant quote</button>
           </div>
@@ -10753,8 +10753,12 @@ function viewAcceptedQuote(quoteId){
 
 function previewQuote(){
   if(!qbDays||!qbDays.length){showToast('Please add at least one day to the quote.');return;}
-  saveQuote('draft');
-  document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
+  // Save the quote first, then render from the SAVED quote object using the same function
+  // (renderQuoteHTML) that the customer-facing quote.html page uses. This guarantees the
+  // preview shows exactly what the customer will see — no more drift between the two paths.
+  const _savedQuote=saveQuote('draft');
+  const _previewLead=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
+  document.getElementById('quote-preview-body').innerHTML=renderQuoteHTML({..._savedQuote,_preview:true},_previewLead);
   closeModal('quote-builder');
   // Check if quote was already sent
   const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
@@ -11056,7 +11060,9 @@ function previewQuoteFromList(quoteId){
   currentQuoteId=quoteId;
   currentQuoteLeadId=q.leadId||null;
   loadQuoteIntoBuilder(q);
-  document.getElementById('quote-preview-body').innerHTML=buildQuoteHTML();
+  // Render from the saved quote object — same path the customer sees
+  const _previewLead=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
+  document.getElementById('quote-preview-body').innerHTML=renderQuoteHTML({...q,_preview:true},_previewLead);
   const footer=document.getElementById('quote-preview-footer');
   if(footer){
     const link=q.publicId?`<a href="https://davidabram217.github.io/movedesk/quote.html?id=${q.publicId}" target="_blank" class="btn btn-secondary" style="text-decoration:none">🔗 Open customer link</a>`:'';
@@ -12180,6 +12186,49 @@ function similarity(job,inputs){
   return score;
 }
 
+// Auto-save the AI Quote Builder form state to localStorage on every keystroke. Restored when
+// the user navigates back to the page so in-progress work isn't lost on refresh / tab close.
+let _aiQuoteDraftTimer=null;
+function saveAIQuoteDraft(){
+  clearTimeout(_aiQuoteDraftTimer);
+  _aiQuoteDraftTimer=setTimeout(()=>{
+    try{
+      const ids=['ai-size','ai-vaults','ai-sqft','ai-movetype','ai-packing','ai-access-load','ai-access-unload','ai-load-zip','ai-unload-zip','ai-rate','ai-men','ai-notes'];
+      const draft={};
+      ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;});
+      draft._savedAt=new Date().toISOString();
+      localStorage.setItem('aiQuoteDraft',JSON.stringify(draft));
+      // Subtle indicator in the result card
+      const r=document.getElementById('ai-result');
+      if(r&&r.querySelector('.empty-state')){
+        const note=r.querySelector('.ai-draft-note')||document.createElement('div');
+        note.className='ai-draft-note';
+        note.style.cssText='font-size:11px;color:var(--text3);text-align:center;margin-top:8px';
+        note.textContent='Draft saved ✓';
+        if(!r.querySelector('.ai-draft-note'))r.querySelector('.empty-state').appendChild(note);
+      }
+    }catch(e){}
+  },500);
+}
+
+function restoreAIQuoteDraft(){
+  try{
+    const raw=localStorage.getItem('aiQuoteDraft');
+    if(!raw)return;
+    const draft=JSON.parse(raw);
+    if(!draft)return;
+    Object.keys(draft).forEach(id=>{
+      if(id.startsWith('_'))return;
+      const el=document.getElementById(id);
+      if(el&&draft[id]!==undefined&&draft[id]!==null)el.value=draft[id];
+    });
+  }catch(e){}
+}
+
+function clearAIQuoteDraft(){
+  try{localStorage.removeItem('aiQuoteDraft');}catch(e){}
+}
+
 function generateAIQuote(){
   const inputs={
     size:document.getElementById('ai-size').value,
@@ -12348,6 +12397,8 @@ function generateAIQuote(){
 }
 
 function renderAIQuote(){
+  // Restore any in-progress draft inputs so the user's work survives navigation/refresh
+  restoreAIQuoteDraft();
   const all=getAllTrainingData();
   document.getElementById('ai-training-count').textContent=all.length+' training records ('+(SPREADSHEET_TRAINING.length)+' from spreadsheet, '+((db.aiTraining||[]).length)+' from completed jobs)';
   // Render the Quoting Rules card — grouped by category
