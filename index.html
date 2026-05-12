@@ -3300,8 +3300,15 @@ function resolveQuotedInfo(j){
   };
   const _bk=j.bookedJobId?db.bookedJobs.find(b=>b.id===j.bookedJobId):null;
   const lead=(_bk?db.leads.find(l=>l.id===_bk.leadId):null)||db.leads.find(l=>l.name===j.name)||null;
-  // Formal quote first
-  const fq=lead?db.quotes.find(q=>q.leadId===lead.id):(j.bookedJobId?db.quotes.find(q=>q.bookedJobId===j.bookedJobId):null);
+  // Quote precedence:
+  //   1) Booked job's recorded quoteId (the exact quote the booking was based on)
+  //   2) Accepted quote for the lead
+  //   3) Most recent sent quote for the lead
+  //   4) Any other quote linked by bookedJobId
+  let fq=null;
+  if(_bk&&_bk.quoteId)fq=db.quotes.find(q=>q.id===_bk.quoteId);
+  if(!fq&&lead)fq=getLeadQuote(lead.id);
+  if(!fq&&j.bookedJobId)fq=db.quotes.find(q=>q.bookedJobId===j.bookedJobId);
   if(fq){
     out.quotedMin=fq.totalMin||null;
     out.quotedMax=fq.totalMax||null;
@@ -4053,11 +4060,32 @@ function viewLead(id){try{const l=db.leads.find(x=>x.id===id);if(!l)return;docum
 document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
 const isPending=l.status==='Estimate sent'||l.status==='Summary + rough quote';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
-// Find associated quote — prefer sent/accepted, but fall back to most recent of any status
-// (covers reactivated leads where the quote may be marked 'declined' from the previous DNB)
-const _qSentOrAccepted=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'));
-const _qMostRecent=(db.quotes||[]).filter(q=>q.leadId===l.id).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
-const quote=_qSentOrAccepted||_qMostRecent||null;
+// Find associated quote(s) for this lead — use the helper for canonical pick.
+// If multiple quotes exist that aren't superseded, surface a chooser so the user can pick which one
+// the customer accepted.
+const _allLeadQuotes=(db.quotes||[]).filter(q=>q.leadId===l.id);
+const _activeQuotes=_allLeadQuotes.filter(q=>q.status!=='superseded'&&q.status!=='declined');
+const quote=getLeadQuote(l.id)||_allLeadQuotes[0]||null;
+const _hasMultipleActive=_activeQuotes.length>1;
+const _multiQuoteChooser=_hasMultipleActive&&!_allLeadQuotes.find(q=>q.status==='accepted')?`
+<div style="margin-top:14px;padding:11px 13px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px">
+  <div style="font-size:11px;font-weight:600;color:#b7860b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚠ Multiple quotes sent — pick the one the customer accepted</div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    ${_activeQuotes.map(q=>{
+      const _label=q.jobType==='multi'?(q.days?.length||0)+' day move':(q.days?.[0]?.crew||'?')+' movers';
+      const _packing=(q.days?.[0]?.packing||q.packing||'');
+      const _packTag=_packing&&_packing.toLowerCase()!=='no'?' · '+_packing:'';
+      const _totals=q.totalMin&&q.totalMax?fmtMoney(q.totalMin)+'–'+fmtMoney(q.totalMax):'TBD';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 9px;background:rgba(255,255,255,0.5);border-radius:3px">
+        <div style="font-size:12px;color:var(--text2)">
+          <strong>${_totals}</strong> · ${_label}${_packTag}
+          <span style="color:var(--text3);font-size:10.5px">${q.sentAt?' · sent '+fmtDate(q.sentAt):(q.savedAt?' · drafted '+fmtDate(q.savedAt.split('T')[0]):'')}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--accent);border-color:var(--accent)" onclick="acceptQuote('${q.id}')">Accept this →</button>
+      </div>`;
+    }).join('')}
+  </div>
+</div>`:'';
 const quoteHasMultiDay=quote&&quote.days&&quote.days.length>1;
 const quoteDaysBlock=quote&&quote.days&&quote.days.length?`
 <div style="margin-top:14px">
@@ -4086,7 +4114,7 @@ const showEstBlock=(l.estimateType||l.estimateDate||l.estimateQuote||l.estimateS
 const estStatusLabel=isAccepted?'✓ Quote accepted':'Estimate sent — awaiting response';
 const estBlock=showEstBlock?`<div style="margin-top:12px;padding:12px;background:${isAccepted?'var(--accent-light)':'var(--amber-light)'};border-radius:var(--radius);border:1px solid ${isAccepted?'#a8d5b5':'#f0d080'}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:${isAccepted?'var(--accent)':'var(--amber)'};text-transform:uppercase;letter-spacing:.5px">${estStatusLabel}</div><div style="display:flex;gap:6px">${isAccepted&&quote?`<button class="btn btn-secondary btn-sm" onclick="viewAcceptedQuote('${quote.id}')" style="font-size:11px;color:var(--accent);border-color:var(--accent)">👁 View quote</button>`:''}${l.estimateScheduledDate&&!isAccepted?`<button class="btn btn-secondary btn-sm" onclick="closeModal('view');setTimeout(()=>openScheduleEstimate('${l.id}'),200)" style="font-size:11px">✏️ Edit estimate</button>`:''}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate type</div><div>${estBadge(l.estimateType)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Date sent</div><div>${fmtDate(l.estimateDate)}</div></div>${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Sent by</div><div style="font-weight:600">${l.estimateSentBy}</div></div>`:''}${l.estimateDoneBy&&l.estimateDoneBy!==l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateQuote?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Quoted amount</div><div style="font-weight:600">${fmtMoney(l.estimateQuote)}</div></div>`:''} ${l.estimateNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${l.estimateNotes}</div></div>`:''}</div></div>`:
   l.estimateType&&l.status==='Estimate scheduled'?`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Estimate scheduled</div><button class="btn btn-secondary btn-sm" onclick="closeModal('view');setTimeout(()=>openScheduleEstimate('${l.id}'),200)" style="font-size:11px">✏️ Edit estimate</button></div><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">${estBadge(l.estimateType)}${l.estimateScheduledDate?`<span style="color:var(--text2)">${fmtDate(l.estimateScheduledDate)}${l.estimateScheduledTime?' at '+l.estimateScheduledTime:''}</span>`:''}${l.estimateSetupBy?`<span style="color:var(--text3)">Set up by <strong style="color:var(--text2)">${l.estimateSetupBy}</strong></span>`:''}</div></div>`:'';
-document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Phone</div><div>${l.phone||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Email</div><div>${l.email||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Move date</div><div>${fmtDate(l.date)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Home size</div><div>${l.size||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Source</div><div>${sourceBadge(l.source,l.sourceDetail)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Packing</div><div>${l.packing||'—'}</div></div>${l.takenBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Call taken by</div><div>${l.takenBy}</div></div>`:''}${l.estimateSetupBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate set up by</div><div>${l.estimateSetupBy}</div></div>`:''}${l.estimateOfficeNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">🔒 Office notes (estimate)</div><div class="note-display" style="font-size:12px;color:var(--amber);font-style:italic">${l.estimateOfficeNotes}</div></div>`:''}${l.estimateDoneBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate sent by</div><div><strong>${l.estimateSentBy}</strong></div></div>`:''}</div><div class="loc-section-label" style="margin-top:12px">📦 Load location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.from||'—'}${l.fromUnit?' #'+l.fromUnit:''}${l.fromZip?' '+l.fromZip:''}</div></div>${l.fromType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.fromType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessLoad||'—'}${l.fromElevator?' · Elevator':''}<br>${l.fromLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.fromStairs?l.fromStairs+' flights':'—'}${l.fromFloor?' · Floor '+l.fromFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingLoad||'—'}</div></div>${l.fromNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.fromNotes}</div></div>`:''}</div>${(l.extraLoads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">📦 Pickup ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}<div class="loc-section-label" style="margin-top:12px">🏠 Unload location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.to||'—'}${l.toUnit?' #'+l.toUnit:''}${l.toZip?' '+l.toZip:''}</div></div>${l.toType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.toType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessUnload||'—'}${l.toElevator?' · Elevator':''}<br>${l.toLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.toStairs?l.toStairs+' flights':'—'}${l.toFloor?' · Floor '+l.toFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingUnload||'—'}</div></div>${l.toNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.toNotes}</div></div>`:''}</div>${(l.extraUnloads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">🏠 Drop-off ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}${l.sqft||l.storage?`<div style="margin-top:10px;display:flex;gap:16px;font-size:12.5px">${l.sqft?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Square footage</div><div>${l.sqft} sq ft</div></div>`:''} ${l.storage?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Storage</div><div>Moving to CareMore Storage</div></div>`:''}</div>`:''}${quoteDaysBlock}${estBlock}${l.notes?`<div style="margin-top:12px;font-size:12.5px"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.notes}</div></div>`:''}${l.officeNotes?`<div style="margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--amber)"><div style="font-size:10.5px;color:var(--amber);font-weight:600;margin-bottom:2px">🔒 Office notes only</div><div class="note-display" style="font-size:12.5px">${l.officeNotes}</div></div>`:''}<hr class="divider"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Activity timeline</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;font-size:12px">${[
+document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Phone</div><div>${l.phone||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Email</div><div>${l.email||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Move date</div><div>${fmtDate(l.date)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Home size</div><div>${l.size||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Source</div><div>${sourceBadge(l.source,l.sourceDetail)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Packing</div><div>${l.packing||'—'}</div></div>${l.takenBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Call taken by</div><div>${l.takenBy}</div></div>`:''}${l.estimateSetupBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate set up by</div><div>${l.estimateSetupBy}</div></div>`:''}${l.estimateOfficeNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">🔒 Office notes (estimate)</div><div class="note-display" style="font-size:12px;color:var(--amber);font-style:italic">${l.estimateOfficeNotes}</div></div>`:''}${l.estimateDoneBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate sent by</div><div><strong>${l.estimateSentBy}</strong></div></div>`:''}</div><div class="loc-section-label" style="margin-top:12px">📦 Load location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.from||'—'}${l.fromUnit?' #'+l.fromUnit:''}${l.fromZip?' '+l.fromZip:''}</div></div>${l.fromType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.fromType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessLoad||'—'}${l.fromElevator?' · Elevator':''}<br>${l.fromLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.fromStairs?l.fromStairs+' flights':'—'}${l.fromFloor?' · Floor '+l.fromFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingLoad||'—'}</div></div>${l.fromNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.fromNotes}</div></div>`:''}</div>${(l.extraLoads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">📦 Pickup ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}<div class="loc-section-label" style="margin-top:12px">🏠 Unload location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.to||'—'}${l.toUnit?' #'+l.toUnit:''}${l.toZip?' '+l.toZip:''}</div></div>${l.toType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.toType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessUnload||'—'}${l.toElevator?' · Elevator':''}<br>${l.toLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.toStairs?l.toStairs+' flights':'—'}${l.toFloor?' · Floor '+l.toFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingUnload||'—'}</div></div>${l.toNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.toNotes}</div></div>`:''}</div>${(l.extraUnloads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">🏠 Drop-off ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}${l.sqft||l.storage?`<div style="margin-top:10px;display:flex;gap:16px;font-size:12.5px">${l.sqft?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Square footage</div><div>${l.sqft} sq ft</div></div>`:''} ${l.storage?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Storage</div><div>Moving to CareMore Storage</div></div>`:''}</div>`:''}${quoteDaysBlock}${_multiQuoteChooser}${estBlock}${l.notes?`<div style="margin-top:12px;font-size:12.5px"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.notes}</div></div>`:''}${l.officeNotes?`<div style="margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--amber)"><div style="font-size:10.5px;color:var(--amber);font-weight:600;margin-bottom:2px">🔒 Office notes only</div><div class="note-display" style="font-size:12.5px">${l.officeNotes}</div></div>`:''}<hr class="divider"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Activity timeline</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;font-size:12px">${[
   l.createdAt?{date:l.createdAt,label:'Lead created',by:l.takenBy?'by '+l.takenBy:''}:null,
   ...(l.summaryLog&&l.summaryLog.length?l.summaryLog.map((s,i)=>({date:s.date,label:'Summary email sent'+(l.summaryLog.length>1?' #'+(i+1):''),by:s.to?'to '+s.to:''})):[l.summaryEmailBody&&l.summarySentAt?{date:l.summarySentAt,label:'Summary email sent',by:l.summaryEmailTo?'to '+l.summaryEmailTo:''}:null]),
   l.roughQuoteDate?{date:l.roughQuoteDate,label:`Rough quote sent: $${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?' – $'+(l.roughQuoteMax||0).toLocaleString():''}`,by:l.roughQuoteSentBy?'by '+l.roughQuoteSentBy:''}:null,
@@ -4210,11 +4238,48 @@ function removePhantomCompleted(completedId,leadId){
   setTimeout(()=>{viewLead(leadId);renderLeads();},120);
 }
 
-function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)return;l.status='Quote accepted';l.statusUpdatedAt=new Date().toISOString().split('T')[0];
-// Also mark the linked quote as accepted
-const q=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')||(db.quotes||[]).find(qt=>qt.leadId===leadId);
-if(q){q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];}
-saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
+// Pick the canonical quote for a lead when multiple exist. Preference order:
+//   accepted → sent → draft → (anything not superseded)
+// Within each status, prefer the most recently created.
+function getLeadQuote(leadId,opts){
+  if(!leadId)return null;
+  const all=(db.quotes||[]).filter(q=>q.leadId===leadId);
+  if(!all.length)return null;
+  const byStatus=s=>all.filter(q=>q.status===s).sort((a,b)=>(b.sentAt||b.acceptedAt||b.createdAt||'').localeCompare(a.sentAt||a.acceptedAt||a.createdAt||''));
+  return byStatus('accepted')[0]||byStatus('sent')[0]||byStatus('draft')[0]||all.filter(q=>q.status!=='superseded')[0]||all[0];
+}
+
+function acceptQuote(leadOrQuoteId){
+  // Accept either by quote ID (preferred — explicitly picks which quote won) or fall back to
+  // by lead ID for backwards compatibility (older callers).
+  let q=(db.quotes||[]).find(qt=>qt.id===leadOrQuoteId);
+  let l=null;
+  if(q){
+    l=db.leads.find(x=>x.id===q.leadId);
+  } else {
+    l=db.leads.find(x=>x.id===leadOrQuoteId);
+    if(!l)return;
+    // Pick the most appropriate quote when called by leadId — sent over draft, newest first
+    const _qs=(db.quotes||[]).filter(qt=>qt.leadId===l.id);
+    q=_qs.find(qt=>qt.status==='sent')||_qs[0];
+  }
+  if(!l)return;
+  l.status='Quote accepted';
+  l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  l._statusChangedAt=new Date().toISOString();
+  if(q){
+    q.status='accepted';
+    q.acceptedAt=new Date().toISOString().split('T')[0];
+    // Mark sibling quotes as superseded so they don't get used downstream
+    (db.quotes||[]).filter(qt=>qt.leadId===l.id&&qt.id!==q.id).forEach(qt=>{
+      if(qt.status!=='superseded'&&qt.status!=='accepted'){
+        qt.status='superseded';
+        qt.supersededAt=new Date().toISOString().split('T')[0];
+      }
+    });
+  }
+  saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(l.id),300);
+}
 
 let currentConfirmEmailLeadId=null;
 // Builds the "Here are the details as I understand them" block — the same block that goes
@@ -5838,13 +5903,30 @@ function confirmBooking(){
 
   // NEW BOOKING MODE
   const l=db.leads.find(x=>x.id===currentBookingLeadId);
-  // Attach quote days if a multi-day quote exists
-  const leadQuote=(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId&&(q.status==='accepted'||q.status==='sent'));
+  // Find the quote this booking is based on — prefer accepted, fall back to most recent sent
+  const _leadQuotes=(db.quotes||[]).filter(q=>q.leadId===currentBookingLeadId);
+  const leadQuote=_leadQuotes.find(q=>q.status==='accepted')
+    ||[..._leadQuotes].filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.createdAt||'').localeCompare(a.sentAt||a.createdAt||''))[0]
+    ||_leadQuotes[0];
   const isMultiDayQuote=leadQuote&&leadQuote.jobType==='multi'&&leadQuote.days&&leadQuote.days.length>1;
-  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
+  const job={id:uid(),leadId:currentBookingLeadId,quoteId:leadQuote?leadQuote.id:null,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
     multiDay:isMultiDayQuote,quoteDays:isMultiDayQuote?leadQuote.days:[],quoteFees:leadQuote?leadQuote.fees||[]:[]
   };
   db.bookedJobs.push(job);
+  // Mark the winning quote as accepted, and supersede the others for this lead so they're
+  // visibly distinguished and don't get picked up later as "the quote" for this customer.
+  if(leadQuote){
+    if(leadQuote.status!=='accepted'){
+      leadQuote.status='accepted';
+      leadQuote.acceptedAt=new Date().toISOString().split('T')[0];
+    }
+    _leadQuotes.forEach(q=>{
+      if(q.id!==leadQuote.id&&q.status!=='accepted'&&q.status!=='superseded'){
+        q.status='superseded';
+        q.supersededAt=new Date().toISOString().split('T')[0];
+      }
+    });
+  }
   // Don't flip lead status to "Booked" yet — only when the checklist is finished. Until then,
   // the job is a draft (filtered out of Booked Jobs) and the lead stays at its previous status.
   job._draft=true;
