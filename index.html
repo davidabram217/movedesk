@@ -1666,7 +1666,7 @@
       
       <div class="form-group">
         <label>Additional notes <span style="font-size:11px;color:var(--text3)">(shown to customer)</span></label>
-        <textarea id="qb-notes" style="min-height:60px" placeholder="e.g. Please note this is our best estimate based on the information provided..." oninput="qbAutoSave()"></textarea>
+        <textarea id="qb-notes" style="min-height:60px" placeholder="Notes shown to the customer on the quote — pulled from the lead's additional notes by default. Edit freely." oninput="qbAutoSave()"></textarea>
       </div>
 
       <div class="form-grid form-grid-2">
@@ -9958,16 +9958,11 @@ function openQuoteBuilder(leadId){
   const _banner=document.getElementById('qb-lead-notes-banner');
   if(_banner){
     const _esc=function(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/\n/g,'<br>');};
-    const _hasNotes=l&&(l.notes||l.officeNotes);
-    if(_hasNotes){
-      let html='<div style="padding:11px 14px;background:var(--surface2);border-left:3px solid #2d5a3d;border-radius:4px"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Context from this lead</div>';
-      if(l.notes){
-        html+='<div style="font-size:12.5px;color:var(--text);line-height:1.55;margin-bottom:'+(l.officeNotes?'10px':'0')+'"><div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Additional notes</div>'+_esc(l.notes)+'</div>';
-      }
-      if(l.officeNotes){
-        html+='<div style="font-size:12.5px;color:var(--amber);line-height:1.55;font-style:italic"><div style="font-size:10.5px;color:var(--amber);margin-bottom:3px;font-style:normal;font-weight:600">🔒 Office notes</div>'+_esc(l.officeNotes)+'</div>';
-      }
-      html+='<div style="font-size:10.5px;color:var(--text3);margin-top:10px;font-style:italic">These notes are for your reference only — not sent to the customer.</div></div>';
+    // Only show OFFICE notes here. Additional notes now flow into the editable customer-facing
+    // notes field below — no need to repeat them. Office notes stay internal-only so we surface
+    // them as a read-only context banner for the user's reference while building the quote.
+    if(l&&l.officeNotes){
+      const html='<div style="padding:11px 14px;background:var(--surface2);border-left:3px solid #b7860b;border-radius:4px"><div style="font-size:10.5px;font-weight:600;color:#b7860b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔒 Office notes from lead</div><div style="font-size:12.5px;color:var(--text);line-height:1.55;font-style:italic">'+_esc(l.officeNotes)+'</div><div style="font-size:10.5px;color:var(--text3);margin-top:8px">Internal only — not sent to the customer.</div></div>';
       _banner.innerHTML=html;
       _banner.style.display='block';
     } else {
@@ -9993,7 +9988,10 @@ function openQuoteBuilder(leadId){
   document.getElementById('qb-description').value='Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF.';
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
-  document.getElementById('qb-notes').value='Please note this is our best estimate based on the information provided. The final price may differ from the estimate unless an onsite or video estimate has already been performed. If you would like to request one or if you have any questions please give us a call on 415-822-8547.\n\nPlease review your information and follow the prompt at the bottom to continue.';
+  // Prefill the quote's customer-facing notes field from the lead's additional notes.
+  // (This only runs on first build — re-opening an existing quote calls loadQuoteIntoBuilder
+  // which preserves whatever was last saved.)
+  document.getElementById('qb-notes').value=(l&&l.notes)?l.notes:'';
   const _qbEv=document.getElementById('qb-estimated-vaults');if(_qbEv)_qbEv.value='';const _qbOn=document.getElementById('qb-office-notes');if(_qbOn&&!_qbOn.value)_qbOn.value=l?.officeNotes||'';const _qbCr=document.getElementById('qb-cash-rate');if(_qbCr)_qbCr.value='';const _qbEt=document.getElementById('qb-estimate-type');if(_qbEt)_qbEt.value=l?.estimateType||'';
   setJobType('single');
   openModal('quote-builder');
