@@ -10019,7 +10019,24 @@ function loadQuoteIntoBuilder(q){
   document.getElementById('qb-description').value=q.description||'';
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
   document.getElementById('qb-stipulations').value=q.stipulations||'';
-  document.getElementById('qb-notes').value=q.notes||'';
+  // Legacy cleanup: if a saved DRAFT quote was created before we removed the boilerplate
+  // disclaimer, the notes field still contains it. On load, detect that exact text and
+  // replace it with the lead's additional notes (or empty). Only applies to drafts —
+  // already-sent quotes are preserved as-is so the customer's existing quote link doesn't
+  // suddenly change content.
+  let _loadedNotes=q.notes||'';
+  const _legacyBoilerplate='Please note this is our best estimate based on the information provided. The final price may differ from the estimate unless an onsite or video estimate has already been performed. If you would like to request one or if you have any questions please give us a call on 415-822-8547.';
+  if(q.status==='draft'&&_loadedNotes&&_loadedNotes.indexOf(_legacyBoilerplate)>=0){
+    // Strip the boilerplate plus the trailing "review your information" line if present
+    _loadedNotes=_loadedNotes
+      .replace(_legacyBoilerplate,'')
+      .replace(/Please review your information and follow the prompt at the bottom to continue\.?/g,'')
+      .replace(/\n\s*\n\s*\n+/g,'\n\n')
+      .trim();
+    // If after stripping there's nothing left, fall back to the lead's additional notes
+    if(!_loadedNotes&&l&&l.notes)_loadedNotes=l.notes;
+  }
+  document.getElementById('qb-notes').value=_loadedNotes;
   const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const etEl=document.getElementById('qb-estimate-type');if(etEl)etEl.value=q.estimateType||l?.estimateType||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||(l?.officeNotes||'');const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';const crEl=document.getElementById('qb-cash-rate');if(crEl)crEl.value=q.cashRate||'';
   setJobType(qbJobType);
 }
