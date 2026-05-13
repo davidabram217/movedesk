@@ -10970,15 +10970,40 @@ async function sendQuoteEmail(){
     if(!cloudRow||!cloudRow.data){
       throw new Error('Quote not found in cloud after save');
     }
-    // Compare the rendered HTML of cloud vs local — that's what the customer will see.
-    // If they don't match, refuse to send the email.
-    const cloudRendered=renderQuoteHTML(cloudRow.data);
-    const localRendered=renderQuoteHTML(q);
-    if(cloudRendered!==localRendered){
-      console.error('[Verify failed] Cloud quote does not match local quote');
-      console.error('Local:',q);
-      console.error('Cloud:',cloudRow.data);
-      throw new Error('Saved quote does not match preview. Email NOT sent. Please try again.');
+    // Compare the FIELDS the customer actually sees, not raw HTML (which can differ on
+    // trivial formatting). If any of these differ between local and cloud, the customer
+    // would see something different from preview — block the send.
+    const cloud=cloudRow.data;
+    const _fieldsMatch=function(a,b){
+      const keys=['totalMin','totalMax','cashTotalMin','cashTotalMax','projectName','moveType','size','description','notes','stipulations','cashDiscount','jobType','customerName'];
+      for(const k of keys){
+        if((a[k]||'')!==(b[k]||''))return{ok:false,field:k,local:a[k],cloud:b[k]};
+      }
+      // Compare day arrays — just the fields that render on the customer page
+      const aDays=a.days||[],bDays=b.days||[];
+      if(aDays.length!==bDays.length)return{ok:false,field:'days.length',local:aDays.length,cloud:bDays.length};
+      for(let i=0;i<aDays.length;i++){
+        const da=aDays[i]||{},db=bDays[i]||{};
+        const dKeys=['date','crew','hrsMin','hrsMax','rate','flatRate','flatPrice','flatPriceCash','flatDescription','packCrew','packRate','packHrsMin','packHrsMax','packCrewSize','arrivalStart','arrivalEnd','from','to'];
+        for(const dk of dKeys){
+          if(String(da[dk]||'')!==String(db[dk]||''))return{ok:false,field:'days['+i+'].'+dk,local:da[dk],cloud:db[dk]};
+        }
+      }
+      // Compare fees — only the included ones (others don't show)
+      const aFees=(a.fees||[]).filter(f=>f.included);
+      const bFees=(b.fees||[]).filter(f=>f.included);
+      if(aFees.length!==bFees.length)return{ok:false,field:'fees.length',local:aFees.length,cloud:bFees.length};
+      for(let i=0;i<aFees.length;i++){
+        const fa=aFees[i],fb=bFees[i];
+        if((fa.label||'')!==(fb.label||''))return{ok:false,field:'fees['+i+'].label',local:fa.label,cloud:fb.label};
+        if(String(fa.amount||'')!==String(fb.amount||''))return{ok:false,field:'fees['+i+'].amount',local:fa.amount,cloud:fb.amount};
+      }
+      return{ok:true};
+    };
+    const _result=_fieldsMatch(q,cloud);
+    if(!_result.ok){
+      console.error('[Verify failed] Field mismatch:',_result);
+      throw new Error('Saved quote does not match preview ('+_result.field+'). Email NOT sent. Please try again.');
     }
     // Persist locally too so localStorage matches cloud
     saveDB();
