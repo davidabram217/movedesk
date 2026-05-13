@@ -2788,6 +2788,41 @@ async function refreshFromSupabase(){
       if(db.completedJobs.length<before)updated++;
     }
     db.quotes=mergeTable(quotesRes,db.quotes||[]);
+    // Self-heal lead statuses based on the freshly-merged booked/completed sets. This catches
+    // the case where a completedJob came down from the cloud during a 60-second refresh, but
+    // its corresponding lead still has a non-terminal status (e.g. "Quote accepted") locally —
+    // making it appear in the leads list when it shouldn't. Only matches by direct leadId,
+    // no name+date guessing. Same logic as in loadDB().
+    try{
+      const _bookedLeadIdSet=new Set((db.bookedJobs||[]).filter(j=>!j._draft).map(j=>j.leadId).filter(Boolean));
+      const _completedLeadIdSet=new Set((db.completedJobs||[]).map(j=>j.leadId).filter(Boolean));
+      const _today=new Date().toISOString().split('T')[0];
+      const _nowIso=new Date().toISOString();
+      let _selfHealed=0;
+      (db.leads||[]).forEach(l=>{
+        if(!l||!l.id)return;
+        const _terminal=['Completed','Did not book'];
+        // Completed wins over Booked — check it first
+        if(_completedLeadIdSet.has(l.id)&&!_terminal.includes(l.status)){
+          l.status='Completed';
+          l.statusUpdatedAt=_today;
+          l._statusChangedAt=_nowIso;
+          _selfHealed++;
+          updated++;
+          return;
+        }
+        // Booked self-heal: if the lead has a (non-draft) booked job but status isn't already
+        // Booked / Completed / Did not book / Confirmation sent / Quote accepted, flip to Booked
+        if(_bookedLeadIdSet.has(l.id)&&![...(_terminal),'Booked','Confirmation sent','Quote accepted'].includes(l.status)){
+          l.status='Booked';
+          l.statusUpdatedAt=_today;
+          l._statusChangedAt=_nowIso;
+          _selfHealed++;
+          updated++;
+        }
+      });
+      if(_selfHealed)console.log('Refresh self-healed '+_selfHealed+' lead status(es)');
+    }catch(e){console.warn('Self-heal during refresh failed:',e);}
     if(updated>0){
       // Save merged data to localStorage
       try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
