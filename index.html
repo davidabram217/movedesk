@@ -2367,13 +2367,25 @@ async function loadDB(){
     // Same narrow self-heal for completed jobs — a lead with a matching completed-jobs entry
     // by direct leadId should have status "Completed". This catches jobs that were completed
     // but the lead-status update missed (e.g. broken leadId link at the moment of completion).
-    // Only matches by direct leadId — no name+date guessing — to avoid silently changing data.
+    // Primary match: direct leadId. Legacy fallback: name+date (both required — strong enough
+    // to avoid false positives — for old completedJobs that don't have a leadId stored).
     const _completedLeadIdSet=new Set((db.completedJobs||[]).map(j=>j.leadId).filter(Boolean));
+    const _legacyCompletedKeys=new Set(
+      (db.completedJobs||[])
+        .filter(j=>!j.leadId&&j.name&&j.date)
+        .map(j=>(j.name||'').trim().toLowerCase()+'|'+(j.date||''))
+    );
     let _completedFixed=0;
     (db.leads||[]).forEach(l=>{
-      if(!l||!l.id||!_completedLeadIdSet.has(l.id))return;
+      if(!l||!l.id)return;
       const _terminal=['Completed','Did not book'];
       if(_terminal.includes(l.status))return;
+      let _isCompleted=_completedLeadIdSet.has(l.id);
+      if(!_isCompleted&&l.name&&l.date){
+        const _legacyKey=l.name.trim().toLowerCase()+'|'+l.date;
+        if(_legacyCompletedKeys.has(_legacyKey))_isCompleted=true;
+      }
+      if(!_isCompleted)return;
       l.status='Completed';
       l.statusUpdatedAt=new Date().toISOString().split('T')[0];
       l._statusChangedAt=new Date().toISOString();
@@ -2788,22 +2800,33 @@ async function refreshFromSupabase(){
       if(db.completedJobs.length<before)updated++;
     }
     db.quotes=mergeTable(quotesRes,db.quotes||[]);
-    // Self-heal lead statuses based on the freshly-merged booked/completed sets. This catches
-    // the case where a completedJob came down from the cloud during a 60-second refresh, but
-    // its corresponding lead still has a non-terminal status (e.g. "Quote accepted") locally —
-    // making it appear in the leads list when it shouldn't. Only matches by direct leadId,
-    // no name+date guessing. Same logic as in loadDB().
+    // Self-heal lead statuses based on the freshly-merged booked/completed sets. Catches the
+    // case where a completedJob came down from the cloud during a 60-second refresh, but its
+    // lead still has a non-terminal status locally. Matches primarily by direct leadId; for
+    // legacy completedJobs that don't have a leadId (old data), also matches by name+date.
     try{
       const _bookedLeadIdSet=new Set((db.bookedJobs||[]).filter(j=>!j._draft).map(j=>j.leadId).filter(Boolean));
       const _completedLeadIdSet=new Set((db.completedJobs||[]).map(j=>j.leadId).filter(Boolean));
+      // Legacy fallback: for completedJobs missing leadId, build a Set of "name|date" keys
+      const _legacyCompletedKeys=new Set(
+        (db.completedJobs||[])
+          .filter(j=>!j.leadId&&j.name&&j.date)
+          .map(j=>(j.name||'').trim().toLowerCase()+'|'+(j.date||''))
+      );
       const _today=new Date().toISOString().split('T')[0];
       const _nowIso=new Date().toISOString();
       let _selfHealed=0;
       (db.leads||[]).forEach(l=>{
         if(!l||!l.id)return;
         const _terminal=['Completed','Did not book'];
-        // Completed wins over Booked — check it first
-        if(_completedLeadIdSet.has(l.id)&&!_terminal.includes(l.status)){
+        // Completed by direct leadId
+        let _isCompleted=_completedLeadIdSet.has(l.id);
+        // Legacy fallback: name+date match (BOTH must match — strong enough to avoid false positives)
+        if(!_isCompleted&&l.name&&l.date){
+          const _legacyKey=l.name.trim().toLowerCase()+'|'+l.date;
+          if(_legacyCompletedKeys.has(_legacyKey))_isCompleted=true;
+        }
+        if(_isCompleted&&!_terminal.includes(l.status)){
           l.status='Completed';
           l.statusUpdatedAt=_today;
           l._statusChangedAt=_nowIso;
