@@ -1585,6 +1585,10 @@
     </div>
     <div class="modal-body">
 
+      <!-- Read-only banner: shows the lead's additional notes + office notes so the user
+           has context while building the quote. Populated by openQuoteBuilder(). Internal —
+           does NOT get sent to the customer. -->
+      <div id="qb-lead-notes-banner" style="display:none;margin-bottom:18px"></div>
       
       <div style="display:flex;gap:8px;margin-bottom:20px">
         <button id="qb-single-btn" class="btn btn-primary btn-sm" onclick="setJobType('single')">Single day</button>
@@ -9948,6 +9952,29 @@ function openQuoteBuilder(leadId){
   qbJobType='single';
   const l=leadId?db.leads.find(x=>x.id===leadId):null;
   document.getElementById('qb-lead-summary').textContent=l?`${l.name} · ${l.phone||''} · ${fmtDate(l.date)}`:'New quote';
+  // Lead-notes banner: shows additional notes + office notes from the lead so the user has
+  // context while building the quote. Read-only / internal — never goes to the customer.
+  // Escape HTML to be safe (in case notes contain markup) and preserve line breaks.
+  const _banner=document.getElementById('qb-lead-notes-banner');
+  if(_banner){
+    const _esc=function(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/\n/g,'<br>');};
+    const _hasNotes=l&&(l.notes||l.officeNotes);
+    if(_hasNotes){
+      let html='<div style="padding:11px 14px;background:var(--surface2);border-left:3px solid #2d5a3d;border-radius:4px"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Context from this lead</div>';
+      if(l.notes){
+        html+='<div style="font-size:12.5px;color:var(--text);line-height:1.55;margin-bottom:'+(l.officeNotes?'10px':'0')+'"><div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Additional notes</div>'+_esc(l.notes)+'</div>';
+      }
+      if(l.officeNotes){
+        html+='<div style="font-size:12.5px;color:var(--amber);line-height:1.55;font-style:italic"><div style="font-size:10.5px;color:var(--amber);margin-bottom:3px;font-style:normal;font-weight:600">🔒 Office notes</div>'+_esc(l.officeNotes)+'</div>';
+      }
+      html+='<div style="font-size:10.5px;color:var(--text3);margin-top:10px;font-style:italic">These notes are for your reference only — not sent to the customer.</div></div>';
+      _banner.innerHTML=html;
+      _banner.style.display='block';
+    } else {
+      _banner.innerHTML='';
+      _banner.style.display='none';
+    }
+  }
   // Check for existing quote on this lead — draft, sent, or accepted
   if(l&&db.quotes){
     const existing=db.quotes.find(q=>q.leadId===leadId&&q.status==='draft')
