@@ -3300,8 +3300,21 @@ function resolveQuotedInfo(j){
   };
   const _bk=j.bookedJobId?db.bookedJobs.find(b=>b.id===j.bookedJobId):null;
   const lead=(_bk?db.leads.find(l=>l.id===_bk.leadId):null)||db.leads.find(l=>l.name===j.name)||null;
-  // Formal quote first
-  const fq=lead?db.quotes.find(q=>q.leadId===lead.id):(j.bookedJobId?db.quotes.find(q=>q.bookedJobId===j.bookedJobId):null);
+  // Quote precedence (so the right quote is used for Quote vs Actual + AI training):
+  //   1) The bookedJob's recorded quoteId (the exact quote the booking was based on)
+  //   2) Accepted quote for the lead
+  //   3) Most recent sent quote for the lead
+  //   4) Any quote linked by bookedJobId
+  //   5) Any quote on the lead (last resort)
+  let fq=null;
+  if(_bk&&_bk.quoteId)fq=(db.quotes||[]).find(q=>q.id===_bk.quoteId);
+  if(!fq&&lead){
+    const _ls=(db.quotes||[]).filter(q=>q.leadId===lead.id);
+    fq=_ls.find(q=>q.status==='accepted')
+      ||[..._ls].filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0]
+      ||_ls[0];
+  }
+  if(!fq&&j.bookedJobId)fq=(db.quotes||[]).find(q=>q.bookedJobId===j.bookedJobId);
   if(fq){
     out.quotedMin=fq.totalMin||null;
     out.quotedMax=fq.totalMax||null;
@@ -4053,11 +4066,13 @@ function viewLead(id){try{const l=db.leads.find(x=>x.id===id);if(!l)return;docum
 document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
 const isPending=l.status==='Estimate sent'||l.status==='Summary + rough quote';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
-// Find associated quote — prefer sent/accepted, but fall back to most recent of any status
-// (covers reactivated leads where the quote may be marked 'declined' from the previous DNB)
-const _qSentOrAccepted=(db.quotes||[]).find(q=>q.leadId===l.id&&(q.status==='sent'||q.status==='accepted'));
-const _qMostRecent=(db.quotes||[]).filter(q=>q.leadId===l.id).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
-const quote=_qSentOrAccepted||_qMostRecent||null;
+// Find associated quote — strict precedence so multi-quote leads always show the right one:
+// accepted > most recent sent > most recent of any other status
+const _allLeadQs=(db.quotes||[]).filter(q=>q.leadId===l.id);
+const _qAccepted=_allLeadQs.find(q=>q.status==='accepted');
+const _qSent=_allLeadQs.filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0];
+const _qOther=[..._allLeadQs].sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
+const quote=_qAccepted||_qSent||_qOther||null;
 const quoteHasMultiDay=quote&&quote.days&&quote.days.length>1;
 const quoteDaysBlock=quote&&quote.days&&quote.days.length?`
 <div style="margin-top:14px">
@@ -5415,8 +5430,12 @@ function openBooking(leadId){
   currentBookingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
-  // Detect multi-day quote so we can flag this clearly in the booking UI
-  const _leadQuote=(db.quotes||[]).filter(q=>q.leadId===leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
+  // Detect multi-day quote so we can flag this clearly in the booking UI. Prefer accepted
+  // over most-recent (a stale draft could otherwise rank above the accepted quote).
+  const _bookingQuotes=(db.quotes||[]).filter(q=>q.leadId===leadId);
+  const _leadQuote=_bookingQuotes.find(q=>q.status==='accepted')
+    ||_bookingQuotes.find(q=>q.status==='sent')
+    ||[..._bookingQuotes].sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
   const _isMultiDay=_leadQuote&&_leadQuote.jobType==='multi'&&_leadQuote.days&&_leadQuote.days.length>1;
   let summaryHtml=`<strong>${l.name}</strong> · ${l.phone||''} · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;
   if(_isMultiDay){
@@ -5450,8 +5469,14 @@ function openBooking(leadId){
   document.getElementById('bj-date').value=l.date||'';
   // Helper to set a field only if it's empty AND we have a value to set
   const setIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val===undefined||val===null||val==='')return;if(!el.value)el.value=val;};
-  // Auto-populate from formal quote if one exists (most authoritative)
-  const quote=db.quotes.filter(q=>q.leadId===leadId).sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
+  // Auto-populate from formal quote if one exists (most authoritative). Prefer the accepted
+  // quote, then the most recent sent, then the most recent of any other status. Most-recent
+  // alone is wrong because a stale draft could outrank the accepted quote.
+  const _qs=db.quotes.filter(q=>q.leadId===leadId);
+  const _byTime=qs=>qs.sort((a,b)=>(b.savedAt||b.sentAt||'').localeCompare(a.savedAt||a.sentAt||''));
+  const quote=_byTime(_qs.filter(q=>q.status==='accepted'))[0]
+    ||_byTime(_qs.filter(q=>q.status==='sent'))[0]
+    ||_byTime(_qs)[0];
   if(quote){
     const day=quote.days&&quote.days[0];
     if(day){
@@ -5838,11 +5863,20 @@ function confirmBooking(){
 
   // NEW BOOKING MODE
   const l=db.leads.find(x=>x.id===currentBookingLeadId);
-  // Attach quote days if a multi-day quote exists
-  const leadQuote=(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId&&(q.status==='accepted'||q.status==='sent'));
+  // Attach quote days from the canonical quote. Save for BOTH single-day and multi-day quotes
+  // so downstream views (calendar entry, confirmation email, completion form) can uniformly
+  // read per-day data like rate / hours / crew / flat-rate / packing scope from bj.quoteDays[0].
+  // Previously this was multi-only, which made single-day jobs miss those fields in the
+  // confirmation email and calendar entry.
+  const leadQuote=(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId&&q.status==='accepted')
+    ||(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId&&q.status==='sent')
+    ||(db.quotes||[]).find(q=>q.leadId===currentBookingLeadId);
   const isMultiDayQuote=leadQuote&&leadQuote.jobType==='multi'&&leadQuote.days&&leadQuote.days.length>1;
-  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
-    multiDay:isMultiDayQuote,quoteDays:isMultiDayQuote?leadQuote.days:[],quoteFees:leadQuote?leadQuote.fees||[]:[]
+  // Deep-clone so future quote edits can't mutate the booked job's snapshot
+  const _quoteDaysSnap=leadQuote&&leadQuote.days?JSON.parse(JSON.stringify(leadQuote.days)):[];
+  const _quoteFeesSnap=leadQuote&&leadQuote.fees?JSON.parse(JSON.stringify(leadQuote.fees)):[];
+  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',sqft:l?l.sqft:null,accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
+    multiDay:isMultiDayQuote,quoteDays:_quoteDaysSnap,quoteFees:_quoteFeesSnap,quoteId:leadQuote?leadQuote.id:null
   };
   db.bookedJobs.push(job);
   // Don't flip lead status to "Booked" yet — only when the checklist is finished. Until then,
