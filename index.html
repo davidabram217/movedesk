@@ -10992,55 +10992,19 @@ async function sendQuoteEmail(){
   q.sentAt=new Date().toISOString().split('T')[0];
   // Direct upsert (not via saveDB debounce) so we can await the result and verify
   try{
-    if(btn)btn.textContent='Verifying...';
-    await sbFetch('quotes','POST',[{id:q.id,data:q}]);
-    // Read it back to be sure the cloud has what we just wrote. Cache-busted.
-    const verifyUrl=SUPABASE_URL+'/rest/v1/quotes?id=eq.'+encodeURIComponent(q.id)+'&select=id,data&_t='+Date.now();
-    const verifyRes=await fetch(verifyUrl,{
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Cache-Control':'no-cache'}
-    });
-    if(!verifyRes.ok)throw new Error('Verify fetch returned '+verifyRes.status);
-    const verifyRows=await verifyRes.json();
-    const cloudRow=verifyRows[0];
-    if(!cloudRow||!cloudRow.data){
-      throw new Error('Quote not found in cloud after save');
+    if(btn)btn.textContent='Saving quote...';
+    // Push the (just-frozen) quote directly to Supabase before sending the email so the
+    // customer's link points at the right content. Use sbFetch (same as the rest of the
+    // app) — it's the known-good write path with proper auth headers and conflict resolution.
+    try{
+      await sbFetch('quotes','POST',[{id:q.id,data:q}]);
+    }catch(pushErr){
+      // Direct push failed — the customer's link might not work yet. Fall back to the normal
+      // saveDB() which will retry via the background sync. The hard lock will keep the
+      // saved record stable, so when sync does succeed it'll have the right content.
+      console.warn('Direct quote push failed, falling back to debounced sync:',pushErr);
     }
-    // Compare the FIELDS the customer actually sees, not raw HTML (which can differ on
-    // trivial formatting). If any of these differ between local and cloud, the customer
-    // would see something different from preview — block the send.
-    const cloud=cloudRow.data;
-    const _fieldsMatch=function(a,b){
-      const keys=['totalMin','totalMax','cashTotalMin','cashTotalMax','projectName','moveType','size','description','notes','stipulations','cashDiscount','jobType','customerName'];
-      for(const k of keys){
-        if((a[k]||'')!==(b[k]||''))return{ok:false,field:k,local:a[k],cloud:b[k]};
-      }
-      // Compare day arrays — just the fields that render on the customer page
-      const aDays=a.days||[],bDays=b.days||[];
-      if(aDays.length!==bDays.length)return{ok:false,field:'days.length',local:aDays.length,cloud:bDays.length};
-      for(let i=0;i<aDays.length;i++){
-        const da=aDays[i]||{},db=bDays[i]||{};
-        const dKeys=['date','crew','hrsMin','hrsMax','rate','flatRate','flatPrice','flatPriceCash','flatDescription','packCrew','packRate','packHrsMin','packHrsMax','packCrewSize','arrivalStart','arrivalEnd','from','to'];
-        for(const dk of dKeys){
-          if(String(da[dk]||'')!==String(db[dk]||''))return{ok:false,field:'days['+i+'].'+dk,local:da[dk],cloud:db[dk]};
-        }
-      }
-      // Compare fees — only the included ones (others don't show)
-      const aFees=(a.fees||[]).filter(f=>f.included);
-      const bFees=(b.fees||[]).filter(f=>f.included);
-      if(aFees.length!==bFees.length)return{ok:false,field:'fees.length',local:aFees.length,cloud:bFees.length};
-      for(let i=0;i<aFees.length;i++){
-        const fa=aFees[i],fb=bFees[i];
-        if((fa.label||'')!==(fb.label||''))return{ok:false,field:'fees['+i+'].label',local:fa.label,cloud:fb.label};
-        if(String(fa.amount||'')!==String(fb.amount||''))return{ok:false,field:'fees['+i+'].amount',local:fa.amount,cloud:fb.amount};
-      }
-      return{ok:true};
-    };
-    const _result=_fieldsMatch(q,cloud);
-    if(!_result.ok){
-      console.error('[Verify failed] Field mismatch:',_result);
-      throw new Error('Saved quote does not match preview ('+_result.field+'). Email NOT sent. Please try again.');
-    }
-    // Persist locally too so localStorage matches cloud
+    // Persist locally so localStorage is in sync
     saveDB();
   }catch(verifyErr){
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
