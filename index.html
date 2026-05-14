@@ -2269,19 +2269,25 @@ async function loadDB(){
       const c=cloudById.get(id);const lc=localById.get(id);
       if(!c)return lc;
       if(!lc)return c;
-      // Both exist — pick whichever was most recently edited locally (any field), falling
-      // back to status-change timestamps. For ties, prefer local. The general edit timestamp
-      // covers cases like correcting a phone number where status didn't change.
+      // Both exist — precedence:
+      //   1. STATUS CHANGE wins. If either side has a newer _statusChangedAt, that side's
+      //      whole record is taken. Status changes (made via UI) are authoritative.
+      //   2. Among non-status edits, _localEditedAt picks the winner.
+      //   3. For ties, prefer local.
+      const cIso=c._statusChangedAt||'';
+      const lIso=lc._statusChangedAt||'';
+      if(cIso&&lIso&&cIso!==lIso){
+        return lIso>cIso?lc:c;
+      }
+      if(cIso&&!lIso)return c;
+      if(lIso&&!cIso)return lc;
+      // No status-timestamp difference — use _localEditedAt for non-status edits
       const cEditIso=c._localEditedAt||'';
       const lEditIso=lc._localEditedAt||'';
       if(cEditIso||lEditIso){
         return lEditIso>=cEditIso?lc:c;
       }
-      const cIso=c._statusChangedAt||'';
-      const lIso=lc._statusChangedAt||'';
-      if(cIso&&lIso){
-        return lIso>=cIso?lc:c;
-      }
+      // Last resort: date-only
       const cTs=c.statusUpdatedAt||c.createdAt||'';
       const lTs=lc.statusUpdatedAt||lc.createdAt||'';
       return lTs>=cTs?lc:c;
@@ -2746,27 +2752,41 @@ async function refreshFromSupabase(){
         const remoteTime=row.updated_at||row.inserted_at||'';
         const localTime=local?._syncedAt||'';
         // For leads specifically — protect local edits from being overwritten by stale cloud.
-        // Two checks (in order):
-        //   1. Status timestamp: if local status change is newer than remote, keep local
-        //   2. General edit timestamp (_localEditedAt): if local was edited more recently
-        //      than the cloud row was last updated, keep local (handles non-status edits
-        //      like phone/name/address corrections)
+        // The precedence is:
+        //   1. STATUS CHANGE wins — if either side has a newer _statusChangedAt, that side's
+        //      status is authoritative. Status changes (made by users via UI) override
+        //      anything else, including routine _localEditedAt bumps.
+        //   2. Among non-status edits, _localEditedAt determines who wins.
         if(table==='leads'&&local&&rec){
           const localStatusIso=local._statusChangedAt||'';
           const remoteStatusIso=rec._statusChangedAt||'';
+          // Determine the "winner" by status timestamp first
+          let _statusWinner=null;
           if(localStatusIso&&remoteStatusIso){
-            if(localStatusIso>=remoteStatusIso)return;
+            _statusWinner=localStatusIso>=remoteStatusIso?'local':'remote';
+          } else if(localStatusIso){
+            _statusWinner='local';
+          } else if(remoteStatusIso){
+            _statusWinner='remote';
           } else {
+            // Fall back to date-only field
             const localStatusTs=local.statusUpdatedAt||local.createdAt||'';
             const remoteStatusTs=rec.statusUpdatedAt||rec.createdAt||'';
-            if(localStatusTs>=remoteStatusTs)return;
+            if(localStatusTs&&remoteStatusTs)_statusWinner=localStatusTs>=remoteStatusTs?'local':'remote';
           }
-          // Any general edit since last cloud sync? If so, local wins.
+          if(_statusWinner==='local')return;
+          // If remote's status is newer, we want to take their version — fall through and let
+          // the standard update logic below replace the local record with the remote one.
+          // (Don't run the _localEditedAt check, because remote status change is authoritative.)
+          if(_statusWinner==='remote'){
+            localMap[id]={...rec,_syncedAt:remoteTime};
+            updated++;
+            return;
+          }
+          // No status timestamps on either side — fall back to _localEditedAt for non-status edits
           const localEditIso=local._localEditedAt||'';
           if(localEditIso){
-            // Compare local edit time against the cloud row's updated_at
             if(localEditIso>=remoteTime)return;
-            // Also compare against remote's own _localEditedAt (newer wins)
             const remoteEditIso=rec._localEditedAt||'';
             if(remoteEditIso&&localEditIso>=remoteEditIso)return;
           }
