@@ -10843,6 +10843,28 @@ function renderQuoteHTML(q,lead){
   return html;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// saveQuote — CRITICAL INVARIANTS (do not remove without re-running tests)
+// ══════════════════════════════════════════════════════════════════════════════
+// Three protections must remain in place for the customer to never see a wrong quote:
+//
+//   1. DEEP-CLONE: days/fees are JSON.parse(JSON.stringify(...))'d into the saved
+//      record. Form mutations afterward cannot reach back and corrupt the saved data.
+//
+//   2. HARD LOCK: if the existing quote is 'sent' or 'accepted', refuse the write
+//      unless opts.force=true. This is what prevents autosaves and stray timers from
+//      overwriting a quote the customer has a link to.
+//
+//   3. _localEditedAt bump: every save sets this timestamp, so the cloud-sync merge
+//      can recognise this as a fresh local edit and not overwrite it with stale data.
+//
+// Callers that NEED to overwrite a sent quote (Preview after edit, Resend, Send)
+// must pass opts.force=true. sendQuoteEmail also passes status='sent'.
+//
+// If ANY of these three guards is weakened, run /mnt/user-data/outputs/e2e_test.js
+// against the modified file before shipping. Three real user stories with 33
+// assertions verify the customer can never receive a wrong quote.
+// ══════════════════════════════════════════════════════════════════════════════
 function saveQuote(status,opts){
   opts=opts||{};
   if(!db.quotes)db.quotes=[];
@@ -10850,9 +10872,7 @@ function saveQuote(status,opts){
   const t=calcQbTotals();
   // Generate a public ID for the shareable link (keep existing one if re-saving)
   const existingQ=currentQuoteId?db.quotes.find(q=>q.id===currentQuoteId):null;
-  // HARD LOCK: if the existing quote is already sent or accepted, refuse to overwrite it
-  // unless the caller explicitly passes opts.force=true (e.g. resend flow). This blocks every
-  // accidental write path — autosaves, stray timers, refresh merges that pull and re-save.
+  // ── HARD LOCK (invariant #2 from header) ──
   if(existingQ&&(existingQ.status==='sent'||existingQ.status==='accepted')&&!opts.force&&status!=='sent'&&status!=='accepted'){
     return existingQ;
   }
