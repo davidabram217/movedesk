@@ -2791,6 +2791,18 @@ async function refreshFromSupabase(){
             if(remoteEditIso&&localEditIso>=remoteEditIso)return;
           }
         }
+        // For quotes specifically — protect freshly-edited local quotes from being overwritten
+        // by stale cloud data on refresh. Same _localEditedAt mechanism leads use, but simpler
+        // (quotes don't have a status-change concept that overrides local edits).
+        if(table==='quotes'&&local&&rec){
+          const localEditIso=local._localEditedAt||'';
+          const remoteEditIso=rec._localEditedAt||'';
+          if(localEditIso&&remoteEditIso){
+            if(localEditIso>=remoteEditIso)return;
+          } else if(localEditIso){
+            if(localEditIso>=remoteTime)return;
+          }
+        }
         // Use remote if: not local, or remote updated_at is newer than our last sync
         if(!local||(remoteTime&&remoteTime>localTime)){
           localMap[id]={...rec,_syncedAt:remoteTime};
@@ -2819,7 +2831,7 @@ async function refreshFromSupabase(){
       db.completedJobs=db.completedJobs.filter(j=>!_allTombstones.completed_jobs[j.id]);
       if(db.completedJobs.length<before)updated++;
     }
-    db.quotes=mergeTable(quotesRes,db.quotes||[]);
+    db.quotes=mergeTable(quotesRes,db.quotes||[],'id','quotes');
     // Self-heal lead statuses based on the freshly-merged booked/completed sets. Catches the
     // case where a completedJob came down from the cloud during a 60-second refresh, but its
     // lead still has a non-terminal status locally. Matches primarily by direct leadId; for
@@ -10294,11 +10306,50 @@ function updateQbDay(id,field,val){
     d.flatRate=(val===true||val==='true');
   } else if(['crew','hrsMin','hrsMax','rate','flatPrice','flatPriceCash','flatHrs','packCrewSize','packRate','packHrsMin','packHrsMax'].includes(field)){
     d[field]=val===''||val==null?'':Number(val)||0;
+    // Live-update the in-card "Day estimate" subtotal so it doesn't show stale numbers.
+    // We update just the day-subtotal element rather than re-rendering the whole form
+    // (which would cause input focus loss while typing).
+    try{updateQbDaySubtotal(id);}catch(_){}
   } else {
     d[field]=val;
   }
   updateQbTotal();
   qbAutoSave();
+}
+
+// Live-update one day's green estimate box without re-rendering the whole form
+function updateQbDaySubtotal(dayId){
+  const d=qbDays.find(x=>x.id===dayId);
+  if(!d)return;
+  const isMulti=qbJobType==='multi';
+  const dayLabel=isMulti?'Day '+(qbDays.indexOf(d)+1):'Move Details';
+  const packMin=d.packCrew&&d.packRate&&d.packHrsMin?(d.packHrsMin||0)*d.packRate:0;
+  const packMax=d.packCrew&&d.packRate&&d.packHrsMax?(d.packHrsMax||0)*d.packRate:0;
+  let out;
+  if(d.flatRate){
+    const flatPrice=Number(d.flatPrice)||0;
+    const flatCash=Number(d.flatPriceCash)||0;
+    const totalMin=flatPrice+packMin;
+    const totalMax=flatPrice+packMax;
+    const cashMin=flatCash?flatCash+packMin:0;
+    const cashMax=flatCash?flatCash+packMax:0;
+    out='<strong>'+dayLabel+' estimate:</strong> '+(totalMin===totalMax?fmtMoney(totalMin):fmtMoney(totalMin)+' – '+fmtMoney(totalMax));
+    if(flatCash)out+=' <span style="color:var(--accent);font-weight:500">or '+(cashMin===cashMax?fmtMoney(cashMin):fmtMoney(cashMin)+' – '+fmtMoney(cashMax))+' cash</span>';
+    out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Flat rate'+(d.crew?' · '+d.crew+' movers':'')+(d.flatHrs?' · ~'+d.flatHrs+' hrs estimated':'');
+    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+(d.packHrsMin||'?')+'–'+(d.packHrsMax||'?')+' hrs · $'+d.packRate+'/hr';
+    out+='</div>';
+  } else {
+    const moveMin=(d.hrsMin||0)*d.rate;
+    const moveMax=(d.hrsMax||0)*d.rate;
+    const crewDesc=d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':(d.crew||0)+' movers';
+    out='<strong>'+dayLabel+' estimate:</strong> '+fmtMoney(moveMin+packMin)+' – '+fmtMoney(moveMax+packMax);
+    out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">'+crewDesc+' · '+(d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr';
+    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+(d.packHrsMin||'?')+'–'+(d.packHrsMax||'?')+' hrs · $'+d.packRate+'/hr';
+    out+='</div>';
+  }
+  // Find the day subtotal box by data attribute we add in renderQbDays
+  const box=document.querySelector('[data-qb-day-subtotal="'+dayId+'"]');
+  if(box)box.innerHTML=out;
 }
 
 function renderQbDays(){
@@ -10427,7 +10478,7 @@ function renderQbDays(){
         </div>
 
         <!-- Day subtotal -->
-        <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:13px">
+        <div data-qb-day-subtotal="${d.id}" style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:13px">
           ${(()=>{
             const packMin=d.packCrew&&d.packRate&&d.packHrsMin?(d.packHrsMin||0)*d.packRate:0;
             const packMax=d.packCrew&&d.packRate&&d.packHrsMax?(d.packHrsMax||0)*d.packRate:0;
@@ -10835,6 +10886,7 @@ function saveQuote(status,opts){
     status:status||'draft',
     createdAt:existingQ?.createdAt||new Date().toISOString().split('T')[0],
     savedAt:new Date().toISOString(),
+    _localEditedAt:new Date().toISOString(),
     sentAt:status==='sent'?new Date().toISOString().split('T')[0]:(existingQ?.sentAt||'')
   };
   if(currentQuoteId){const idx=db.quotes.findIndex(q=>q.id===currentQuoteId);if(idx>-1)db.quotes[idx]=quote;else db.quotes.push(quote);}
@@ -11021,18 +11073,37 @@ async function sendQuoteEmail(){
   // ── PHASE 1: SECURE THE QUOTE IN THE CLOUD BEFORE THE EMAIL GOES OUT ──
   // The customer's email will point them at quote.html?id=PUBLIC_ID, which fetches the row
   // from Supabase. We MUST guarantee that row has the correct content before sending the
-  // email. So: kill any pending autosaves, flip the local quote to 'sent', push DIRECTLY to
-  // Supabase (not the debounced saveDB), and verify by reading the row back.
+  // email. So: kill any pending autosaves, re-snapshot from the current form, flip to 'sent',
+  // push DIRECTLY to Supabase (not the debounced saveDB).
   clearTimeout(_qbAutoSaveTimer);
   if(typeof _globalAutoSaveTimer!=='undefined')clearTimeout(_globalAutoSaveTimer);
   clearTimeout(_saveTimer); // kill the debounced DB save too — we're doing it directly
-  const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+  // Re-capture the quote from current form state. This is CRITICAL: if anything modified the
+  // form between openQuoteGmail and now (or if openQuoteGmail's save was overwritten by a
+  // cloud refresh merge), this guarantees the latest form values are what we send. Pass
+  // force:true so the hard lock can't block this (it was blocking edits to sent quotes).
+  let q=null;
+  try{
+    if(currentQuoteId&&qbDays&&qbDays.length){
+      q=saveQuote('sent',{force:true});
+    } else {
+      // Fallback: form state isn't available (shouldn't happen, but just in case)
+      q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+      if(q){q.status='sent';q.sentAt=new Date().toISOString().split('T')[0];}
+    }
+  }catch(e){
+    console.error('Quote re-snapshot failed:',e);
+    q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+  }
   if(!q){
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
     showToast('Quote not found — please rebuild');return;
   }
+  // Ensure status + timestamps are right (saveQuote with 'sent' should already do this, but
+  // belt-and-braces for the fallback path above)
   q.status='sent';
-  q.sentAt=new Date().toISOString().split('T')[0];
+  if(!q.sentAt)q.sentAt=new Date().toISOString().split('T')[0];
+  q._localEditedAt=new Date().toISOString();
   // Direct upsert (not via saveDB debounce) so we can await the result and verify
   try{
     if(btn)btn.textContent='Saving quote...';
