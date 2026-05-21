@@ -19,6 +19,16 @@ CURRENTLY LOCKED (as of 2026-05-15):
     (customer-side acceptQuote in quote-page.js, Supabase PATCH on accept,
      office EmailJS notification with quote link, refreshFromSupabase
      self-heal that flips lead status to "Quote accepted")
+  - Booking and Confirming — Single-Day Move
+    (booking form pre-fill from accepted quote, draft handling and reopen,
+     booking checklist requirements, final commit flipping lead to "Booked",
+     booking-form values overriding quote in confirmation email + calendar)
+  - Booking and Confirming — Single-Day Move
+    (openBooking pre-fill + draft restore, draft booking system,
+     Almost Done checklist gating, bookingNextDone final commit,
+     bookingNextCancel discard+tombstone, View modal button logic,
+     deep-cloned quoteDays/quoteFees on booked job, confirmation email
+     + calendar booking-form value precedence, subject line uses bj.date)
 
 This safeguard exists because parts of this app have been broken in past
 sessions by changes that seemed local but affected locked functionality.
