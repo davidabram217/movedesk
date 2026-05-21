@@ -42,35 +42,56 @@ After any change to a locked section, you must re-run the listed test files agai
 
 **What this section guarantees (the invariants that must remain true):**
 
-1. **Customer sees the preview content.** What appears in the office Preview and what the customer sees at quote.html?id=... are byte-for-byte equivalent for the same quote object.
+1. Customer sees the preview content. What appears in the office Preview and what the customer sees at quote.html?id=... are byte-for-byte equivalent for the same quote object.
+2. `saveQuote` deep-clones days and fees on every save. Form mutations after a save cannot reach back and corrupt the saved record.
+3. `saveQuote` enforces a hard lock on sent/accepted quotes. The early-return block must remain at the top.
+4. `saveQuote` bumps `_localEditedAt` on every save. Cloud-sync merge uses this to recognise local edits.
+5. `sendQuoteEmail` re-snapshots from current form state before pushing to Supabase. Calls `saveQuote('sent',{force:true})` first.
+6. `sendQuoteEmail` cancels all autosave timers. Both `_qbAutoSaveTimer` and `_globalAutoSaveTimer`.
+7. `previewQuote` and `openQuoteGmail` pass `{force:true}` to `saveQuote`. Explicit user actions can override the lock.
+8. Quote merge in `refreshFromSupabase` respects `_localEditedAt`. Prevents stale cloud data from overwriting freshly-edited local quotes.
+9. PublicId is stable across resends. Customer's link does not change.
+10. One quote per lead, latest wins. Opening Quote Builder loads existing (draft → sent → accepted precedence).
 
-2. **`saveQuote` deep-clones days and fees on every save.** Form mutations after a save cannot reach back and corrupt the saved record. The line `_frozenDays=JSON.parse(JSON.stringify(qbDays||[]))` and the equivalent for fees must remain in place.
+**Tests that guard this section:**
+- `/mnt/user-data/outputs/quote_pipeline_test.js` (12 assertions)
+- `/mnt/user-data/outputs/customer_view_test.js` (18 assertions)
+- `/mnt/user-data/outputs/e2e_test.js` (33 assertions)
 
-3. **`saveQuote` enforces a hard lock on sent/accepted quotes.** The block that returns early when `existingQ.status==='sent'||existingQ.status==='accepted'` and `!opts.force` must remain at the top of `saveQuote`. This prevents autosaves, stray timers, and refresh merges from silently overwriting a sent quote.
+**To unlock:** *"I am unlocking the Build and Send Single-Day Quote section because..."*
 
-4. **`saveQuote` bumps `_localEditedAt` on every save.** This timestamp is used by the cloud-sync merge to recognise local edits as fresh and prevents stale cloud data from overwriting them.
+---
 
-5. **`sendQuoteEmail` re-snapshots from current form state before pushing to Supabase.** It calls `saveQuote('sent',{force:true})` first so the latest form values are captured, regardless of what happened between Open in Gmail and Send.
+### 2. Customer Acceptance — Single-Day Quote
 
-6. **`sendQuoteEmail` cancels all autosave timers.** Both `_qbAutoSaveTimer` and `_globalAutoSaveTimer` must be cleared so a queued autosave cannot fire after the send completes.
+**Locked on:** 2026-05-15
+**Status:** LOCKED. Do not change without explicit unlock.
 
-7. **`previewQuote` and `openQuoteGmail` pass `{force:true}` to `saveQuote`.** This allows explicit user actions to overwrite a sent quote's saved record (so Resend works) while the hard lock still blocks accidental writes.
+**Scope of what is locked:**
+- Customer-side `acceptQuote()` function in `quote-page.js`
+- The Supabase PATCH that updates the quote row with `status:'accepted'` and `acceptedAt` timestamp
+- The "Quote accepted!" thank-you message rendered on the customer's quote page after acceptance
+- The EmailJS notification sent to `move@caremoremoving.com` when a customer accepts
+- The office-side self-heal in `refreshFromSupabase()` that flips lead status to "Quote accepted"
+- The toast surfacing on any page (not just dashboard) when the office user is online during acceptance
 
-8. **Quote merge in `refreshFromSupabase` respects `_localEditedAt`.** The block under `table==='quotes'&&local&&rec` prevents stale cloud data from overwriting freshly-edited local quotes during the 60-second refresh.
+**What this section guarantees (the invariants that must remain true):**
 
-9. **PublicId is stable across resends.** The customer's link does not change when a quote is updated; only its content does.
+1. **Customer can click Accept on their quote page.** The Accept button is rendered when the quote status is not yet 'accepted'.
+2. **Acceptance updates the Supabase quote row** via PATCH with `status:'accepted'` and `acceptedAt:<ISO timestamp>`.
+3. **Customer's page re-renders to show the thank-you message** ("Quote accepted! Thank you, [Name]!") immediately after acceptance.
+4. **Office receives an email notification** at `move@caremoremoving.com` with subject `"Quote accepted - [Name] ($min - $max)"`.
+5. **Email body includes the quote link** so office can view exactly what was accepted (e.g. `https://davidabram217.github.io/movedesk/quote.html?id=<publicId>`).
+6. **Office lead status auto-flips** from "Estimate sent" / "Summary + rough quote" / "Need to send estimate" / "Estimate scheduled" to "Quote accepted" within 60 seconds.
+7. **Status flip happens on any page**, not just the dashboard. The self-heal lives in `refreshFromSupabase()`.
+8. **Status flip bumps `_statusChangedAt`** so the cloud-sync merge propagates the change to other devices/sessions.
+9. **Self-heal is idempotent.** A lead already at "Quote accepted" or any later status (Booked, Completed) is not touched. Pre-acceptance states (`Estimate sent`, `Summary + rough quote`, `Need to send estimate`, `Estimate scheduled`) ARE bumpable.
+10. **Toast surfaces** to the office user on the next render after acceptance is detected (🎉 [Name] accepted the quote).
 
-10. **One quote per lead, latest wins.** When opening the Quote Builder for a lead, the existing quote is loaded (draft → sent → accepted precedence) rather than creating a new one. The customer's single link always points to the latest version. This is the agreed behavior, not a bug.
+**Tests that guard this section:**
+- `/mnt/user-data/outputs/customer_acceptance_test.js` (21 assertions covering wiring + behavior simulation)
 
-**Tests that guard this section (all must pass before any change ships):**
-
-- `/mnt/user-data/outputs/quote_pipeline_test.js` — 12 assertions on `saveQuote` in isolation. Verifies deep-clone, hard lock, force-flag, publicId stability, multi-day, fees, timestamps.
-- `/mnt/user-data/outputs/customer_view_test.js` — 18 assertions comparing office `renderQuoteHTML` vs customer `renderQuote` for two different quote configurations. Verifies they produce identical critical content.
-- `/mnt/user-data/outputs/e2e_test.js` — 33 assertions simulating three real user stories: first-time send, resend, and autosave race. Verifies the customer can never receive content different from what was previewed.
-
-**Total: 63 assertions. Run all three before shipping any change that could touch this section.**
-
-**To unlock:** David must say *"I am unlocking the Build and Send Single-Day Quote section because..."*
+**To unlock:** *"I am unlocking the Customer Acceptance Single-Day Quote section because..."*
 
 ---
 
@@ -83,3 +104,4 @@ _(none yet)_
 ## Change log
 
 - **2026-05-15** — Locked "Build and Send — Single-Day Quote" section.
+- **2026-05-15** — Locked "Customer Acceptance — Single-Day Quote" section (gaps fixed first: customer-accepted self-heal moved from `renderDashboard` to `refreshFromSupabase` so it works on any page; quote link added to office acceptance notification email).

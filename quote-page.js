@@ -244,7 +244,8 @@ async function acceptQuote(quoteId,publicId){
         emailjs.init({publicKey:EJS_PUBLIC_KEY});
         var name=q.customerName||'Customer';
         var d0=q.days&&q.days[0]||{};
-        var body=name+' has accepted their move quote.\n\nCustomer: '+name+'\nEmail: '+(q.customerEmail||'--')+'\nMove date: '+(d0.date?fmtDate(d0.date):'--')+'\nQuote total: '+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+'\nAccepted: '+new Date(acceptedAt).toLocaleString()+'\n\nLog in to MoveDesk:\nhttps://davidabram217.github.io/movedesk';
+        var quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+(q.publicId||publicId||'');
+        var body=name+' has accepted their move quote.\n\nCustomer: '+name+'\nEmail: '+(q.customerEmail||'--')+'\nMove date: '+(d0.date?fmtDate(d0.date):'--')+'\nQuote total: '+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+'\nAccepted: '+new Date(acceptedAt).toLocaleString()+'\n\nView the accepted quote:\n'+quoteLink+'\n\nLog in to MoveDesk:\nhttps://davidabram217.github.io/movedesk';
         emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{to_email:'move@caremoremoving.com',to_name:'CareMore Moving and Storage',from_name:'CareMore Moving and Storage',reply_to:'move@caremoremoving.com',subject:'Quote accepted - '+name+' ('+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+')',message:body,html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>'});
       };
       document.head.appendChild(s);

@@ -15,6 +15,10 @@ CURRENTLY LOCKED (as of 2026-05-15):
   - Build and Send — Single-Day Quote
     (saveQuote, sendQuoteEmail, quote-page.js renderQuote, autosave,
      quote cloud-sync merge, Preview/Resend force-save flow)
+  - Customer Acceptance — Single-Day Quote
+    (customer-side acceptQuote in quote-page.js, Supabase PATCH on accept,
+     office EmailJS notification with quote link, refreshFromSupabase
+     self-heal that flips lead status to "Quote accepted")
 
 This safeguard exists because parts of this app have been broken in past
 sessions by changes that seemed local but affected locked functionality.
@@ -2898,6 +2902,32 @@ async function refreshFromSupabase(){
           updated++;
         }
       });
+      // Customer-accepted-quote self-heal: when a customer clicks Accept on their quote page,
+      // the quote row is updated in Supabase with status='accepted'. The CRM needs to flip the
+      // corresponding lead's status from "Estimate sent" (or similar pre-acceptance state) to
+      // "Quote accepted". Runs here so it works on any page, not just dashboard.
+      const _bumpableStatuses=['Estimate sent','Summary + rough quote','Need to send estimate','Estimate scheduled'];
+      let _acceptedHeals=0;
+      (db.leads||[]).forEach(l=>{
+        if(!l||!l.id)return;
+        if(!_bumpableStatuses.includes(l.status))return;
+        const acceptedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted');
+        if(!acceptedQ)return;
+        l.status='Quote accepted';
+        l.statusUpdatedAt=acceptedQ.acceptedAt?String(acceptedQ.acceptedAt).split('T')[0]:_today;
+        l._statusChangedAt=_nowIso;
+        _acceptedHeals++;
+        updated++;
+        // Set the toast flag — the dashboard (or any page calling renderDashboard) will surface it.
+        if(typeof window!=='undefined')window._customerAcceptedLead=l.name;
+      });
+      if(_acceptedHeals){
+        console.log('Refresh detected '+_acceptedHeals+' customer-accepted quote(s) — leads flipped to "Quote accepted"');
+        // Surface the toast directly so the user sees it on whatever page they're on
+        if(typeof showToast==='function'&&typeof window!=='undefined'&&window._customerAcceptedLead){
+          setTimeout(()=>{showToast('🎉 '+window._customerAcceptedLead+' accepted the quote');delete window._customerAcceptedLead;},400);
+        }
+      }
       if(_selfHealed)console.log('Refresh self-healed '+_selfHealed+' lead status(es)');
     }catch(e){console.warn('Self-heal during refresh failed:',e);}
     if(updated>0){
@@ -3980,20 +4010,8 @@ function renderDashboard(){
     db.leads.filter(l=>l.status==='Booked'&&!bookedLeadIds.has(l.id)).forEach(l=>{
       l.status='Quote accepted';recovered=true;
     });
-    // Customer-accepted quotes via the public quote page mark the quote as accepted in Supabase.
-    // The CRM needs to notice and flip the corresponding lead's status from "Estimate sent"
-    // (or "Summary + rough quote") to "Quote accepted" so it shows up in the right place.
-    const _bumpableStatuses=['Estimate sent','Summary + rough quote','Need to send estimate','Estimate scheduled'];
-    db.leads.filter(l=>_bumpableStatuses.includes(l.status)).forEach(l=>{
-      const acceptedQ=(db.quotes||[]).find(q=>q.leadId===l.id&&q.status==='accepted');
-      if(acceptedQ){
-        l.status='Quote accepted';
-        l.statusUpdatedAt=acceptedQ.acceptedAt?acceptedQ.acceptedAt.split('T')[0]:new Date().toISOString().split('T')[0];
-        recovered=true;
-        // Show a toast on next render so the user knows it happened
-        if(typeof window!=='undefined')window._customerAcceptedLead=l.name;
-      }
-    });
+    // NOTE: Customer-accepted-quote self-heal lives in refreshFromSupabase() (runs every 60s
+    // regardless of which page is active). The dashboard only displays the toast set by it.
     if(recovered)saveDB();
     // Surface a toast if a customer just accepted (only visible once)
     if(typeof window!=='undefined'&&window._customerAcceptedLead&&typeof showToast==='function'){
