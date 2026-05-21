@@ -28,7 +28,7 @@ After any change to a locked section, you must re-run the listed test files agai
 
 ### 1. Build and Send — Single-Day Quote
 
-**Locked on:** 2026-05-15
+**Locked on:** 2026-05-15 — Re-locked: 2026-05-21 (after office-notes-only refactor)
 **Status:** LOCKED. Do not change without explicit unlock.
 
 **Scope of what is locked:**
@@ -36,27 +36,32 @@ After any change to a locked section, you must re-run the listed test files agai
 - The save flow: `saveQuote()` function and its hard lock
 - The send flow: `sendQuoteEmail()` re-snapshotting form state before send
 - The customer's quote.html page rendering via `quote-page.js`'s `renderQuote()`
+- The office Preview rendering via `renderQuoteHTML()`
 - The resend flow: explicit Preview → Resend → Send with `{force:true}`
 - The autosave behavior in the Quote Builder
 - The cloud-sync merge behavior for quotes (`mergeTable` with `table==='quotes'`)
 
-**What this section guarantees:**
+**What this section guarantees (invariants that must remain true):**
 
-1. Customer sees the preview content. What appears in the office Preview and what the customer sees at quote.html?id=... are byte-for-byte equivalent for the same quote object.
+1. Customer sees the preview content. Office Preview and customer quote.html are byte-for-byte equivalent for the same quote object.
 2. `saveQuote` deep-clones days and fees on every save.
-3. `saveQuote` enforces a hard lock on sent/accepted quotes (early-return unless `opts.force=true`).
+3. `saveQuote` enforces a hard lock on sent/accepted quotes (early-return when status is sent/accepted and !opts.force).
 4. `saveQuote` bumps `_localEditedAt` on every save.
-5. `sendQuoteEmail` re-snapshots from current form state before pushing to Supabase.
+5. `sendQuoteEmail` re-snapshots from current form state by calling `saveQuote('sent',{force:true})` first.
 6. `sendQuoteEmail` cancels all autosave timers.
-7. `previewQuote` and `openQuoteGmail` pass `{force:true}`.
+7. `previewQuote` and `openQuoteGmail` pass `{force:true}` to `saveQuote`.
 8. Quote merge in `refreshFromSupabase` respects `_localEditedAt`.
-9. PublicId stable across resends.
+9. PublicId is stable across resends.
 10. One quote per lead, latest wins.
+11. **(NEW 2026-05-21) Customer-facing notes (`q.notes`) are NOT rendered on either the customer page OR the office Preview.** The `q.notes` data is still preserved for legacy quotes but the UI section is removed from both renderers.
+12. **(NEW 2026-05-21) `qb-notes` textarea is hidden via `style="display:none"` and is NOT prefilled from `lead.notes`.** Field kept in DOM so legacy quote loads continue to populate the field without errors.
+13. **(NEW 2026-05-21) `qb-office-notes` triggers `liveAutosaveNotes` for both 'quote' AND 'lead' source types** on every keystroke (debounced), so changes propagate to the lead + all linked records.
 
-**Tests:**
+**Tests that guard this section:**
 - `/mnt/user-data/outputs/quote_pipeline_test.js` (12 assertions)
 - `/mnt/user-data/outputs/customer_view_test.js` (18 assertions)
 - `/mnt/user-data/outputs/e2e_test.js` (33 assertions)
+- `/mnt/user-data/outputs/office_notes_only_test.js` (32 assertions covering notes-only changes)
 
 **To unlock:** *"I am unlocking the Build and Send Single-Day Quote section because..."*
 
@@ -69,25 +74,25 @@ After any change to a locked section, you must re-run the listed test files agai
 
 **Scope of what is locked:**
 - Customer-side `acceptQuote()` function in `quote-page.js`
-- Supabase PATCH that updates the quote row with `status:'accepted'` and `acceptedAt`
-- The "Quote accepted!" thank-you message on the customer's page
-- EmailJS notification sent to `move@caremoremoving.com` on acceptance (including the quote link)
-- Office-side self-heal in `refreshFromSupabase()` that flips lead status to "Quote accepted"
-- The toast surfacing on any page when the office user is online during acceptance
+- The Supabase PATCH that updates the quote row with `status:'accepted'` and `acceptedAt` timestamp
+- The "Quote accepted!" thank-you message rendered on the customer's quote page after acceptance
+- The EmailJS notification sent to `move@caremoremoving.com` when a customer accepts
+- The office-side self-heal in `refreshFromSupabase()` that flips lead status to "Quote accepted"
+- The toast surfacing on any page (not just dashboard) when the office user is online during acceptance
 
-**What this section guarantees:**
-
+**Invariants:**
 1. Customer can click Accept on their quote page.
-2. Acceptance updates the Supabase quote row via PATCH with `status:'accepted'` and `acceptedAt:<ISO>`.
-3. Customer's page re-renders to show the thank-you message immediately.
-4. Office receives an email notification with the quote link.
-5. Office lead status auto-flips from pre-acceptance states to "Quote accepted" within 60 seconds.
-6. Status flip happens on any page, not just dashboard.
-7. Status flip bumps `_statusChangedAt`.
-8. Self-heal is idempotent.
-9. Toast surfaces 🎉 [Name] accepted the quote.
+2. Acceptance updates the Supabase quote row via PATCH with `status:'accepted'` and `acceptedAt`.
+3. Customer's page re-renders to show the thank-you message.
+4. Office receives an email at `move@caremoremoving.com` with subject "Quote accepted - [Name] ($min - $max)".
+5. Email body includes the quote link.
+6. Office lead status auto-flips from pre-acceptance state to "Quote accepted" within 60 seconds.
+7. Status flip happens on any page, not just dashboard.
+8. Status flip bumps `_statusChangedAt`.
+9. Self-heal is idempotent — already-accepted or later-status leads are not touched.
+10. Toast surfaces to the office user on the next render (🎉 [Name] accepted the quote).
 
-**Tests:**
+**Tests that guard this section:**
 - `/mnt/user-data/outputs/customer_acceptance_test.js` (21 assertions)
 
 **To unlock:** *"I am unlocking the Customer Acceptance Single-Day Quote section because..."*
@@ -96,58 +101,99 @@ After any change to a locked section, you must re-run the listed test files agai
 
 ### 3. Booking and Confirming — Single-Day Move
 
-**Locked on:** 2026-05-15
+**Locked on:** 2026-05-15 — Re-locked: 2026-05-21 (after office-notes-only refactor)
 **Status:** LOCKED. Do not change without explicit unlock.
 
 **Scope of what is locked:**
-- The "Complete booking" / "Continue booking" entry point from the lead view modal
-- The booking form (`modal-book-job`) — pre-fill, draft creation, edit-mode update
-- Draft handling: `_draft:true` flag, reopening a draft restores values, no duplicates
-- The booking checklist (`modal-booking-next`): calendar + confirmation email requirements
-- `bookingNextDone()` final commit — removes `_draft`, flips lead status to "Booked"
-- `bookingNextCancel()` — discards draft, writes tombstone
-- Confirmation email body and subject (`openConfirmEmail()`) — booking-form values override quote
-- Calendar entry (`buildJobCalUrl()`, `buildMoveDetailsBlock()`) — booking-form values override quote
-- Cached `_moveDetailsBlock` invalidation when a booked job is edited
-- The deep-cloned `quoteDays`/`quoteFees`/`quoteId` snapshot stored on the booked job
+- `openBooking()` pre-fill behavior from accepted quote
+- Draft booking system with `_draft` flag
+- Draft restore: openBooking detects existing draft and restores user's typed values into the form
+- The "Almost Done" checklist (calendar entry + confirmation email required before final commit)
+- `bookingNextDone()` final commit that flips lead status to "Booked"
+- `bookingNextCancel()` discard flow with tombstones
+- View modal button logic: distinguishes "Continue booking" (draft exists) from "Send confirmation" (real booking)
+- Confirmation email body assembly via `openConfirmEmail()` — booking-form values override quote values
+- Calendar entry assembly via `buildJobCalUrl()` and `buildMoveDetailsBlock()` — same override
+- Subject line on confirmation email uses booking-form date first
+- Cached `_moveDetailsBlock` invalidated when booked job is edited
 
-**What this section guarantees:**
+**Invariants:**
+1. Booking form pre-fills from the accepted quote (date, time, movers, rates, fees, addresses, etc.).
+2. Booking creates a DRAFT (`_draft: true`) — lead is NOT flipped to "Booked" until checklist done.
+3. Reopening a lead with a draft brings you back to the booking FORM (not directly to confirmation email).
+4. Draft restore preserves user's previously typed values (deposit, drive time, notes, etc.).
+5. Draft restore preserves checklist progress (calendarAdded, confirmEmailSent flags).
+6. View modal button: "Continue booking →" for drafts, "Send confirmation →" only for non-draft bookings.
+7. Almost Done checklist requires BOTH calendar entry AND confirmation email before commit button activates.
+8. Final commit (`bookingNextDone`) removes `_draft` flag, flips lead to "Booked", bumps `_statusChangedAt`.
+9. Cancel (`bookingNextCancel`) discards the draft + creates a tombstone (cloud sync won't resurrect it).
+10. Quote data is deep-cloned into the booked job (`quoteDays`, `quoteFees`, `quoteId`) so future quote edits cannot mutate the booking.
+11. Confirmation email body uses booking-form values over quote values: `bj.movers`, `bj.rateRegular`, `bj.rateCash`, `bj.date`, `bj.time`, `bj.feeFuel`, `bj.feeMaterials`.
+12. Calendar entry's "SENT TO CUSTOMER" block uses the same precedence (built from same `_moveDetailsBlock`).
+13. Subject line: `bj.date || l.date` (single-day), `bj.date || q.days[0].date` (multi-day).
+14. Editing a booked job invalidates the cached `_moveDetailsBlock` so the next regeneration uses the latest values.
+15. Multi-day quotes: only Day 1 receives booking-form overrides; Days 2+ keep their per-day quote values.
+16. **(NEW 2026-05-21) Booking form's `bj-crew-notes` and `bj-email-note` textareas are hidden via `style="display:none"`.** Customer-facing email content is composed manually in the confirmation email modal at send time.
+17. **(NEW 2026-05-21) `bj-email-note` is NOT auto-prefilled from quote.notes or lead.notes.** The old "combine quote+lead notes" logic is removed. Field stays in DOM for legacy data only.
 
-1. **Three button states in the lead view** for accepted leads:
-   - No booked job → "📋 Complete booking →"
-   - Draft booked job exists → "📋 Continue booking →" (NEW)
-   - Real (non-draft) booked job exists → "✉ Send confirmation →"
-
-2. **Booking form auto-populates from the accepted quote.** Crew, rate, hours, fees, date, time, scope all pre-filled. Email-note combines `quote.notes` + `lead.notes`. Office notes from lead.
-
-3. **First "Confirm booking" creates a draft.** Lead status stays at "Quote accepted". Draft is filtered out of Booked Jobs page.
-
-4. **Reopening a draft restores all field values.** Date, time, movers, rates, fees, drive time, deposit, quote, do-not-exceed, volume, scope, crew notes, email note, office notes, insurance type. Same draft `id` reused on re-confirm — no duplicates.
-
-5. **Checklist progress is preserved across reopens.** `calendarAdded`, `confirmEmailSent`, and per-day calendar flags survive a back-and-forth.
-
-6. **Checklist requires BOTH calendar + confirmation email** before "Confirm & move to Booked Jobs" activates. If the lead has no email, only calendar is required.
-
-7. **Final commit** (`bookingNextDone`):
-   - Removes `_draft` flag → job appears in Booked Jobs
-   - Flips lead status to "Booked" with `_statusChangedAt` bumped
-   - Lead disappears from active Leads list
-
-8. **Booking-form values override quote values** in the confirmation email body, subject line, and calendar entry's "SENT TO CUSTOMER" block. Fields affected: rate, cash rate, crew, date, time, fuel fee, materials fee. Multi-day: Day 1 only. Blank booking fields fall back to quote.
-
-9. **Editing a booked job later** invalidates the cached `_moveDetailsBlock` so future confirmation re-sends and calendar rebuilds reflect the latest values.
-
-10. **Cancel mid-booking** discards the draft and writes a tombstone so cloud sync cannot resurrect it. Lead returns to "Quote accepted" state.
-
-11. **The deep-cloned quote snapshot** (`quoteDays`, `quoteFees`, `quoteId`) on the booked job is immutable. Future quote edits cannot mutate the booking record.
-
-12. **The accepted quote record is unchanged.** Customer's `quote.html?id=...` link still shows what they originally accepted. Booking-form overrides only affect downstream views (email/calendar), not the customer's quote link.
-
-**Tests:**
-- `/mnt/user-data/outputs/booking_pipeline_test.js` (56 assertions covering wiring + behavior)
-- `/mnt/user-data/outputs/booking_overrides_test.js` (28 assertions on the booking-form override behavior)
+**Tests that guard this section:**
+- `/mnt/user-data/outputs/booking_overrides_test.js` (28 assertions)
+- `/mnt/user-data/outputs/booking_commit_test.js` (45 assertions)
+- `/mnt/user-data/outputs/booking_pipeline_test.js` (56 assertions)
+- `/mnt/user-data/outputs/office_notes_only_test.js` (32 assertions covering notes-only changes)
 
 **To unlock:** *"I am unlocking the Booking and Confirming Single-Day Move section because..."*
+
+---
+
+### 4. Scheduling an Estimate
+
+**Locked on:** 2026-05-21
+**Status:** LOCKED. Do not change without explicit unlock.
+
+**Scope of what is locked:**
+- The Schedule Estimate modal (open, prefill, save flow) — `openScheduleEstimate()` and `confirmScheduleEstimate()`
+- The estimate confirmation email modal — `buildEstimateEmail()` body assembly + `doneEstimateEmail()` chaining
+- The estimate Google Calendar prompt — `showEstimateCalPrompt()`, `markEstimateCalOpened()`, `buildCalUrl()`
+- The status-flip gate: `finishScheduleEstimate()` flips lead.status to "Estimate scheduled"
+- Reschedule detection: `estimateCalendarAdded` flag resets so user re-adds the new date
+
+**What this section guarantees (invariants):**
+
+1. Schedule Estimate form prefills from the lead: `estimateType`, `estimateScheduledDate` (existing or today+2 days), `estimateScheduledTime`, `estimateSetupBy`, `estimateOfficeNotes` (falling back to `officeNotes`).
+2. Both "Send confirmation email" and "Add to calendar" checkboxes default to checked.
+3. Required fields validated: estimate type, date, and setupBy.
+4. Saving the form does NOT immediately flip lead status to "Estimate scheduled" — gating depends on which checkboxes are ticked.
+5. If both checkboxes ticked: flow is `confirm → email modal → email-sent → cal prompt → cal-added → status flips`.
+6. If only email ticked: status flips after `doneEstimateEmail`.
+7. If only calendar ticked: status flips after `markEstimateCalOpened` and `finishScheduleEstimate`.
+8. If neither ticked: status flips immediately on confirm.
+9. `estimateSentBy` falls back to `estimateSetupBy` when not already set; existing `estimateSentBy` is never overwritten.
+10. Closing the email modal without finishing means status stays at the previous value (data preserved, but no premature flip).
+11. Rescheduling an already-scheduled estimate resets `estimateCalendarAdded` so the user re-adds for the new date; toast says "Estimate updated — please delete the old calendar event and add the new date".
+12. Office notes typed in `sche-office-notes` sync to master `lead.officeNotes` (when non-empty). Blank sche-office-notes does NOT wipe an existing `lead.officeNotes`.
+13. Customer-facing `sche-notes` field is HIDDEN (office-notes-only policy). The estimate email body does NOT auto-include `l.estimateNotes`.
+
+**Tests that guard this section:**
+- `/mnt/user-data/outputs/schedule_estimate_test.js` (40 assertions covering wiring + behavior simulation)
+
+**To unlock:** *"I am unlocking the Scheduling an Estimate section because..."*
+
+---
+
+## Notes architecture (system-wide reference)
+
+**Single source of truth: `lead.officeNotes`**
+
+After the 2026-05-21 refactor, notes flow like this:
+
+- **Intake** — Customer's "additional notes" from the free quote form route into `lead.officeNotes` (NOT `lead.notes`). Set in `index.html` near line 9380.
+- **Office editing** — `nl-office-notes`, `qb-office-notes`, `bj-office-notes` are the only visible notes fields. Each triggers `liveAutosaveNotes` on input → `propagateNotesEdits` pushes the change to lead → all linked quotes → all linked bookedJobs → all linked completedJobs.
+- **Customer-facing** — `q.notes`, `bj.emailNote`, `nl-notes`, `qb-notes`, `bj-crew-notes` are HIDDEN in the UI but kept in DOM/data for legacy records. NO auto-prefill from these anywhere. Customer-facing content is typed manually in the confirmation email modal at send time.
+- **Customer page (`quote.html`)** — does NOT render `q.notes`.
+- **Confirmation email body** — does NOT auto-include `bj.emailNote`. User types directly into the modal.
+
+This is intentional: nothing the customer typed is auto-relayed back to them in quotes or confirmation emails.
 
 ---
 
@@ -160,5 +206,7 @@ _(none yet)_
 ## Change log
 
 - **2026-05-15** — Locked "Build and Send — Single-Day Quote" section.
-- **2026-05-15** — Locked "Customer Acceptance — Single-Day Quote" section (gaps fixed first: customer-accepted self-heal moved from `renderDashboard` to `refreshFromSupabase`; quote link added to office acceptance notification email).
-- **2026-05-15** — Locked "Booking and Confirming — Single-Day Move" section (after adding: combined quote.notes + lead.notes email-note prefill, draft reopen with value restoration, "Continue booking" button state, booking-form overrides for confirmation email + calendar, subject line uses booking date, cached move-details block invalidation on edit).
+- **2026-05-15** — Locked "Customer Acceptance — Single-Day Quote" section.
+- **2026-05-15** — Locked "Booking and Confirming — Single-Day Move" section.
+- **2026-05-21** — Unlocked sections 1 and 3 for the office-notes-only refactor. Refactor done: customer-facing notes fields hidden (kept in DOM for legacy data); intake routes customer notes → officeNotes; officeNotes propagator extended to include quotes; both sections re-locked with new invariants (3 added to section 1, 2 added to section 3).
+- **2026-05-21** — Locked "Scheduling an Estimate" section after gap-fix (estimateNotes auto-include removed from email body, sche-notes hidden) — 40-assertion test suite added.

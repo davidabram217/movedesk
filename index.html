@@ -26,6 +26,12 @@ CURRENTLY LOCKED (last updated 2026-05-21):
      booking-form values overriding quote in confirmation email + calendar,
      office-notes-only — bj-email-note and bj-crew-notes hidden,
      no auto-prefill of customer-facing notes)
+  - Scheduling an Estimate
+    (Schedule Estimate modal pre-fill, required-field validation,
+     gating via email + cal checkboxes, finalize flips lead to "Estimate scheduled",
+     reschedule detection resets calendarAdded flag,
+     sche-office-notes syncs to lead.officeNotes,
+     sche-notes hidden — no customer-facing notes leak)
 
 NOTES ARCHITECTURE (system-wide):
   Single source of truth: lead.officeNotes
