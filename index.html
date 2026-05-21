@@ -4266,12 +4266,14 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
       ${isPending?`<button class="btn btn-sm" style="background:var(--accent);color:#fff;border-color:var(--accent);padding:6px 14px;font-size:12.5px" onclick="acceptQuote('${l.id}')">✓ Mark as quote accepted</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="closeModal('view');openDidNotBook('${l.id}')">✕ Did not book</button>
     </div>`;
-const _bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id);
+const _bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
+const _draftBookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&b._draft);
 const _hasBookedJob=!!_bookedJob;
+const _hasDraftBooking=!!_draftBookedJob;
 const _calUrl=_bookedJob?buildJobCalUrl(_bookedJob):'';
 const _calBtn=_bookedJob?`<button class="btn btn-secondary" onclick="markJobCalAdded('${_bookedJob.id}');openJobCalendar('${_bookedJob.id}')">📅 Add to calendar</button>`:'';
 const _resendBtn=_bookedJob?`<button class="btn btn-secondary" onclick="resendConfirmForJob('${_bookedJob.id}','${l.id}')">✉ Resend confirmation</button>`:'';
-const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&_hasDraftBooking?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Continue booking →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
@@ -5559,8 +5561,10 @@ function bjWriteFields(j){
 }
 
 function openBooking(leadId){
-  // Clear any stale drafts for this lead before opening
-  db.bookedJobs=(db.bookedJobs||[]).filter(j=>!(j.leadId===leadId&&j._draft));
+  // Detect an existing draft for this lead — if one is found, we'll restore the user's
+  // previously typed values into the form so they don't lose work. The draft is NOT deleted;
+  // it stays as the same record (same id) and gets updated when the user re-confirms.
+  const _existingDraft=(db.bookedJobs||[]).find(j=>j.leadId===leadId&&j._draft);
   currentBookingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
   if(!l)return;
@@ -5692,8 +5696,17 @@ function openBooking(leadId){
   // Lead-level fallbacks
   setIfEmpty('bj-quote',l.estimateQuote);
   setIfEmpty('bj-office-notes',l.officeNotes||l.estimateOfficeNotes);
-  // Carry the lead's "Additional notes" into the booking's email-note field as a starting point
-  setIfEmpty('bj-email-note',l.notes);
+  // Carry notes into the booking's customer-facing email note. Combine the QUOTE's notes
+  // (customer-facing context written when the quote was built) with the LEAD's additional notes,
+  // so the user sees both sources together. If only one exists, use that alone.
+  // `quote` here is the same `quote` variable already resolved above (accepted → sent → other).
+  const _quoteNotes=(quote&&quote.notes||'').trim();
+  const _leadNotes=(l&&l.notes||'').trim();
+  let _combinedEmailNote='';
+  if(_quoteNotes&&_leadNotes)_combinedEmailNote=_quoteNotes+'\n\n'+_leadNotes;
+  else if(_quoteNotes)_combinedEmailNote=_quoteNotes;
+  else if(_leadNotes)_combinedEmailNote=_leadNotes;
+  setIfEmpty('bj-email-note',_combinedEmailNote);
   // If the lead's packing field has a packer count or scope, set up the pack-crew block
   if(l.packing&&(l.packing.toLowerCase().includes('full')||l.packing.toLowerCase().includes('partial')||l.packing.toLowerCase().includes('kitchen'))){
     document.getElementById('bj-pack-crew').checked=true;
@@ -5756,6 +5769,42 @@ function openBooking(leadId){
       if(timeLabel&&timeLabel.tagName==='LABEL')timeLabel.textContent='Arrival window';
     }
   }catch(_){}
+  // If a draft booked job exists in db.bookedJobs for this lead, restore its saved values into
+  // the form so the user doesn't lose previously-typed input. This runs LAST so it overrides
+  // the quote/lead-based prefills. The draft record stays in db.bookedJobs with the same id;
+  // confirmBooking() will update it in place rather than creating a duplicate.
+  if(_existingDraft){
+    const draftSetIfHasValue=(id,val)=>{
+      const el=document.getElementById(id);
+      if(!el)return;
+      if(val===undefined||val===null||val==='')return;
+      el.value=val;
+    };
+    draftSetIfHasValue('bj-date',_existingDraft.date);
+    draftSetIfHasValue('bj-time',_existingDraft.time);
+    if(_existingDraft.movers){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=_existingDraft.movers;}
+    draftSetIfHasValue('bj-rate-regular',_existingDraft.rateRegular);
+    draftSetIfHasValue('bj-rate-cash',_existingDraft.rateCash);
+    draftSetIfHasValue('bj-fee-materials',_existingDraft.feeMaterials);
+    draftSetIfHasValue('bj-fee-fuel',_existingDraft.feeFuel);
+    draftSetIfHasValue('bj-drive-to',_existingDraft.driveTo);
+    draftSetIfHasValue('bj-drive-return',_existingDraft.driveReturn);
+    draftSetIfHasValue('bj-quote',_existingDraft.quote);
+    draftSetIfHasValue('bj-deposit',_existingDraft.deposit);
+    draftSetIfHasValue('bj-volume',_existingDraft.volume);
+    draftSetIfHasValue('bj-scope',_existingDraft.scope);
+    draftSetIfHasValue('bj-crew-notes',_existingDraft.crewNotes);
+    draftSetIfHasValue('bj-email-note',_existingDraft.emailNote);
+    draftSetIfHasValue('bj-office-notes',_existingDraft.officeNotes);
+    if(_existingDraft.insuranceType){
+      const sel=document.getElementById('bj-insurance-type');
+      if(sel){for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===_existingDraft.insuranceType||sel.options[i].text===_existingDraft.insuranceType){sel.selectedIndex=i;break;}}}
+    }
+    // Stash the existing draft's id so confirmBooking can update in place
+    window._reopeningDraftId=_existingDraft.id;
+  } else {
+    window._reopeningDraftId=null;
+  }
   openModal('book-job');
 }
 function buildJobCalUrl(j){
@@ -6009,10 +6058,31 @@ function confirmBooking(){
   // Deep-clone so future quote edits can't mutate the booked job's snapshot
   const _quoteDaysSnap=leadQuote&&leadQuote.days?JSON.parse(JSON.stringify(leadQuote.days)):[];
   const _quoteFeesSnap=leadQuote&&leadQuote.fees?JSON.parse(JSON.stringify(leadQuote.fees)):[];
-  const job={id:uid(),leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',sqft:l?l.sqft:null,accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:l?!!l.emailConfirmationSent:false,pendingConfirmation:true,bookedAt:new Date().toISOString().split('T')[0],
+  // If we're reopening an existing draft (window._reopeningDraftId set by openBooking), reuse
+  // its id and bookedAt timestamp so we UPDATE in place rather than creating a duplicate.
+  const _reopenId=(typeof window!=='undefined'&&window._reopeningDraftId)||null;
+  const _existingDraft=_reopenId?db.bookedJobs.find(x=>x.id===_reopenId):null;
+  const jobId=_existingDraft?_existingDraft.id:uid();
+  const jobBookedAt=_existingDraft?(_existingDraft.bookedAt||new Date().toISOString().split('T')[0]):new Date().toISOString().split('T')[0];
+  const job={id:jobId,leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',sqft:l?l.sqft:null,accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:_existingDraft?_existingDraft.confirmEmailSent:(l?!!l.emailConfirmationSent:false),pendingConfirmation:true,bookedAt:jobBookedAt,
     multiDay:isMultiDayQuote,quoteDays:_quoteDaysSnap,quoteFees:_quoteFeesSnap,quoteId:leadQuote?leadQuote.id:null
   };
-  db.bookedJobs.push(job);
+  // Preserve calendar/email-done flags from the existing draft if reopening
+  if(_existingDraft){
+    if(_existingDraft.calendarAdded)job.calendarAdded=_existingDraft.calendarAdded;
+    if(_existingDraft.confirmEmailSent)job.confirmEmailSent=_existingDraft.confirmEmailSent;
+    // Multi-day calendar flags
+    for(let i=1;i<=20;i++){const k='calDay'+i+'Added';if(_existingDraft[k])job[k]=_existingDraft[k];}
+  }
+  // Replace or add
+  if(_existingDraft){
+    const idx=db.bookedJobs.findIndex(x=>x.id===_existingDraft.id);
+    if(idx>=0)db.bookedJobs[idx]=job;else db.bookedJobs.push(job);
+  } else {
+    db.bookedJobs.push(job);
+  }
+  // Clear the reopen flag
+  if(typeof window!=='undefined')window._reopeningDraftId=null;
   // Don't flip lead status to "Booked" yet — only when the checklist is finished. Until then,
   // the job is a draft (filtered out of Booked Jobs) and the lead stays at its previous status.
   job._draft=true;
