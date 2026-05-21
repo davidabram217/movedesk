@@ -1,4 +1,26 @@
 <!DOCTYPE html>
+<!--
+═══════════════════════════════════════════════════════════════════════════════
+‼ MANDATORY: BEFORE EDITING THIS FILE ‼
+
+1. Open and read LOCKED_SECTIONS.md in this repo. NO EXCEPTIONS.
+2. Confirm to David at the start of the session: "I have read
+   LOCKED_SECTIONS.md. The currently locked sections are: [list]."
+3. For every change request: check whether it would touch a locked section.
+   If yes → STOP. Ask David for explicit unlock. Do not proceed.
+4. After any change, run the test files listed under that section's
+   "Tests that guard this section" line. All assertions must pass.
+
+CURRENTLY LOCKED (as of 2026-05-15):
+  - Build and Send — Single-Day Quote
+    (saveQuote, sendQuoteEmail, quote-page.js renderQuote, autosave,
+     quote cloud-sync merge, Preview/Resend force-save flow)
+
+This safeguard exists because parts of this app have been broken in past
+sessions by changes that seemed local but affected locked functionality.
+Respecting locks is the only thing that keeps known-good behavior stable.
+═══════════════════════════════════════════════════════════════════════════════
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
