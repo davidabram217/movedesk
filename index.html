@@ -1025,7 +1025,9 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Date *</label><input type="date" id="sche-date"></div>
         <div class="form-group"><label>Time</label><input type="text" id="sche-time" placeholder="e.g. 2:00pm"></div>
         <div class="form-group"><label>Estimate set up by</label><input type="text" id="sche-setup-by" placeholder="e.g. John" list="sche-setup-by-list"><datalist id="sche-setup-by-list"><option value="John"><option value="Dave"></datalist></div>
-        <div class="form-group full"><label>Notes for the estimate <span style="font-size:10px;font-weight:400;color:var(--accent)">— SHOWN IN EMAIL TO CUSTOMER</span></label><textarea id="sche-notes" placeholder="Anything to prepare, items to discuss, access details…" style="min-height:60px"></textarea></div>
+        <!-- sche-notes is HIDDEN — customer-facing notes are typed manually in the estimate
+             confirmation email modal at send time. Field kept in DOM so legacy data loads/saves. -->
+        <textarea id="sche-notes" style="display:none"></textarea>
       </div>
 
       <div style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:16px">
@@ -1119,7 +1121,9 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Estimate date</label><input type="date" id="se-date"></div>
         <div class="form-group"><label>Quoted amount ($)</label><input type="number" id="se-quote" placeholder="0.00"></div>
         <div class="form-group"><label>Sent by</label><input type="text" id="se-sent-by" placeholder="e.g. John" list="se-sent-by-list"><datalist id="se-sent-by-list"><option value="John"><option value="Dave"></datalist></div>
-        <div class="form-group full"><label>Notes</label><textarea id="se-notes" placeholder="Details about the estimate…" style="min-height:55px"></textarea></div>
+        <!-- se-notes is HIDDEN — same reason as sche-notes. Office notes is the only notes field
+             that ever surfaces. Customer-facing content typed manually at email send time. -->
+        <textarea id="se-notes" style="display:none"></textarea>
       </div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="cancelSubModal('send-estimate')">← Back to options</button><button class="btn btn-primary" onclick="confirmEstimate()">Save estimate</button></div>
@@ -5552,7 +5556,7 @@ function buildEstimateEmail(leadId){
   const time=l.estimateScheduledTime?'at '+l.estimateScheduledTime:'';
   document.getElementById('ee-to').value=l.email||'';
   document.getElementById('ee-subject').value=`Your ${type} Estimate — ${date}`;
-  document.getElementById('ee-body').value=`Hi ${firstName},\n\nGreat speaking with you! I wanted to confirm that we have scheduled your ${type} estimate for ${date}${time?', '+time:''}.\n\nHere are the details we have on file:\n\nMove date: ${fmtDate(l.date)}\nHome size: ${l.size||'TBD'}${l.moveType?'\nType of move: '+l.moveType:''}${l.packing&&l.packing!=='No — just moving'?'\nPacking: '+l.packing:''}\n\n📦 Moving from:\n${fmtLoadLocations(l)}\n\n🏠 Moving to:\n${fmtUnloadLocations(l)}\n${l.estimateNotes?'\nNotes: '+l.estimateNotes:''}\n\nIf you have any questions or need to reschedule, feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to speaking with you!\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com`;
+  document.getElementById('ee-body').value=`Hi ${firstName},\n\nGreat speaking with you! I wanted to confirm that we have scheduled your ${type} estimate for ${date}${time?', '+time:''}.\n\nHere are the details we have on file:\n\nMove date: ${fmtDate(l.date)}\nHome size: ${l.size||'TBD'}${l.moveType?'\nType of move: '+l.moveType:''}${l.packing&&l.packing!=='No — just moving'?'\nPacking: '+l.packing:''}\n\n📦 Moving from:\n${fmtLoadLocations(l)}\n\n🏠 Moving to:\n${fmtUnloadLocations(l)}\n\nIf you have any questions or need to reschedule, feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to speaking with you!\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com`;
 }
 
 function copyEstimateEmail(){
