@@ -39,6 +39,9 @@ NOTES ARCHITECTURE (system-wide):
   liveAutosaveNotes propagator: lead ↔ quotes ↔ bookedJobs ↔ completedJobs
   Customer-facing notes fields (q.notes, bj.emailNote, etc.) HIDDEN in UI
   Customer-facing content composed manually in confirmation email modal
+  Display layer ALWAYS reads office notes from lead.officeNotes
+    (NOT from quote.officeNotes — protects against stale cloud data)
+  Cloud sync + initial load self-heal any drifted denormalized copies
   - Booking and Confirming — Single-Day Move
     (openBooking pre-fill + draft restore, draft booking system,
      Almost Done checklist gating, bookingNextDone final commit,
@@ -944,7 +947,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           </div>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;padding-top:16px;border-top:1px solid var(--border2)">
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;padding-top:16px;border-top:1px solid var(--border2);align-items:center">
+          <!-- Visible only when editing an existing lead. Toggled in openEditLead/resetNewLeadForm. -->
+          <button id="nl-go-back-btn" type="button" class="btn btn-secondary" style="display:none;margin-right:auto" onclick="goBackToView()">← Back to view</button>
+          <span id="nl-saved-indicator" style="display:none;font-size:12px;color:var(--accent);font-weight:600">✓ Saved</span>
           <button class="btn btn-secondary" onclick="clearLeadDraft();closeModal('new-lead')">Cancel</button>
           <button class="btn btn-primary" onclick="saveLead()">Save lead</button>
         </div>
@@ -2461,13 +2467,17 @@ async function loadDB(){
     });
     if(_completedFixed)console.log('Self-healed '+_completedFixed+' lead(s) to "Completed" status (had matching completed-jobs entry)');
     // Notes reconciliation: lead is master, push lead.notes/officeNotes to every linked
-    // booked + completed job. This fixes mismatches that existed before the live-autosave
+    // quote + booked + completed job. This fixes mismatches that existed before the live-autosave
     // helper was in place, and keeps things consistent on every page load.
     let _notesReconciled=0;
     (db.leads||[]).forEach(l=>{
       if(!l||!l.id)return;
       const ln=typeof l.notes==='string'?l.notes:'';
       const lon=typeof l.officeNotes==='string'?l.officeNotes:'';
+      // Push officeNotes to QUOTES (new — Tim Satron-style drift fix)
+      (db.quotes||[]).filter(q=>q.leadId===l.id).forEach(q=>{
+        if(q.officeNotes!==lon){q.officeNotes=lon;_notesReconciled++;}
+      });
       (db.bookedJobs||[]).filter(bj=>bj.leadId===l.id).forEach(bj=>{
         if(bj.emailNote!==ln){bj.emailNote=ln;_notesReconciled++;}
         if(bj.officeNotes!==lon){bj.officeNotes=lon;_notesReconciled++;}
@@ -2479,10 +2489,13 @@ async function loadDB(){
           if(bj&&bj.leadId===l.id)isMatch=true;
         }
         if(!isMatch&&cj.name===l.name&&cj.date===l.date)isMatch=true;
-        if(isMatch&&cj.notes!==ln){cj.notes=ln;_notesReconciled++;}
+        if(isMatch){
+          if(cj.notes!==ln){cj.notes=ln;_notesReconciled++;}
+          if(cj.officeNotes!==lon){cj.officeNotes=lon;_notesReconciled++;}
+        }
       });
     });
-    if(_notesReconciled)console.log('Reconciled '+_notesReconciled+' note field(s) across linked records');
+    if(_notesReconciled)console.log('Reconciled '+_notesReconciled+' note field(s) across linked records (incl. quotes)');
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -2915,6 +2928,47 @@ async function refreshFromSupabase(){
       if(db.completedJobs.length<before)updated++;
     }
     db.quotes=mergeTable(quotesRes,db.quotes||[],'id','quotes');
+    // ─── OFFICE NOTES SELF-HEAL ────────────────────────────────────────────────
+    // The lead is the single source of truth for officeNotes. After every cloud merge,
+    // force every linked record's officeNotes to match its lead's officeNotes. This catches
+    // the case where a stale row came down from the cloud carrying old officeNotes — without
+    // this, the user would see drift (e.g. Quote Builder showing different notes than the lead).
+    // Runs every 60-second sync; cheap and bounded by the record count.
+    try{
+      const _leadById={};(db.leads||[]).forEach(l=>{if(l&&l.id)_leadById[l.id]=l;});
+      let _on_fixed=0;
+      (db.quotes||[]).forEach(q=>{
+        if(!q||!q.leadId)return;
+        const lead=_leadById[q.leadId];
+        if(!lead)return;
+        const desired=lead.officeNotes||'';
+        if((q.officeNotes||'')!==desired){q.officeNotes=desired;_on_fixed++;updated++;}
+      });
+      (db.bookedJobs||[]).forEach(bj=>{
+        if(!bj||!bj.leadId)return;
+        const lead=_leadById[bj.leadId];
+        if(!lead)return;
+        const desired=lead.officeNotes||'';
+        if((bj.officeNotes||'')!==desired){bj.officeNotes=desired;_on_fixed++;updated++;}
+      });
+      (db.completedJobs||[]).forEach(cj=>{
+        if(!cj)return;
+        // Resolve the lead: prefer bookedJobId → lookup → leadId, else fall back to name+date match
+        let lead=null;
+        if(cj.bookedJobId){
+          const bj=(db.bookedJobs||[]).find(j=>j.id===cj.bookedJobId);
+          if(bj&&bj.leadId)lead=_leadById[bj.leadId];
+        }
+        if(!lead&&cj.name&&cj.date){
+          lead=(db.leads||[]).find(l=>l.name===cj.name&&l.date===cj.date);
+        }
+        if(!lead)return;
+        const desired=lead.officeNotes||'';
+        if((cj.officeNotes||'')!==desired){cj.officeNotes=desired;_on_fixed++;updated++;}
+      });
+      if(_on_fixed)console.log('OfficeNotes self-heal: corrected '+_on_fixed+' record(s) to match lead.officeNotes');
+    }catch(e){console.warn('OfficeNotes self-heal failed:',e);}
+    // ───────────────────────────────────────────────────────────────────────────
     // Self-heal lead statuses based on the freshly-merged booked/completed sets. Catches the
     // case where a completedJob came down from the cloud during a 60-second refresh, but its
     // lead still has a non-terminal status locally. Matches primarily by direct leadId; for
@@ -3482,7 +3536,7 @@ document.addEventListener('click',e=>{
     e.target.classList.remove('open');
   }
 });
-function resetNewLeadForm(){editingLeadId=null;document.querySelector('#modal-new-lead .modal-title').textContent='New lead intake';const _slBtn=document.querySelector('#modal-new-lead .btn-primary');if(_slBtn)_slBtn.textContent='Save lead';['nl-name','nl-phone','nl-email','nl-from','nl-from-zip','nl-from-unit','nl-from-floor','nl-from-notes','nl-to','nl-to-zip','nl-to-unit','nl-to-floor','nl-to-notes','nl-notes','nl-office-notes','nl-sqft','nl-source-other','nl-source-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['nl-source','nl-size','nl-move-type','nl-packing','nl-access-load','nl-access-unload','nl-parking-load','nl-parking-unload','nl-from-type','nl-to-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['nl-storage'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const storSel=document.getElementById('nl-storage-select');if(storSel)storSel.value='no';const og=document.getElementById('nl-source-other-group');if(og)og.style.display='none';const dg=document.getElementById('nl-source-detail-group');if(dg)dg.style.display='none';resetExtraLocations();const rcp=document.getElementById('nl-repeat-customer-panel');if(rcp)rcp.style.display='none';['nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-pack-mat-min','nl-rq-pack-mat-max','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const rqm=document.getElementById('nl-rq-movers');if(rqm)rqm.selectedIndex=0;
+function resetNewLeadForm(){editingLeadId=null;document.querySelector('#modal-new-lead .modal-title').textContent='New lead intake';const _slBtn=document.querySelector('#modal-new-lead .btn-primary');if(_slBtn)_slBtn.textContent='Save lead';const _backBtn2=document.getElementById('nl-go-back-btn');if(_backBtn2)_backBtn2.style.display='none';const _savedInd2=document.getElementById('nl-saved-indicator');if(_savedInd2)_savedInd2.style.display='none';['nl-name','nl-phone','nl-email','nl-from','nl-from-zip','nl-from-unit','nl-from-floor','nl-from-notes','nl-to','nl-to-zip','nl-to-unit','nl-to-floor','nl-to-notes','nl-notes','nl-office-notes','nl-sqft','nl-source-other','nl-source-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['nl-source','nl-size','nl-move-type','nl-packing','nl-access-load','nl-access-unload','nl-parking-load','nl-parking-unload','nl-from-type','nl-to-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['nl-storage'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const storSel=document.getElementById('nl-storage-select');if(storSel)storSel.value='no';const og=document.getElementById('nl-source-other-group');if(og)og.style.display='none';const dg=document.getElementById('nl-source-detail-group');if(dg)dg.style.display='none';resetExtraLocations();const rcp=document.getElementById('nl-repeat-customer-panel');if(rcp)rcp.style.display='none';['nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-pack-mat-min','nl-rq-pack-mat-max','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const rqm=document.getElementById('nl-rq-movers');if(rqm)rqm.selectedIndex=0;
 const rqcb=document.getElementById('nl-include-rq');if(rqcb)rqcb.checked=false;
 const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none';
   const d=new Date();d.setDate(d.getDate()+7);document.getElementById('nl-date').value=d.toISOString().split('T')[0];populateStaffSelect('nl-taken-by','');}
@@ -3731,6 +3785,16 @@ function populateStaffSelect(id,val){
 
 let editingLeadId=null;
 
+// Called from the "← Back to view" button in the Edit Lead modal footer.
+// Captures editingLeadId BEFORE resetting (closeModal triggers resetNewLeadForm which clears it),
+// then closes the edit modal and opens the View modal for the same lead.
+function goBackToView(){
+  const _id=editingLeadId;
+  if(!_id){closeModal('new-lead');return;}
+  closeModal('new-lead'); // this fires resetNewLeadForm and nulls editingLeadId
+  setTimeout(()=>{viewLead(_id);},120);
+}
+
 function openEditLead(leadId){
   editingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
@@ -3738,6 +3802,9 @@ function openEditLead(leadId){
   // Update modal title to show Edit mode
   document.querySelector('#modal-new-lead .modal-title').textContent='Edit lead';
   const _scBtn=document.querySelector('#modal-new-lead .btn-primary');if(_scBtn)_scBtn.textContent='Save changes';
+  // Show the "Back to view" button (only relevant when editing an existing lead)
+  const _backBtn=document.getElementById('nl-go-back-btn');if(_backBtn)_backBtn.style.display='inline-block';
+  const _savedInd=document.getElementById('nl-saved-indicator');if(_savedInd)_savedInd.style.display='none';
   // Pre-fill all fields
   document.getElementById('nl-name').value=l.name||'';
   document.getElementById('nl-phone').value=l.phone||'';
@@ -3831,11 +3898,19 @@ function saveLead(){
       propagateNotesEdits('lead',l.id,{notes:l.notes,officeNotes:l.officeNotes});l.roughQuote={movers:document.getElementById('nl-rq-movers')?.value||'',rate:document.getElementById('nl-rq-rate')?.value||'',hrsMin:document.getElementById('nl-rq-hrs-min')?.value||'',hrsMax:document.getElementById('nl-rq-hrs-max')?.value||'',fuel:document.getElementById('nl-rq-fuel')?.value||'',materials:document.getElementById('nl-rq-materials')?.value||'',packMatMin:document.getElementById('nl-rq-pack-mat-min')?.value||'',packMatMax:document.getElementById('nl-rq-pack-mat-max')?.value||'',cashRate:document.getElementById('nl-rq-cash-rate')?.value||'',other:document.getElementById('nl-rq-other')?.value.trim()||''};
       l.takenBy=document.getElementById('nl-taken-by').value;
     }
-    editingLeadId=null;
-    saveDB(); closeModal('new-lead');
+    // Save complete — keep the modal open, show a transient saved indicator, and leave
+    // editingLeadId set so the user can keep editing OR click Back-to-view when ready.
+    saveDB();
     showToast('✓ Lead updated — '+name);
     if(document.getElementById('page-leads').classList.contains('active'))renderLeads();
     if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
+    // Flash the inline "✓ Saved" indicator for ~2 seconds
+    const _savedInd=document.getElementById('nl-saved-indicator');
+    if(_savedInd){
+      _savedInd.style.display='inline-block';
+      clearTimeout(window._savedIndTimer);
+      window._savedIndTimer=setTimeout(()=>{_savedInd.style.display='none';},2000);
+    }
   } else {
     // New lead — save then show next step prompt
     const lead={id:uid(),name,phone,email:document.getElementById('nl-email').value.trim(),source,sourceDetail:document.getElementById('nl-source-detail').value.trim(),date:document.getElementById('nl-date').value,size:document.getElementById('nl-size').value,sizeOther:document.getElementById('nl-size-other')?.value.trim()||'',moveType:document.getElementById('nl-move-type').value,
@@ -5813,7 +5888,9 @@ function openBooking(leadId){
       });
     }
     if(scopeParts.length)setIfEmpty('bj-scope',scopeParts.join('\n'));
-    setIfEmpty('bj-office-notes',quote.officeNotes);
+    // DELIBERATELY DO NOT pre-fill bj-office-notes from quote.officeNotes. The lead is the
+    // single source of truth — a stale quote synced in from the cloud could carry old/wrong
+    // content. The lead-level fallback below (line ~5876) handles this correctly.
   }
   // Highest-priority "what the customer agreed to" source — the parsed confirmation email.
   // If the user already drafted/sent a confirmation email, those numbers ARE the deal.
@@ -10392,7 +10469,12 @@ function loadQuoteIntoBuilder(q){
     if(!_loadedNotes&&l&&l.notes)_loadedNotes=l.notes;
   }
   document.getElementById('qb-notes').value=_loadedNotes;
-  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const etEl=document.getElementById('qb-estimate-type');if(etEl)etEl.value=q.estimateType||l?.estimateType||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=q.officeNotes||(l?.officeNotes||'');const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';const crEl=document.getElementById('qb-cash-rate');if(crEl)crEl.value=q.cashRate||'';
+  const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const etEl=document.getElementById('qb-estimate-type');if(etEl)etEl.value=q.estimateType||l?.estimateType||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';
+  // Office notes: lead is the single source of truth. We deliberately IGNORE q.officeNotes
+  // here — a stale quote synced in from the cloud could carry old/wrong content. The lead
+  // is the master; the quote's denormalized copy is for downstream consumers only.
+  const onEl=document.getElementById('qb-office-notes');if(onEl)onEl.value=l?.officeNotes||'';
+  const evEl=document.getElementById('qb-estimated-vaults');if(evEl)evEl.value=q.estimatedVaults||'';const crEl=document.getElementById('qb-cash-rate');if(crEl)crEl.value=q.cashRate||'';
   setJobType(qbJobType);
 }
 
@@ -11161,7 +11243,23 @@ function saveQuote(status,opts){
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
     stipulations:document.getElementById('qb-stipulations').value,
-    notes:document.getElementById('qb-notes').value,officeNotes:(()=>{const _qbOn=document.getElementById('qb-office-notes')?.value||'';const _qbL=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;if(_qbL&&_qbOn)_qbL.officeNotes=_qbOn;return _qbOn;})(),estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
+    notes:document.getElementById('qb-notes').value,officeNotes:(()=>{
+      // Office notes: take whatever's in the qb-office-notes field, then route it through the
+      // propagator so ALL linked records (lead, all quotes for this lead, bookedJobs, completedJobs)
+      // stay consistent. Previously this only wrote to lead.officeNotes inline without calling
+      // propagator, which caused drift — that's the bug the unlock fix addresses.
+      const _qbOn=document.getElementById('qb-office-notes')?.value||'';
+      if(currentQuoteLeadId){
+        // Apply onto lead + propagate. Done synchronously here (not via debounced liveAutosaveNotes)
+        // because we want the just-saved quote to see the up-to-date lead.officeNotes immediately.
+        try{
+          const _qbL=db.leads.find(x=>x.id===currentQuoteLeadId);
+          if(_qbL)_qbL.officeNotes=_qbOn;
+          propagateNotesEdits('lead',currentQuoteLeadId,{officeNotes:_qbOn});
+        }catch(e){console.warn('officeNotes propagation in saveQuote failed:',e);}
+      }
+      return _qbOn;
+    })(),estimatedVaults:document.getElementById('qb-estimated-vaults')?.value||'',cashRate:document.getElementById('qb-cash-rate')?.value||'',
     sentBy:document.getElementById('qb-sent-by')?.value||'',estimateType:document.getElementById('qb-estimate-type')?.value||'',
     totalMin:t.totalMin,totalMax:t.totalMax,
     cashTotalMin:t.cashTotalMin||null,cashTotalMax:t.cashTotalMax||null,

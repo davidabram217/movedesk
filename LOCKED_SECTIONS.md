@@ -56,12 +56,16 @@ After any change to a locked section, you must re-run the listed test files agai
 11. **(NEW 2026-05-21) Customer-facing notes (`q.notes`) are NOT rendered on either the customer page OR the office Preview.** The `q.notes` data is still preserved for legacy quotes but the UI section is removed from both renderers.
 12. **(NEW 2026-05-21) `qb-notes` textarea is hidden via `style="display:none"` and is NOT prefilled from `lead.notes`.** Field kept in DOM so legacy quote loads continue to populate the field without errors.
 13. **(NEW 2026-05-21) `qb-office-notes` triggers `liveAutosaveNotes` for both 'quote' AND 'lead' source types** on every keystroke (debounced), so changes propagate to the lead + all linked records.
+14. **(NEW 2026-05-21, updated to enforce single source of truth) Quote Builder reads `qb-office-notes` from `lead.officeNotes` ONLY** — never from `quote.officeNotes`. A stale quote synced in from the cloud cannot display wrong office notes. The denormalized `quote.officeNotes` field still exists for downstream consumers but is not the display source.
+15. **(NEW 2026-05-21) Cloud sync runs an "OfficeNotes self-heal" after every merge** that forces every quote's, bookedJob's, and completedJob's `officeNotes` to match its lead's `officeNotes`. Stale data from the cloud gets corrected within the 60-second refresh cycle.
+16. **(NEW 2026-05-21) Initial-load notes reconciliation also covers quotes and completedJob officeNotes** — page open / reload eliminates any pre-existing drift.
 
 **Tests that guard this section:**
 - `/mnt/user-data/outputs/quote_pipeline_test.js` (12 assertions)
 - `/mnt/user-data/outputs/customer_view_test.js` (18 assertions)
 - `/mnt/user-data/outputs/e2e_test.js` (33 assertions)
 - `/mnt/user-data/outputs/office_notes_only_test.js` (32 assertions covering notes-only changes)
+- `/mnt/user-data/outputs/office_notes_source_of_truth_test.js` (27 assertions covering single-source-of-truth fix)
 
 **To unlock:** *"I am unlocking the Build and Send Single-Day Quote section because..."*
 
@@ -135,12 +139,15 @@ After any change to a locked section, you must re-run the listed test files agai
 15. Multi-day quotes: only Day 1 receives booking-form overrides; Days 2+ keep their per-day quote values.
 16. **(NEW 2026-05-21) Booking form's `bj-crew-notes` and `bj-email-note` textareas are hidden via `style="display:none"`.** Customer-facing email content is composed manually in the confirmation email modal at send time.
 17. **(NEW 2026-05-21) `bj-email-note` is NOT auto-prefilled from quote.notes or lead.notes.** The old "combine quote+lead notes" logic is removed. Field stays in DOM for legacy data only.
+18. **(NEW 2026-05-21) `bj-office-notes` is NOT prefilled from `quote.officeNotes`** — lead is the single source of truth. The fallback `setIfEmpty('bj-office-notes',l.officeNotes||l.estimateOfficeNotes)` is the only prefill path. Stale quote data cannot leak into the booking form.
+19. **(NEW 2026-05-21) Cloud sync's "OfficeNotes self-heal" also covers bookedJobs and completedJobs** — every linked record's `officeNotes` is forced to match its lead's after every merge.
 
 **Tests that guard this section:**
 - `/mnt/user-data/outputs/booking_overrides_test.js` (28 assertions)
 - `/mnt/user-data/outputs/booking_commit_test.js` (45 assertions)
 - `/mnt/user-data/outputs/booking_pipeline_test.js` (56 assertions)
 - `/mnt/user-data/outputs/office_notes_only_test.js` (32 assertions covering notes-only changes)
+- `/mnt/user-data/outputs/office_notes_source_of_truth_test.js` (27 assertions covering single-source-of-truth fix)
 
 **To unlock:** *"I am unlocking the Booking and Confirming Single-Day Move section because..."*
 
@@ -183,17 +190,21 @@ After any change to a locked section, you must re-run the listed test files agai
 
 ## Notes architecture (system-wide reference)
 
-**Single source of truth: `lead.officeNotes`**
+**Single source of truth: `lead.officeNotes`** — this is enforced at three layers:
 
-After the 2026-05-21 refactor, notes flow like this:
+1. **Display:** Quote Builder + Booking form ALWAYS read office notes from `lead.officeNotes`. The denormalized copies on `quote.officeNotes` and `bookedJob.officeNotes` are NOT used for display.
+2. **Write:** Any change to office notes (in any modal) is applied to the lead first, then `propagateNotesEdits` pushes to all linked quotes/bookedJobs/completedJobs.
+3. **Self-heal:** After every cloud sync (60s) AND on every page load, every quote/bookedJob/completedJob's `officeNotes` is forced to match its lead's `officeNotes`. Even if a stale row comes down from the cloud, the user sees corrected data immediately.
+
+After the 2026-05-21 fixes, notes flow like this:
 
 - **Intake** — Customer's "additional notes" from the free quote form route into `lead.officeNotes` (NOT `lead.notes`). Set in `index.html` near line 9380.
 - **Office editing** — `nl-office-notes`, `qb-office-notes`, `bj-office-notes` are the only visible notes fields. Each triggers `liveAutosaveNotes` on input → `propagateNotesEdits` pushes the change to lead → all linked quotes → all linked bookedJobs → all linked completedJobs.
-- **Customer-facing** — `q.notes`, `bj.emailNote`, `nl-notes`, `qb-notes`, `bj-crew-notes` are HIDDEN in the UI but kept in DOM/data for legacy records. NO auto-prefill from these anywhere. Customer-facing content is typed manually in the confirmation email modal at send time.
+- **Customer-facing** — `q.notes`, `bj.emailNote`, `nl-notes`, `qb-notes`, `bj-crew-notes`, `sche-notes`, `se-notes` are HIDDEN in the UI but kept in DOM/data for legacy records. NO auto-prefill from these anywhere. Customer-facing content is typed manually in the confirmation email modal at send time.
 - **Customer page (`quote.html`)** — does NOT render `q.notes`.
 - **Confirmation email body** — does NOT auto-include `bj.emailNote`. User types directly into the modal.
 
-This is intentional: nothing the customer typed is auto-relayed back to them in quotes or confirmation emails.
+This is intentional: nothing the customer typed is auto-relayed back to them in quotes or confirmation emails. And nothing stale can show different office notes in different places — the self-heal guarantees consistency.
 
 ---
 
@@ -210,3 +221,4 @@ _(none yet)_
 - **2026-05-15** — Locked "Booking and Confirming — Single-Day Move" section.
 - **2026-05-21** — Unlocked sections 1 and 3 for the office-notes-only refactor. Refactor done: customer-facing notes fields hidden (kept in DOM for legacy data); intake routes customer notes → officeNotes; officeNotes propagator extended to include quotes; both sections re-locked with new invariants (3 added to section 1, 2 added to section 3).
 - **2026-05-21** — Locked "Scheduling an Estimate" section after gap-fix (estimateNotes auto-include removed from email body, sche-notes hidden) — 40-assertion test suite added.
+- **2026-05-21** — Unlocked sections 1 and 3 to fix the Tim Satron drift bug (stale `quote.officeNotes` from cloud was showing through to Quote Builder display). Fix: lead is the single source of truth — QB and booking form read from `lead.officeNotes` only, never from the denormalized copies. Cloud sync + initial load now self-heal any drifted copies. Both sections re-locked with updated invariants (3 added to section 1, 2 added to section 3). 27-assertion `office_notes_source_of_truth_test.js` added.
