@@ -2496,6 +2496,31 @@ async function loadDB(){
       });
     });
     if(_notesReconciled)console.log('Reconciled '+_notesReconciled+' note field(s) across linked records (incl. quotes)');
+    // LEAD-STATE EXCLUSION SELF-HEAL ON INITIAL LOAD
+    // Same logic as refreshFromSupabase but runs once at app open. Fixes existing drift
+    // (e.g. Susan currently in both booked and completed) the moment the app boots up.
+    try{
+      const _completedLeadIdsLD=new Set((db.completedJobs||[]).map(c=>c.leadId).filter(Boolean));
+      let _ldExclusionFixed=0;
+      let _ldTombstones={};
+      try{_ldTombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');}catch(_){}
+      const _ldToRemove=[];
+      db.bookedJobs=(db.bookedJobs||[]).filter(bj=>{
+        if(!bj||!bj.leadId)return true;
+        if(_completedLeadIdsLD.has(bj.leadId)){
+          _ldToRemove.push(bj.id);
+          _ldTombstones[bj.id]=new Date().toISOString();
+          _ldExclusionFixed++;
+          return false;
+        }
+        return true;
+      });
+      if(_ldExclusionFixed){
+        try{localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(_ldTombstones));}catch(_){}
+        _ldToRemove.forEach(bid=>{try{sbDelete('booked_jobs',bid);}catch(_){}});
+        console.log('Initial-load lead-state self-heal: removed '+_ldExclusionFixed+' bookedJob(s) whose lead is already completed');
+      }
+    }catch(e){console.warn('Initial-load lead-state exclusion failed:',e);}
     // Also save to localStorage as fallback
     localStorage.setItem('movedesk_db',JSON.stringify(db));
     localStorage.setItem('movedesk-db',JSON.stringify(db));
@@ -2968,6 +2993,38 @@ async function refreshFromSupabase(){
       });
       if(_on_fixed)console.log('OfficeNotes self-heal: corrected '+_on_fixed+' record(s) to match lead.officeNotes');
     }catch(e){console.warn('OfficeNotes self-heal failed:',e);}
+    // ───────────────────────────────────────────────────────────────────────────
+    // LEAD-STATE EXCLUSION SELF-HEAL
+    // A lead must exist in exactly ONE of (active lead, booked, completed). If a completedJob
+    // exists for a leadId, ANY bookedJob with the same leadId must be removed permanently —
+    // both from memory and from the cloud, with a tombstone so it can't sync back.
+    // This is the root-cause fix for the recurring Susan/Austin "in both booked and completed"
+    // bug. Previous attempts matched by bookedJobId or name+date and kept missing edge cases.
+    // leadId is the canonical link the lead-state invariant rests on.
+    try{
+      const _completedLeadIds=new Set((db.completedJobs||[]).map(c=>c.leadId).filter(Boolean));
+      let _exclusionFixed=0;
+      let _tombstones={};
+      try{_tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');}catch(_){}
+      const _toRemove=[];
+      db.bookedJobs=(db.bookedJobs||[]).filter(bj=>{
+        if(!bj||!bj.leadId)return true;
+        if(_completedLeadIds.has(bj.leadId)){
+          _toRemove.push(bj.id);
+          _tombstones[bj.id]=new Date().toISOString();
+          _exclusionFixed++;
+          updated++;
+          return false;
+        }
+        return true;
+      });
+      if(_exclusionFixed){
+        try{localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(_tombstones));}catch(_){}
+        // Best-effort cloud delete (won't block on errors — tombstone protects us either way)
+        _toRemove.forEach(bid=>{try{sbDelete('booked_jobs',bid);}catch(_){}});
+        console.log('Lead-state self-heal: removed '+_exclusionFixed+' bookedJob(s) whose lead is already completed');
+      }
+    }catch(e){console.warn('Lead-state exclusion self-heal failed:',e);}
     // ───────────────────────────────────────────────────────────────────────────
     // Self-heal lead statuses based on the freshly-merged booked/completed sets. Catches the
     // case where a completedJob came down from the cloud during a 60-second refresh, but its
@@ -6822,11 +6879,19 @@ function checkBookingStepsDone(){renderBookingChecklist();}
 
 let bookedFilter={text:'',crew:''};
 function renderBooked(){
+  // Build set of leadIds that have a completedJob — those leads must NOT show in Booked Jobs.
+  // This is the lead-state invariant: a lead is in exactly ONE of (lead, booked, completed).
+  // Using leadId as the canonical identifier means we don't depend on name/date string matching
+  // which has failed historically (Austin, Susan x2). leadId is the strongest link.
+  const _completedLeadIds=new Set((db.completedJobs||[])
+    .map(c=>c.leadId)
+    .filter(Boolean));
   // Deduplicate booked jobs — same leadId should only appear once (keep non-draft, most recent)
   const seen=new Set();
   db.bookedJobs=db.bookedJobs.filter(j=>{
     if(!j.leadId){return true;} // keep jobs with no leadId
     if(j._draft)return false; // remove all drafts from display
+    if(_completedLeadIds.has(j.leadId))return false; // already completed — hide
     if(seen.has(j.leadId))return false;
     seen.add(j.leadId);
     return true;
