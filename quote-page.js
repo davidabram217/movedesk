@@ -78,12 +78,10 @@ function renderQuote(q){
     '<div style="font-size:12px;color:#9e9b94;margin-top:8px;line-height:1.6">CareMore Moving &amp; Storage &nbsp;&middot;&nbsp; Cal-T #0190970<br>925 Palou Ave, San Francisco, CA 94124 &nbsp;&middot;&nbsp; (415) 822-8547</div>'+
     '</div>';
 
-  // Notes
-  if(q.notes){
-    html+='<div style="padding:20px 24px;border-bottom:1px solid #e8e4dc">'+
-      '<div style="font-size:14px;color:#444;line-height:1.8">'+esc(q.notes).replace(/\n/g,'<br>')+'</div>'+
-      '</div>';
-  }
+  // Notes — DISABLED. Customer-facing notes are no longer rendered on the public quote page.
+  // The office now types any customer-facing context manually in the confirmation email modal
+  // when sending. Legacy quotes that have q.notes are still saved in storage but not displayed.
+  // To re-enable, restore the if(q.notes){ ... } block.
 
   // Project info
   if(q.projectName||q.moveType||q.size||q.description){
