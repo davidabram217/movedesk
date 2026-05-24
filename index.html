@@ -3729,9 +3729,11 @@ function applyPastedToForm(d){
     const storSel=document.getElementById('nl-storage-select');
     if(storSel&&storSel.value==='no')storSel.value='yes';
   }
-  // Notes — append rather than overwrite if there's already content
+  // Notes — route into the Office notes field (the live, persisted field). Previously this
+  // wrote to nl-notes which is the deprecated dead-end (its content is no longer saved anywhere).
+  // Append rather than overwrite if there's already content.
   if(d.notes){
-    const notesEl=document.getElementById('nl-notes');
+    const notesEl=document.getElementById('nl-office-notes');
     if(notesEl){
       if(notesEl.value){
         if(!notesEl.value.includes(d.notes))notesEl.value=notesEl.value.trim()+'\n\n'+d.notes;

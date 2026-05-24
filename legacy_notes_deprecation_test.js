@@ -76,6 +76,19 @@ check('Refresh migration logs what it did',
 );
 
 console.log('');
+console.log('PART F2: Paste-to-lead routes notes to officeNotes (not deprecated nl-notes)');
+check('applyPastedToForm: d.notes routes into nl-office-notes',
+  /applyPastedToForm[\s\S]+?if\(d\.notes\)[\s\S]{0,200}getElementById\('nl-office-notes'\)/.test(indexHtml)
+);
+check('applyPastedToForm: NO write to nl-notes from d.notes',
+  !/if\(d\.notes\)[\s\S]{0,100}getElementById\('nl-notes'\)/.test(indexHtml)
+);
+check('Public intake (caremore-quote.html) routes d.notes → officeNotes (already correct)',
+  /Customer's "additional notes" from the free quote form route to OFFICE NOTES only/.test(indexHtml) &&
+  /officeNotes:d\.notes\|\|''/.test(indexHtml)
+);
+
+console.log('');
 console.log('PART G: Propagator no longer mirrors lead.notes anywhere');
 check('Propagator: booked source no longer writes lead.notes from emailNote',
   !/lead\.notes=fields\.emailNote/.test(indexHtml)
