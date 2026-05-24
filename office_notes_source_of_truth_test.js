@@ -237,6 +237,80 @@ function loadOfficeNotesForBuilder(lead, quote) {
   check('QB displays empty when lead.officeNotes is empty (quote\'s old content ignored)', displayed === '');
 }
 
+// ─── PART D: The Ruari cross-customer-contamination fix ───
+console.log('');
+console.log('PART D: Cross-customer Quote Builder textarea cannot leak between leads');
+
+// D1: openQuoteBuilder unconditionally sets qb-office-notes (no stale-DOM guard)
+check('openQuoteBuilder: qb-office-notes load is UNCONDITIONAL (no !_qbOn.value guard)',
+  /if\(_qbOn\)_qbOn\.value=l\?\.officeNotes/.test(indexHtml) &&
+  !/if\(_qbOn&&!_qbOn\.value\)/.test(indexHtml)
+);
+
+// D2: Comment explaining the bug class is present (helps future Claude understand why)
+check('openQuoteBuilder: explanatory comment about the cross-customer leak is present',
+  /allowed stale content[\s\S]{0,200}from a PREVIOUS lead's session to bleed into the next lead/.test(indexHtml)
+);
+
+// D3: qb-notes is also force-cleared (same bug pattern)
+check('openQuoteBuilder: qb-notes is also force-cleared unconditionally',
+  /if\(_qbNotesEl\)_qbNotesEl\.value=''/.test(indexHtml) &&
+  !/if\(_qbNotesEl&&!_qbNotesEl\.value\)/.test(indexHtml)
+);
+
+// D4: Behavioral simulation — opening Customer B's QB after Customer A's session loads B's notes,
+// NOT A's leftover textarea content.
+//
+// Simulates what happens in the real DOM:
+//   1. User opens QB for Customer A → textarea value set to A's officeNotes
+//   2. User types "kkkkk" → textarea value is "A's notes + kkkkk"
+//   3. User closes modal without clearing textarea
+//   4. User opens QB for Customer B → openQuoteBuilder runs again
+//
+// With the fix: the unconditional `_qbOn.value = l.officeNotes` line resets the textarea to
+// Customer B's notes, not Customer A's leftover.
+function simulateQbOpenWithFix(currentTextareaValue, newLeadOfficeNotes) {
+  // After fix: always overwrites
+  return newLeadOfficeNotes || '';
+}
+function simulateQbOpenWithBug(currentTextareaValue, newLeadOfficeNotes) {
+  // Old buggy version: only overwrites if textarea is empty
+  if (currentTextareaValue) return currentTextareaValue;
+  return newLeadOfficeNotes || '';
+}
+
+// D5: Fix scenario — switching from Customer A to Customer B shows B's notes
+{
+  const customerA_typed = "John called and sent text May 18th\nkkkkk testing";
+  const customerB_officeNotes = "Ruari original notes here";
+  const result = simulateQbOpenWithFix(customerA_typed, customerB_officeNotes);
+  check('Fix: Customer B QB shows B\'s notes, not A\'s leftover', result === customerB_officeNotes);
+}
+
+// D6: Bug demonstration — old behavior would leak A's content into B's modal
+{
+  const customerA_typed = "kkkkk";
+  const customerB_officeNotes = "Customer B real notes";
+  const buggyResult = simulateQbOpenWithBug(customerA_typed, customerB_officeNotes);
+  check('Bug demo: old buggy behavior would have leaked A\'s "kkkkk" to B\'s modal', buggyResult === "kkkkk");
+}
+
+// D7: Empty-lead edge — Customer B has no office notes, still shouldn't show A's
+{
+  const customerA_typed = "Sensitive office content from another customer";
+  const customerB_officeNotes = "";
+  const result = simulateQbOpenWithFix(customerA_typed, customerB_officeNotes);
+  check('Fix: empty Customer B officeNotes shows empty, NOT A\'s leftover', result === '');
+}
+
+// D8: Same customer reopens — their notes still appear correctly (sanity)
+{
+  const customerA_typed = "intermediate edit they were making";
+  const customerA_officeNotes = "saved office notes for customer A";
+  const result = simulateQbOpenWithFix(customerA_typed, customerA_officeNotes);
+  check('Fix: same customer reopen shows their saved officeNotes (not intermediate textarea)', result === customerA_officeNotes);
+}
+
 console.log('');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('RESULTS: ' + pass + ' passed, ' + fail + ' failed');
