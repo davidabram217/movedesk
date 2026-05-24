@@ -197,15 +197,25 @@ After any change to a locked section, you must re-run the listed test files agai
 2. **Write:** Any change to office notes (in any modal) is applied to the lead first, then `propagateNotesEdits` pushes to all linked quotes/bookedJobs/completedJobs.
 3. **Self-heal:** After every cloud sync (60s) AND on every page load, every quote/bookedJob/completedJob's `officeNotes` is forced to match its lead's `officeNotes`. Even if a stale row comes down from the cloud, the user sees corrected data immediately.
 
-After the 2026-05-21 fixes, notes flow like this:
+**(NEW 2026-05-22) `lead.notes` is fully DEPRECATED.** The office-notes-only consolidation:
+
+- `saveLead` no longer writes to `l.notes`. The hidden `nl-notes` textarea is ignored.
+- New leads are created with `notes:''`.
+- The View Lead modal no longer renders the `l.notes` block — only "🔒 Office notes only".
+- The Call Summary email body no longer auto-includes `l.notes`.
+- `propagateNotesEdits` no longer reads or writes `lead.notes` from any source — completedJob.notes and bookedJob.emailNote are now their own independent fields (not tied to lead.notes).
+- A one-time migration in `loadDB` and `refreshFromSupabase` silently merges any existing `l.notes` content into `l.officeNotes` (preserving both via blank-line separator if both have content). Idempotent.
+
+After the 2026-05-22 fixes, notes flow like this:
 
 - **Intake** — Customer's "additional notes" from the free quote form route into `lead.officeNotes` (NOT `lead.notes`). Set in `index.html` near line 9380.
 - **Office editing** — `nl-office-notes`, `qb-office-notes`, `bj-office-notes` are the only visible notes fields. Each triggers `liveAutosaveNotes` on input → `propagateNotesEdits` pushes the change to lead → all linked quotes → all linked bookedJobs → all linked completedJobs.
 - **Customer-facing** — `q.notes`, `bj.emailNote`, `nl-notes`, `qb-notes`, `bj-crew-notes`, `sche-notes`, `se-notes` are HIDDEN in the UI but kept in DOM/data for legacy records. NO auto-prefill from these anywhere. Customer-facing content is typed manually in the confirmation email modal at send time.
 - **Customer page (`quote.html`)** — does NOT render `q.notes`.
 - **Confirmation email body** — does NOT auto-include `bj.emailNote`. User types directly into the modal.
+- **Call Summary email** — does NOT auto-include `l.notes`.
 
-This is intentional: nothing the customer typed is auto-relayed back to them in quotes or confirmation emails. And nothing stale can show different office notes in different places — the self-heal guarantees consistency.
+This is intentional: nothing the customer typed is auto-relayed back to them in quotes or confirmation emails. And nothing stale can show different office notes in different places — the self-heal guarantees consistency. The legacy `l.notes` field is preserved in old data but no longer read, written, displayed, or propagated anywhere.
 
 ---
 
@@ -224,3 +234,4 @@ _(none yet)_
 - **2026-05-21** — Locked "Scheduling an Estimate" section after gap-fix (estimateNotes auto-include removed from email body, sche-notes hidden) — 40-assertion test suite added.
 - **2026-05-21** — Unlocked sections 1 and 3 to fix the Tim Satron drift bug (stale `quote.officeNotes` from cloud was showing through to Quote Builder display). Fix: lead is the single source of truth — QB and booking form read from `lead.officeNotes` only, never from the denormalized copies. Cloud sync + initial load now self-heal any drifted copies. Both sections re-locked with updated invariants (3 added to section 1, 2 added to section 3). 27-assertion `office_notes_source_of_truth_test.js` added.
 - **2026-05-22** — Unlocked section 1 to fix the Ruari cross-customer contamination bug. Root cause: `openQuoteBuilder` had `if(_qbOn && !_qbOn.value)` guard which preserved stale DOM textarea content between leads — typing notes for Customer A then opening Customer B's QB carried A's text into B's modal, and the next save permanently wrote A's notes to B's lead. Fix: unconditional load from `lead.officeNotes` (no DOM-state preservation). Same treatment for hidden `qb-notes` field. Re-locked with new invariant #17. Test suite extended: `office_notes_source_of_truth_test.js` now 34 assertions (up from 27), `office_notes_only_test.js` test updated to assert the unconditional clear.
+- **2026-05-22** — `lead.notes` fully deprecated (office-notes-only consolidation). 5 fixes: (1) `saveLead` no longer reads `nl-notes` or writes `l.notes`; (2) View modal no longer renders `l.notes` block; (3) Call Summary email no longer auto-includes `l.notes`; (4) one-time migration in `loadDB` + `refreshFromSupabase` silently merges any existing `l.notes` content into `l.officeNotes`; (5) `propagateNotesEdits` no longer reads/writes `lead.notes` from any source. `cj.notes` and `bj.emailNote` are now their own independent fields, no longer tied to `lead.notes`. New `legacy_notes_deprecation_test.js` (34 assertions). All 13 suites passing (419 total).
