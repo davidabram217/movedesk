@@ -666,7 +666,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
               <div class="form-group"><label>Number of movers</label>
                 <select id="ai-men" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
-                  <option>2</option><option>3</option><option>4</option><option>5</option>
+                  <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
                 </select>
               </div>
             </div>
@@ -11191,13 +11191,19 @@ function openQuoteBuilder(leadId){
       _banner.style.display='none';
     }
   }
-  // Check for existing quote on this lead — draft, sent, or accepted
+  // Check for existing DRAFT quote on this lead. We deliberately ignore sent/accepted quotes
+  // here — those are immutable snapshots accessed via the Estimates list, not via Build Quote.
+  // If only sent/accepted quotes exist for this lead, we fall through and create a fresh draft.
   if(l&&db.quotes){
-    const existing=db.quotes.find(q=>q.leadId===leadId&&q.status==='draft')
-      ||db.quotes.find(q=>q.leadId===leadId&&q.status==='sent')
-      ||db.quotes.find(q=>q.leadId===leadId&&q.status==='accepted');
+    const existing=db.quotes.find(q=>q.leadId===leadId&&q.status==='draft');
     if(existing){currentQuoteId=existing.id;loadQuoteIntoBuilder(existing);openModal('quote-builder');return;}
   }
+  // No active draft — create a fresh blank draft. Note if there are previous sent quotes
+  // we want to flag that (banner shown in the Builder so user knows to check Estimates).
+  currentQuoteId=null; // explicit: no current quote yet; the first save will create it
+  const _priorSentQuotes=(db.quotes||[]).filter(q=>q.leadId===leadId&&(q.status==='sent'||q.status==='accepted'));
+  window._qbPriorSentCount=_priorSentQuotes.length;
+  window._qbPriorSentLatest=_priorSentQuotes.length?_priorSentQuotes.sort((a,b)=>(b.sentAt||'').localeCompare(a.sentAt||''))[0]:null;
   // Default values from lead — fresh new quote
   const rate=db.settings.rateBase||225;
   qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromParking:l?l.parkingLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toParking:l?l.parkingUnload||'':'',toType:l?l.toType:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
@@ -12015,9 +12021,25 @@ function saveQuote(status,opts){
   const t=calcQbTotals();
   // Generate a public ID for the shareable link (keep existing one if re-saving)
   const existingQ=currentQuoteId?db.quotes.find(q=>q.id===currentQuoteId):null;
-  // ── HARD LOCK (invariant #2 from header) ──
-  if(existingQ&&(existingQ.status==='sent'||existingQ.status==='accepted')&&!opts.force&&status!=='sent'&&status!=='accepted'){
-    return existingQ;
+  // ─── ABSOLUTE HARD LOCK ───────────────────────────────────────────────────
+  // A quote with status 'sent' or 'accepted' is IMMUTABLE. The only way to write to it is
+  // via the explicit Send Email action, which passes {fromSendButton:true}. Any other call
+  // path — Preview, openQuoteGmail prep, autosave, accidental re-render — returns the existing
+  // quote unchanged. This is the root-cause fix for the Matt corruption bug: previously,
+  // {force:true} could bypass the lock from anywhere, so Preview-clicking on a default-state
+  // form would clobber the saved quote with empty values. Now the only authorized writer
+  // is the genuine Send button, which is the only path that needs to update a sent quote
+  // (specifically, to re-snapshot just before EmailJS sends).
+  if(existingQ&&(existingQ.status==='sent'||existingQ.status==='accepted')){
+    if(!opts.fromSendButton){
+      // Silently return the existing quote — no mutation. Any caller wanting to "edit a sent
+      // quote" should instead clone it to a fresh draft via cloneSentQuoteToDraft().
+      return existingQ;
+    }
+    // fromSendButton path: only allowed when status=='sent' (the genuine Send action)
+    if(status!=='sent'&&status!=='accepted'){
+      return existingQ;
+    }
   }
   const publicId=existingQ?.publicId||('q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
   // Expires 3 months from now
@@ -12092,8 +12114,20 @@ function viewAcceptedQuote(quoteId){
 
 function previewQuote(){
   if(!qbDays||!qbDays.length){showToast('Please add at least one day to the quote.');return;}
-  // force:true so previewing a re-opened sent quote captures any edits made before resend
-  const _saved=saveQuote('draft',{force:true});
+  // Check if the current quote is sent/accepted (immutable) or a draft
+  const _existing=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+  const _isFrozen=_existing&&(_existing.status==='sent'||_existing.status==='accepted');
+  let _saved;
+  if(_isFrozen){
+    // SENT/ACCEPTED: NEVER re-save. Render the existing saved quote directly. This is the
+    // root-cause fix for the Matt corruption bug. Previously, force:true here would clobber
+    // the saved quote with whatever was in the form (which could be default empty values).
+    _saved=_existing;
+  } else {
+    // DRAFT: save the current form state and render from the saved object so preview matches
+    // exactly what the customer will see if/when this draft is sent.
+    _saved=saveQuote('draft');
+  }
   // Render the preview from the SAVED quote object — not from form state directly. This is
   // the same object the customer's page will fetch from Supabase. By rendering preview from
   // the same data structure that the customer sees, we make it structurally impossible for
@@ -12103,15 +12137,19 @@ function previewQuote(){
   closeModal('quote-builder');
   // Check if quote was already sent
   const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
-  const alreadySent=q&&q.status==='sent';
+  const alreadySent=q&&(q.status==='sent'||q.status==='accepted');
   const sentDate=q&&q.sentAt?fmtDate(q.sentAt):(q&&q.createdAt?fmtDate(q.createdAt):'');
   const footer=document.getElementById('quote-preview-footer');
   if(alreadySent){
+    // FROZEN view — no "Back to edit" because there's nothing to edit. The only mutation
+    // path is cloneSentQuoteToDraft, which creates a NEW draft from this quote.
+    const _link=q.publicId?`<a href="https://davidabram217.github.io/movedesk/quote.html?id=${q.publicId}" target="_blank" class="btn btn-secondary" style="text-decoration:none;font-size:12.5px">🔗 Open customer link</a>`:'';
     footer.innerHTML=`
-      <button class="btn btn-secondary" onclick="closeModal('quote-preview');openModal('quote-builder')">← Back to edit</button>
-      <div style="display:flex;align-items:center;gap:10px;flex:1;justify-content:flex-end">
-        <div style="padding:7px 14px;background:var(--accent-light);border-radius:var(--radius);font-size:12.5px;color:var(--accent);font-weight:500">✓ Sent${sentDate?' on '+sentDate:''}</div>
-        <button class="btn btn-secondary" onclick="resendQuoteConfirm()" style="font-size:12px">↩ Resend?</button>
+      <button class="btn btn-secondary" onclick="closeModal('quote-preview')">← Close</button>
+      <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-wrap:wrap">
+        <div style="padding:7px 14px;background:var(--accent-light);border-radius:var(--radius);font-size:12.5px;color:var(--accent);font-weight:500">🔒 ${q.status==='accepted'?'Accepted':'Sent'}${sentDate?' '+sentDate:''} — locked</div>
+        ${_link}
+        <button class="btn btn-primary" onclick="cloneSentQuoteToDraft('${q.id}')" style="font-size:12.5px">📋 Start new quote based on this one</button>
       </div>`;
   } else {
     footer.innerHTML=`
@@ -12121,14 +12159,11 @@ function previewQuote(){
   openModal('quote-preview');
 }
 
+// resendQuoteConfirm is now dead code (the Resend button has been replaced by
+// "Start new quote based on this one"). Keeping the function shell so any stale onclick
+// references don't throw, but it just shows a notice now.
 function resendQuoteConfirm(){
-  const footer=document.getElementById('quote-preview-footer');
-  footer.innerHTML=`
-    <div style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-end;flex-wrap:wrap">
-      <span style="font-size:12.5px;color:var(--text2)">Are you sure you want to resend this quote?</span>
-      <button class="btn btn-secondary btn-sm" onclick="previewQuote()">No, cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="openQuoteGmail()">Yes, resend →</button>
-    </div>`;
+  showToast('Sent quotes are now locked. Use "Start new quote based on this one" to send updated numbers.');
 }
 
 function buildQuotePlainText(){
@@ -12212,10 +12247,15 @@ async function openQuoteGmail(){
   if(!sentBy){showToast('Please fill in who is sending this quote (Sent by field).');return;}
   const estType=document.getElementById('qb-estimate-type')?.value;
   if(!estType){showToast('Please select an estimate type (Onsite, Video, FaceTime, or Unseen).');return;}
-  // For resend flows, the existing quote is locked (status='sent'). Pass force:true so the
-  // save can overwrite it with the current form state. For first-time sends, the lock isn't
-  // in effect anyway (status is 'draft'), so this is harmless.
-  const q=saveQuote('draft',{force:true});
+  // Refuse if the underlying quote is already sent/accepted (caller shouldn't have reached here,
+  // but the new immutability rule means we never auto-save over a sent quote).
+  const _existing=currentQuoteId?db.quotes.find(q=>q.id===currentQuoteId):null;
+  if(_existing&&(_existing.status==='sent'||_existing.status==='accepted')){
+    showToast('This quote is already sent and locked. Use "Start new quote based on this one" to send updated numbers.');
+    return;
+  }
+  // For drafts the hard lock isn't engaged, so a plain saveQuote('draft') captures the form.
+  const q=saveQuote('draft');
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const name=l?l.name.split(' ')[0]:'there';
   const to=q.customerEmail||l?.email||'';
@@ -12259,12 +12299,14 @@ async function sendQuoteEmail(){
   clearTimeout(_saveTimer); // kill the debounced DB save too — we're doing it directly
   // Re-capture the quote from current form state. This is CRITICAL: if anything modified the
   // form between openQuoteGmail and now (or if openQuoteGmail's save was overwritten by a
-  // cloud refresh merge), this guarantees the latest form values are what we send. Pass
-  // force:true so the hard lock can't block this (it was blocking edits to sent quotes).
+  // cloud refresh merge), this guarantees the latest form values are what we send.
+  // fromSendButton:true is the ONLY authorized way to update a sent/accepted quote — this
+  // matters only for double-click race protection (first click flips to sent, second click
+  // re-saves cleanly). All other paths now refuse to mutate sent quotes.
   let q=null;
   try{
     if(currentQuoteId&&qbDays&&qbDays.length){
-      q=saveQuote('sent',{force:true});
+      q=saveQuote('sent',{fromSendButton:true});
     } else {
       // Fallback: form state isn't available (shouldn't happen, but just in case)
       q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
