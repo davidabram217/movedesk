@@ -56,7 +56,7 @@ check('confirmScheduleEstimate does NOT immediately flip status if email or cal 
 
 // A5: Both checkboxes drive the flow
 check('confirmScheduleEstimate: if doEmail true → opens estimate-email modal',
-  /if\(doEmail\)\{[\s\S]{0,200}buildEstimateEmail\([\s\S]{0,200}openModal\('estimate-email'\)/.test(indexHtml)
+  /if\(doEmail\)\{[\s\S]{0,500}buildEstimateEmail\([\s\S]{0,500}openModal\('estimate-email'\)/.test(indexHtml)
 );
 check('confirmScheduleEstimate: if !doEmail && doCal → shows cal prompt',
   /\} else if\(doCal\)\{[\s\S]{0,80}showEstimateCalPrompt/.test(indexHtml)
@@ -72,13 +72,24 @@ check('Email modal stashes "showCal" flag to chain into cal step after email',
 
 // A7: doneEstimateEmail marks email sent + chains to cal step or flips status
 check('doneEstimateEmail sets estimateEmailSent=true',
-  /function doneEstimateEmail\(\)[\s\S]{0,300}l\.estimateEmailSent=true/.test(indexHtml)
+  /function doneEstimateEmail\(\)[\s\S]{0,1200}l\.estimateEmailSent=true/.test(indexHtml)
 );
 check('doneEstimateEmail: if showCal → shows cal prompt',
-  /function doneEstimateEmail\(\)[\s\S]{0,500}if\(showCal\)\{[\s\S]{0,80}showEstimateCalPrompt/.test(indexHtml)
+  /function doneEstimateEmail\(\)[\s\S]{0,1500}if\(showCal\)\{[\s\S]{0,80}showEstimateCalPrompt/.test(indexHtml)
 );
 check('doneEstimateEmail: if !showCal → flips status to Estimate scheduled',
-  /function doneEstimateEmail\(\)[\s\S]{0,800}\} else \{[\s\S]{0,200}l\.status='Estimate scheduled'/.test(indexHtml)
+  /function doneEstimateEmail\(\)[\s\S]{0,1800}\} else \{[\s\S]{0,200}l\.status='Estimate scheduled'/.test(indexHtml)
+);
+
+// A7a (NEW): doneEstimateEmail has the "did you actually send?" guard
+check('doneEstimateEmail: warns if user clicks Done without sending email',
+  /function doneEstimateEmail\(\)[\s\S]{0,500}if\(!window\._estimateEmailSentInModal\)\{[\s\S]{0,500}You haven[\\'\u2019]+t clicked the[\s\S]{0,200}Send Email/.test(indexHtml)
+);
+check('openInGmail: sets _estimateEmailSentInModal=true on successful send',
+  /async function openInGmail[\s\S]+?showToast\('\u2713 Email sent[\s\S]{0,200}window\._estimateEmailSentInModal=true/.test(indexHtml)
+);
+check('confirmScheduleEstimate: resets _estimateEmailSentInModal flag on modal open',
+  /buildEstimateEmail\(currentScheduleEstimateLeadId\);[\s\S]{0,500}window\._estimateEmailSentInModal=false[\s\S]{0,100}openModal\('estimate-email'\)/.test(indexHtml)
 );
 
 // A8: Calendar step marks flag + finalizes

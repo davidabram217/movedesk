@@ -5784,6 +5784,9 @@ async function confirmScheduleEstimate(){
   if(doEmail){
     buildEstimateEmail(currentScheduleEstimateLeadId);
     document.getElementById('modal-estimate-email').dataset.showCal=doCal?'1':'0';
+    // Reset the "email sent in modal" flag so doneEstimateEmail can detect if the user
+    // clicks Done without first clicking Send Email
+    window._estimateEmailSentInModal=false;
     openModal('estimate-email');
   } else if(doCal){
     showEstimateCalPrompt(currentScheduleEstimateLeadId);
@@ -5808,10 +5811,22 @@ function convertTime12to24(time12){
 
 
 function doneEstimateEmail(){
+  // GUARD: If the user didn't actually click the "Send Email" button (which would set
+  // window._estimateEmailSentInModal=true via openInGmail), warn before proceeding. This
+  // catches the common UX trap where users click the green primary "Done" button thinking
+  // it sends the email, but it only marks the lead as having had email sent. Without this
+  // warning, the customer never receives anything.
+  if(!window._estimateEmailSentInModal){
+    if(!confirm('You haven\'t clicked the "✉ Send Email" button yet — no email has been sent to the customer through the app.\n\nIf you sent it manually some other way (e.g. typed it into Gmail and sent), click OK to continue.\n\nOtherwise click Cancel and use the "✉ Send Email" button below.')){
+      return;
+    }
+  }
   const showCal=document.getElementById('modal-estimate-email').dataset.showCal==='1';
   const l=db.leads.find(x=>x.id===currentScheduleEstimateLeadId);
   if(l){l.estimateEmailSent=true;saveDB();}
   closeModal('estimate-email');
+  // Reset the flag for the next modal open
+  window._estimateEmailSentInModal=false;
   if(showCal){
     showEstimateCalPrompt(currentScheduleEstimateLeadId);
   } else {
@@ -5995,10 +6010,16 @@ async function openInGmail(toId,subjectId,bodyId){
     await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,{to_email:to,to_name:to,from_name:'CareMore Moving and Storage',reply_to:OFFICE_EMAIL,subject:subject,message:body,html_content:htmlContent});
     await emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{to_email:OFFICE_EMAIL,to_name:'CareMore Moving and Storage',from_name:'CareMore Moving and Storage',reply_to:OFFICE_EMAIL,subject:'[Copy] '+subject,message:body,html_content:htmlContent});
     showToast('✓ Email sent to '+to);
+    // Mark that an email actually went out this session. doneEstimateEmail() uses this to
+    // avoid the "are you sure you sent it?" warning when the user really did send.
+    window._estimateEmailSentInModal=true;
   }catch(e){
     console.warn('EmailJS failed, falling back to Gmail:',e);
     window.open('https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(to)+'&cc='+encodeURIComponent(OFFICE_EMAIL)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
     showToast('Gmail opened — send the email then click Mark as sent');
+    // Also count Gmail fallback as "sent in modal" — user is expected to complete the send
+    // in the Gmail tab. False negative here would over-warn; false positive is rare.
+    window._estimateEmailSentInModal=true;
   }
 }
 
