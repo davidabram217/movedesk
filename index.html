@@ -1862,6 +1862,9 @@ Respecting locks is the only thing that keeps known-good behavior stable.
            has context while building the quote. Populated by openQuoteBuilder(). Internal —
            does NOT get sent to the customer. -->
       <div id="qb-lead-notes-banner" style="display:none;margin-bottom:18px"></div>
+      <!-- Prior-sent-quote banner: shown when this lead already has 1+ sent/accepted quote(s)
+           and the user is starting a new draft. Helps the user remember they've quoted before. -->
+      <div id="qb-prior-quote-banner" style="display:none;margin-bottom:14px"></div>
       
       <div style="display:flex;gap:8px;margin-bottom:20px">
         <button id="qb-single-btn" class="btn btn-primary btn-sm" onclick="setJobType('single')">Single day</button>
@@ -11196,14 +11199,16 @@ function openQuoteBuilder(leadId){
   // If only sent/accepted quotes exist for this lead, we fall through and create a fresh draft.
   if(l&&db.quotes){
     const existing=db.quotes.find(q=>q.leadId===leadId&&q.status==='draft');
-    if(existing){currentQuoteId=existing.id;loadQuoteIntoBuilder(existing);openModal('quote-builder');return;}
+    if(existing){
+      currentQuoteId=existing.id;
+      loadQuoteIntoBuilder(existing);
+      _renderPriorSentBanner(leadId,existing.id);
+      openModal('quote-builder');
+      return;
+    }
   }
-  // No active draft — create a fresh blank draft. Note if there are previous sent quotes
-  // we want to flag that (banner shown in the Builder so user knows to check Estimates).
+  // No active draft — create a fresh blank draft.
   currentQuoteId=null; // explicit: no current quote yet; the first save will create it
-  const _priorSentQuotes=(db.quotes||[]).filter(q=>q.leadId===leadId&&(q.status==='sent'||q.status==='accepted'));
-  window._qbPriorSentCount=_priorSentQuotes.length;
-  window._qbPriorSentLatest=_priorSentQuotes.length?_priorSentQuotes.sort((a,b)=>(b.sentAt||'').localeCompare(a.sentAt||''))[0]:null;
   // Default values from lead — fresh new quote
   const rate=db.settings.rateBase||225;
   qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromParking:l?l.parkingLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toParking:l?l.parkingUnload||'':'',toType:l?l.toType:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
@@ -11231,7 +11236,39 @@ function openQuoteBuilder(leadId){
   const _qbCr=document.getElementById('qb-cash-rate');if(_qbCr)_qbCr.value='';
   const _qbEt=document.getElementById('qb-estimate-type');if(_qbEt)_qbEt.value=l?.estimateType||'';
   setJobType('single');
+  _renderPriorSentBanner(leadId,null);
   openModal('quote-builder');
+}
+
+// Render the "prior sent quote(s) exist for this lead" banner inside the Quote Builder.
+// Called from every Builder entry point. Hides the banner when there are no prior sent quotes
+// or when currentDraftId itself is a clone of a prior quote (we don't want duplicate banners).
+function _renderPriorSentBanner(leadId,currentDraftId){
+  const banner=document.getElementById('qb-prior-quote-banner');
+  if(!banner)return;
+  const priors=(db.quotes||[]).filter(q=>q.leadId===leadId&&(q.status==='sent'||q.status==='accepted'));
+  if(!priors.length){banner.style.display='none';banner.innerHTML='';return;}
+  // Pick the most-recently-sent prior quote
+  const latest=priors.sort((a,b)=>{
+    const aSent=a.sentAt||a.createdAt||'';
+    const bSent=b.sentAt||b.createdAt||'';
+    return bSent.localeCompare(aSent);
+  })[0];
+  const latestMin=Number(latest.totalMin)||0;
+  const latestMax=Number(latest.totalMax)||0;
+  const _amt=latestMin?(latestMax&&latestMax!==latestMin?'$'+latestMin.toLocaleString()+' – $'+latestMax.toLocaleString():'$'+latestMin.toLocaleString()):'';
+  const _date=latest.sentAt?fmtDate(latest.sentAt):(latest.createdAt?fmtDate(latest.createdAt):'');
+  const _countStr=priors.length>1?`<strong>${priors.length} previous sent quotes</strong>`:'<strong>1 previous sent quote</strong>';
+  const _latestLine=`Latest: ${_amt||'(no total)'}${_date?', sent '+_date:''}`;
+  banner.style.display='block';
+  banner.innerHTML=`
+    <div style="padding:10px 14px;background:var(--surface2);border-left:3px solid var(--accent);border-radius:var(--radius);font-size:12.5px;line-height:1.5">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="color:var(--text2)">🔒 This lead already has ${_countStr} on file. ${_latestLine}.</span>
+        <button class="btn btn-secondary btn-sm" style="font-size:11px;padding:3px 9px;margin-left:auto" onclick="closeModal('quote-builder');previewQuoteFromList('${latest.id}')">View latest</button>
+        <button class="btn btn-secondary btn-sm" style="font-size:11px;padding:3px 9px;color:var(--accent);border-color:var(--accent)" onclick="closeModal('quote-builder');cloneSentQuoteToDraft('${latest.id}')">📋 New based on latest</button>
+      </div>
+    </div>`;
 }
 
 function loadQuoteIntoBuilder(q){
@@ -12166,6 +12203,65 @@ function resendQuoteConfirm(){
   showToast('Sent quotes are now locked. Use "Start new quote based on this one" to send updated numbers.');
 }
 
+// Clone a sent/accepted quote's editable data into a fresh DRAFT quote.
+// Used when the user wants to send updated numbers based on a previous quote. The OLD quote
+// is left completely untouched — it keeps its publicId, its customer link, its numbers.
+// The NEW draft gets:
+//   - A brand-new id
+//   - A brand-new publicId (so the customer link is different)
+//   - status='draft' (so it's freely editable until sent)
+//   - All form-relevant data deep-cloned from the source
+// Then opens the Quote Builder with the new draft loaded.
+function cloneSentQuoteToDraft(sourceQuoteId){
+  const src=(db.quotes||[]).find(q=>q.id===sourceQuoteId);
+  if(!src){showToast('Source quote not found');return;}
+  if(src.status!=='sent'&&src.status!=='accepted'){
+    // The user shouldn't reach this for drafts, but handle gracefully
+    showToast('This quote is a draft — just open it for editing.');return;
+  }
+  // Refuse to clone if there's already an active draft for the same lead (would be ambiguous)
+  const existingDraft=(db.quotes||[]).find(q=>q.leadId===src.leadId&&q.status==='draft');
+  if(existingDraft){
+    if(!confirm('You already have a draft quote in progress for this lead. Clicking OK will open that existing draft instead. (To start completely fresh from this sent quote, first delete the existing draft.)')){
+      return;
+    }
+    currentQuoteId=existingDraft.id;
+    currentQuoteLeadId=existingDraft.leadId||null;
+    loadQuoteIntoBuilder(existingDraft);
+    closeModal('quote-preview');
+    openModal('quote-builder');
+    return;
+  }
+  // Build the new draft by deep-cloning the source's editable data and generating fresh IDs
+  const newDraft=JSON.parse(JSON.stringify(src));
+  newDraft.id=uid();
+  newDraft.publicId='q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  newDraft.status='draft';
+  newDraft.sentAt='';
+  newDraft.acceptedAt=null;
+  newDraft.createdAt=new Date().toISOString().split('T')[0];
+  newDraft._localEditedAt=new Date().toISOString();
+  // Fresh expiry: 3 months from now
+  const _exp=new Date();_exp.setMonth(_exp.getMonth()+3);
+  newDraft.expiresAt=_exp.toISOString().split('T')[0];
+  // Drop any send-history artifacts so the new draft starts clean
+  delete newDraft.viewedAt;
+  delete newDraft.declinedAt;
+  delete newDraft._emailDraft;
+  // Note that this draft was cloned from a prior sent quote — handy for analytics / UI hint
+  newDraft.clonedFromQuoteId=src.id;
+  // Insert into db.quotes
+  db.quotes.push(newDraft);
+  // Set as current and open Builder
+  currentQuoteId=newDraft.id;
+  currentQuoteLeadId=newDraft.leadId||null;
+  saveDB();
+  loadQuoteIntoBuilder(newDraft);
+  closeModal('quote-preview');
+  openModal('quote-builder');
+  showToast('✓ Started a fresh draft from the previous quote. Edit and send when ready.');
+}
+
 function buildQuotePlainText(){
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
   const t=calcQbTotals();
@@ -12462,10 +12558,11 @@ function renderQuotes(){
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${q.sentBy||'—'}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${statusBadgeQ(q.status)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-secondary btn-sm" onclick="openQuoteFromList('${q.id}')">Edit</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${q.status==='draft'?`<button class="btn btn-secondary btn-sm" onclick="openQuoteFromList('${q.id}')">Edit</button>`:''}
           <button class="btn btn-secondary btn-sm" onclick="previewQuoteFromList('${q.id}')">Preview</button>
           ${q.status==='draft'?`<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--accent);border-color:var(--accent)" onclick="markQuoteSent('${q.id}')">✓ Mark sent</button>`:''}
+          ${(q.status==='sent'||q.status==='accepted')?`<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--accent);border-color:var(--accent)" onclick="cloneSentQuoteToDraft('${q.id}')" title="Start a new draft based on this quote">📋 New from this</button>`:''}
           <button class="btn btn-danger btn-sm" onclick="deleteQuote('${q.id}')">✕</button>
         </div>
       </td>
@@ -12495,6 +12592,11 @@ function markQuoteSent(quoteId){
 function openQuoteFromList(quoteId){
   const q=db.quotes.find(x=>x.id===quoteId);
   if(!q)return;
+  // Sent/accepted quotes are immutable. Redirect to the read-only preview instead of opening
+  // the editable Builder.
+  if(q.status==='sent'||q.status==='accepted'){
+    return previewQuoteFromList(quoteId);
+  }
   currentQuoteId=quoteId;
   currentQuoteLeadId=q.leadId||null;
   loadQuoteIntoBuilder(q);
@@ -12504,6 +12606,28 @@ function openQuoteFromList(quoteId){
 function previewQuoteFromList(quoteId){
   const q=db.quotes.find(x=>x.id===quoteId);
   if(!q)return;
+  const _isFrozen=q.status==='sent'||q.status==='accepted';
+  const lead=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
+  if(_isFrozen){
+    // SENT/ACCEPTED: render directly from the quote object — no form load, no save. This is
+    // structurally identical to what the customer sees at their link.
+    document.getElementById('quote-preview-body').innerHTML=renderQuoteHTML({...q,_preview:true},lead);
+    const sentDate=q.sentAt?fmtDate(q.sentAt):(q.createdAt?fmtDate(q.createdAt):'');
+    const footer=document.getElementById('quote-preview-footer');
+    if(footer){
+      const _link=q.publicId?`<a href="https://davidabram217.github.io/movedesk/quote.html?id=${q.publicId}" target="_blank" class="btn btn-secondary" style="text-decoration:none;font-size:12.5px">🔗 Open customer link</a>`:'';
+      footer.innerHTML=`
+        <button class="btn btn-secondary" onclick="closeModal('quote-preview')">← Close</button>
+        <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:flex-end;flex-wrap:wrap">
+          <div style="padding:7px 14px;background:var(--accent-light);border-radius:var(--radius);font-size:12.5px;color:var(--accent);font-weight:500">🔒 ${q.status==='accepted'?'Accepted':'Sent'}${sentDate?' '+sentDate:''} — locked</div>
+          ${_link}
+          <button class="btn btn-primary" onclick="cloneSentQuoteToDraft('${q.id}')" style="font-size:12.5px">📋 Start new quote based on this one</button>
+        </div>`;
+    }
+    openModal('quote-preview');
+    return;
+  }
+  // DRAFT: existing behavior — load the form and render from form state (so user can hop back to edit)
   currentQuoteId=quoteId;
   currentQuoteLeadId=q.leadId||null;
   loadQuoteIntoBuilder(q);
