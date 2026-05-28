@@ -1237,6 +1237,16 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="modal-body" oninput="cjAutoSave()" onchange="cjAutoSave()">
       <div id="complete-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div>
 
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— auto-filled from the booking; edit if needed. Used for AI quote training.</span></div>
+      <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="form-group"><label>Home size</label><select id="cj-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
+        <div class="form-group"><label>Square footage</label><input type="number" id="cj-sqft" placeholder="e.g. 800"></div>
+        <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Storage Out</option><option>Internal</option></select></div>
+        <div class="form-group"><label></label><div style="height:1px"></div></div>
+        <div class="form-group"><label>Access at load</label><select id="cj-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="cj-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+      </div>
+
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job info</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Crew leader</label><input type="text" id="cj-crew" placeholder="e.g. John" list="cj-crew-list"><datalist id="cj-crew-list"><option value="John"><option value="Dave"></datalist></div>
@@ -1267,6 +1277,25 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Damage / claim ($)</label><input type="number" id="cj-damage" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="cj-rate" placeholder="e.g. 145"></div>
         <div class="form-group"><label>Yelp deal discount ($)</label><input type="number" id="cj-yelp" placeholder="0.00" oninput="calcTotal()"></div>
+      </div>
+
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Miscellaneous charges <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— storage, COI letters, one-off fees. Counts toward total. Check the AI box only if it's representative of the move work.</span></div>
+      <div id="cj-misc-rows" style="margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" id="cj-misc-1-label" placeholder="Description (e.g. 12mo storage)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+          <input type="number" id="cj-misc-1-amount" placeholder="0.00" step="0.01" oninput="calcTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="cj-misc-1-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" id="cj-misc-2-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+          <input type="number" id="cj-misc-2-amount" placeholder="0.00" step="0.01" oninput="calcTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="cj-misc-2-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" id="cj-misc-3-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+          <input type="number" id="cj-misc-3-amount" placeholder="0.00" step="0.01" oninput="calcTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="cj-misc-3-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+        </div>
       </div>
 
       <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px">
@@ -7607,7 +7636,10 @@ function calcTotal(){
   const ids=['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage'];
   const discount=Number(document.getElementById('cj-yelp').value)||0;
   const sum=ids.reduce((s,id)=>s+(Number(document.getElementById(id).value)||0),0);
-  let subtotal=Math.max(0,sum-discount);
+  // Add miscellaneous charges (3 rows). Each counts toward subtotal and is subject to CC surcharge.
+  const miscIds=['cj-misc-1-amount','cj-misc-2-amount','cj-misc-3-amount'];
+  const miscSum=miscIds.reduce((s,id)=>{const el=document.getElementById(id);return s+(el?Number(el.value)||0:0);},0);
+  let subtotal=Math.max(0,sum+miscSum-discount);
   // Credit card surcharge — 3.5% of the subtotal added on top when payment method is CC
   const _payment=document.getElementById('cj-payment')?.value||'';
   const _ccFee=(_payment==='Credit card')?Math.round(subtotal*0.035*100)/100:0;
@@ -8100,7 +8132,22 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
 // MULTI-DAY ROUTING — if this booked job is multi-day, open the dedicated multi-day modal
 // instead of the single-day form. Keeps single-day completion behavior fully unchanged.
 if(j.multiDay||((j.quoteDays||[]).length>1)){return openCompleteMultiDay(jobId);}
-document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
+document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes','cj-sqft','cj-misc-1-label','cj-misc-1-amount','cj-misc-2-label','cj-misc-2-amount','cj-misc-3-label','cj-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers','cj-size','cj-movetype','cj-access-load','cj-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['cj-misc-1-ai','cj-misc-2-ai','cj-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
+  // Pre-fill the new "Job context" fields from the booked job, with the linked lead as a
+  // fallback. This makes the completion form a single place to confirm/correct the AI training
+  // record — even if size/access/movetype were never set on the original lead/booking.
+  const _lead=j.leadId?db.leads.find(x=>x.id===j.leadId):null;
+  const _pick=(...vals)=>vals.find(v=>v!=null&&v!=='')||'';
+  const _sizeEl=document.getElementById('cj-size');
+  if(_sizeEl)_sizeEl.value=_pick(j.size,_lead?_lead.size:'');
+  const _sqftEl=document.getElementById('cj-sqft');
+  if(_sqftEl)_sqftEl.value=_pick(j.sqft,_lead?_lead.sqft:'');
+  const _movetypeEl=document.getElementById('cj-movetype');
+  if(_movetypeEl)_movetypeEl.value=_pick(j.moveType,_lead?_lead.moveType:'');
+  const _accessLoadEl=document.getElementById('cj-access-load');
+  if(_accessLoadEl)_accessLoadEl.value=_pick(j.accessLoad,_lead?_lead.accessLoad:'');
+  const _accessUnloadEl=document.getElementById('cj-access-unload');
+  if(_accessUnloadEl)_accessUnloadEl.value=_pick(j.accessUnload,_lead?_lead.accessUnload:'');
   // Pre-fill packing scope from the booked job (which inherits from the lead). The packer
   // will confirm or change this on the completion form — that's what gets recorded.
   const _packEl=document.getElementById('cj-packing');
@@ -8148,15 +8195,33 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const subtotalIds=['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage'];
     const yelp=Number(document.getElementById('cj-yelp')?.value)||0;
     const subSum=subtotalIds.reduce((s,id)=>s+(Number(document.getElementById(id)?.value)||0),0);
-    const subtotal=Math.max(0,subSum-yelp);
+    // Include misc charges in the subtotal so CC surcharge math matches calcTotal()
+    const miscSubIds=['cj-misc-1-amount','cj-misc-2-amount','cj-misc-3-amount'];
+    const miscSubSum=miscSubIds.reduce((s,id)=>{const el=document.getElementById(id);return s+(el?Number(el.value)||0:0);},0);
+    const subtotal=Math.max(0,subSum+miscSubSum-yelp);
     return Math.round(subtotal*0.035*100)/100;
   })();
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:j?j.size:'',sqft:j?j.sqft:null,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:j?j.moveType:'',from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:j?j.accessLoad:'',accessUnload:j?j.accessUnload:'',total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const _cjSize=document.getElementById('cj-size')?.value||(j?j.size:'')||'';
+  const _cjSqft=document.getElementById('cj-sqft')?.value||(j?j.sqft:null)||null;
+  const _cjMoveType=document.getElementById('cj-movetype')?.value||(j?j.moveType:'')||'';
+  const _cjAccessLoad=document.getElementById('cj-access-load')?.value||(j?j.accessLoad:'')||'';
+  const _cjAccessUnload=document.getElementById('cj-access-unload')?.value||(j?j.accessUnload:'')||'';
+  // Build the miscellaneous-charges array from the 3 rows. Drop any row that has no amount
+  // (a label without an amount is incomplete and shouldn't be saved). Each row carries an
+  // aiTraining flag so the user can opt each charge in or out of the training record.
+  const _miscCharges=[];
+  for(let _i=1;_i<=3;_i++){
+    const _lab=document.getElementById('cj-misc-'+_i+'-label')?.value?.trim()||'';
+    const _amt=Number(document.getElementById('cj-misc-'+_i+'-amount')?.value)||0;
+    const _ai=document.getElementById('cj-misc-'+_i+'-ai')?.checked||false;
+    if(_amt>0)_miscCharges.push({label:_lab,amount:_amt,aiTraining:_ai});
+  }
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:j?j.date:'',crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
     paidCashRate:_paidCash&&!!_cashRate,
-    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,miscCharges:_miscCharges,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
@@ -8199,6 +8264,10 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       actualLabour:Number(completed.feeLabour)||null,
       actualFuel:Number(completed.feeFuel)||null,
       actualMaterials:Number(completed.feeMaterials)||null,
+      // Misc charges that the user flagged as representative of move work (storage, COI, etc.
+      // not flagged for AI are excluded — we don't want one-off revenue inflating future quotes).
+      miscChargesAI:_miscCharges.filter(m=>m.aiTraining),
+      miscChargesAITotal:_miscCharges.filter(m=>m.aiTraining).reduce((s,m)=>s+m.amount,0),
       savedAt:new Date().toISOString()
     });
   }
@@ -13843,7 +13912,16 @@ function computeVaultRegression(){
   // produce a misleading estimate.
   if(slope<=0)return null;
   if(intercept<0)return null;
-  return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY};
+  // Compute mean absolute error (typical residual). This tells us how far off the regression
+  // typically is across the real completed jobs — used by the caller as the spread WIDTH so
+  // ranges are tight, smooth, and don't jitter as vault count changes.
+  let sumAbsErr=0;
+  for(let i=0;i<n;i++){
+    const predicted=intercept+slope*xs[i];
+    sumAbsErr+=Math.abs(ys[i]-predicted);
+  }
+  const meanAbsErr=sumAbsErr/n;
+  return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY,meanAbsErr:meanAbsErr};
 }
 
 function generateAIQuote(){
@@ -13943,20 +14021,24 @@ function generateAIQuote(){
   }
 
   // Use actual spread from similar jobs for the range. When the vault regression is in play,
-  // we center the spread on the blended estimate (so the range tracks the vault-driven number)
-  // rather than purely on neighbor percentiles, which were causing the non-monotonic jumps.
+  // we set the spread WIDTH from the regression's own mean absolute error (the typical
+  // residual). This gives consistent, monotonic ranges that don't jitter as vaults change —
+  // a job at 5 vaults will always have a range whose top is HIGHER than the same range at
+  // 3 vaults, because both endpoints are derived from the same vault-driven midpoint with a
+  // constant spread. When the regression isn't in play, fall back to neighbor percentiles.
   const actualHoursList=scored.filter(j=>j.actualHours).map(j=>(j.actualHours*crewAdjust)+accessHourDelta).sort((a,b)=>a-b);
-  const _rawP25=actualHoursList[Math.floor(actualHoursList.length*0.25)]||neighborHours*0.85;
-  const _rawP75=actualHoursList[Math.floor(actualHoursList.length*0.75)]||neighborHours*1.15;
   let p25,p75;
   if(_usedVaultReg){
-    // Preserve the neighbor spread WIDTH but recenter it on the blended estimate. This keeps
-    // a realistic range while making the midpoint track vaults monotonically.
-    const _spreadBelow=Math.max(0,neighborHours-_rawP25);
-    const _spreadAbove=Math.max(0,_rawP75-neighborHours);
-    p25=Math.max(1,adjustedHours-_spreadBelow);
-    p75=adjustedHours+_spreadAbove;
+    // The crew-adjusted spread width should be smaller for bigger crews (more men finish
+    // faster, so per-job uncertainty in clock hours compresses). Scale by the same crew
+    // ratio that compresses the midpoint.
+    const crewFactor=(crewRatios[men]||1.0)/(crewRatios[3]||1.0);
+    const spreadHrs=_vaultReg.meanAbsErr*crewFactor;
+    p25=Math.max(1,adjustedHours-spreadHrs);
+    p75=adjustedHours+spreadHrs;
   } else {
+    const _rawP25=actualHoursList[Math.floor(actualHoursList.length*0.25)]||neighborHours*0.85;
+    const _rawP75=actualHoursList[Math.floor(actualHoursList.length*0.75)]||neighborHours*1.15;
     p25=_rawP25;
     p75=_rawP75;
   }
