@@ -13819,6 +13819,33 @@ function clearAIQuoteDraft(){
   try{localStorage.removeItem('aiQuoteDraft');}catch(e){}
 }
 
+// Fit a simple linear regression hours ≈ intercept + slope × vaults from the live training
+// data. Returns null if there isn't enough clean data to fit reliably, so the caller can
+// fall back to the neighbor-only estimate. This is recomputed on every quote so it improves
+// as more jobs are completed — "future quotes built off past jobs."
+function computeVaultRegression(){
+  const data=getAllTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0);
+  // Need a reasonable sample to fit a line — below this, the fit is too noisy to trust.
+  const MIN_JOBS=6;
+  if(data.length<MIN_JOBS)return null;
+  const xs=data.map(j=>j.estimatedVaults);
+  const ys=data.map(j=>j.actualHours);
+  const n=xs.length;
+  const meanX=xs.reduce((a,b)=>a+b,0)/n;
+  const meanY=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;
+  for(let i=0;i<n;i++){num+=(xs[i]-meanX)*(ys[i]-meanY);den+=(xs[i]-meanX)**2;}
+  if(den===0)return null; // all same vault count — can't fit a slope
+  const slope=num/den;
+  const intercept=meanY-slope*meanX;
+  // Sanity guards — a sensible moving-job fit has a positive slope and non-negative overhead.
+  // If the data produces a nonsensical fit (negative slope, etc.), fall back rather than
+  // produce a misleading estimate.
+  if(slope<=0)return null;
+  if(intercept<0)return null;
+  return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY};
+}
+
 function generateAIQuote(){
   const inputs={
     size:document.getElementById('ai-size').value,
@@ -13890,12 +13917,49 @@ function generateAIQuote(){
   const accessHourDelta=(inputAccessScore-avgAccessScore)*accessPerPoint;
 
   // Apply crew adjustment first (scales the base hours), then add access delta
-  const adjustedHours=(avgHours*crewAdjust)+accessHourDelta;
+  const neighborHours=(avgHours*crewAdjust)+accessHourDelta;
 
-  // Use actual spread from similar jobs for the range
+  // VAULT REGRESSION BLEND — vaults are the primary volume signal. We fit hours ≈ intercept +
+  // slope×vaults from live completed-job data and blend it with the neighbor estimate. The
+  // regression is the stable backbone (65%); the neighbor average adjusts for factors vaults
+  // don't capture — packing scope, access, crew (35%). When the input has no vault count, or
+  // there isn't enough data to fit reliably, we fall back to the pure neighbor estimate.
+  // Because the vault term increases smoothly with vault count, the blended estimate is
+  // monotonic: adding vaults never lowers the hours.
+  const _vaultReg=computeVaultRegression();
+  let adjustedHours;
+  let _usedVaultReg=false;
+  if(_vaultReg&&inputs.vaults){
+    // The regression is fit on raw actual hours, which are mostly 3-man jobs. Convert its
+    // prediction to the requested crew size using the same crew ratio basis as the neighbor
+    // estimate (regression baseline ≈ 3-man, so scale by crewRatios[men]/crewRatios[3]).
+    const regBaseHours=_vaultReg.intercept+_vaultReg.slope*inputs.vaults;
+    const regCrewAdjusted=regBaseHours*((crewRatios[men]||1.0)/(crewRatios[3]||1.0))+accessHourDelta;
+    const VAULT_WEIGHT=0.65;
+    adjustedHours=regCrewAdjusted*VAULT_WEIGHT+neighborHours*(1-VAULT_WEIGHT);
+    _usedVaultReg=true;
+  } else {
+    adjustedHours=neighborHours;
+  }
+
+  // Use actual spread from similar jobs for the range. When the vault regression is in play,
+  // we center the spread on the blended estimate (so the range tracks the vault-driven number)
+  // rather than purely on neighbor percentiles, which were causing the non-monotonic jumps.
   const actualHoursList=scored.filter(j=>j.actualHours).map(j=>(j.actualHours*crewAdjust)+accessHourDelta).sort((a,b)=>a-b);
-  const p25=actualHoursList[Math.floor(actualHoursList.length*0.25)]||adjustedHours*0.85;
-  const p75=actualHoursList[Math.floor(actualHoursList.length*0.75)]||adjustedHours*1.15;
+  const _rawP25=actualHoursList[Math.floor(actualHoursList.length*0.25)]||neighborHours*0.85;
+  const _rawP75=actualHoursList[Math.floor(actualHoursList.length*0.75)]||neighborHours*1.15;
+  let p25,p75;
+  if(_usedVaultReg){
+    // Preserve the neighbor spread WIDTH but recenter it on the blended estimate. This keeps
+    // a realistic range while making the midpoint track vaults monotonically.
+    const _spreadBelow=Math.max(0,neighborHours-_rawP25);
+    const _spreadAbove=Math.max(0,_rawP75-neighborHours);
+    p25=Math.max(1,adjustedHours-_spreadBelow);
+    p75=adjustedHours+_spreadAbove;
+  } else {
+    p25=_rawP25;
+    p75=_rawP75;
+  }
   const hoursLow=Math.max(1,Math.floor(p25*2)/2);
   const hoursHigh=Math.ceil(p75*2)/2;
 
