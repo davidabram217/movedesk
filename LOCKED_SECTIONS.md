@@ -101,9 +101,13 @@ After any change to a locked section, you must re-run the listed test files agai
 8. Status flip bumps `_statusChangedAt`.
 9. Self-heal is idempotent — already-accepted or later-status leads are not touched.
 10. Toast surfaces to the office user on the next render (🎉 [Name] accepted the quote).
+11. **(NEW 2026-05-28) `acceptQuote` fetches the LATEST quote from Supabase BEFORE patching.** It does NOT write `window._currentQuote` back to Supabase — that would let a stale browser tab overwrite the real saved quote with old data. The PATCH body is built by merging only `{status:'accepted', acceptedAt}` onto the freshly-fetched cloud version. Root-cause fix for the Matt Fickett 2026-05-28 corruption where a customer's stale link locked in $115-$955 over the real $725-$1,145.
+12. **(NEW 2026-05-28) `acceptQuote` is idempotent.** If the fetched cloud version already has `status==='accepted'` with an `acceptedAt`, it does not re-patch — it just re-renders the accepted page. Prevents a second click (or page reload) from updating `acceptedAt` to a later timestamp.
+13. **(NEW 2026-05-28) `mergeTable` in `refreshFromSupabase` blocks status regressions on quotes.** A remote quote with `status:'draft'` cannot overwrite a local quote with `status:'sent'` or `'accepted'`. A remote `status:'sent'` cannot overwrite a local `status:'accepted'`. Status only ever moves forward (draft → sent → accepted). Backward moves are treated as cloud corruption and rejected with a `console.warn`.
 
 **Tests that guard this section:**
 - `/mnt/user-data/outputs/customer_acceptance_test.js` (21 assertions)
+- `/mnt/user-data/outputs/corruption_prevention_test.js` (23 assertions — covers fixes #11, #12, #13)
 
 **To unlock:** *"I am unlocking the Customer Acceptance Single-Day Quote section because..."*
 
@@ -111,7 +115,7 @@ After any change to a locked section, you must re-run the listed test files agai
 
 ### 3. Booking and Confirming — Single-Day Move
 
-**Locked on:** 2026-05-15 — Re-locked: 2026-05-21 (after office-notes-only refactor)
+**Locked on:** 2026-05-15 — Re-locked: 2026-05-21 (after office-notes-only refactor) — Re-locked: 2026-05-28 (after confirmation-email date fix)
 **Status:** LOCKED. Do not change without explicit unlock.
 
 **Scope of what is locked:**
@@ -147,13 +151,15 @@ After any change to a locked section, you must re-run the listed test files agai
 17. **(NEW 2026-05-21) `bj-email-note` is NOT auto-prefilled from quote.notes or lead.notes.** The old "combine quote+lead notes" logic is removed. Field stays in DOM for legacy data only.
 18. **(NEW 2026-05-21) `bj-office-notes` is NOT prefilled from `quote.officeNotes`** — lead is the single source of truth. The fallback `setIfEmpty('bj-office-notes',l.officeNotes||l.estimateOfficeNotes)` is the only prefill path. Stale quote data cannot leak into the booking form.
 19. **(NEW 2026-05-21) Cloud sync's "OfficeNotes self-heal" also covers bookedJobs and completedJobs** — every linked record's `officeNotes` is forced to match its lead's after every merge.
+20. **(NEW 2026-05-28) `openConfirmEmail` force-flushes the booking form into `bj` BEFORE building the email body.** Calls `bjWriteFields(bj)` synchronously when the `modal-booking-form` is open, so any pending autosave changes (the form has an 800ms debounce) are captured immediately rather than potentially after the email body is composed. Eliminates the race where a just-typed move date doesn't make it into the email.
+21. **(NEW 2026-05-28) Customer-facing confirmation emails show the weekday alongside the date.** A dedicated `fmtDateWithDay` helper (formats as "Thursday, Jun 4, 2026") is used in: the single-day email body, the multi-day email body (each day), the additional-day email body and subject line, AND the calendar event description (`buildMoveDetailsBlock`, both branches) for consistency. The standard `fmtDate` (no weekday) remains the format for all office UI displays — lead cards, day chips, booking-next modal — where space is tight.
 
 **Tests that guard this section:**
 - `/mnt/user-data/outputs/booking_overrides_test.js` (28 assertions)
 - `/mnt/user-data/outputs/booking_commit_test.js` (45 assertions)
-- `/mnt/user-data/outputs/booking_pipeline_test.js` (56 assertions)
+- `/mnt/user-data/outputs/booking_pipeline_test.js` (70 assertions — 14 added 2026-05-28 for date fix + day-of-week format)
 - `/mnt/user-data/outputs/office_notes_only_test.js` (32 assertions covering notes-only changes)
-- `/mnt/user-data/outputs/office_notes_source_of_truth_test.js` (27 assertions covering single-source-of-truth fix)
+- `/mnt/user-data/outputs/office_notes_source_of_truth_test.js` (34 assertions covering single-source-of-truth fix)
 
 **To unlock:** *"I am unlocking the Booking and Confirming Single-Day Move section because..."*
 
@@ -241,3 +247,5 @@ _(none yet)_
 - **2026-05-22** — Unlocked section 1 to fix the Ruari cross-customer contamination bug. Root cause: `openQuoteBuilder` had `if(_qbOn && !_qbOn.value)` guard which preserved stale DOM textarea content between leads — typing notes for Customer A then opening Customer B's QB carried A's text into B's modal, and the next save permanently wrote A's notes to B's lead. Fix: unconditional load from `lead.officeNotes` (no DOM-state preservation). Same treatment for hidden `qb-notes` field. Re-locked with new invariant #17. Test suite extended: `office_notes_source_of_truth_test.js` now 34 assertions (up from 27), `office_notes_only_test.js` test updated to assert the unconditional clear.
 - **2026-05-22** — `lead.notes` fully deprecated (office-notes-only consolidation). 5 fixes: (1) `saveLead` no longer reads `nl-notes` or writes `l.notes`; (2) View modal no longer renders `l.notes` block; (3) Call Summary email no longer auto-includes `l.notes`; (4) one-time migration in `loadDB` + `refreshFromSupabase` silently merges any existing `l.notes` content into `l.officeNotes`; (5) `propagateNotesEdits` no longer reads/writes `lead.notes` from any source. `cj.notes` and `bj.emailNote` are now their own independent fields, no longer tied to `lead.notes`. New `legacy_notes_deprecation_test.js` (34 assertions). All 13 suites passing (419 total).
 - **2026-05-26** — Unlocked section 1 to fix the Matt Fickett quote-corruption bug. Root cause: Preview/Send paths used `{force:true}` to bypass the hard lock on sent quotes, so when a sent quote was opened with form defaults (load glitch, race, etc.), clicking Preview clobbered the saved quote with empty values. Fix is architectural — sent and accepted quotes are now ABSOLUTELY IMMUTABLE. The hard lock requires `{fromSendButton:true}` (not just force) to write to sent/accepted quotes, and only `sendQuoteEmail` passes that token. To send updated numbers, the user clones the sent quote to a fresh draft via `cloneSentQuoteToDraft` (new id, new publicId, deep-cloned editable data). The old quote stays untouched. Updated 8 invariants in section 1 (#3, #7, #9, #10 changed; #18, #19, #20, #21 new). New 42-assertion `sent_quote_immutability_test.js`. All 14 suites passing (461 total).
+- **2026-05-28** — Unlocked Customer Acceptance section to fix the corruption that re-hit Matt Fickett's quote even after the immutability fix. Two root causes, both fixed: (1) the customer-side `acceptQuote` in `quote-page.js` was writing `window._currentQuote` (whatever the customer's browser had cached) back to Supabase — a customer with a stale tab could overwrite the real quote with old/corrupted data; fix now fetches the latest from Supabase first and merges only `{status, acceptedAt}` onto it, with idempotency to prevent double-clicks; (2) `mergeTable` in `refreshFromSupabase` was applying remote updates that regressed status (e.g. a cloud `draft` overwriting a local `sent`) — that path silently propagated corruption from any single broken row to all synced devices; fix blocks any backward status move (sent→draft, accepted→draft, accepted→sent) and logs a warning. New 23-assertion `corruption_prevention_test.js`. Added invariants #11, #12, #13 to Customer Acceptance section. All 16 suites passing (513 total).
+- **2026-05-28** — Unlocked Booking and Confirming Single-Day Move section to fix the confirmation email date issue. Two fixes: (1) `openConfirmEmail` now force-flushes the booking form into `bj` synchronously (via `bjWriteFields`) before building the email body, so a freshly-typed move date is captured immediately rather than waiting on the 800ms autosave debounce; (2) new `fmtDateWithDay` helper added — used in the single-day email, multi-day email (each day), additional-day email body + subject, AND the calendar event description for consistency. The standard `fmtDate` (no weekday) is preserved for all office UI displays where space is tight. Added invariants #20 and #21 to Section 3. Extended `booking_pipeline_test.js` from 56 to 70 assertions covering wiring + behavior (e.g. "Thursday" appears in the weekday output for 2026-06-04). All 16 suites passing (527 total).

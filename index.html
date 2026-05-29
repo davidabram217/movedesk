@@ -3899,6 +3899,10 @@ const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none
   const d=new Date();d.setDate(d.getDate()+7);document.getElementById('nl-date').value=d.toISOString().split('T')[0];populateStaffSelect('nl-taken-by','');}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+// Like fmtDate but includes the weekday — used specifically in the confirmation email so the
+// customer sees "Thursday, Jun 4, 2026" rather than just "Jun 4, 2026". Not used anywhere else
+// in the app — the standard fmtDate is preferred for compact UI displays (lead cards, lists, etc.).
+function fmtDateWithDay(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});}
 function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 // Resolves the best-available "what was quoted" data for a completed job.
 // Priority: formal quote (db.quotes) → rough quote on the linked lead → rough quote saved
@@ -4892,7 +4896,7 @@ function buildMoveDetailsBlock(l,bj){
         ?', arriving '+bj.time
         :(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
       s+='\nDay '+(i+1);
-      if(dayDate)s+='\nWhen: '+fmtDate(dayDate)+dayArrivalLine;
+      if(dayDate)s+='\nWhen: '+fmtDateWithDay(dayDate)+dayArrivalLine;
       loads.filter(function(u){return u.address;}).forEach(function(u){s+='\nFrom: '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
       if(hasUnloads){unloads.filter(function(u){return u.address;}).forEach(function(u){s+='\nTo: '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});}
       else{s+='\nTo: Load trucks only';}
@@ -4952,7 +4956,7 @@ function buildMoveDetailsBlock(l,bj){
     var arrivalLine='';
     if(bj?.time)arrivalLine=', arriving '+bj.time;
     else if(d.arrivalStart)arrivalLine=', arriving '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'');
-    if(moveDate)s+='\nWhen: '+fmtDate(moveDate)+arrivalLine;
+    if(moveDate)s+='\nWhen: '+fmtDateWithDay(moveDate)+arrivalLine;
     loads.filter(function(u){return u.address;}).forEach(function(u,li){s+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
     unloads.filter(function(u){return u.address;}).forEach(function(u,li){s+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
     if(d.flatRate){
@@ -5023,6 +5027,19 @@ function openConfirmEmail(leadId,bookedJob){
   const l=db.leads.find(x=>x.id===leadId);
   const bj=bookedJob||(db.bookedJobs||[]).find(b=>b.leadId===leadId);
   if(!l&&!bj)return;
+  // FIX (2026-05-28): force-flush the booking form into bj BEFORE building the email body.
+  // The booking form has an 800ms autosave debounce, so if the user changed the move date and
+  // immediately clicked "Send confirmation email" within that window, bj.date would still be
+  // the OLD value. By calling bjWriteFields synchronously here, we guarantee the email body
+  // reflects whatever's currently in the form fields. Only runs when the booking form modal
+  // is actually open AND bj-date input exists (otherwise the DOM read would return undefined).
+  if(bj&&typeof bjWriteFields==='function'){
+    const _bjDateInput=document.getElementById('bj-date');
+    const _bjModal=document.getElementById('modal-booking-form');
+    if(_bjDateInput&&_bjModal&&_bjModal.classList.contains('open')){
+      try{bjWriteFields(bj);}catch(e){console.warn('openConfirmEmail force-flush failed:',e);}
+    }
+  }
   // FIX: clear sticky day-flow state and pin the right booked job so the
   // post-send checklist opens for THIS lead, not a stale one.
   window._currentDayId=null;
@@ -5061,7 +5078,7 @@ function openConfirmEmail(leadId,bookedJob){
         :(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
 
       moveDetailsSection+='\nDay '+(i+1);
-      if(dayDate)moveDetailsSection+='\nWhen: '+fmtDate(dayDate)+dayArrivalLine;
+      if(dayDate)moveDetailsSection+='\nWhen: '+fmtDateWithDay(dayDate)+dayArrivalLine;
       loads.filter(function(u){return u.address;}).forEach(function(u){moveDetailsSection+='\nFrom: '+u.address+(u.unit?' #'+u.unit:'');});
       if(hasUnloads){unloads.filter(function(u){return u.address;}).forEach(function(u){moveDetailsSection+='\nTo: '+u.address+(u.unit?' #'+u.unit:'');});}
       else{moveDetailsSection+='\nTo: Load trucks only';}
@@ -5139,7 +5156,7 @@ function openConfirmEmail(leadId,bookedJob){
     } else if(d.arrivalStart){
       arrivalLine=', arriving '+d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:'');
     }
-    if(moveDate)moveDetailsSection+='\nWhen: '+fmtDate(moveDate)+arrivalLine;
+    if(moveDate)moveDetailsSection+='\nWhen: '+fmtDateWithDay(moveDate)+arrivalLine;
     loads.filter(function(u){return u.address;}).forEach(function(u,li){moveDetailsSection+='\n'+(li===0?'From':'Pickup '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)moveDetailsSection+=' · '+u.access;if(u.parking)moveDetailsSection+=' · '+u.parking;});
     unloads.filter(function(u){return u.address;}).forEach(function(u,li){moveDetailsSection+='\n'+(li===0?'To':'Drop-off '+(li+1))+': '+u.address+(u.unit?' #'+u.unit:'');if(u.access)moveDetailsSection+=' · '+u.access;if(u.parking)moveDetailsSection+=' · '+u.parking;});
     moveDetailsSection+='\n';
@@ -14423,8 +14440,8 @@ function openDayConfirmEmail(jobId,dayId){
   const firstName=j.name?j.name.split(' ')[0]:'there';
   currentConfirmEmailLeadId=j.leadId;
   document.getElementById('ce-to').value=j.email||'';
-  document.getElementById('ce-subject').value=`Additional Day Confirmation — ${fmtDate(day.date)}`;
-  document.getElementById('ce-body').value=`Hey ${firstName},\n\nJust confirming the additional day we discussed.\n\nDate: ${fmtDate(day.date)}, arriving ${day.time||'TBD'}\nFrom: ${day.from||j.from||'TBD'}\nTo: ${day.to||j.to||'TBD'}\n${day.scope?'\nScope:\n'+day.scope+'\n':''}\n${day.movers||'?'} men @ $${day.rate||'?'}/hr\n${day.feeFuel?'$'+day.feeFuel+' Fuel fee\n':''}${day.feeMaterials?'$'+day.feeMaterials+' Materials fee\n':''}\nThis will be added to your invoice along with Day 1.\n\nAny questions, call us at (415) 822-8547.\n\nSincerely,\nJohnathan Hall\nCareMore Moving and Storage`;
+  document.getElementById('ce-subject').value=`Additional Day Confirmation — ${fmtDateWithDay(day.date)}`;
+  document.getElementById('ce-body').value=`Hey ${firstName},\n\nJust confirming the additional day we discussed.\n\nDate: ${fmtDateWithDay(day.date)}, arriving ${day.time||'TBD'}\nFrom: ${day.from||j.from||'TBD'}\nTo: ${day.to||j.to||'TBD'}\n${day.scope?'\nScope:\n'+day.scope+'\n':''}\n${day.movers||'?'} men @ $${day.rate||'?'}/hr\n${day.feeFuel?'$'+day.feeFuel+' Fuel fee\n':''}${day.feeMaterials?'$'+day.feeMaterials+' Materials fee\n':''}\nThis will be added to your invoice along with Day 1.\n\nAny questions, call us at (415) 822-8547.\n\nSincerely,\nJohnathan Hall\nCareMore Moving and Storage`;
   closeModal('booking-next');
   setTimeout(()=>openModal('confirm-email'),200);
 }
