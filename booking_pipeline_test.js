@@ -106,7 +106,7 @@ check('Confirmation email: bj.date precedes day.date',
   /var moveDate=bj\?\.date\|\|d\.date/.test(indexHtml)
 );
 check('Confirmation subject: uses bj.date first',
-  /Move Confirmation — '\+fmtDate\(bj\?\.date\|\|l\?\.date/.test(indexHtml)
+  /Move Confirmation — '\+fmtDateWithDay\(bj\?\.date\|\|l\?\.date/.test(indexHtml)
 );
 check('Calendar block: bj values win (in buildMoveDetailsBlock)',
   /Booked-job values win over quote values/.test(indexHtml)
@@ -345,6 +345,82 @@ check('Extra-day confirmation email BODY uses fmtDateWithDay',
   check('fmtDateWithDay output includes month abbreviation', /Jun/.test(out), 'got: ' + out);
   check('fmtDateWithDay output includes year', /2026/.test(out), 'got: ' + out);
   check('fmtDateWithDay blank input → em-dash fallback', fmtDateWithDay('') === '—');
+}
+
+console.log('');
+console.log('PART G: Subject lines + draft fingerprint (2026-05-28 follow-up)');
+
+// G1: All three subject lines use fmtDateWithDay
+check('Single-day subject uses fmtDateWithDay',
+  /Move Confirmation — '\+fmtDateWithDay\(bj\?\.date\|\|l\?\.date/.test(indexHtml)
+);
+check('Multi-day subject uses fmtDateWithDay',
+  /Multi-Day Move Confirmation — '\+fmtDateWithDay\(bj\?\.date/.test(indexHtml)
+);
+check('Updated Move Confirmation subject uses fmtDateWithDay',
+  /Updated Move Confirmation — '\+fmtDateWithDay\(j\.date\)/.test(indexHtml)
+);
+check('Updated Move Confirmation body also uses fmtDateWithDay',
+  /When: '\+fmtDateWithDay\(j\.date\)/.test(indexHtml)
+);
+
+// G2: Draft autosave captures fingerprint of source fields
+check('autoSaveConfirmEmail captures sourceFingerprint',
+  /sourceFingerprint:_fingerprint/.test(indexHtml)
+);
+check('Fingerprint includes date',
+  /_fingerprint=_bj\?[\s\S]{0,200}date:_bj\.date/.test(indexHtml)
+);
+check('Fingerprint includes time',
+  /_fingerprint=_bj\?[\s\S]{0,300}time:_bj\.time/.test(indexHtml)
+);
+check('Fingerprint includes addresses',
+  /_fingerprint=_bj\?[\s\S]{0,400}from:_bj\.from[\s\S]{0,50}to:_bj\.to/.test(indexHtml)
+);
+check('Fingerprint includes crew and rates',
+  /_fingerprint=_bj\?[\s\S]{0,500}movers:_bj\.movers[\s\S]{0,200}rateRegular:_bj\.rateRegular/.test(indexHtml)
+);
+
+// G3: openConfirmEmail compares fingerprint before restoring body
+check('openConfirmEmail computes _fingerprintMatches',
+  /const _fingerprintMatches=_saved&&_current&&JSON\.stringify\(_saved\)===JSON\.stringify\(_current\)/.test(indexHtml)
+);
+check('openConfirmEmail rebuilds fresh body when no saved fingerprint (old drafts)',
+  /const _restoreBody=_saved\?_fingerprintMatches:false/.test(indexHtml)
+);
+check('openConfirmEmail always restores "to" field regardless of fingerprint',
+  /Always restore "to"[\s\S]{0,200}_confirmEmailDraft\.to\|\|lEmail/.test(indexHtml)
+);
+
+// G4: Behavioral — fingerprint comparison logic
+{
+  function fingerprintMatches(saved, current) {
+    return saved && current && JSON.stringify(saved) === JSON.stringify(current);
+  }
+  // Same data → match
+  const fp1 = { date: '2026-06-04', time: '8:00', from: 'A', to: 'B', movers: '3', rateRegular: '210', rateCash: '195', feeFuel: '55', feeMaterials: '40' };
+  const fp2 = { date: '2026-06-04', time: '8:00', from: 'A', to: 'B', movers: '3', rateRegular: '210', rateCash: '195', feeFuel: '55', feeMaterials: '40' };
+  check('Fingerprint match: identical data → true', fingerprintMatches(fp1, fp2));
+
+  // Date changed → no match (the original bug case)
+  const fp3 = { ...fp1, date: '2026-06-05' };
+  check('Fingerprint mismatch: date changed → false (the bug case)', !fingerprintMatches(fp1, fp3));
+
+  // Time changed → no match
+  const fp4 = { ...fp1, time: '9:00' };
+  check('Fingerprint mismatch: time changed → false', !fingerprintMatches(fp1, fp4));
+
+  // Address changed → no match
+  const fp5 = { ...fp1, from: 'C' };
+  check('Fingerprint mismatch: address changed → false', !fingerprintMatches(fp1, fp5));
+
+  // Rate changed → no match
+  const fp6 = { ...fp1, rateRegular: '250' };
+  check('Fingerprint mismatch: rate changed → false', !fingerprintMatches(fp1, fp6));
+
+  // Missing fingerprint (old draft) → no match → forces fresh build
+  check('Old draft (no fingerprint) → does not match', !fingerprintMatches(null, fp1));
+  check('Old draft (no fingerprint) → does not match (reverse)', !fingerprintMatches(fp1, null));
 }
 
 console.log('');

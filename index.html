@@ -5218,8 +5218,8 @@ function openConfirmEmail(leadId,bookedJob){
   // For multi-day quotes, Day 1's date is what shows in the subject; booking-form date overrides
   // it only when present.
   var subject=isMulti
-    ?'Multi-Day Move Confirmation — '+fmtDate(bj?.date||(q.days[0]&&q.days[0].date)||'')
-    :'Move Confirmation — '+fmtDate(bj?.date||l?.date||'');
+    ?'Multi-Day Move Confirmation — '+fmtDateWithDay(bj?.date||(q.days[0]&&q.days[0].date)||'')
+    :'Move Confirmation — '+fmtDateWithDay(bj?.date||l?.date||'');
   var body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:'
     +moveDetailsSection
     +'\n\n*No small packing needed\n'+(lPacking&&lPacking!=='No'?'*'+lPacking+' packing included\n':'')
@@ -5230,9 +5230,29 @@ function openConfirmEmail(leadId,bookedJob){
   document.getElementById('ce-body').value=body;
   // Only load draft if it was saved recently (don't use old cached bodies)
   if(l?._confirmEmailDraft&&l._confirmEmailDraft.savedAt&&l._confirmEmailDraft.savedAt>new Date(Date.now()-3600000).toISOString()){
+    // Always restore "to" — if the user manually typed/corrected the recipient, that should persist.
     document.getElementById('ce-to').value=l._confirmEmailDraft.to||lEmail;
-    document.getElementById('ce-subject').value=l._confirmEmailDraft.subject||subject;
-    document.getElementById('ce-body').value=l._confirmEmailDraft.body||body;
+    // FIX (2026-05-28): only restore body+subject if the auto-generated source data hasn't
+    // changed since the draft was saved. We fingerprint date/time/addresses/crew/rates at save
+    // time; if any of those differ now, the saved body is stale (built from out-of-date inputs)
+    // and we use the freshly-built one instead. This preserves user-typed customizations when
+    // nothing important has changed, but prevents stale drafts from overriding fresh details
+    // when (for example) the move date was just changed in the booking form.
+    const _saved=l._confirmEmailDraft.sourceFingerprint;
+    const _current=bj?{
+      date:bj.date||'',time:bj.time||'',from:bj.from||'',to:bj.to||'',
+      movers:bj.movers||'',rateRegular:bj.rateRegular||'',rateCash:bj.rateCash||'',
+      feeFuel:bj.feeFuel||'',feeMaterials:bj.feeMaterials||''
+    }:null;
+    const _fingerprintMatches=_saved&&_current&&JSON.stringify(_saved)===JSON.stringify(_current);
+    // If we have NO saved fingerprint (old draft from before this fix shipped), be conservative
+    // and rebuild fresh — the date might be stale, and the user can re-type any customizations.
+    const _restoreBody=_saved?_fingerprintMatches:false;
+    if(_restoreBody){
+      document.getElementById('ce-subject').value=l._confirmEmailDraft.subject||subject;
+      document.getElementById('ce-body').value=l._confirmEmailDraft.body||body;
+    }
+    // Otherwise: keep the freshly-built subject and body already in the textareas above.
   }
   openModal('confirm-email');
 }
@@ -6723,8 +6743,8 @@ function openEditedJobEmail(){
   const to=j.email||l?.email||'';
   if(!to){showToast('No email on file for this customer');return;}
   const firstName=(j.name||'').split(' ')[0];
-  const subject='Updated Move Confirmation — '+fmtDate(j.date);
-  const body='Hi '+firstName+',\n\nI wanted to send you an updated confirmation with the latest details for your upcoming move.\n\nHere are the details as I understand them:\n\nWhen: '+fmtDate(j.date)+(j.time?', '+j.time:'')+'\n\nPick-up:\n'+fmtLoadLocations(j)+'\n\nDrop-off:\n'+fmtUnloadLocations(j)+'\n\nIf you have any questions please feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to seeing you soon!\n\nSincerely,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
+  const subject='Updated Move Confirmation — '+fmtDateWithDay(j.date);
+  const body='Hi '+firstName+',\n\nI wanted to send you an updated confirmation with the latest details for your upcoming move.\n\nHere are the details as I understand them:\n\nWhen: '+fmtDateWithDay(j.date)+(j.time?', '+j.time:'')+'\n\nPick-up:\n'+fmtLoadLocations(j)+'\n\nDrop-off:\n'+fmtUnloadLocations(j)+'\n\nIf you have any questions please feel free to reply to this email or call us at (415) 822-8547.\n\nWe look forward to seeing you soon!\n\nSincerely,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
   currentConfirmEmailLeadId=j.leadId||null;
   document.getElementById('ce-to').value=to;
   document.getElementById('ce-subject').value=subject;
@@ -7037,11 +7057,24 @@ function autoSaveConfirmEmail(){
   // Save edits to lead so nothing is lost if modal is closed
   const l=db.leads.find(x=>x.id===currentConfirmEmailLeadId);
   if(!l)return;
+  // Capture a "fingerprint" of the auto-generated source fields (date, time, addresses, crew,
+  // rates) when this draft is saved. On reopen, openConfirmEmail compares the current bj's
+  // fingerprint to this one — if anything important changed, the saved body is treated as
+  // stale and rebuilt fresh from current data. This preserves the user's typed customizations
+  // when the underlying job hasn't changed, but rebuilds when it has (e.g. user changed the
+  // move date in the booking form after saving an earlier email draft).
+  const _bj=(db.bookedJobs||[]).find(b=>b.leadId===currentConfirmEmailLeadId);
+  const _fingerprint=_bj?{
+    date:_bj.date||'',time:_bj.time||'',from:_bj.from||'',to:_bj.to||'',
+    movers:_bj.movers||'',rateRegular:_bj.rateRegular||'',rateCash:_bj.rateCash||'',
+    feeFuel:_bj.feeFuel||'',feeMaterials:_bj.feeMaterials||''
+  }:null;
   l._confirmEmailDraft={
     to:document.getElementById('ce-to')?.value||'',
     subject:document.getElementById('ce-subject')?.value||'',
     body:document.getElementById('ce-body')?.value||'',
-    savedAt:new Date().toISOString()
+    savedAt:new Date().toISOString(),
+    sourceFingerprint:_fingerprint
   };
   // Also extract structured pricing/scope data from the email body so the booking modal
   // can auto-populate from it. The customer agreed to these numbers — they shouldn't be
