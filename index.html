@@ -4986,8 +4986,9 @@ function buildMoveDetailsBlock(l,bj){
     if(l?.packing&&l.packing!=='No — just moving')s+='\nPacking Materials Used - TBD';
     s+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
   } else {
-    // Fallback when there's no quote — pull from the booked job + lead directly
-    var moveDate=fmtDate(l?.date||bj?.date||'');
+    // Fallback when there's no quote — pull from the booked job + lead directly.
+    // Same precedence + format as the email body's no-quote branch: bj.date wins, weekday included.
+    var moveDate=fmtDateWithDay(bj?.date||l?.date||'');
     s='\nWhen: '+moveDate+(bj?.time?', arriving '+bj.time:'');
     // From with access/parking
     const fromAddr=l?.from||bj?.from||'';
@@ -5197,7 +5198,11 @@ function openConfirmEmail(leadId,bookedJob){
     if(l?.packing&&l.packing!=='No — just moving')moveDetailsSection+='\nPacking Materials Used - TBD';
     moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
   } else {
-    var moveDate=fmtDate(l?.date||bj?.date||'');
+    // No-quote fallback branch. (1) Prefer bj.date over l.date so changes made in the
+    // booking form win — matches the subject's precedence on line 5222 and the with-quote
+    // branch's precedence on line 5135. (2) Use fmtDateWithDay to include the weekday,
+    // matching the customer-facing format used everywhere else in the confirmation email.
+    var moveDate=fmtDateWithDay(bj?.date||l?.date||'');
     moveDetailsSection='\nWhen: '+moveDate+(bj?.time?', arriving '+bj.time:', arriving between 8:30–9:30am');
     moveDetailsSection+='\nFrom:\n'+fmtLoadLocations(l||bj)+'\n\nTo:\n'+fmtUnloadLocations(l||bj);
     if(bj?.rateRegular){moveDetailsSection+='\n'+(bj.movers||'?')+' Movers @ $'+Number(bj.rateRegular).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(bj.rateCash?' ($'+Number(bj.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');}

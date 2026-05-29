@@ -423,6 +423,20 @@ check('openConfirmEmail always restores "to" field regardless of fingerprint',
   check('Old draft (no fingerprint) → does not match (reverse)', !fingerprintMatches(fp1, null));
 }
 
+// G5: No-quote fallback branch — Meagan case (no quote on file, date changed in booking form)
+check('No-quote fallback in openConfirmEmail prefers bj.date over l.date',
+  /No-quote fallback branch[\s\S]{0,500}fmtDateWithDay\(bj\?\.date\|\|l\?\.date/.test(indexHtml)
+);
+check('No-quote fallback in buildMoveDetailsBlock prefers bj.date over l.date',
+  /Fallback when there's no quote[\s\S]{0,500}fmtDateWithDay\(bj\?\.date\|\|l\?\.date/.test(indexHtml)
+);
+check('No-quote fallback in openConfirmEmail uses fmtDateWithDay (not fmtDate)',
+  !/var moveDate=fmtDate\(l\?\.date\|\|bj\?\.date/.test(indexHtml)
+);
+check('No-quote fallback in buildMoveDetailsBlock also uses fmtDateWithDay',
+  ((indexHtml.match(/var moveDate=fmtDateWithDay\(bj\?\.date\|\|l\?\.date/g) || []).length >= 2)
+);
+
 console.log('');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('RESULTS: ' + pass + ' passed, ' + fail + ' failed');
