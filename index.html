@@ -5288,7 +5288,24 @@ function sendConfirmationEmail(){
     if(_parsed)l._confirmEmailParsed=_parsed;
   }
   const j=db.bookedJobs.find(x=>x.id===bookedJobId);
-  if(j){j.confirmEmailSent=true;}
+  if(j){
+    j.confirmEmailSent=true;
+    // Capture the "details as actually sent" section from the email body so the calendar
+    // entry shows what the customer was really told — including any edits the user made
+    // (e.g. typed "*Storage costs $210 per month..." or "*No small packing needed" notes).
+    // Bounded by the two stable markers in the email template: header and "We accept cash".
+    try{
+      const _body=document.getElementById('ce-body')?.value||'';
+      const _startMarker='Here are the details as I understand them:';
+      const _endMarker='We accept cash';
+      const _startIdx=_body.indexOf(_startMarker);
+      const _endIdx=_body.indexOf(_endMarker);
+      if(_startIdx>=0&&_endIdx>_startIdx){
+        const _sentBlock=_body.substring(_startIdx+_startMarker.length,_endIdx).trim();
+        if(_sentBlock)j._sentDetailsBlock=_sentBlock;
+      }
+    }catch(e){console.warn('Could not capture sent details block:',e);}
+  }
   if(bookedJobId&&window._currentDayId&&j){
     const day=(j.extraDays||[]).find(d=>d.id===window._currentDayId);
     if(day){day.emailSent=true;}
@@ -6550,9 +6567,10 @@ function buildJobCalUrl(j){
   // Built on-demand from the same logic as the email body, so the calendar always has it
   // even if the email modal hasn't been opened yet for this booking. We strip the address
   // lines (From/To/Pickup/Drop-off) because the calendar already has dedicated LOAD/UNLOAD
-  // sections above with the same information.
-  // ───────────────────────────────────────────────────────────
-  let _moveBlock=j._moveDetailsBlock;
+  // Prefer the "details as actually sent" (captured at send time, includes user-typed
+  // extras like storage cost notes) over the auto-generated block. Falls back to the
+  // auto block for jobs that pre-date this capture, then to a fresh rebuild if neither exists.
+  let _moveBlock=j._sentDetailsBlock||j._moveDetailsBlock;
   if(!_moveBlock){
     try{
       const _l=j.leadId?(db.leads||[]).find(x=>x.id===j.leadId):null;
