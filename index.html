@@ -3179,6 +3179,22 @@ async function refreshFromSupabase(){
         // by stale cloud data on refresh. Same _localEditedAt mechanism leads use, but simpler
         // (quotes don't have a status-change concept that overrides local edits).
         if(table==='quotes'&&local&&rec){
+          // SENT→DRAFT REGRESSION GUARD: refuse to apply a remote update that downgrades a
+          // sent or accepted quote back to draft. That's the corruption pattern that hit
+          // Matt Fickett's quote on 2026-05-28 — a sent quote silently became draft via the
+          // cloud, then someone clicked Build Quote, edited the form, and the corruption
+          // got locked in. Status only ever moves FORWARD (draft → sent → accepted), never
+          // backward. If we see a backward move, treat the remote as corrupt and skip.
+          if((local.status==='sent'||local.status==='accepted')&&rec.status==='draft'){
+            console.warn('Sent→draft regression blocked for quote',id,'(local:',local.status,'remote:',rec.status,') — skipping cloud overwrite');
+            return;
+          }
+          // ACCEPTED→SENT REGRESSION GUARD: similarly, an accepted quote shouldn't become
+          // sent. If a customer accepted on the local side, that's the truth.
+          if(local.status==='accepted'&&rec.status==='sent'){
+            console.warn('Accepted→sent regression blocked for quote',id,'— skipping cloud overwrite');
+            return;
+          }
           const localEditIso=local._localEditedAt||'';
           const remoteEditIso=rec._localEditedAt||'';
           if(localEditIso&&remoteEditIso){
