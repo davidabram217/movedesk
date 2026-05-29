@@ -10339,17 +10339,30 @@ function renderActivityPatterns(){
     :`<div class="empty-state"><div class="empty-title">No insurance data yet</div><div class="empty-sub">Record insurance type when completing jobs</div></div>`;
 
   // ── 5. Repeat customer rate ──
-  // Count distinct moves per customer by looking ONLY at completed jobs.
-  // (Counting bookedJobs + completedJobs + leads triple-counts the same single move:
-  // 1 lead → 1 booked job → 1 completed job is one customer, not three.)
+  // A job counts as "repeat customer" if EITHER:
+  //   (a) The customer's phone appears in 2+ completed jobs in our database, OR
+  //   (b) The job's source field is set to "Repeat customer" (tagged at intake — typically
+  //       because the customer told us they moved with us before, even if that prior move
+  //       predates MoveDesk's records).
+  // This union resolves the inconsistency where the top "Revenue by source" chart showed
+  // repeat-customer revenue (which is purely source-based) but this bottom section said
+  // "0% from repeat customers" (which was purely phone-match-based).
   const completedForRepeat=db.completedJobs||[];
   const phoneCount={};
   completedForRepeat.forEach(j=>{
     if(j.phone){const p=j.phone.replace(/\D/g,'');phoneCount[p]=(phoneCount[p]||0)+1;}
   });
   const repeatCustomers=new Set(Object.keys(phoneCount).filter(p=>phoneCount[p]>1));
-  const repeatJobs=completedForRepeat.filter(j=>j.phone&&repeatCustomers.has(j.phone.replace(/\D/g,'')));
-  const newJobs=completedForRepeat.filter(j=>!j.phone||!repeatCustomers.has(j.phone.replace(/\D/g,'')));
+  function _isRepeatJob(j){
+    // (a) phone shows up in 2+ completed jobs
+    if(j.phone&&repeatCustomers.has(j.phone.replace(/\D/g,'')))return true;
+    // (b) intake-tagged "Repeat customer" — covers customers whose prior moves predate
+    // our database or were entered with a different phone format
+    if((j.source||'').toLowerCase()==='repeat customer')return true;
+    return false;
+  }
+  const repeatJobs=completedForRepeat.filter(_isRepeatJob);
+  const newJobs=completedForRepeat.filter(j=>!_isRepeatJob(j));
   const repeatRate=completedForRepeat.length?Math.round(repeatJobs.length/completedForRepeat.length*100):0;
   const repeatRevenue=repeatJobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
   const newRevenue=newJobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
