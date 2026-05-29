@@ -1699,6 +1699,16 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           </span>
         </label>
       </div>
+
+      <div style="margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500">
+          <input type="checkbox" id="ecj-exclude-accuracy" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0">
+          <span style="display:block">
+            <span style="font-size:13px;color:var(--text)">⚠ Exclude from Quote Accuracy</span>
+            <span style="display:block;font-size:11.5px;color:var(--text3);margin-top:2px;line-height:1.45">Skip this job in the Quote Accuracy chart on Analytics. Use when the original quote data is unrecoverable (e.g. lost to an old data bug) and would make accuracy stats misleading. Quote data stays on the record for reference.</span>
+          </span>
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('edit-completed')">Cancel</button>
@@ -8784,6 +8794,8 @@ function openEditCompletedJob(jobId){
   if(vaultsEl)vaultsEl.value=j.vaults||'';
   const aiEl=document.getElementById('ecj-ai-training');
   if(aiEl)aiEl.checked=!!j.usedForAI;
+  const excEl=document.getElementById('ecj-exclude-accuracy');
+  if(excEl)excEl.checked=!!j.excludeFromAccuracy;
   openModal('edit-completed');
 }
 
@@ -8846,6 +8858,12 @@ function saveEditedCompletedJob(){
   const _wantsAI=document.getElementById('ecj-ai-training')?.checked||false;
   const _wasAI=!!j.usedForAI;
   j.usedForAI=_wantsAI;
+  // Exclude-from-accuracy flag — when checked, this job's quoted vs actual comparison is
+  // skipped on the Analytics Quote Accuracy chart. Use for jobs whose original quote data
+  // was lost or corrupted (e.g. by an older sync bug) and would otherwise show as a huge
+  // false overage. The flag is stored on the completed job record; data is unchanged.
+  const _excludeAcc=document.getElementById('ecj-exclude-accuracy')?.checked||false;
+  j.excludeFromAccuracy=_excludeAcc;
   if(!db.aiTraining)db.aiTraining=[];
   if(_wantsAI){
     // Ensure a training record exists; if it does, refresh actuals (since edit may have changed numbers)
@@ -9871,6 +9889,11 @@ function renderAnalytics(){
     return null;
   }
   const quotedJobs=filteredJobs.map(j=>{
+    // Skip jobs flagged as having corrupted/unrecoverable quote data. These get excluded
+    // from the accuracy calculation so a known-bad quotedMin/quotedMax doesn't make a
+    // perfectly-fine job look like a 300% overage. Data stays on the record so it can be
+    // restored later if the original quote numbers are recovered.
+    if(j.excludeFromAccuracy)return null;
     const found=findQuoteForCompletedJob(j);
     if(!found||!j.total)return null;
     const q=found.quote;
