@@ -14075,6 +14075,76 @@ function generateAIQuote(){
     showToast('Please enter at least home size or number of vaults');return;
   }
 
+  // PACKING-ONLY PATH (2026-05-29)
+  // When the user selects moveType='Packing only', we cannot use actualHours from training
+  // jobs — that's the MOVE portion of those jobs. We need to use packHoursActual instead,
+  // which records the time spent on the packing portion separately. This produces a real
+  // packing-only estimate from your actual packing data, not a guess scaled off move work.
+  // Falls through to a friendly "no data" message if no jobs have packHoursActual recorded.
+  if((inputs.moveType||'').toLowerCase()==='packing only'){
+    const _allPackData=getAllTrainingData().filter(j=>
+      j.packHoursActual&&j.packHoursActual>0
+    );
+    if(_allPackData.length===0){
+      document.getElementById('ai-result').innerHTML=`
+        <div style="padding:14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid #b7860b">
+          <div style="font-weight:600;margin-bottom:6px">⚠ No packing-only data yet</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">There are no completed jobs in the training data with pack hours recorded separately. Once a few pack-only jobs are completed (with the "pack hours" field filled in on the completion form), this estimate will start working. For now, please quote pack-only jobs manually.</div>
+        </div>`;
+      return;
+    }
+    // Prefer jobs with matching home size; widen to all pack jobs if that's too narrow.
+    const _normSize=s=>(s||'').toLowerCase().replace(/\s+/g,'').replace('bedroom','br');
+    const _sameSize=_allPackData.filter(j=>_normSize(j.size)===_normSize(inputs.size));
+    const _neighbors=_sameSize.length>=2?_sameSize:_allPackData;
+    const _packSource=_sameSize.length>=2
+      ?`Based on ${_sameSize.length} pack jobs of similar size`
+      :`Based on all ${_allPackData.length} pack jobs (limited ${inputs.size||'size'} data)`;
+    // Average their actual packing hours, crew, and rate
+    const _avgPackHrs=_neighbors.reduce((s,j)=>s+j.packHoursActual,0)/_neighbors.length;
+    const _packCrewVals=_neighbors.map(j=>Number(j.packMen)||0).filter(n=>n>0);
+    const _avgPackCrew=_packCrewVals.length?Math.round(_packCrewVals.reduce((s,n)=>s+n,0)/_packCrewVals.length):3;
+    const _packRateVals=_neighbors.map(j=>Number(j.packRate)||0).filter(n=>n>50);
+    const _avgPackRate=_packRateVals.length?Math.round(_packRateVals.reduce((s,n)=>s+n,0)/_packRateVals.length/5)*5:_avgPackCrew*65;
+    // Spread: ±25% of the average for the hours range, rounded to nearest 0.5
+    const _packHrsLow=Math.max(1,Math.floor(_avgPackHrs*0.8*2)/2);
+    const _packHrsHigh=Math.ceil(_avgPackHrs*1.2*2)/2;
+    // Materials estimate — average of jobs with feePackMaterials recorded
+    const _matVals=_neighbors.map(j=>Number(j.feePackMaterials)||0).filter(n=>n>0);
+    const _avgMaterials=_matVals.length?Math.round(_matVals.reduce((s,n)=>s+n,0)/_matVals.length/10)*10:0;
+    const _labourMin=Math.round(_packHrsLow*_avgPackRate);
+    const _labourMax=Math.round(_packHrsHigh*_avgPackRate);
+    const _totalMin=_labourMin+_avgMaterials;
+    const _totalMax=_labourMax+_avgMaterials;
+    document.getElementById('ai-result').innerHTML=`
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${_packSource} · packing-only mode</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent)">$${_totalMin.toLocaleString()} — $${_totalMax.toLocaleString()}</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated packing-only total (labour + materials)</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
+          <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Pack hours</div>
+          <div style="font-size:16px;font-weight:600">${_packHrsLow}–${_packHrsHigh} hrs</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Avg of similar pack jobs: ${_avgPackHrs.toFixed(1)} hrs</div>
+        </div>
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
+          <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Suggested packing crew</div>
+          <div style="font-size:16px;font-weight:600">${_avgPackCrew} packers @ $${_avgPackRate}/hr</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">From past pack jobs</div>
+        </div>
+        ${_avgMaterials>0?`<div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
+          <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Packing materials</div>
+          <div style="font-size:16px;font-weight:600">~$${_avgMaterials}</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">Avg of past pack jobs</div>
+        </div>`:''}
+      </div>
+      <div style="padding:10px 12px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:11.5px;color:var(--text2);margin-top:8px">
+        ⚠ Only ${_allPackData.length} pack job${_allPackData.length===1?'':'s'} in training data so far — accuracy will improve as more pack-only jobs are completed.
+      </div>`;
+    return;
+  }
+
   const allData=getAllTrainingData();
   const scored=allData
     .filter(j=>j.actualHours)
