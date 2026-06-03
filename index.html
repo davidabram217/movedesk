@@ -5305,6 +5305,12 @@ function sendConfirmationEmail(){
         if(_sentBlock)j._sentDetailsBlock=_sentBlock;
       }
     }catch(e){console.warn('Could not capture sent details block:',e);}
+    // FIX (2026-05-29): the calendar URL was pre-built and cached in openConfirmEmail BEFORE
+    // _sentDetailsBlock existed. Now that we have the actual sent content on the job, rebuild
+    // the URL so "Add to calendar" reflects what was emailed (including user-typed extras).
+    // Without this, the cached URL embeds the old auto-generated block and the calendar
+    // diverges from the email body.
+    try{window._bookingCalUrl=buildJobCalUrl(j);}catch(e){console.warn('Could not rebuild calendar URL after send:',e);}
   }
   if(bookedJobId&&window._currentDayId&&j){
     const day=(j.extraDays||[]).find(d=>d.id===window._currentDayId);

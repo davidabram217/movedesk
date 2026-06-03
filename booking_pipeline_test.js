@@ -437,6 +437,17 @@ check('No-quote fallback in buildMoveDetailsBlock also uses fmtDateWithDay',
   ((indexHtml.match(/var moveDate=fmtDateWithDay\(bj\?\.date\|\|l\?\.date/g) || []).length >= 2)
 );
 
+// G6: Calendar URL cache invalidation after send (2026-05-29)
+// The cached _bookingCalUrl is pre-built at modal-open time, BEFORE _sentDetailsBlock exists.
+// sendConfirmationEmail must rebuild the URL after capturing the sent block so the
+// "Add to calendar" button reflects what was actually emailed.
+check('sendConfirmationEmail rebuilds calendar URL after capturing _sentDetailsBlock',
+  /j\._sentDetailsBlock=_sentBlock[\s\S]{0,800}window\._bookingCalUrl=buildJobCalUrl\(j\)/.test(indexHtml)
+);
+check('Calendar URL rebuild is wrapped in try/catch (defensive)',
+  /try\{window\._bookingCalUrl=buildJobCalUrl\(j\);?\}catch/.test(indexHtml)
+);
+
 console.log('');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('RESULTS: ' + pass + ' passed, ' + fail + ' failed');
