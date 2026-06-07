@@ -1259,6 +1259,13 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="cj-vaults" placeholder="e.g. 6" step="0.5"></div>
         <div class="form-group"><label>Payment method</label><select id="cj-payment" onchange="calcTotal()"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
       </div>
+      <!-- "Add another day" button — for jobs that were booked as single-day but ran into
+           a second day. Converts this completion to multi-day mode, carrying over what's
+           already been entered as Day 1, and lets you enter Day 2's details too. -->
+      <div style="margin-bottom:16px;text-align:right">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="cjConvertToMultiDay()" style="font-size:12px">+ Add another day</button>
+      </div>
+
       <div style="padding:8px 12px;background:var(--accent-light);border-radius:var(--radius);border:1px solid #a8d5b5;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.6">
         <strong>🤖 AI tip:</strong> Log move hours and pack hours separately. If 3 movers worked 6 hrs and 1 packer worked 3 hrs, enter: Move hours = 6, Movers = 3, Pack hours = 3, Packers = 1. This helps the AI learn the real breakdown.
       </div>
@@ -1357,8 +1364,28 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <button class="modal-close" onclick="closeModal('complete-job-multiday')">✕</button>
     </div>
     <div class="modal-body">
+      <!-- Job Context (mirrors single-day form) — auto-filled from the booking, edit if needed.
+           Used for AI quote training so the AI knows what size of home + access this multi-day
+           job was at, not just the per-day hours. -->
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— auto-filled from the booking; edit if needed. Used for AI quote training.</span></div>
+      <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="form-group"><label>Home size</label><select id="cjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
+        <div class="form-group"><label>Square footage</label><input type="number" id="cjmd-sqft" placeholder="e.g. 800"></div>
+        <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Storage Out</option><option>Internal</option></select></div>
+        <div class="form-group"><label></label><div style="height:1px"></div></div>
+        <div class="form-group"><label>Access at load</label><select id="cjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="cjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+      </div>
+
       <!-- Per-day rows are rendered into here by renderMultiDayCompleteRows(j) -->
       <div id="cjmd-days-container"></div>
+
+      <!-- Add Day button — for jobs that ran longer than originally booked, or that always
+           had multiple days but a day got missed. Appends a blank day card to the container.
+           Each card also has a × to remove it (renders only if >1 day exists). -->
+      <div style="margin:6px 0 14px 0">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="cjmdAddDay()" style="font-size:12px">+ Add another day</button>
+      </div>
 
       <div style="margin-top:14px;padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
         <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);margin-bottom:10px">Whole-job fields <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">— entered once for the whole job</span></div>
@@ -1371,6 +1398,29 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Vaults used</label><input type="number" id="cjmd-vaults" placeholder="0"></div>
           <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">—</option><option>None</option><option>Released Value</option><option>Full Value Protection</option><option>3rd Party</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
+        </div>
+      </div>
+
+      <!-- Misc charges (mirrors single-day form). Each row's amount counts toward the total;
+           the "Include in AI" toggle controls whether it gets folded into AI training data. -->
+      <div style="margin-top:14px;padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);margin-bottom:6px">Miscellaneous charges <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— storage, COI letters, one-off fees. Counts toward total. Check the AI box only if it's representative of the move work.</span></div>
+        <div id="cjmd-misc-rows">
+          <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <input type="text" id="cjmd-misc-1-label" placeholder="Description (e.g. 12mo storage)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+            <input type="number" id="cjmd-misc-1-amount" placeholder="0.00" step="0.01" oninput="calcMultiDayTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="cjmd-misc-1-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+          </div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <input type="text" id="cjmd-misc-2-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+            <input type="number" id="cjmd-misc-2-amount" placeholder="0.00" step="0.01" oninput="calcMultiDayTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="cjmd-misc-2-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+          </div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <input type="text" id="cjmd-misc-3-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+            <input type="number" id="cjmd-misc-3-amount" placeholder="0.00" step="0.01" oninput="calcMultiDayTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="cjmd-misc-3-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+          </div>
         </div>
       </div>
 
@@ -7782,6 +7832,81 @@ function calcBalance(){const total=Number(document.getElementById('cj-total').va
 const _CJMD_DAY_TYPES=['Packing','Moving','Pack and load','Pack and move','Load and move','Delivery'];
 
 // Open the multi-day completion modal for the given booked job.
+// Convert a single-day completion in-flight into multi-day. Triggered by the "+ Add another
+// day" button on the single-day completion form. Reads whatever's in the cj-* fields, closes
+// the single-day modal, opens the multi-day modal with Day 1 pre-filled from those values,
+// and a blank Day 2 ready for the user to fill in. Job Context (size, sqft, access, etc.) and
+// packing scope are also carried across so nothing gets lost.
+function cjConvertToMultiDay(){
+  const jobId=currentCompleteJobId;
+  if(!jobId){showToast('No job context — please reopen.');return;}
+  const j=db.bookedJobs.find(x=>x.id===jobId);
+  if(!j){showToast('Booked job not found.');return;}
+  if(!confirm('Switch to multi-day mode? Your current entries become Day 1; you can then fill in Day 2.'))return;
+  // Snapshot single-day fields BEFORE we close the modal
+  const _read=id=>document.getElementById(id)?.value||'';
+  const _readNum=id=>{const v=document.getElementById(id)?.value;return v===''||v==null?null:Number(v);};
+  const _readChecked=id=>document.getElementById(id)?.checked||false;
+  const _snap={
+    size:_read('cj-size'),sqft:_read('cj-sqft'),movetype:_read('cj-movetype'),
+    accessLoad:_read('cj-access-load'),accessUnload:_read('cj-access-unload'),
+    crew:_read('cj-crew'),source:_read('cj-source'),
+    moveHours:_readNum('cj-hours'),movers:_readNum('cj-movers'),
+    packHours:_readNum('cj-pack-hours'),packers:_readNum('cj-pack-movers'),
+    packing:_read('cj-packing'),vaults:_readNum('cj-vaults'),payment:_read('cj-payment'),
+    rate:_readNum('cj-rate'),fuel:_readNum('cj-fuel'),materials:_readNum('cj-materials'),
+    parking:_readNum('cj-parking-fee'),insurance:_readNum('cj-insurance'),
+    insuranceType:_read('cj-insurance-type'),coi:_readNum('cj-coi'),dump:_readNum('cj-dump'),
+    yelp:_readNum('cj-yelp'),damage:_readNum('cj-damage'),paid:_read('cj-paid'),
+    notes:_read('cj-notes'),useForAI:_readChecked('cj-ai-training'),
+    misc:[1,2,3].map(i=>({label:_read('cj-misc-'+i+'-label'),amount:_readNum('cj-misc-'+i+'-amount'),ai:_readChecked('cj-misc-'+i+'-ai')}))
+  };
+  // Determine what Day 1's "type" should be from what was filled in
+  const _day1Type=(_snap.moveHours>0&&_snap.packHours>0)?'Pack and move':(_snap.packHours>0?'Packing':'Moving');
+  // Close single-day modal, open multi-day (renders default day rows from the booked job's
+  // quoteDays/extraDays — typically 1 day from a single-day booking)
+  closeModal('complete-job');
+  openCompleteMultiDay(jobId);
+  // Now overlay our snapshot onto Day 1 + carry over whole-job + Job Context, then add Day 2.
+  // We do this in a microtask so the multi-day modal has rendered its initial day rows first.
+  setTimeout(()=>{
+    // Job Context
+    const _setVal=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
+    _setVal('cjmd-size',_snap.size);_setVal('cjmd-sqft',_snap.sqft);_setVal('cjmd-movetype',_snap.movetype);
+    _setVal('cjmd-access-load',_snap.accessLoad);_setVal('cjmd-access-unload',_snap.accessUnload);
+    _setVal('cjmd-crew',_snap.crew);_setVal('cjmd-source',_snap.source);
+    _setVal('cjmd-packing',_snap.packing);_setVal('cjmd-vaults',_snap.vaults);_setVal('cjmd-payment',_snap.payment);
+    _setVal('cjmd-insurance',_snap.insurance);_setVal('cjmd-insurance-type',_snap.insuranceType);
+    _setVal('cjmd-coi',_snap.coi);_setVal('cjmd-dump',_snap.dump);_setVal('cjmd-yelp',_snap.yelp);
+    _setVal('cjmd-damage',_snap.damage);_setVal('cjmd-paid',_snap.paid);_setVal('cjmd-notes',_snap.notes);
+    const _aiEl=document.getElementById('cjmd-ai-training');if(_aiEl)_aiEl.checked=_snap.useForAI;
+    // Misc rows
+    _snap.misc.forEach((m,i)=>{
+      _setVal('cjmd-misc-'+(i+1)+'-label',m.label);
+      _setVal('cjmd-misc-'+(i+1)+'-amount',m.amount);
+      const _aiCb=document.getElementById('cjmd-misc-'+(i+1)+'-ai');if(_aiCb)_aiCb.checked=m.ai;
+    });
+    // Day 1 — overlay user's single-day entries onto the first day card
+    const container=document.getElementById('cjmd-days-container');
+    if(container&&container.children.length>=1){
+      const card=container.children[0];
+      const _setCard=(sel,v)=>{const el=card.querySelector(sel);if(el&&v!=null&&v!=='')el.value=v;};
+      _setCard('.cjmd-day-type',_day1Type);
+      if(_snap.movers)_setCard('.cjmd-day-movers',_snap.movers);
+      if(_snap.moveHours!=null)_setCard('.cjmd-day-move-hours',_snap.moveHours);
+      if(_snap.rate)_setCard('.cjmd-day-move-rate',_snap.rate);
+      if(_snap.packers)_setCard('.cjmd-day-packers',_snap.packers);
+      if(_snap.packHours!=null)_setCard('.cjmd-day-pack-hours',_snap.packHours);
+      if(_snap.fuel!=null)_setCard('.cjmd-day-fuel',_snap.fuel);
+      if(_snap.materials!=null)_setCard('.cjmd-day-materials',_snap.materials);
+      if(_snap.parking!=null)_setCard('.cjmd-day-parking',_snap.parking);
+    }
+    // Append a blank Day 2 ready for input
+    cjmdAddDay();
+    calcMultiDayTotal();
+  },50);
+}
+
 function openCompleteMultiDay(jobId){
   currentCompleteJobId=jobId;
   const j=db.bookedJobs.find(x=>x.id===jobId);
@@ -7795,12 +7920,30 @@ function openCompleteMultiDay(jobId){
   // Clear whole-job fields
   ['cjmd-insurance','cjmd-coi','cjmd-dump','cjmd-yelp','cjmd-damage','cjmd-vaults','cjmd-paid','cjmd-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['cjmd-insurance-type','cjmd-packing','cjmd-payment','cjmd-source'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
+  // Clear new Job Context + Misc Charges fields (mirrors single-day form behavior)
+  ['cjmd-sqft','cjmd-misc-1-label','cjmd-misc-1-amount','cjmd-misc-2-label','cjmd-misc-2-amount','cjmd-misc-3-label','cjmd-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['cjmd-size','cjmd-movetype','cjmd-access-load','cjmd-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
+  ['cjmd-misc-1-ai','cjmd-misc-2-ai','cjmd-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
   const _aiEl=document.getElementById('cjmd-ai-training');if(_aiEl)_aiEl.checked=false;
   const _crewEl=document.getElementById('cjmd-crew');if(_crewEl)_crewEl.value=j.crew||'';
   const _srcEl=document.getElementById('cjmd-source');if(_srcEl)_srcEl.value=j.source||'';
   const _insTypeEl=document.getElementById('cjmd-insurance-type');if(_insTypeEl)_insTypeEl.value=j.insuranceType||'';
   // Pre-fill packing scope from lead if known
   const _l=j.leadId?db.leads.find(x=>x.id===j.leadId):null;
+  // Pre-fill the new Job Context fields from the booked job (with the linked lead as fallback) —
+  // mirrors the single-day form's openCompleteJob pre-fill. This makes the multi-day completion
+  // form a single place to confirm/correct the AI training context.
+  const _pick=(...vals)=>vals.find(v=>v!=null&&v!=='')||'';
+  const _sizeEl=document.getElementById('cjmd-size');
+  if(_sizeEl)_sizeEl.value=_pick(j.size,_l?_l.size:'');
+  const _sqftEl=document.getElementById('cjmd-sqft');
+  if(_sqftEl)_sqftEl.value=_pick(j.sqft,_l?_l.sqft:'');
+  const _movetypeEl=document.getElementById('cjmd-movetype');
+  if(_movetypeEl)_movetypeEl.value=_pick(j.moveType,_l?_l.moveType:'');
+  const _accLoadEl=document.getElementById('cjmd-access-load');
+  if(_accLoadEl)_accLoadEl.value=_pick(j.accessLoad,_l?_l.accessLoad:'');
+  const _accUnloadEl=document.getElementById('cjmd-access-unload');
+  if(_accUnloadEl)_accUnloadEl.value=_pick(j.accessUnload,_l?_l.accessUnload:'');
   const _packScope=_l?.packing||j.packing||'No';
   const _packEl=document.getElementById('cjmd-packing');
   if(_packEl){
@@ -7816,15 +7959,95 @@ function openCompleteMultiDay(jobId){
   openModal('complete-job-multiday');
 }
 
+// Build the HTML for a single day card. Reusable so both initial render and "Add another day"
+// can call it. `dayIndex` is the 0-based index used in data-day-index attributes (must be unique
+// across the container). `prefill` is optional pre-populated values (movers, hours, etc).
+function _buildCjmdDayCard(dayIndex, prefill){
+  const i=dayIndex;
+  const p=prefill||{};
+  const dayDate=p.date||'';
+  const movers=Number(p.movers)||2;
+  const moveRate=Number(p.moveRate)||225;
+  const packers=Number(p.packers)||0;
+  const packRate=Number(p.packRate)||0;
+  const moveHrs=Number(p.moveHours)||0;
+  const packHrs=Number(p.packHours)||0;
+  const fuel=Number(p.fuel)||0;
+  const mat=Number(p.materials)||0;
+  const park=Number(p.parking)||0;
+  const defType=p.type||'Moving';
+  const typeSelectHtml=_CJMD_DAY_TYPES.map(t=>`<option value="${t}"${t===defType?' selected':''}>${t}</option>`).join('');
+  const movSelectHtml=[2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
+  const packSelectHtml=['<option value="0"'+(packers===0?' selected':'')+'>0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}"${n===packers?' selected':''}>${n}</option>`)).join('');
+  return `<div style="padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px" data-day-index="${i}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:600">Day ${i+1}${dayDate?` <span style="font-weight:400;color:var(--text3);font-size:11.5px">— ${fmtDate(dayDate)}</span>`:''}</div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="flex:0 0 200px"><select class="cjmd-day-type" data-day-index="${i}">${typeSelectHtml}</select></div><button type="button" class="cjmd-day-remove" data-day-index="${i}" onclick="cjmdRemoveDay(${i})" title="Remove this day" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px">×</button></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+      <div class="form-group"><label style="font-size:11px">Movers</label><select class="cjmd-day-movers" data-day-index="${i}" oninput="calcMultiDayTotal()" onchange="calcMultiDayTotal()">${movSelectHtml}</select></div>
+      <div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="cjmd-day-move-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${moveHrs||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="cjmd-day-move-rate" data-day-index="${i}" placeholder="${moveRate}" value="${moveRate||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Move pay</label><div class="cjmd-day-move-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+      <div class="form-group"><label style="font-size:11px">Packers</label><select class="cjmd-day-packers" data-day-index="${i}" oninput="calcMultiDayTotal()" onchange="calcMultiDayTotal()">${packSelectHtml}</select></div>
+      <div class="form-group"><label style="font-size:11px">Pack hours</label><input type="number" class="cjmd-day-pack-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${packHrs||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Pack rate ($/hr)</label><input type="number" class="cjmd-day-pack-rate" data-day-index="${i}" placeholder="${packRate||135}" value="${packRate||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Pack pay</label><div class="cjmd-day-pack-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
+      <div class="form-group"><label style="font-size:11px">Fuel ($)</label><input type="number" class="cjmd-day-fuel" data-day-index="${i}" placeholder="0" value="${fuel||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Materials ($)</label><input type="number" class="cjmd-day-materials" data-day-index="${i}" placeholder="0" value="${mat||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Parking ($)</label><input type="number" class="cjmd-day-parking" data-day-index="${i}" placeholder="0" value="${park||''}" oninput="calcMultiDayTotal()"></div>
+    </div>
+    <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">Day ${i+1} subtotal: <span class="cjmd-day-subtotal" data-day-index="${i}" style="color:var(--text);font-weight:600">$0</span></div>
+  </div>`;
+}
+
+// Append a new blank day card. Triggered by the "+ Add another day" button. Index is the
+// current count of day cards (so the new card gets the next free index).
+function cjmdAddDay(){
+  const container=document.getElementById('cjmd-days-container');
+  if(!container)return;
+  const nextIdx=container.children.length;
+  container.insertAdjacentHTML('beforeend',_buildCjmdDayCard(nextIdx,{type:'Moving'}));
+  calcMultiDayTotal();
+}
+
+// Remove a day card. Triggered by the × button on each card. Renumbers remaining cards.
+function cjmdRemoveDay(idx){
+  const container=document.getElementById('cjmd-days-container');
+  if(!container)return;
+  if(container.children.length<=1){showToast('Must have at least one day.');return;}
+  // Read current state of all cards EXCEPT the one being removed, then re-render with
+  // sequential indices. Preserves any data the user typed in remaining cards.
+  const cards=[...container.children];
+  const preserved=[];
+  cards.forEach((card,i)=>{
+    if(i===idx)return;
+    preserved.push({
+      type:card.querySelector('.cjmd-day-type')?.value||'Moving',
+      movers:Number(card.querySelector('.cjmd-day-movers')?.value)||0,
+      moveHours:Number(card.querySelector('.cjmd-day-move-hours')?.value)||0,
+      moveRate:Number(card.querySelector('.cjmd-day-move-rate')?.value)||0,
+      packers:Number(card.querySelector('.cjmd-day-packers')?.value)||0,
+      packHours:Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0,
+      packRate:Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0,
+      fuel:Number(card.querySelector('.cjmd-day-fuel')?.value)||0,
+      materials:Number(card.querySelector('.cjmd-day-materials')?.value)||0,
+      parking:Number(card.querySelector('.cjmd-day-parking')?.value)||0
+    });
+  });
+  container.innerHTML=preserved.map((p,i)=>_buildCjmdDayCard(i,p)).join('');
+  calcMultiDayTotal();
+}
+
 // Build the per-day input rows inside #cjmd-days-container, pre-filled from j.quoteDays[].
 function renderMultiDayCompleteRows(j){
   const container=document.getElementById('cjmd-days-container');
   if(!container)return;
   const qDays=(j.quoteDays&&j.quoteDays.length)?j.quoteDays:[{date:j.date,crew:Number(j.movers)||2,rate:Number(j.rateRegular)||225,packCrewSize:Number(j.packCrewSize)||0,packRate:Number(j.packRate)||0}];
-  // Movers dropdown options (2-8); Packers dropdown options (0-12)
-  const _moverOpts=[2,3,4,5,6,7,8].map(n=>`<option value="${n}">${n}</option>`).join('');
-  const _packerOpts=['<option value="0">0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}">${n}</option>`)).join('');
-  const _typeOpts=_CJMD_DAY_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('');
   // Heuristic default for day type:
   // - if quote day has packCrewSize>0 and crew>0 → "Pack and move"
   // - if packCrewSize>0 only → "Packing"
@@ -7836,41 +8059,16 @@ function renderMultiDayCompleteRows(j){
     if(hasPack)return'Packing';
     return'Moving';
   }
+  // Append day cards using the shared _buildCjmdDayCard so add/remove use the same template.
   container.innerHTML=qDays.map((qd,i)=>{
-    const dayNum=i+1;
-    const dayDate=qd.date||j.date||'';
-    const movers=Number(qd.crew)||2;
-    const moveRate=Number(qd.rate)||225;
-    const packers=Number(qd.packCrewSize)||0;
-    const packRate=Number(qd.packRate)||0;
-    const defType=_defaultType(qd);
-    const typeSelectHtml=_CJMD_DAY_TYPES.map(t=>`<option value="${t}"${t===defType?' selected':''}>${t}</option>`).join('');
-    const movSelectHtml=[2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
-    const packSelectHtml=['<option value="0"'+(packers===0?' selected':'')+'>0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}"${n===packers?' selected':''}>${n}</option>`)).join('');
-    return `<div style="padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px" data-day-index="${i}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
-        <div style="font-size:13px;font-weight:600">Day ${dayNum}${dayDate?` <span style="font-weight:400;color:var(--text3);font-size:11.5px">— ${fmtDate(dayDate)}</span>`:''}</div>
-        <div style="flex:0 0 200px"><select class="cjmd-day-type" data-day-index="${i}">${typeSelectHtml}</select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
-        <div class="form-group"><label style="font-size:11px">Movers</label><select class="cjmd-day-movers" data-day-index="${i}" oninput="calcMultiDayTotal()" onchange="calcMultiDayTotal()">${movSelectHtml}</select></div>
-        <div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="cjmd-day-move-hours" data-day-index="${i}" placeholder="0.0" step="0.5" oninput="calcMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="cjmd-day-move-rate" data-day-index="${i}" placeholder="${moveRate}" value="${moveRate||''}" oninput="calcMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Move pay</label><div class="cjmd-day-move-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
-        <div class="form-group"><label style="font-size:11px">Packers</label><select class="cjmd-day-packers" data-day-index="${i}" oninput="calcMultiDayTotal()" onchange="calcMultiDayTotal()">${packSelectHtml}</select></div>
-        <div class="form-group"><label style="font-size:11px">Pack hours</label><input type="number" class="cjmd-day-pack-hours" data-day-index="${i}" placeholder="0.0" step="0.5" oninput="calcMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Pack rate ($/hr)</label><input type="number" class="cjmd-day-pack-rate" data-day-index="${i}" placeholder="${packRate||135}" value="${packRate||''}" oninput="calcMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Pack pay</label><div class="cjmd-day-pack-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
-        <div class="form-group"><label style="font-size:11px">Fuel ($)</label><input type="number" class="cjmd-day-fuel" data-day-index="${i}" placeholder="0" oninput="calcMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Materials ($)</label><input type="number" class="cjmd-day-materials" data-day-index="${i}" placeholder="0" oninput="calcMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Parking ($)</label><input type="number" class="cjmd-day-parking" data-day-index="${i}" placeholder="0" oninput="calcMultiDayTotal()"></div>
-      </div>
-      <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">Day ${dayNum} subtotal: <span class="cjmd-day-subtotal" data-day-index="${i}" style="color:var(--text);font-weight:600">$0</span></div>
-    </div>`;
+    return _buildCjmdDayCard(i,{
+      date:qd.date||j.date||'',
+      type:_defaultType(qd),
+      movers:Number(qd.crew)||2,
+      moveRate:Number(qd.rate)||225,
+      packers:Number(qd.packCrewSize)||0,
+      packRate:Number(qd.packRate)||0
+    });
   }).join('');
 }
 
@@ -7906,6 +8104,11 @@ function calcMultiDayTotal(){
     .map(id=>Number(document.getElementById(id)?.value)||0)
     .reduce((a,b)=>a+b,0);
   grand+=wj;
+  // Misc charges — fold the three rows into the running total too so the user sees the
+  // right number live as they enter charges. Matches the single-day form's behavior.
+  let miscSum=0;
+  for(let i=1;i<=3;i++){miscSum+=Number(document.getElementById('cjmd-misc-'+i+'-amount')?.value)||0;}
+  grand+=miscSum;
   const _totEl=document.getElementById('cjmd-total-display');
   if(_totEl)_totEl.textContent='$'+Math.round(grand).toLocaleString('en-US');
   return grand;
@@ -7965,6 +8168,26 @@ function confirmCompleteMultiDay(paymentState){
   const notes=document.getElementById('cjmd-notes').value;
   const source=document.getElementById('cjmd-source').value;
   const useForAI=document.getElementById('cjmd-ai-training').checked;
+  // Job Context — these fields auto-fill from the booked job but the user can correct them.
+  // Form values win over booked-job defaults (the user is confirming/correcting them at completion).
+  const ctxSize=document.getElementById('cjmd-size')?.value||j.size||'';
+  const ctxSqft=document.getElementById('cjmd-sqft')?.value||j.sqft||'';
+  const ctxMoveType=document.getElementById('cjmd-movetype')?.value||j.moveType||'';
+  const ctxAccessLoad=document.getElementById('cjmd-access-load')?.value||j.accessLoad||'';
+  const ctxAccessUnload=document.getElementById('cjmd-access-unload')?.value||j.accessUnload||'';
+  // Misc charges — collect all 3 rows. Only non-empty rows are saved. The "include in AI" flag
+  // controls whether that row's amount feeds into AI training data later.
+  const miscCharges=[];
+  let miscTotal=0;
+  for(let i=1;i<=3;i++){
+    const label=(document.getElementById('cjmd-misc-'+i+'-label')?.value||'').trim();
+    const amount=Number(document.getElementById('cjmd-misc-'+i+'-amount')?.value)||0;
+    const includeInAI=document.getElementById('cjmd-misc-'+i+'-ai')?.checked||false;
+    if(label||amount>0){
+      miscCharges.push({label:label,amount:amount,includeInAI:includeInAI});
+      miscTotal+=amount;
+    }
+  }
   // CC fee (3.5% if paid via credit card)
   const _ccFee=payment==='Credit card'?Math.round(((Number(paid)||0)*0.035)*100)/100:0;
   // Build the completedJob record
@@ -7999,12 +8222,17 @@ function confirmCompleteMultiDay(paymentState){
     vaults:vaults,
     // Carryover from booked job context (mirrors single-day confirmComplete)
     from:j.from,to:j.to,fromZip:j.fromZip,toZip:j.toZip,
-    size:j.size,moveType:j.moveType,source:source||j.source,packing:packing,
-    accessLoad:j.accessLoad,parkingLoad:j.parkingLoad,
-    accessUnload:j.accessUnload,parkingUnload:j.parkingUnload,
+    // Job Context — use form values (user may have corrected them) over raw booked-job values
+    size:ctxSize,sqft:ctxSqft,moveType:ctxMoveType,source:source||j.source,packing:packing,
+    accessLoad:ctxAccessLoad,parkingLoad:j.parkingLoad,
+    accessUnload:ctxAccessUnload,parkingUnload:j.parkingUnload,
     extraLoads:j.extraLoads||[],extraUnloads:j.extraUnloads||[],
-    // Computed totals and book-keeping
-    total:Math.round(total),
+    // Miscellaneous charges (3-row array; only non-empty rows saved). Each row has
+    // {label, amount, includeInAI}. miscTotal is summed into the job total below.
+    miscCharges:miscCharges,
+    // Computed totals and book-keeping. Misc charges are added to the computed total so
+    // they show up in revenue, paid-vs-quoted comparisons, etc.
+    total:Math.round((Number(total)||0)+miscTotal),
     paid:paid,payment:payment,
     crew:crew,
     notes:notes,officeNotes:j.officeNotes||'',
@@ -14055,6 +14283,39 @@ function computeVaultRegression(){
   return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY,meanAbsErr:meanAbsErr};
 }
 
+// Recommend a crew size for a given vault count, based on the crew sizes you've actually used
+// on past completed jobs. Fits a linear regression: crew ≈ intercept + slope × vaults.
+// Returns null if there isn't enough data to fit reliably; otherwise returns:
+//   { suggested:N, confidence:'high'|'low', maxVaultsInData:N, slope, intercept }
+// Confidence drops to 'low' when the requested vault count exceeds the maximum vault count
+// in the training data — meaning the suggestion is extrapolation, not interpolation.
+function computeCrewRecommendation(vaults){
+  if(!vaults||vaults<=0)return null;
+  const data=getAllTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0&&j.moveMen);
+  const MIN_JOBS=6;
+  if(data.length<MIN_JOBS)return null;
+  const xs=data.map(j=>j.estimatedVaults);
+  const ys=data.map(j=>Number(j.moveMen)||0);
+  const n=xs.length;
+  const meanX=xs.reduce((a,b)=>a+b,0)/n;
+  const meanY=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;
+  for(let i=0;i<n;i++){num+=(xs[i]-meanX)*(ys[i]-meanY);den+=(xs[i]-meanX)**2;}
+  if(den===0)return null;
+  const slope=num/den;
+  const intercept=meanY-slope*meanX;
+  // Sanity guards — a sensible crew fit has a positive slope (more vaults = more crew) and
+  // a non-negative intercept (zero vaults shouldn't need negative crew).
+  if(slope<=0)return null;
+  if(intercept<0)return null;
+  const maxVaultsInData=Math.max(...xs);
+  const rawSuggested=intercept+slope*vaults;
+  // Clamp to dropdown range (2-8 men) — the UI doesn't go higher.
+  const suggested=Math.max(2,Math.min(8,Math.round(rawSuggested)));
+  const confidence=vaults<=maxVaultsInData?'high':'low';
+  return {suggested,confidence,maxVaultsInData,slope,intercept,rawSuggested};
+}
+
 function generateAIQuote(){
   const inputs={
     size:document.getElementById('ai-size').value,
@@ -14270,6 +14531,15 @@ function generateAIQuote(){
   const overCount=scored.filter(j=>j.actualHours&&j.quotedHoursMax&&j.actualHours>j.quotedHoursMax).length;
   const overRate=Math.round(overCount/scored.filter(j=>j.quotedHoursMax).length*100)||0;
 
+  // Crew recommendation — fit "men ≈ a + b × vaults" against past completed jobs and suggest
+  // a crew size for this volume. Surfaces in the Suggested-crew tile so the user can see what
+  // similar past jobs were staffed at, and a warning fires if they've picked significantly
+  // fewer than the suggestion (which would produce an artificially low quote).
+  const crewRec=inputs.vaults?computeCrewRecommendation(inputs.vaults):null;
+  const crewDelta=crewRec?(men-crewRec.suggested):0;
+  const crewMismatch=crewRec&&Math.abs(crewDelta)>=2;
+  const crewLowConfidence=crewRec&&crewRec.confidence==='low';
+
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${isOutsideSF?' · outside SF billing':''}</div>
@@ -14282,10 +14552,14 @@ function generateAIQuote(){
         <div style="font-size:16px;font-weight:600">${totalHoursLowAdj}–${totalHoursHighAdj} hrs</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${extraDriveHours>0?'incl. ~'+Math.round(extraDriveHours*60)+'min drive time':'clock starts on arrival'}</div>
       </div>
-      <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
+      <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)${crewMismatch?';border-left:3px solid #b7860b':''}">
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Suggested crew</div>
         <div style="font-size:16px;font-weight:600">${men} men @ $${rate}/hr</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${men} × $${ratePerMan}/man</div>
+        ${crewRec?`<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);font-size:10.5px;color:${crewMismatch?'#b7860b':'var(--text3)'}">
+          📊 Based on past jobs at ${inputs.vaults}v: ~${crewRec.suggested} men${crewLowConfidence?' <span style="color:var(--text3);font-style:italic">(low confidence — extrapolated beyond data, max '+crewRec.maxVaultsInData+'v)</span>':''}
+          ${crewMismatch?`<div style="margin-top:3px;font-weight:600">⚠ You picked ${men} — consider ${crewDelta<0?'increasing to':'decreasing to'} ${crewRec.suggested} for a more realistic estimate</div>`:''}
+        </div>`:''}
       </div>
       <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Fuel / tolls charge</div>
