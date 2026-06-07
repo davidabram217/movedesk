@@ -292,6 +292,57 @@ check('calcEditMultiDayTotal includes misc rows',
   /let miscSum=0;[\s\S]{0,200}ecjmd-misc-/.test(indexHtml)
 );
 
+// ─── 2026-05-30: Self-heal for multiDay records with empty days[] ───
+// (Matthew Koonce case: flagged multiDay:true but days never populated,
+//  so the editor rendered zero day cards and couldn't be used)
+check('openEditCompleteMultiDay self-heals empty days[] from flat fields',
+  /openEditCompleteMultiDay[\s\S]{0,2000}!Array\.isArray\(j\.days\)\|\|j\.days\.length===0/.test(indexHtml)
+);
+check('Self-heal builds synthetic day with movers/moveHours/moveRate from flat fields',
+  /Synthesized 1-day record[\s\S]{0,200}|movers:Number\(j\.moveMen\)\|\|0[\s\S]{0,500}moveRate:Number\(j\.rate\)/.test(indexHtml)
+);
+check('Self-heal builds synthetic day with packers/packHours from flat fields',
+  /packers:Number\(j\.packMen\)\|\|0,\s*packHours:_packHrs/.test(indexHtml)
+);
+check('Self-heal infers day type from what fields are populated',
+  /const _type=\(_hasMove&&_hasPack\)\?'Pack and move':\(_hasPack\?'Packing':'Moving'\)/.test(indexHtml)
+);
+check('Self-heal logs to console for debugging',
+  /console\.log\('Synthesized 1-day record for multiDay job/.test(indexHtml)
+);
+
+// Behavioral simulation of the self-heal
+{
+  function simulateSelfHeal(j) {
+    if (Array.isArray(j.days) && j.days.length > 0) return j.days;
+    const moveHrs = Number(j.hours) || 0;
+    const packHrs = Number(j.packHours) || 0;
+    const moveOnly = moveHrs > packHrs ? moveHrs - packHrs : moveHrs;
+    const hasMove = moveOnly > 0 || Number(j.moveMen) > 0;
+    const hasPack = packHrs > 0 || Number(j.packMen) > 0;
+    const type = (hasMove && hasPack) ? 'Pack and move' : (hasPack ? 'Packing' : 'Moving');
+    return [{
+      date: j.date || '', type: type,
+      movers: Number(j.moveMen) || 0, moveHours: moveOnly, moveRate: Number(j.rate) || 0,
+      packers: Number(j.packMen) || 0, packHours: packHrs, packRate: Number(j.packRate) || 0,
+      fuel: Number(j.feeFuel) || 0, materials: Number(j.feeMaterials) || 0, parking: Number(j.feeParkingPermit) || 0
+    }];
+  }
+  // Matthew's exact data
+  const matt = { multiDay: true, days: undefined, hours: 13, moveMen: 6, rate: undefined, packHours: undefined, packMen: '', packRate: undefined, feeFuel: 260, feeMaterials: 40, feePackMaterials: 548.5, total: 6236, date: '2026-05-15' };
+  const synth = simulateSelfHeal(matt);
+  check('Matthew self-heal: builds 1 day', synth.length === 1);
+  check('Matthew self-heal: type is "Moving" (no pack hours)', synth[0].type === 'Moving');
+  check('Matthew self-heal: 6 movers preserved', synth[0].movers === 6);
+  check('Matthew self-heal: 13 move hours preserved', synth[0].moveHours === 13);
+  check('Matthew self-heal: fuel $260 preserved', synth[0].fuel === 260);
+  check('Matthew self-heal: materials $40 preserved', synth[0].materials === 40);
+  // Verify a record with actual days[] is NOT overwritten
+  const realMulti = { multiDay: true, days: [{ type: 'Packing', moveHours: 0, packHours: 5 }], hours: 5 };
+  const unchanged = simulateSelfHeal(realMulti);
+  check('Existing days[] not overwritten by self-heal', unchanged === realMulti.days);
+}
+
 console.log('');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('RESULTS: ' + pass + ' passed, ' + fail + ' failed');

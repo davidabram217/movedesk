@@ -8253,6 +8253,33 @@ function openEditCompleteMultiDay(jobId){
   currentEditCompletedJobId=jobId;
   const j=db.completedJobs.find(x=>x.id===jobId);
   if(!j||!j.multiDay)return;
+  // Self-heal: some records are flagged multiDay:true but have no `days` array (older imports,
+  // migrations, or single-day jobs incorrectly marked multi-day). Without this, the editor
+  // would render zero day cards and the user couldn't edit anything. Build a synthetic 1-day
+  // array from the flat fields so editing works. If the user wants to actually split it into
+  // multiple days, they can click "+ Add another day".
+  if(!Array.isArray(j.days)||j.days.length===0){
+    const _moveHrs=Number(j.hours)||0;
+    const _packHrs=Number(j.packHours)||0;
+    const _moveOnly=_moveHrs>_packHrs?_moveHrs-_packHrs:_moveHrs;
+    const _hasMove=_moveOnly>0||Number(j.moveMen)>0;
+    const _hasPack=_packHrs>0||Number(j.packMen)>0;
+    const _type=(_hasMove&&_hasPack)?'Pack and move':(_hasPack?'Packing':'Moving');
+    j.days=[{
+      date:j.date||'',
+      type:_type,
+      movers:Number(j.moveMen)||0,
+      moveHours:_moveOnly,
+      moveRate:Number(j.rate)||0,
+      packers:Number(j.packMen)||0,
+      packHours:_packHrs,
+      packRate:Number(j.packRate)||0,
+      fuel:Number(j.feeFuel)||0,
+      materials:Number(j.feeMaterials)||0,
+      parking:Number(j.feeParkingPermit)||0
+    }];
+    console.log('Synthesized 1-day record for multiDay job with empty days[] —',j.name);
+  }
   // Header summary
   const _summaryEl=document.getElementById('ecjmd-summary');
   if(_summaryEl){
