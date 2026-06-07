@@ -37,8 +37,8 @@ check('cj-pack-movers has 12 packers',
 check('ecj-pack-movers has 12 packers',
   /<select id="ecj-pack-movers">[\s\S]{0,500}<option>12<\/option>/.test(indexHtml)
 );
-check('confirmCompleteMultiDay sets multiDay:true', /confirmCompleteMultiDay[\s\S]{0,4000}multiDay:true/.test(indexHtml));
-check('confirmCompleteMultiDay stores days array', /confirmCompleteMultiDay[\s\S]{0,4000}days:days/.test(indexHtml));
+check('confirmCompleteMultiDay sets multiDay:true', /confirmCompleteMultiDay[\s\S]{0,6000}multiDay:true/.test(indexHtml));
+check('confirmCompleteMultiDay stores days array', /confirmCompleteMultiDay[\s\S]{0,6000}days:days/.test(indexHtml));
 check('confirmCompleteMultiDay averages legacy hours/rate',
   /aggMoveHours\+=moveHours[\s\S]{0,2000}avgMoveRate=nMoveDays>0\?Math\.round\(aggMoveRate\/nMoveDays\)/.test(indexHtml)
 );
@@ -135,7 +135,7 @@ check('renderEditMultiDayCompleteRows iterates j.days',
   /function renderEditMultiDayCompleteRows[\s\S]{0,1000}\(j\.days\|\|\[\]\)\.map/.test(indexHtml)
 );
 check('saveEditedCompletedJobMultiDay writes j.days in place',
-  /function saveEditedCompletedJobMultiDay[\s\S]{0,3000}j\.days=days/.test(indexHtml)
+  /function saveEditedCompletedJobMultiDay[\s\S]{0,5000}j\.days=days/.test(indexHtml)
 );
 check('Pre-fill from j.quoteDays[] on create',
   /const qDays=\(j\.quoteDays&&j\.quoteDays\.length\)\?j\.quoteDays/.test(indexHtml)
@@ -156,6 +156,140 @@ check('Whole-job fees use Number coercion',
 );
 check('usedForAI flag persisted',
   /function confirmCompleteMultiDay[\s\S]+?usedForAI:useForAI/.test(indexHtml)
+);
+
+// ─── Phase 1 (2026-05-29): Job Context + Misc Charges fields added to multi-day form ───
+check('Multi-day modal: Job Context section present',
+  /id="cjmd-size"[\s\S]{0,500}id="cjmd-sqft"[\s\S]{0,500}id="cjmd-movetype"[\s\S]{0,500}id="cjmd-access-load"[\s\S]{0,500}id="cjmd-access-unload"/.test(indexHtml)
+);
+check('Multi-day modal: 3 Misc Charges rows present',
+  /id="cjmd-misc-1-label"[\s\S]{0,2000}id="cjmd-misc-2-label"[\s\S]{0,2000}id="cjmd-misc-3-label"/.test(indexHtml)
+);
+check('Multi-day modal: Misc rows have AI-include checkboxes',
+  /id="cjmd-misc-1-ai"/.test(indexHtml)&&/id="cjmd-misc-2-ai"/.test(indexHtml)&&/id="cjmd-misc-3-ai"/.test(indexHtml)
+);
+check('openCompleteMultiDay prefills size from j.size with lead fallback',
+  /_sizeEl\.value=_pick\(j\.size,_l\?_l\.size:''\)/.test(indexHtml)
+);
+check('openCompleteMultiDay prefills access fields',
+  /cjmd-access-load[\s\S]{0,200}_pick\(j\.accessLoad/.test(indexHtml)&&/cjmd-access-unload[\s\S]{0,200}_pick\(j\.accessUnload/.test(indexHtml)
+);
+check('confirmCompleteMultiDay reads Job Context from form fields',
+  /const ctxSize=document\.getElementById\('cjmd-size'\)/.test(indexHtml)&&
+  /const ctxMoveType=document\.getElementById\('cjmd-movetype'\)/.test(indexHtml)&&
+  /const ctxAccessLoad=document\.getElementById\('cjmd-access-load'\)/.test(indexHtml)
+);
+check('confirmCompleteMultiDay collects miscCharges array',
+  /const miscCharges=\[\];[\s\S]{0,500}for\(let i=1;i<=3;i\+\+\)/.test(indexHtml)
+);
+check('cj.miscCharges saved + miscTotal added to total',
+  /miscCharges:miscCharges/.test(indexHtml)&&
+  /total:Math\.round\(\(Number\(total\)\|\|0\)\+miscTotal\)/.test(indexHtml)
+);
+check('calcMultiDayTotal includes misc rows in running total',
+  /let miscSum=0;[\s\S]{0,300}for\(let i=1;i<=3;i\+\+\)\{miscSum\+=Number/.test(indexHtml)&&
+  /grand\+=miscSum/.test(indexHtml)
+);
+check('cj record uses form-sourced Job Context (ctxSize/ctxMoveType, not raw j.size)',
+  /size:ctxSize,sqft:ctxSqft,moveType:ctxMoveType/.test(indexHtml)
+);
+
+// ─── 2026-05-29: Add Day support on both completion forms ───
+check('_buildCjmdDayCard helper defined (reusable day-card builder)',
+  /function _buildCjmdDayCard\(dayIndex, prefill\)/.test(indexHtml)
+);
+check('cjmdAddDay function defined',
+  /function cjmdAddDay\(\)/.test(indexHtml)&&
+  /container\.insertAdjacentHTML\('beforeend',_buildCjmdDayCard/.test(indexHtml)
+);
+check('cjmdRemoveDay function defined with min-1 guard',
+  /function cjmdRemoveDay\(idx\)/.test(indexHtml)&&
+  /container\.children\.length<=1/.test(indexHtml)
+);
+check('cjConvertToMultiDay function defined',
+  /function cjConvertToMultiDay\(\)/.test(indexHtml)
+);
+check('cjConvertToMultiDay closes single-day modal and opens multi-day',
+  /cjConvertToMultiDay[\s\S]{0,3000}closeModal\('complete-job'\)[\s\S]{0,500}openCompleteMultiDay\(jobId\)/.test(indexHtml)
+);
+check('cjConvertToMultiDay snapshots Job Context fields',
+  /cjConvertToMultiDay[\s\S]{0,3000}size:_read\('cj-size'\)/.test(indexHtml)&&
+  /cjConvertToMultiDay[\s\S]{0,3000}movetype:_read\('cj-movetype'\)/.test(indexHtml)
+);
+check('cjConvertToMultiDay snapshots Day 1 hours + crew',
+  /cjConvertToMultiDay[\s\S]{0,3000}moveHours:_readNum\('cj-hours'\)/.test(indexHtml)&&
+  /cjConvertToMultiDay[\s\S]{0,3000}packHours:_readNum\('cj-pack-hours'\)/.test(indexHtml)
+);
+check('cjConvertToMultiDay snapshots Misc Charges rows',
+  /cjConvertToMultiDay[\s\S]{0,4000}misc:\[1,2,3\]\.map/.test(indexHtml)
+);
+check('cjConvertToMultiDay overlays Day 1 then adds blank Day 2',
+  /cjConvertToMultiDay[\s\S]{0,5000}cjmdAddDay\(\)/.test(indexHtml)
+);
+check('Multi-day form: + Add another day button present',
+  /onclick="cjmdAddDay\(\)"/.test(indexHtml)
+);
+check('Single-day form: + Add another day button present (triggers convert)',
+  /onclick="cjConvertToMultiDay\(\)"/.test(indexHtml)
+);
+check('Per-day card has × remove button',
+  /onclick="cjmdRemoveDay\(\$\{i\}\)"/.test(indexHtml)
+);
+check('Confirmation prompt before switching to multi-day (loss-of-state safety)',
+  /confirm\('Switch to multi-day mode\?/.test(indexHtml)
+);
+
+// ─── 2026-05-30: Edit-multi-day modal Phase 1 parity ───
+check('Orphan duplicate Edit-multi-day modal removed (no more ID collisions)',
+  !/id="modal-edit-complete-multiday"/.test(indexHtml)
+);
+check('Live Edit modal has Job Context fields (ecjmd-size, ecjmd-sqft, etc.)',
+  /id="ecjmd-size"/.test(indexHtml)&&/id="ecjmd-sqft"/.test(indexHtml)&&
+  /id="ecjmd-movetype"/.test(indexHtml)&&/id="ecjmd-access-load"/.test(indexHtml)&&
+  /id="ecjmd-access-unload"/.test(indexHtml)
+);
+check('Live Edit modal has 3 Misc Charges rows',
+  /id="ecjmd-misc-1-label"/.test(indexHtml)&&/id="ecjmd-misc-2-label"/.test(indexHtml)&&
+  /id="ecjmd-misc-3-label"/.test(indexHtml)
+);
+check('Live Edit modal has Add Day button',
+  /onclick="ecjmdAddDay\(\)"/.test(indexHtml)
+);
+check('_buildEcjmdDayCard helper defined',
+  /function _buildEcjmdDayCard\(dayIndex, prefill\)/.test(indexHtml)
+);
+check('ecjmdAddDay function defined',
+  /function ecjmdAddDay\(\)/.test(indexHtml)&&
+  /container\.insertAdjacentHTML\('beforeend',_buildEcjmdDayCard/.test(indexHtml)
+);
+check('ecjmdRemoveDay function defined with min-1 guard',
+  /function ecjmdRemoveDay\(idx\)/.test(indexHtml)
+);
+check('Edit per-day card has × remove button',
+  /onclick="ecjmdRemoveDay\(\$\{i\}\)"/.test(indexHtml)
+);
+check('openEditCompleteMultiDay prefills Job Context from cj',
+  /_setVal\('ecjmd-size',j\.size\)/.test(indexHtml)&&
+  /_setVal\('ecjmd-movetype',j\.moveType\)/.test(indexHtml)
+);
+check('openEditCompleteMultiDay prefills Misc Charges from j.miscCharges',
+  /j\.miscCharges[\s\S]{0,200}for\(let i=1;i<=3;i\+\+\)/.test(indexHtml)
+);
+check('saveEditedCompletedJobMultiDay reads Job Context from form',
+  /const ctxSize=document\.getElementById\('ecjmd-size'\)/.test(indexHtml)&&
+  /const ctxMoveType=document\.getElementById\('ecjmd-movetype'\)/.test(indexHtml)
+);
+check('saveEditedCompletedJobMultiDay collects miscCharges array',
+  /const miscCharges=\[\];[\s\S]{0,500}for\(let i=1;i<=3;i\+\+\)[\s\S]{0,500}ecjmd-misc/.test(indexHtml)
+);
+check('saveEditedCompletedJobMultiDay writes ctxSize back to j',
+  /j\.size=ctxSize;j\.sqft=ctxSqft;j\.moveType=ctxMoveType/.test(indexHtml)
+);
+check('saveEditedCompletedJobMultiDay writes miscCharges back to j',
+  /j\.miscCharges=miscCharges/.test(indexHtml)
+);
+check('calcEditMultiDayTotal includes misc rows',
+  /let miscSum=0;[\s\S]{0,200}ecjmd-misc-/.test(indexHtml)
 );
 
 console.log('');

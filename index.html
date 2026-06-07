@@ -1461,72 +1461,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 </div>
 
 
-<!-- ════════════════════════════════════════════════════════════════════════
-     MULTI-DAY EDIT-COMPLETED-JOB MODAL
-     Opened from openEditCompletedJob() when cj.multiDay===true. Mirrors the
-     create modal but populated from existing cj.days[] saved data. Save
-     writes back to the same completedJob record (no new record created).
-     ════════════════════════════════════════════════════════════════════════ -->
-<div class="modal-bg" id="modal-edit-complete-multiday">
-  <div class="modal" style="max-width:780px">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title">✏ Edit multi-day completed job</div>
-        <div id="ecjmd-summary" style="font-size:12px;color:var(--text2);margin-top:4px"></div>
-      </div>
-      <button class="modal-close" onclick="closeModal('edit-complete-multiday')">✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="ecjmd-days-container"></div>
-
-      <div style="margin-top:14px;padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
-        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);margin-bottom:10px">Whole-job fields</div>
-        <div class="form-grid form-grid-3">
-          <div class="form-group"><label>Insurance fee ($)</label><input type="number" id="ecjmd-insurance" placeholder="0" oninput="calcMultiDayEditTotal()"></div>
-          <div class="form-group"><label>COI fee ($)</label><input type="number" id="ecjmd-coi" placeholder="0" oninput="calcMultiDayEditTotal()"></div>
-          <div class="form-group"><label>Dump fee ($)</label><input type="number" id="ecjmd-dump" placeholder="0" oninput="calcMultiDayEditTotal()"></div>
-          <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="ecjmd-yelp" placeholder="0" oninput="calcMultiDayEditTotal()"></div>
-          <div class="form-group"><label>Damage cost ($)</label><input type="number" id="ecjmd-damage" placeholder="0" oninput="calcMultiDayEditTotal()"></div>
-          <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">—</option><option>None</option><option>Released Value</option><option>Full Value Protection</option><option>3rd Party</option></select></div>
-          <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;padding:16px;background:var(--accent-light);border-radius:var(--radius);border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:13px;color:var(--text2)">Computed total <span style="font-size:11px;color:var(--text3)">(sum of per-day subtotals + whole-job fees)</span></div>
-        <div id="ecjmd-total-display" style="font-size:20px;font-weight:700;color:var(--accent)">$0</div>
-      </div>
-
-      <div class="form-grid form-grid-3" style="margin-top:14px">
-        <div class="form-group"><label>Total paid ($)</label><input type="number" id="ecjmd-paid" placeholder="0"></div>
-        <div class="form-group"><label>Payment method</label><select id="ecjmd-payment"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
-        <div class="form-group"><label>Crew leader</label><input type="text" id="ecjmd-crew" placeholder="e.g. John"></div>
-      </div>
-
-      <div class="form-group full" style="margin-top:8px"><label>Source confirm</label><select id="ecjmd-source"><option value="">—</option><option>Google</option><option>Yelp</option><option>Repeat customer</option><option>Referral</option><option>Thumbtack</option><option>Storage Out</option><option>Other</option></select></div>
-
-      <div class="form-group full" style="margin-top:8px"><label>Notes</label><textarea id="ecjmd-notes" placeholder="Any notes about the multi-day job…" style="min-height:60px"></textarea></div>
-
-      <div style="margin-top:8px;padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
-          <div>
-            <div style="font-size:13px;font-weight:600;margin-bottom:3px">🤖 Save for AI quote training</div>
-            <div style="font-size:12px;color:var(--text3);line-height:1.5">For multi-day jobs, daily values are averaged across days for training.</div>
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0">
-            <input type="checkbox" id="ecjmd-ai-training" style="width:18px;height:18px;cursor:pointer;flex-shrink:0">
-            <span style="font-size:12px;color:var(--text2);white-space:nowrap">Yes, save it</span>
-          </label>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('edit-complete-multiday')">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmEditMultiDay()">Save changes</button>
-    </div>
-  </div>
-</div>
+<!-- Note: a duplicate orphan Edit-multi-day modal (id=modal-edit-complete-multiday) used
+     to live here but was deleted 2026-05-30. It had duplicate ecjmd-* IDs that collided
+     with the live one below, causing day cards to render into the hidden orphan instead
+     of the visible modal. The live modal is at modal-edit-completed-multiday below. -->
 
 
 <div class="modal-bg" id="modal-view">
@@ -1784,7 +1722,24 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <button class="modal-close" onclick="closeModal('edit-completed-multiday')">✕</button>
     </div>
     <div class="modal-body">
+      <!-- Job Context (mirrors Create modal) — auto-filled from cj, edit if needed.
+           Used for AI quote training so the AI knows the home context, not just hours. -->
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— used for AI quote training</span></div>
+      <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
+        <div class="form-group"><label>Square footage</label><input type="number" id="ecjmd-sqft" placeholder="e.g. 800"></div>
+        <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Storage Out</option><option>Internal</option></select></div>
+        <div class="form-group"><label></label><div style="height:1px"></div></div>
+        <div class="form-group"><label>Access at load</label><select id="ecjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="ecjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+      </div>
+
       <div id="ecjmd-days-container"></div>
+
+      <!-- Add Day button — mirrors Create modal. Appends a blank day card to the container. -->
+      <div style="margin:6px 0 14px 0">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ecjmdAddDay()" style="font-size:12px">+ Add another day</button>
+      </div>
 
       <div style="margin-top:14px;padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
         <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);margin-bottom:10px">Whole-job fields</div>
@@ -1797,6 +1752,28 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
           <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">—</option><option>None</option><option>Released Value</option><option>Full Value Protection</option><option>3rd Party</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
+        </div>
+      </div>
+
+      <!-- Misc charges (mirrors Create modal). -->
+      <div style="margin-top:14px;padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
+        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);margin-bottom:6px">Miscellaneous charges <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— storage, COI letters, one-off fees. Counts toward total.</span></div>
+        <div id="ecjmd-misc-rows">
+          <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <input type="text" id="ecjmd-misc-1-label" placeholder="Description (e.g. 12mo storage)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+            <input type="number" id="ecjmd-misc-1-amount" placeholder="0.00" step="0.01" oninput="calcEditMultiDayTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="ecjmd-misc-1-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+          </div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <input type="text" id="ecjmd-misc-2-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+            <input type="number" id="ecjmd-misc-2-amount" placeholder="0.00" step="0.01" oninput="calcEditMultiDayTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="ecjmd-misc-2-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+          </div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+            <input type="text" id="ecjmd-misc-3-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+            <input type="number" id="ecjmd-misc-3-amount" placeholder="0.00" step="0.01" oninput="calcEditMultiDayTotal()" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="ecjmd-misc-3-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+          </div>
         </div>
       </div>
 
@@ -8297,6 +8274,18 @@ function openEditCompleteMultiDay(jobId){
   document.getElementById('ecjmd-source').value=j.source||'';
   document.getElementById('ecjmd-notes').value=j.notes||'';
   const _aiEl=document.getElementById('ecjmd-ai-training');if(_aiEl)_aiEl.checked=!!j.usedForAI;
+  // Job Context — prefill from cj (already auto-filled at completion time from booked job/lead)
+  const _setVal=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
+  _setVal('ecjmd-size',j.size);_setVal('ecjmd-sqft',j.sqft);_setVal('ecjmd-movetype',j.moveType);
+  _setVal('ecjmd-access-load',j.accessLoad);_setVal('ecjmd-access-unload',j.accessUnload);
+  // Misc Charges — prefill from saved miscCharges array (empty rows for missing slots)
+  const _misc=Array.isArray(j.miscCharges)?j.miscCharges:[];
+  for(let i=1;i<=3;i++){
+    const row=_misc[i-1]||{};
+    _setVal('ecjmd-misc-'+i+'-label',row.label||'');
+    _setVal('ecjmd-misc-'+i+'-amount',row.amount||'');
+    const _aiCb=document.getElementById('ecjmd-misc-'+i+'-ai');if(_aiCb)_aiCb.checked=!!row.includeInAI;
+  }
   // Render per-day rows pre-filled from j.days[]
   renderEditMultiDayCompleteRows(j);
   calcEditMultiDayTotal();
@@ -8304,50 +8293,97 @@ function openEditCompleteMultiDay(jobId){
 }
 
 // Build per-day input rows in #ecjmd-days-container, pre-filled from cj.days[].
+// Build a single day card for the Edit modal. Same template as _buildCjmdDayCard but
+// uses ecjmd-* IDs/classes and calls calcEditMultiDayTotal.
+function _buildEcjmdDayCard(dayIndex, prefill){
+  const i=dayIndex;
+  const p=prefill||{};
+  const dayDate=p.date||'';
+  const movers=Number(p.movers)||2;
+  const moveRate=Number(p.moveRate)||225;
+  const packers=Number(p.packers)||0;
+  const packRate=Number(p.packRate)||0;
+  const moveHrs=Number(p.moveHours)||0;
+  const packHrs=Number(p.packHours)||0;
+  const fuel=Number(p.fuel)||0;
+  const mat=Number(p.materials)||0;
+  const park=Number(p.parking)||0;
+  const dayTypes=['Packing','Moving','Pack and load','Pack and move','Load and move','Delivery'];
+  const defType=p.type||'Moving';
+  const typeSelectHtml=dayTypes.map(t=>`<option value="${t}"${t===defType?' selected':''}>${t}</option>`).join('');
+  const movSelectHtml=[2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
+  const packSelectHtml=['<option value="0"'+(packers===0?' selected':'')+'>0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}"${n===packers?' selected':''}>${n}</option>`)).join('');
+  return `<div style="padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px" data-day-index="${i}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:600">Day ${i+1}${dayDate?` <span style="font-weight:400;color:var(--text3);font-size:11.5px">— ${fmtDate(dayDate)}</span>`:''}</div>
+      <div style="display:flex;align-items:center;gap:8px"><div style="flex:0 0 200px"><select class="ecjmd-day-type" data-day-index="${i}">${typeSelectHtml}</select></div><button type="button" class="ecjmd-day-remove" data-day-index="${i}" onclick="ecjmdRemoveDay(${i})" title="Remove this day" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px">×</button></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+      <div class="form-group"><label style="font-size:11px">Movers</label><select class="ecjmd-day-movers" data-day-index="${i}" oninput="calcEditMultiDayTotal()" onchange="calcEditMultiDayTotal()">${movSelectHtml}</select></div>
+      <div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="ecjmd-day-move-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${moveHrs||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="ecjmd-day-move-rate" data-day-index="${i}" placeholder="${moveRate}" value="${moveRate||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Move pay</label><div class="ecjmd-day-move-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+      <div class="form-group"><label style="font-size:11px">Packers</label><select class="ecjmd-day-packers" data-day-index="${i}" oninput="calcEditMultiDayTotal()" onchange="calcEditMultiDayTotal()">${packSelectHtml}</select></div>
+      <div class="form-group"><label style="font-size:11px">Pack hours</label><input type="number" class="ecjmd-day-pack-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${packHrs||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Pack rate ($/hr)</label><input type="number" class="ecjmd-day-pack-rate" data-day-index="${i}" placeholder="${packRate||135}" value="${packRate||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Pack pay</label><div class="ecjmd-day-pack-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
+      <div class="form-group"><label style="font-size:11px">Fuel ($)</label><input type="number" class="ecjmd-day-fuel" data-day-index="${i}" placeholder="0" value="${fuel||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Materials ($)</label><input type="number" class="ecjmd-day-materials" data-day-index="${i}" placeholder="0" value="${mat||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Parking ($)</label><input type="number" class="ecjmd-day-parking" data-day-index="${i}" placeholder="0" value="${park||''}" oninput="calcEditMultiDayTotal()"></div>
+    </div>
+    <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">Day ${i+1} subtotal: <span class="ecjmd-day-subtotal" data-day-index="${i}" style="color:var(--text);font-weight:600">$0</span></div>
+  </div>`;
+}
+
+// Append a blank day card to the Edit modal.
+function ecjmdAddDay(){
+  const container=document.getElementById('ecjmd-days-container');
+  if(!container)return;
+  container.insertAdjacentHTML('beforeend',_buildEcjmdDayCard(container.children.length,{type:'Moving'}));
+  calcEditMultiDayTotal();
+}
+
+// Remove a day card from the Edit modal (preserves remaining cards' state, re-indexes).
+function ecjmdRemoveDay(idx){
+  const container=document.getElementById('ecjmd-days-container');
+  if(!container)return;
+  if(container.children.length<=1){showToast('Must have at least one day.');return;}
+  const cards=[...container.children];
+  const preserved=[];
+  cards.forEach((card,i)=>{
+    if(i===idx)return;
+    preserved.push({
+      type:card.querySelector('.ecjmd-day-type')?.value||'Moving',
+      movers:Number(card.querySelector('.ecjmd-day-movers')?.value)||0,
+      moveHours:Number(card.querySelector('.ecjmd-day-move-hours')?.value)||0,
+      moveRate:Number(card.querySelector('.ecjmd-day-move-rate')?.value)||0,
+      packers:Number(card.querySelector('.ecjmd-day-packers')?.value)||0,
+      packHours:Number(card.querySelector('.ecjmd-day-pack-hours')?.value)||0,
+      packRate:Number(card.querySelector('.ecjmd-day-pack-rate')?.value)||0,
+      fuel:Number(card.querySelector('.ecjmd-day-fuel')?.value)||0,
+      materials:Number(card.querySelector('.ecjmd-day-materials')?.value)||0,
+      parking:Number(card.querySelector('.ecjmd-day-parking')?.value)||0
+    });
+  });
+  container.innerHTML=preserved.map((p,i)=>_buildEcjmdDayCard(i,p)).join('');
+  calcEditMultiDayTotal();
+}
+
+// Refactored to use _buildEcjmdDayCard so cards stay consistent across add/remove.
 function renderEditMultiDayCompleteRows(j){
   const container=document.getElementById('ecjmd-days-container');
   if(!container)return;
-  const dayTypes=['Packing','Moving','Pack and load','Pack and move','Load and move','Delivery'];
   container.innerHTML=(j.days||[]).map((d,i)=>{
-    const dayNum=i+1;
-    const dayDate=d.date||'';
-    const movers=Number(d.movers)||2;
-    const moveHours=Number(d.moveHours)||0;
-    const moveRate=Number(d.moveRate)||0;
-    const packers=Number(d.packers)||0;
-    const packHours=Number(d.packHours)||0;
-    const packRate=Number(d.packRate)||0;
-    const fuel=Number(d.fuel)||0;
-    const materials=Number(d.materials)||0;
-    const parking=Number(d.parking)||0;
-    const dType=d.type||'Moving';
-    const typeSelectHtml=dayTypes.map(t=>`<option value="${t}"${t===dType?' selected':''}>${t}</option>`).join('');
-    const movSelectHtml=[2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
-    const packSelectHtml=['<option value="0"'+(packers===0?' selected':'')+'>0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}"${n===packers?' selected':''}>${n}</option>`)).join('');
-    return `<div style="padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px" data-day-index="${i}">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
-        <div style="font-size:13px;font-weight:600">Day ${dayNum}${dayDate?` <span style="font-weight:400;color:var(--text3);font-size:11.5px">— ${fmtDate(dayDate)}</span>`:''}</div>
-        <div style="flex:0 0 200px"><select class="ecjmd-day-type" data-day-index="${i}">${typeSelectHtml}</select></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
-        <div class="form-group"><label style="font-size:11px">Movers</label><select class="ecjmd-day-movers" data-day-index="${i}" oninput="calcEditMultiDayTotal()" onchange="calcEditMultiDayTotal()">${movSelectHtml}</select></div>
-        <div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="ecjmd-day-move-hours" data-day-index="${i}" step="0.5" value="${moveHours||''}" oninput="calcEditMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="ecjmd-day-move-rate" data-day-index="${i}" value="${moveRate||''}" oninput="calcEditMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Move pay</label><div class="ecjmd-day-move-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
-        <div class="form-group"><label style="font-size:11px">Packers</label><select class="ecjmd-day-packers" data-day-index="${i}" oninput="calcEditMultiDayTotal()" onchange="calcEditMultiDayTotal()">${packSelectHtml}</select></div>
-        <div class="form-group"><label style="font-size:11px">Pack hours</label><input type="number" class="ecjmd-day-pack-hours" data-day-index="${i}" step="0.5" value="${packHours||''}" oninput="calcEditMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Pack rate ($/hr)</label><input type="number" class="ecjmd-day-pack-rate" data-day-index="${i}" value="${packRate||''}" oninput="calcEditMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Pack pay</label><div class="ecjmd-day-pack-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
-        <div class="form-group"><label style="font-size:11px">Fuel ($)</label><input type="number" class="ecjmd-day-fuel" data-day-index="${i}" value="${fuel||''}" oninput="calcEditMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Materials ($)</label><input type="number" class="ecjmd-day-materials" data-day-index="${i}" value="${materials||''}" oninput="calcEditMultiDayTotal()"></div>
-        <div class="form-group"><label style="font-size:11px">Parking ($)</label><input type="number" class="ecjmd-day-parking" data-day-index="${i}" value="${parking||''}" oninput="calcEditMultiDayTotal()"></div>
-      </div>
-      <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">Day ${dayNum} subtotal: <span class="ecjmd-day-subtotal" data-day-index="${i}" style="color:var(--text);font-weight:600">$0</span></div>
-    </div>`;
+    return _buildEcjmdDayCard(i,{
+      date:d.date||'',type:d.type||'Moving',
+      movers:Number(d.movers)||2,moveHours:Number(d.moveHours)||0,moveRate:Number(d.moveRate)||0,
+      packers:Number(d.packers)||0,packHours:Number(d.packHours)||0,packRate:Number(d.packRate)||0,
+      fuel:Number(d.fuel)||0,materials:Number(d.materials)||0,parking:Number(d.parking)||0
+    });
   }).join('');
 }
 
@@ -8378,6 +8414,10 @@ function calcEditMultiDayTotal(){
     .map(id=>Number(document.getElementById(id)?.value)||0)
     .reduce((a,b)=>a+b,0);
   grand+=wj;
+  // Misc charges
+  let miscSum=0;
+  for(let i=1;i<=3;i++){miscSum+=Number(document.getElementById('ecjmd-misc-'+i+'-amount')?.value)||0;}
+  grand+=miscSum;
   const _tot=document.getElementById('ecjmd-total-display');
   if(_tot)_tot.textContent='$'+Math.round(grand).toLocaleString('en-US');
   return grand;
@@ -8426,6 +8466,24 @@ function saveEditedCompletedJobMultiDay(){
   const feeDump=Number(document.getElementById('ecjmd-dump').value)||0;
   const feeYelp=Number(document.getElementById('ecjmd-yelp').value)||0;
   const feeDamage=Number(document.getElementById('ecjmd-damage').value)||0;
+  // Job Context — form values win (user may have corrected them on edit)
+  const ctxSize=document.getElementById('ecjmd-size')?.value||j.size||'';
+  const ctxSqft=document.getElementById('ecjmd-sqft')?.value||j.sqft||'';
+  const ctxMoveType=document.getElementById('ecjmd-movetype')?.value||j.moveType||'';
+  const ctxAccessLoad=document.getElementById('ecjmd-access-load')?.value||j.accessLoad||'';
+  const ctxAccessUnload=document.getElementById('ecjmd-access-unload')?.value||j.accessUnload||'';
+  // Misc charges
+  const miscCharges=[];
+  let miscTotal=0;
+  for(let i=1;i<=3;i++){
+    const label=(document.getElementById('ecjmd-misc-'+i+'-label')?.value||'').trim();
+    const amount=Number(document.getElementById('ecjmd-misc-'+i+'-amount')?.value)||0;
+    const includeInAI=document.getElementById('ecjmd-misc-'+i+'-ai')?.checked||false;
+    if(label||amount>0){
+      miscCharges.push({label:label,amount:amount,includeInAI:includeInAI});
+      miscTotal+=amount;
+    }
+  }
   // Mutate in place
   j.days=days;
   j.hours=Math.round((aggMoveHours+aggPackHours)*10)/10;
@@ -8442,7 +8500,7 @@ function saveEditedCompletedJobMultiDay(){
   j.feeDump=String(feeDump||'');
   j.feeDamage=String(feeDamage||'');
   j.feeYelp=String(feeYelp||'');
-  j.feeLabour=Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking))||0;
+  j.feeLabour=Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking+miscTotal))||0;
   j.vaults=Number(document.getElementById('ecjmd-vaults').value)||0;
   j.insuranceType=document.getElementById('ecjmd-insurance-type').value;
   j.packing=document.getElementById('ecjmd-packing').value;
@@ -8452,7 +8510,12 @@ function saveEditedCompletedJobMultiDay(){
   j.source=document.getElementById('ecjmd-source').value;
   j.notes=document.getElementById('ecjmd-notes').value;
   j.usedForAI=document.getElementById('ecjmd-ai-training').checked;
-  j.total=Math.round(total);
+  // Job Context written back
+  j.size=ctxSize;j.sqft=ctxSqft;j.moveType=ctxMoveType;
+  j.accessLoad=ctxAccessLoad;j.accessUnload=ctxAccessUnload;
+  // Misc Charges saved
+  j.miscCharges=miscCharges;
+  j.total=Math.round((Number(total)||0));
   j._localEditedAt=new Date().toISOString();
   saveDB();
   closeModal('edit-completed-multiday');
