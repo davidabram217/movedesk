@@ -1433,6 +1433,8 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div id="cjmd-total-display" style="font-size:20px;font-weight:700;color:var(--accent)">$0</div>
       </div>
 
+      <div class="form-group" style="margin-top:12px"><label>True job value ($) <span style="font-size:10.5px;color:var(--text3)">if you gave a discount or freebie — what the job was really worth. Leave blank if you charged full price. The difference is recorded as goodwill for AI training.</span></label><input type="number" id="cjmd-actual-total" placeholder="e.g. 7350"></div>
+
       <div class="form-grid form-grid-3" style="margin-top:14px">
         <div class="form-group"><label>Total paid ($)</label><input type="number" id="cjmd-paid" placeholder="0"></div>
         <div class="form-group"><label>Payment method</label><select id="cjmd-payment"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
@@ -1785,6 +1787,8 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div style="font-size:13px;color:var(--text2)">Computed total</div>
         <div id="ecjmd-total-display" style="font-size:20px;font-weight:700;color:var(--accent)">$0</div>
       </div>
+
+      <div class="form-group" style="margin-top:12px"><label>True job value ($) <span style="font-size:10.5px;color:var(--text3)">if you gave a discount or freebie — what the job was really worth. Leave blank if you charged full price.</span></label><input type="number" id="ecjmd-actual-total" placeholder="e.g. 7350"></div>
 
       <div class="form-grid form-grid-3" style="margin-top:14px">
         <div class="form-group"><label>Total paid ($)</label><input type="number" id="ecjmd-paid" placeholder="0"></div>
@@ -7899,7 +7903,7 @@ function openCompleteMultiDay(jobId){
     _summaryEl.innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'} · <span style="color:var(--accent);font-weight:600">${dayCount}-day job</span>`;
   }
   // Clear whole-job fields
-  ['cjmd-insurance','cjmd-coi','cjmd-dump','cjmd-yelp','cjmd-damage','cjmd-vaults','cjmd-paid','cjmd-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['cjmd-insurance','cjmd-coi','cjmd-dump','cjmd-yelp','cjmd-damage','cjmd-vaults','cjmd-paid','cjmd-notes','cjmd-actual-total'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['cjmd-insurance-type','cjmd-packing','cjmd-payment','cjmd-source'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
   // Clear new Job Context + Misc Charges fields (mirrors single-day form behavior)
   ['cjmd-sqft','cjmd-misc-1-label','cjmd-misc-1-amount','cjmd-misc-2-label','cjmd-misc-2-amount','cjmd-misc-3-label','cjmd-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -8149,6 +8153,11 @@ function confirmCompleteMultiDay(paymentState){
   const notes=document.getElementById('cjmd-notes').value;
   const source=document.getElementById('cjmd-source').value;
   const useForAI=document.getElementById('cjmd-ai-training').checked;
+  // True job value vs what was charged. If the user gave a discount or a freebie (e.g. sent
+  // an extra mover for free), the computed total reflects what was CHARGED, while the True
+  // job value reflects what the work was really worth. The gap is stored as capDiscount so AI
+  // training learns the real value, not the discounted charge. Mirrors the single-day form.
+  const _mdActualTotal=document.getElementById('cjmd-actual-total')?.value?Number(document.getElementById('cjmd-actual-total').value):null;
   // Job Context — these fields auto-fill from the booked job but the user can correct them.
   // Form values win over booked-job defaults (the user is confirming/correcting them at completion).
   const ctxSize=document.getElementById('cjmd-size')?.value||j.size||'';
@@ -8214,6 +8223,8 @@ function confirmCompleteMultiDay(paymentState){
     // Computed totals and book-keeping. Misc charges are added to the computed total so
     // they show up in revenue, paid-vs-quoted comparisons, etc.
     total:Math.round((Number(total)||0)+miscTotal),
+    actualTotal:_mdActualTotal||Math.round((Number(total)||0)+miscTotal)||null,
+    capDiscount:(_mdActualTotal&&_mdActualTotal>Math.round((Number(total)||0)+miscTotal))?Math.round((_mdActualTotal-(Math.round((Number(total)||0)+miscTotal)))*100)/100:0,
     paid:paid,payment:payment,
     crew:crew,
     notes:notes,officeNotes:j.officeNotes||'',
@@ -8303,6 +8314,10 @@ function openEditCompleteMultiDay(jobId){
   document.getElementById('ecjmd-insurance-type').value=j.insuranceType||'';
   document.getElementById('ecjmd-packing').value=j.packing||'No';
   document.getElementById('ecjmd-paid').value=j.paid||'';
+  // Prefill the True job value only when a goodwill discount was actually recorded
+  // (capDiscount>0); otherwise leave blank so the placeholder shows.
+  const _ecjmdAt=document.getElementById('ecjmd-actual-total');
+  if(_ecjmdAt)_ecjmdAt.value=(Number(j.capDiscount)>0&&j.actualTotal)?j.actualTotal:'';
   document.getElementById('ecjmd-payment').value=j.payment||'';
   document.getElementById('ecjmd-crew').value=j.crew||'';
   document.getElementById('ecjmd-source').value=j.source||'';
@@ -8550,6 +8565,10 @@ function saveEditedCompletedJobMultiDay(){
   // Misc Charges saved
   j.miscCharges=miscCharges;
   j.total=Math.round((Number(total)||0));
+  // True job value vs charged (mirrors confirmCompleteMultiDay). Blank field = charged full price.
+  const _ecjAt=document.getElementById('ecjmd-actual-total')?.value?Number(document.getElementById('ecjmd-actual-total').value):null;
+  j.actualTotal=_ecjAt||j.total||null;
+  j.capDiscount=(_ecjAt&&_ecjAt>j.total)?Math.round((_ecjAt-j.total)*100)/100:0;
   j._localEditedAt=new Date().toISOString();
   // Phase 2: an edit can change per-day numbers or the AI flag, so drop this job's
   // training records (job + per-day) and rebuild from the corrected data.
@@ -8697,6 +8716,8 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       cashRate:_cashRate,
       paidCashRate:_paidCash&&!!_cashRate,
       actualTotal:Number(completed.total)||null,
+      capDiscount:Number(completed.capDiscount)||0,
+      realValue:(Number(completed.capDiscount)>0&&Number(completed.actualTotal))?Number(completed.actualTotal):(Number(completed.total)||null),
       actualLabour:Number(completed.feeLabour)||null,
       actualFuel:Number(completed.feeFuel)||null,
       actualMaterials:Number(completed.feeMaterials)||null,
@@ -8745,6 +8766,8 @@ function saveJobForAI(completedJobId){
     actualVaults:Number(j.vaults)||null,
     actualRate:j.hourlyRateCharged?Number(j.hourlyRateCharged):null,
     actualTotal:Number(j.total)||null,
+    capDiscount:Number(j.capDiscount)||0,
+    realValue:(Number(j.capDiscount)>0&&Number(j.actualTotal))?Number(j.actualTotal):(Number(j.total)||null),
     actualLabour:Number(j.feeLabour)||null,
     actualFuel:Number(j.feeFuel)||null,
     actualMaterials:Number(j.feeMaterials)||null,
@@ -8857,6 +8880,8 @@ if(!aiRec&&j.usedForAI){
     actualVaults:Number(j.vaults)||null,
     actualRate:j.hourlyRateCharged?Number(j.hourlyRateCharged):null,
     actualTotal:Number(j.total)||null,
+    capDiscount:Number(j.capDiscount)||0,
+    realValue:(Number(j.capDiscount)>0&&Number(j.actualTotal))?Number(j.actualTotal):(Number(j.total)||null),
     actualLabour:Number(j.feeLabour)||null,
     actualFuel:Number(j.feeFuel)||null,
     actualMaterials:Number(j.feeMaterials)||null,
@@ -14427,6 +14452,8 @@ function selfHealAITraining(){
       actualVaults:Number(j.vaults)||null,
       actualRate:j.hourlyRateCharged?Number(j.hourlyRateCharged):null,
       actualTotal:Number(j.total)||null,
+      capDiscount:Number(j.capDiscount)||0,
+      realValue:(Number(j.capDiscount)>0&&Number(j.actualTotal))?Number(j.actualTotal):(Number(j.total)||null),
       actualLabour:Number(j.feeLabour)||null,
       actualFuel:Number(j.feeFuel)||null,
       actualMaterials:Number(j.feeMaterials)||null,
