@@ -440,6 +440,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="card-header"><div class="card-title">Insurance options chosen</div><div style="font-size:11.5px;color:var(--text3)">From completed jobs</div></div>
           <div class="card-body" id="insurance-chart"></div>
         </div>
+        <div class="card" style="grid-column:1/-1">
+          <div class="card-header"><div><div class="card-title">Per-day &amp; multi-day benchmarks</div><div style="font-size:11.5px;color:var(--text3);margin-top:2px">What each kind of work day actually takes, learned from completed jobs</div></div></div>
+          <div class="card-body" id="perday-insights-chart"></div>
+        </div>
       </div>
     </div>
 
@@ -8224,6 +8228,9 @@ function confirmCompleteMultiDay(paymentState){
   };
   db.completedJobs=db.completedJobs||[];
   db.completedJobs.push(cj);
+  // Phase 2: emit training records now (one whole-job record + one per worked day).
+  // selfHealAITraining builds the job record and, for multi-day jobs, the per-day records.
+  if(useForAI){try{selfHealAITraining();}catch(_){}}
   // Remove the booked job
   db.bookedJobs=db.bookedJobs.filter(x=>x.id!==j.id);
   // Flip the lead status to Completed
@@ -8544,6 +8551,12 @@ function saveEditedCompletedJobMultiDay(){
   j.miscCharges=miscCharges;
   j.total=Math.round((Number(total)||0));
   j._localEditedAt=new Date().toISOString();
+  // Phase 2: an edit can change per-day numbers or the AI flag, so drop this job's
+  // training records (job + per-day) and rebuild from the corrected data.
+  try{
+    db.aiTraining=(db.aiTraining||[]).filter(r=>r.completedJobId!==j.id);
+    if(j.usedForAI)selfHealAITraining();
+  }catch(_){}
   saveDB();
   closeModal('edit-completed-multiday');
   showToast('✓ Multi-day job updated — '+j.name);
@@ -8811,9 +8824,9 @@ const actualHours=Number(j.hours)||0;
 
 // Build AI analysis block — look up by completedJobId, bookedJobId, or name+date fallback
 let aiRec=db.aiTraining&&(
-  db.aiTraining.find(r=>r.completedJobId===j.id)||
-  db.aiTraining.find(r=>r.bookedJobId===j.bookedJobId&&j.bookedJobId)||
-  db.aiTraining.find(r=>r.name===j.name&&r.date===j.date)
+  db.aiTraining.find(r=>r.kind!=='day'&&r.completedJobId===j.id)||
+  db.aiTraining.find(r=>r.kind!=='day'&&r.bookedJobId===j.bookedJobId&&j.bookedJobId)||
+  db.aiTraining.find(r=>r.kind!=='day'&&r.name===j.name&&r.date===j.date)
 );
 // Self-heal: if flagged for AI but the record never made it (or was lost on
 // another device because ai_training didn't sync to Supabase), rebuild it
@@ -10494,6 +10507,120 @@ function renderAnalytics(){
   }).join('')
     :`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
 
+  try{renderPerDayInsights();}catch(_){}
+}
+
+// ── Phase 2 readout: per-activity + multi-day benchmarks ───────────────────
+// Per-activity insight is built from the per-day training records (multi-day jobs)
+// AND single-day completed jobs, so "packing a 2,000 sq ft home" reflects every
+// pack day on record, not just multi-day ones.
+function _sizeKey(s){return (s||'').trim()||'Unknown size';}
+function _avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;}
+function _round5(n){return Math.round(n*2)/2;} // nearest 0.5
+function computePerActivityInsights(){
+  const entries=[]; // {activity, men, hours, size}
+  // Multi-day per-day records
+  getDayTrainingData().forEach(r=>{
+    const mh=Number(r.moveHours)||0,ph=Number(r.packHours)||0;
+    if(mh>0&&Number(r.moveMen)>0)entries.push({activity:(r.dayType==='Delivery'?'Delivery':'Moving / loading'),men:Number(r.moveMen),hours:mh,size:_sizeKey(r.size)});
+    if(ph>0&&Number(r.packMen)>0)entries.push({activity:'Packing',men:Number(r.packMen),hours:ph,size:_sizeKey(r.size)});
+  });
+  // Single-day completed jobs flagged for AI (j.hours = move hours, packHoursActual = pack hours)
+  (db.completedJobs||[]).forEach(j=>{
+    if(!j.usedForAI||j.multiDay)return;
+    const mh=Number(j.hours)||0,ph=Number(j.packHoursActual)||0;
+    if(mh>0&&Number(j.moveMen)>0)entries.push({activity:'Moving / loading',men:Number(j.moveMen),hours:mh,size:_sizeKey(j.size)});
+    if(ph>0&&Number(j.packMen)>0)entries.push({activity:'Packing',men:Number(j.packMen),hours:ph,size:_sizeKey(j.size)});
+  });
+  // Group by activity, then by size
+  const byActivity={};
+  entries.forEach(e=>{
+    if(!byActivity[e.activity])byActivity[e.activity]={all:[],bySize:{}};
+    byActivity[e.activity].all.push(e);
+    if(!byActivity[e.activity].bySize[e.size])byActivity[e.activity].bySize[e.size]=[];
+    byActivity[e.activity].bySize[e.size].push(e);
+  });
+  return byActivity;
+}
+function computeMultiDayJobInsights(){
+  const jobs=(db.completedJobs||[]).filter(j=>j.multiDay&&Array.isArray(j.days)&&j.usedForAI);
+  const bySize={};
+  jobs.forEach(j=>{
+    const k=_sizeKey(j.size);
+    if(!bySize[k])bySize[k]=[];
+    bySize[k].push({days:j.days.length,hours:Number(j.hours)||0,total:Number(j.total)||0});
+  });
+  return{n:jobs.length,bySize:bySize};
+}
+function renderPerDayInsights(){
+  const host=document.getElementById('perday-insights-chart');
+  if(!host)return;
+  const act=computePerActivityInsights();
+  const md=computeMultiDayJobInsights();
+  const activities=Object.keys(act);
+  const row=(label,sub,men,hours,n)=>`<tr>
+    <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border)">${label}${sub?` <span style="color:var(--text3);font-size:11px">${sub}</span>`:''}</td>
+    <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${men}</td>
+    <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${hours}</td>
+    <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${n} day${n===1?'':'s'}</td>
+  </tr>`;
+  let html='';
+  // Per-activity section
+  if(!activities.length){
+    html+=`<div class="empty-state"><div class="empty-title">No per-activity data yet</div><div class="empty-sub">Complete a job with AI training on (multi-day jobs capture each day automatically) and benchmarks appear here.</div></div>`;
+  }else{
+    html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">How long each kind of work day takes</div>`;
+    activities.sort().forEach(a=>{
+      const grp=act[a];
+      const allMen=_round5(_avg(grp.all.map(e=>e.men)));
+      const allHrs=Math.round(_avg(grp.all.map(e=>e.hours))*10)/10;
+      html+=`<div style="margin-bottom:14px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:left;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">${a}</th>
+            <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Avg crew</th>
+            <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Avg hours</th>
+            <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Sample</th>
+          </tr></thead>
+          <tbody>
+            ${row('<strong>All home sizes</strong>','',allMen,allHrs,grp.all.length)}
+            ${Object.keys(grp.bySize).sort().map(sz=>{
+              const list=grp.bySize[sz];
+              return row(sz,'',_round5(_avg(list.map(e=>e.men))),Math.round(_avg(list.map(e=>e.hours))*10)/10,list.length);
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    });
+  }
+  // Multi-day whole-job section
+  if(md.n>0){
+    const sizes=Object.keys(md.bySize).sort();
+    html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 6px">Full multi-day jobs by home size</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Home size</th>
+          <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Avg days</th>
+          <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Avg total hrs</th>
+          <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Avg total $</th>
+          <th style="text-align:right;padding:4px 10px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">Sample</th>
+        </tr></thead>
+        <tbody>${sizes.map(sz=>{
+          const list=md.bySize[sz];
+          const ad=Math.round(_avg(list.map(x=>x.days))*10)/10;
+          const ah=Math.round(_avg(list.map(x=>x.hours))*10)/10;
+          const at=Math.round(_avg(list.map(x=>x.total)));
+          return `<tr>
+            <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border)">${sz}</td>
+            <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${ad}</td>
+            <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${ah}</td>
+            <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${fmtMoney(at)}</td>
+            <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${list.length} job${list.length===1?'':'s'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+  }
+  host.innerHTML=html||`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
 }
 
 function renderActivityPatterns(){
@@ -14121,7 +14248,7 @@ function estimateFuelAndTime(loadZip,unloadZip,men,rate){
 function estimatePackingMaterials(size,moveType){
   if(!moveType||!moveType.toLowerCase().includes('pack'))return 0;
 
-  const allData=getAllTrainingData();
+  const allData=getJobTrainingData();
   const packJobs=allData.filter(j=>
     j.feePackMaterials&&j.feePackMaterials>0&&
     j.moveType&&j.moveType.toLowerCase().includes('pack')
@@ -14160,6 +14287,79 @@ function getAllTrainingData(){
   return [...spreadsheet,...fromApp];
 }
 
+// ── Phase 2: per-day training records ──────────────────────────────────────
+// A multi-day job emits ONE whole-job record (no `kind`, treated as job-level) PLUS
+// one record per worked day (`kind:'day'`). Day records carry that day's own crew,
+// hours and rate, plus the home context, so per-activity benchmarks ("packing a
+// 2,000 sq ft home took 4 men, 6 hrs") can be computed. Whole-job regressions read
+// getJobTrainingData() so the per-day records never skew the existing quote math.
+// Legacy records (saved before Phase 2) have no `kind`, so they count as job-level.
+function getJobTrainingData(){return getAllTrainingData().filter(r=>r&&r.kind!=='day');}
+function getDayTrainingData(){return getAllTrainingData().filter(r=>r&&r.kind==='day');}
+
+// Normalize a free-text day type into one of the known activity buckets.
+function _normActivityType(t){
+  const s=(t||'').toLowerCase();
+  if(s.includes('deliver'))return 'Delivery';
+  if(s.includes('pack')&&s.includes('move'))return 'Pack and move';
+  if(s.includes('pack')&&s.includes('load'))return 'Pack and load';
+  if(s.includes('load')&&s.includes('move'))return 'Load and move';
+  if(s.includes('pack'))return 'Packing';
+  if(s.includes('move')||s.includes('load'))return 'Moving';
+  return t||'Moving';
+}
+
+// Build one per-day training record from a completed job's day entry. Carries only that
+// day's own actuals + home context — whole-job money (insurance, COI, vaults, the grand
+// total) intentionally stays on the whole-job record so nothing double-counts.
+function buildDayTrainingRecord(cj,day,dayIndex){
+  const moveH=Number(day.moveHours)||0,packH=Number(day.packHours)||0;
+  return {
+    id:uid(),
+    kind:'day',
+    completedJobId:cj.id,
+    bookedJobId:cj.bookedJobId||null,
+    dayIndex:dayIndex,
+    dayType:_normActivityType(day.type),
+    date:day.date||cj.date||'',
+    name:cj.name,
+    // Home context (shared across the job) so similarity/size grouping works per day
+    size:cj.size||'',sqft:cj.sqft||null,packing:cj.packing||'',moveType:cj.moveType||'',
+    from:cj.from||'',fromZip:cj.fromZip||'',to:cj.to||'',toZip:cj.toZip||'',
+    accessLoad:cj.accessLoad||'',accessUnload:cj.accessUnload||'',
+    // Per-day actuals — move side and pack side kept separate so the readout can
+    // interpret each day by what it was (a pack day, a move day, or both).
+    moveMen:Number(day.movers)||null,
+    moveHours:moveH||null,
+    moveRate:Number(day.moveRate)||null,
+    packMen:Number(day.packers)||null,
+    packHours:packH||null,
+    packRate:Number(day.packRate)||null,
+    dayFuel:Number(day.fuel)||0,
+    dayMaterials:Number(day.materials)||0,
+    dayParking:Number(day.parking)||0,
+    savedAt:new Date().toISOString()
+  };
+}
+
+// Ensure a multi-day completed job has one day record per worked day. Idempotent:
+// dedups on (completedJobId, dayIndex). Days with no hours logged are skipped.
+// Returns the number of records added.
+function ensureMultiDayDayRecords(cj){
+  if(!cj||!cj.multiDay||!Array.isArray(cj.days))return 0;
+  if(!db.aiTraining)db.aiTraining=[];
+  let added=0;
+  cj.days.forEach((d,i)=>{
+    const moveH=Number(d.moveHours)||0,packH=Number(d.packHours)||0;
+    if(moveH<=0&&packH<=0)return; // no work logged this day — nothing to learn from
+    const exists=db.aiTraining.find(r=>r.kind==='day'&&r.completedJobId===cj.id&&r.dayIndex===i);
+    if(exists)return;
+    db.aiTraining.push(buildDayTrainingRecord(cj,d,i));
+    added++;
+  });
+  return added;
+}
+
 function backfillTrainingPackingAndSqft(){
   if(!db.aiTraining||!db.aiTraining.length)return;
   let filled=0;
@@ -14192,17 +14392,20 @@ function selfHealAITraining(){
   let healed=0;
   (db.completedJobs||[]).forEach(j=>{
     if(!j.usedForAI)return;
-    // Already has a record? Skip.
-    const existing=db.aiTraining.find(r=>r.completedJobId===j.id)
-      ||db.aiTraining.find(r=>r.bookedJobId===j.bookedJobId&&j.bookedJobId)
-      ||db.aiTraining.find(r=>r.name===j.name&&r.date===j.date);
-    if(existing)return;
+    // Already has a WHOLE-JOB record? Skip rebuilding it. (Per-day records have
+    // kind:'day' and must not satisfy this check, or the job record never gets built.)
+    const existing=db.aiTraining.find(r=>r.kind!=='day'&&r.completedJobId===j.id)
+      ||db.aiTraining.find(r=>r.kind!=='day'&&r.bookedJobId===j.bookedJobId&&j.bookedJobId)
+      ||db.aiTraining.find(r=>r.kind!=='day'&&r.name===j.name&&r.date===j.date);
+    if(!existing){
     // Rebuild from completed job using best-available quote source (formal → rough on lead → rough on job)
     const _qInfo=resolveQuotedInfo(j);
     db.aiTraining.push({
       id:uid(),
       completedJobId:j.id,
       bookedJobId:j.bookedJobId||null,
+      multiDay:!!j.multiDay,
+      dayCount:(j.multiDay&&Array.isArray(j.days))?j.days.length:1,
       date:j.date,name:j.name,size:j.size,sqft:j.sqft||null,packing:j.packing||'',moveType:j.moveType,
       from:j.from,fromZip:j.fromZip,to:j.to,toZip:j.toZip,
       accessLoad:j.accessLoad,accessUnload:j.accessUnload,
@@ -14229,6 +14432,9 @@ function selfHealAITraining(){
       _rebuilt:true
     });
     healed++;
+    }
+    // Phase 2: multi-day jobs also get one record per worked day (idempotent).
+    if(j.multiDay&&Array.isArray(j.days))healed+=ensureMultiDayDayRecords(j);
   });
   if(healed){try{saveDB();}catch(e){}}
   return healed;
@@ -14342,7 +14548,7 @@ function clearAIQuoteDraft(){
 // fall back to the neighbor-only estimate. This is recomputed on every quote so it improves
 // as more jobs are completed — "future quotes built off past jobs."
 function computeVaultRegression(){
-  const data=getAllTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0);
+  const data=getJobTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0);
   // Need a reasonable sample to fit a line — below this, the fit is too noisy to trust.
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
@@ -14381,7 +14587,7 @@ function computeVaultRegression(){
 // in the training data — meaning the suggestion is extrapolation, not interpolation.
 function computeCrewRecommendation(vaults){
   if(!vaults||vaults<=0)return null;
-  const data=getAllTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0&&j.moveMen);
+  const data=getJobTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0&&j.moveMen);
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
   const xs=data.map(j=>j.estimatedVaults);
@@ -14433,7 +14639,7 @@ function generateAIQuote(){
   // packing-only estimate from your actual packing data, not a guess scaled off move work.
   // Falls through to a friendly "no data" message if no jobs have packHoursActual recorded.
   if((inputs.moveType||'').toLowerCase()==='packing only'){
-    const _allPackData=getAllTrainingData().filter(j=>
+    const _allPackData=getJobTrainingData().filter(j=>
       j.packHoursActual&&j.packHoursActual>0
     );
     if(_allPackData.length===0){
@@ -14496,7 +14702,7 @@ function generateAIQuote(){
     return;
   }
 
-  const allData=getAllTrainingData();
+  const allData=getJobTrainingData();
   const scored=allData
     .filter(j=>j.actualHours)
     .map(j=>({...j,score:similarity(j,inputs)}))
@@ -14700,7 +14906,7 @@ function generateAIQuote(){
 function renderAIQuote(){
   // Restore any in-progress draft inputs so the user's work survives navigation/refresh
   restoreAIQuoteDraft();
-  const all=getAllTrainingData();
+  const all=getJobTrainingData();
   document.getElementById('ai-training-count').textContent=all.length+' training records ('+(SPREADSHEET_TRAINING.length)+' from spreadsheet, '+((db.aiTraining||[]).length)+' from completed jobs)';
   // Render the Quoting Rules card — grouped by category
   const rulesEl=document.getElementById('ai-quoting-rules');
