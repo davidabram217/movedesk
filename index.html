@@ -3981,8 +3981,14 @@ function resolveQuotedInfo(j){
   if(fq){
     out.quotedMin=fq.totalMin||null;
     out.quotedMax=fq.totalMax||null;
-    out.quotedHoursMin=fq.days?.[0]?.hrsMin||null;
-    out.quotedHoursMax=fq.days?.[0]?.hrsMax||null;
+    // Sum quoted hours across ALL quote days (multi-day quotes), not just Day 1.
+    {
+      const _ds=Array.isArray(fq.days)?fq.days:[];
+      let _hmin=0,_hmax=0,_any=false;
+      _ds.forEach(d=>{if(!d||d.flatRate)return;const a=Number(d.hrsMin)||0,b=Number(d.hrsMax)||0;if(a||b){_hmin+=a;_hmax+=b;_any=true;}});
+      out.quotedHoursMin=_any?_hmin:(fq.days?.[0]?.hrsMin||null);
+      out.quotedHoursMax=_any?_hmax:(fq.days?.[0]?.hrsMax||null);
+    }
     out.quotedRate=fq.days?.[0]?.rate||null;
     out.quotedCrew=fq.days?.[0]?.crew||null;
     out.estimatedVaults=Number(fq.estimatedVaults)||null;
@@ -8935,12 +8941,22 @@ if(!quote&&aiRec&&(aiRec.quotedMin||aiRec.quotedMax||aiRec.quotedHoursMin||aiRec
   };
 }
 
-// Quote hours and labour (computed AFTER quote fallback so synthetic quotes work)
-const qDay=quote&&quote.days&&quote.days[0]?quote.days[0]:null;
-const qHrsMin=qDay?Number(qDay.hrsMin)||null:null;
-const qHrsMax=qDay?Number(qDay.hrsMax)||null:null;
-const qLabourMin=qDay&&qDay.rate&&qHrsMin?qHrsMin*Number(qDay.rate):null;
-const qLabourMax=qDay&&qDay.rate&&qHrsMax?qHrsMax*Number(qDay.rate):null;
+// Quote hours and labour (computed AFTER quote fallback so synthetic quotes work).
+// Sum across ALL quote days so a multi-day quote shows the full quoted hours/labour
+// (e.g. two days of 7–9 hrs reads 14–18, not 7–9). Single-day quotes sum to one day.
+const _qDays=(quote&&Array.isArray(quote.days))?quote.days:[];
+let _qhMin=0,_qhMax=0,_qlMin=0,_qlMax=0,_anyHrs=false,_anyLab=false;
+_qDays.forEach(d=>{
+  if(!d)return;
+  if(d.flatRate){const fp=Number(d.flatPrice)||0;if(fp){_qlMin+=fp;_qlMax+=fp;_anyLab=true;}return;}
+  const hmin=Number(d.hrsMin)||0,hmax=Number(d.hrsMax)||0,r=Number(d.rate)||0;
+  if(hmin||hmax){_qhMin+=hmin;_qhMax+=hmax;_anyHrs=true;}
+  if(r&&(hmin||hmax)){_qlMin+=hmin*r;_qlMax+=hmax*r;_anyLab=true;}
+});
+const qHrsMin=_anyHrs?_qhMin:null;
+const qHrsMax=_anyHrs?_qhMax:null;
+const qLabourMin=_anyLab?_qlMin:null;
+const qLabourMax=_anyLab?_qlMax:null;
 const qFuelFee=quote&&quote.fees?quote.fees.find(f=>f.label&&f.label.toLowerCase().includes('fuel'))?.amount:null;
 // Standard material fee — specifically NOT packing materials
 const qMatFee=quote&&quote.fees?quote.fees.find(f=>f.label&&f.label.toLowerCase().includes('material')&&!f.label.toLowerCase().includes('packing'))?.amount:null;
