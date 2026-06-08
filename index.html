@@ -1400,7 +1400,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="cjmd-yelp" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="cjmd-damage" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="cjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">—</option><option>None</option><option>Released Value</option><option>Full Value Protection</option><option>3rd Party</option></select></div>
+          <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
         </div>
       </div>
@@ -1756,7 +1756,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="ecjmd-yelp" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="ecjmd-damage" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">—</option><option>None</option><option>Released Value</option><option>Full Value Protection</option><option>3rd Party</option></select></div>
+          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
         </div>
       </div>
@@ -7951,7 +7951,7 @@ function _buildCjmdDayCard(dayIndex, prefill){
   const i=dayIndex;
   const p=prefill||{};
   const dayDate=p.date||'';
-  const movers=Number(p.movers)||2;
+  const movers=(p.movers!==undefined&&p.movers!==null&&p.movers!=='')?Number(p.movers):2;
   const moveRate=Number(p.moveRate)||225;
   const packers=Number(p.packers)||0;
   const packRate=Number(p.packRate)||0;
@@ -7962,7 +7962,7 @@ function _buildCjmdDayCard(dayIndex, prefill){
   const park=Number(p.parking)||0;
   const defType=p.type||'Moving';
   const typeSelectHtml=_CJMD_DAY_TYPES.map(t=>`<option value="${t}"${t===defType?' selected':''}>${t}</option>`).join('');
-  const movSelectHtml=[2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
+  const movSelectHtml=[0,1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
   const packSelectHtml=['<option value="0"'+(packers===0?' selected':'')+'>0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}"${n===packers?' selected':''}>${n}</option>`)).join('');
   return `<div style="padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px" data-day-index="${i}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
@@ -8348,7 +8348,7 @@ function _buildEcjmdDayCard(dayIndex, prefill){
   const i=dayIndex;
   const p=prefill||{};
   const dayDate=p.date||'';
-  const movers=Number(p.movers)||2;
+  const movers=(p.movers!==undefined&&p.movers!==null&&p.movers!=='')?Number(p.movers):2;
   const moveRate=Number(p.moveRate)||225;
   const packers=Number(p.packers)||0;
   const packRate=Number(p.packRate)||0;
@@ -8360,7 +8360,7 @@ function _buildEcjmdDayCard(dayIndex, prefill){
   const dayTypes=['Packing','Moving','Pack and load','Pack and move','Load and move','Delivery'];
   const defType=p.type||'Moving';
   const typeSelectHtml=dayTypes.map(t=>`<option value="${t}"${t===defType?' selected':''}>${t}</option>`).join('');
-  const movSelectHtml=[2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
+  const movSelectHtml=[0,1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${n===movers?' selected':''}>${n}</option>`).join('');
   const packSelectHtml=['<option value="0"'+(packers===0?' selected':'')+'>0</option>'].concat([1,2,3,4,5,6,7,8,9,10,11,12].map(n=>`<option value="${n}"${n===packers?' selected':''}>${n}</option>`)).join('');
   return `<div style="padding:14px 16px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px" data-day-index="${i}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
