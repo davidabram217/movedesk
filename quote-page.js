@@ -75,6 +75,7 @@ function renderQuote(q){
     '<div style="font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9e9b94;margin-top:4px">San Francisco, CA</div>'+
     '<div style="margin-top:20px;font-size:24px;font-weight:700;color:#1a1a1a">Move Estimate</div>'+
     (q.customerName?'<div style="font-size:14px;color:#6b6860;margin-top:6px">Prepared for '+esc(q.customerName)+'</div>':'')+
+    (q.customerPhone?'<div style="font-size:13px;color:#9e9b94;margin-top:3px">'+esc(q.customerPhone)+'</div>':'')+
     '<div style="font-size:12px;color:#9e9b94;margin-top:8px;line-height:1.6">CareMore Moving &amp; Storage &nbsp;&middot;&nbsp; Cal-T #0190970<br>925 Palou Ave, San Francisco, CA 94124 &nbsp;&middot;&nbsp; (415) 822-8547</div>'+
     '</div>';
 
@@ -226,25 +227,63 @@ function renderQuote(q){
 async function acceptQuote(quoteId,publicId){
   var btn=document.getElementById('accept-btn');
   if(btn){btn.disabled=true;btn.textContent='Accepting...';}
-  var q=window._currentQuote;
   var acceptedAt=new Date().toISOString();
-  var updated=Object.assign({},q,{status:'accepted',acceptedAt:acceptedAt});
+
+  // CRITICAL: Do NOT write window._currentQuote back to Supabase. That would let a stale
+  // browser tab overwrite the real saved quote with old/corrupted data — the exact bug that
+  // locked in Matt Fickett's corruption on 2026-05-28. Instead, fetch the LATEST row from
+  // Supabase, merge in just status='accepted' + acceptedAt, and write that back. The customer's
+  // cached _currentQuote is only used for the notification email body — not for the PATCH.
   try{
-    await fetch(SUPABASE_URL+'/rest/v1/quotes?id=eq.'+quoteId,{
+    // Step 1: fetch the latest quote row from Supabase
+    var fetchRes=await fetch(SUPABASE_URL+'/rest/v1/quotes?id=eq.'+quoteId,{
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    if(!fetchRes.ok){
+      console.error('acceptQuote: failed to fetch latest quote',fetchRes.status);
+      throw new Error('Could not load latest quote (HTTP '+fetchRes.status+')');
+    }
+    var rows=await fetchRes.json();
+    if(!rows.length){
+      throw new Error('Quote not found in Supabase');
+    }
+    var latestQ=rows[0].data||rows[0];
+
+    // Step 2: refuse to overwrite a quote that's already accepted (idempotency + safety)
+    if(latestQ.status==='accepted'&&latestQ.acceptedAt){
+      console.log('acceptQuote: quote already accepted at',latestQ.acceptedAt,'— treating as already-done');
+      window._currentQuote=latestQ;
+      renderQuote(latestQ);
+      return;
+    }
+
+    // Step 3: merge ONLY the acceptance fields into the latest version. The customer's browser
+    // copy of the quote is irrelevant — we only touch status + acceptedAt.
+    var updated=Object.assign({},latestQ,{status:'accepted',acceptedAt:acceptedAt});
+
+    // Step 4: PATCH with the merged latest data
+    var patchRes=await fetch(SUPABASE_URL+'/rest/v1/quotes?id=eq.'+quoteId,{
       method:'PATCH',
       headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
       body:JSON.stringify({data:updated})
     });
+    if(!patchRes.ok){
+      throw new Error('Could not save acceptance (HTTP '+patchRes.status+')');
+    }
+
+    // Step 5: notification email to office. Use the LATEST quote for the email body so the
+    // numbers we tell the office about are the real saved numbers, not what the customer's
+    // stale browser had cached.
     try{
       var s=document.createElement('script');
       s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
       s.onload=function(){
         emailjs.init({publicKey:EJS_PUBLIC_KEY});
-        var name=q.customerName||'Customer';
-        var d0=q.days&&q.days[0]||{};
-        var quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+(q.publicId||publicId||'');
-        var body=name+' has accepted their move quote.\n\nCustomer: '+name+'\nEmail: '+(q.customerEmail||'--')+'\nMove date: '+(d0.date?fmtDate(d0.date):'--')+'\nQuote total: '+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+'\nAccepted: '+new Date(acceptedAt).toLocaleString()+'\n\nView the accepted quote:\n'+quoteLink+'\n\nLog in to MoveDesk:\nhttps://davidabram217.github.io/movedesk';
-        emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{to_email:'move@caremoremoving.com',to_name:'CareMore Moving and Storage',from_name:'CareMore Moving and Storage',reply_to:'move@caremoremoving.com',subject:'Quote accepted - '+name+' ('+fmtMoney(q.totalMin)+' - '+fmtMoney(q.totalMax)+')',message:body,html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>'});
+        var name=updated.customerName||'Customer';
+        var d0=updated.days&&updated.days[0]||{};
+        var quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+(updated.publicId||publicId||'');
+        var body=name+' has accepted their move quote.\n\nCustomer: '+name+'\nEmail: '+(updated.customerEmail||'--')+'\nMove date: '+(d0.date?fmtDate(d0.date):'--')+'\nQuote total: '+fmtMoney(updated.totalMin)+' - '+fmtMoney(updated.totalMax)+'\nAccepted: '+new Date(acceptedAt).toLocaleString()+'\n\nView the accepted quote:\n'+quoteLink+'\n\nLog in to MoveDesk:\nhttps://davidabram217.github.io/movedesk';
+        emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{to_email:'move@caremoremoving.com',to_name:'CareMore Moving and Storage',from_name:'CareMore Moving and Storage',reply_to:'move@caremoremoving.com',subject:'Quote accepted - '+name+' ('+fmtMoney(updated.totalMin)+' - '+fmtMoney(updated.totalMax)+')',message:body,html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>'});
       };
       document.head.appendChild(s);
     }catch(e){console.log('Notification failed:',e);}
