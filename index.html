@@ -14537,10 +14537,12 @@ function similarity(job,inputs){
   const unloadDiff=Math.abs(accessScore(job.accessUnload)-accessScore(inputs.accessUnload));
   score+=Math.max(0,10-(loadDiff*3));
   score+=Math.max(0,10-(unloadDiff*3));
-  // Sqft
+  // Sqft — the real volume signal, so weight it heavily (up to 30, near bedroom's 40) instead of
+  // the old token 10. Full credit for near-identical size, fading to 0 by ~1,500 sqft apart, so a
+  // 1,886 sqft home is matched to other big homes rather than every same-bedroom job.
   if(job.sqft&&inputs.sqft){
     const diff=Math.abs(job.sqft-inputs.sqft);
-    score+=Math.max(0,10-(diff/100));
+    score+=Math.max(0,30-(diff/50));
   }
   return score;
 }
@@ -14622,6 +14624,35 @@ function computeVaultRegression(){
   }
   const meanAbsErr=sumAbsErr/n;
   return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY,meanAbsErr:meanAbsErr};
+}
+
+// Square-footage → TOTAL job hours. Parallels computeVaultRegression but keyed on home size in
+// sq ft, which is what users usually enter (vault counts are rarer). Lets a bigger home predict
+// proportionally more hours instead of every same-bedroom job being treated as equal volume —
+// the fix for big jobs (e.g. a 1,886 sqft full-pack) being averaged down by smaller same-bedroom
+// jobs. Fit on all completed jobs with a recorded sqft; for multi-day jobs actualHours is the
+// total across days, so the line predicts total job hours, which the 9.5h/day cap then splits.
+function computeSqftRegression(){
+  const data=getJobTrainingData().filter(j=>j.actualHours&&j.sqft&&j.sqft>0);
+  const MIN_JOBS=6;
+  if(data.length<MIN_JOBS)return null;
+  const xs=data.map(j=>j.sqft);
+  const ys=data.map(j=>j.actualHours);
+  const n=xs.length;
+  const meanX=xs.reduce((a,b)=>a+b,0)/n;
+  const meanY=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;
+  for(let i=0;i<n;i++){num+=(xs[i]-meanX)*(ys[i]-meanY);den+=(xs[i]-meanX)**2;}
+  if(den===0)return null; // all same sqft — can't fit a slope
+  const slope=num/den;
+  const intercept=meanY-slope*meanX;
+  // Positive slope only — more square footage must mean more hours. A negative-slope fit is
+  // nonsense (data too noisy), so fall back to the neighbour estimate instead.
+  if(slope<=0)return null;
+  let sumAbsErr=0;
+  for(let i=0;i<n;i++){const predicted=intercept+slope*xs[i];sumAbsErr+=Math.abs(ys[i]-predicted);}
+  const meanAbsErr=sumAbsErr/n;
+  return {slope:slope,intercept:intercept,n:n,meanSqft:meanX,meanHours:meanY,meanAbsErr:meanAbsErr};
 }
 
 // Recommend a crew size for a given vault count, based on the crew sizes you've actually used
@@ -14808,8 +14839,10 @@ function generateAIQuote(){
   // Because the vault term increases smoothly with vault count, the blended estimate is
   // monotonic: adding vaults never lowers the hours.
   const _vaultReg=computeVaultRegression();
+  const _sqftReg=(!inputs.vaults&&inputs.sqft)?computeSqftRegression():null;
   let adjustedHours;
   let _usedVaultReg=false;
+  let _usedSqftReg=false;
   if(_vaultReg&&inputs.vaults){
     // The regression is fit on raw actual hours, which are mostly 3-man jobs. Convert its
     // prediction to the requested crew size using the same crew ratio basis as the neighbor
@@ -14819,6 +14852,16 @@ function generateAIQuote(){
     const VAULT_WEIGHT=0.65;
     adjustedHours=regCrewAdjusted*VAULT_WEIGHT+neighborHours*(1-VAULT_WEIGHT);
     _usedVaultReg=true;
+  } else if(_sqftReg&&inputs.sqft){
+    // No vault count, but we have sq ft — let square footage drive the estimate. Predict TOTAL
+    // hours from sqft, crew-adjust the same way as vaults (baseline ≈ 3-man), then blend with the
+    // neighbor average. Slightly lower weight than vaults (0.6) since sqft is a rougher volume
+    // proxy. The 9.5h/day cap downstream turns a large total into a multi-day job.
+    const regBaseHours=Math.max(1,_sqftReg.intercept+_sqftReg.slope*inputs.sqft);
+    const regCrewAdjusted=regBaseHours*((crewRatios[men]||1.0)/(crewRatios[3]||1.0))+accessHourDelta;
+    const SQFT_WEIGHT=0.6;
+    adjustedHours=regCrewAdjusted*SQFT_WEIGHT+neighborHours*(1-SQFT_WEIGHT);
+    _usedSqftReg=true;
   } else {
     adjustedHours=neighborHours;
   }
@@ -14837,6 +14880,13 @@ function generateAIQuote(){
     // ratio that compresses the midpoint.
     const crewFactor=(crewRatios[men]||1.0)/(crewRatios[3]||1.0);
     const spreadHrs=_vaultReg.meanAbsErr*crewFactor;
+    p25=Math.max(1,adjustedHours-spreadHrs);
+    p75=adjustedHours+spreadHrs;
+  } else if(_usedSqftReg){
+    // Same approach as the vault path, using the sqft regression's typical residual as the
+    // spread width so the range is smooth and tracks the sqft-driven midpoint.
+    const crewFactor=(crewRatios[men]||1.0)/(crewRatios[3]||1.0);
+    const spreadHrs=_sqftReg.meanAbsErr*crewFactor;
     p25=Math.max(1,adjustedHours-spreadHrs);
     p75=adjustedHours+spreadHrs;
   } else {
@@ -14862,6 +14912,16 @@ function generateAIQuote(){
   const totalHoursLowAdj=Math.max(1,Math.floor((p25+extraDriveHours)*2)/2);
   const totalHoursHighAdj=Math.ceil((p75+extraDriveHours)*2)/2;
 
+  // Multi-day awareness: one work day is capped at 9.5 hrs. If the estimated total exceeds
+  // that, the job spans multiple days (days = ceil(total ÷ 9.5)). Total hours and total cost
+  // are unchanged — you still bill total hours — this just surfaces the day count and per-day
+  // pace so a big job isn't quoted as one impossible single day.
+  const MAX_DAY_HOURS=9.5;
+  const _estTotalMid=(totalHoursLowAdj+totalHoursHighAdj)/2;
+  const estDays=Math.max(1,Math.ceil(_estTotalMid/MAX_DAY_HOURS));
+  const perDayLow=estDays>1?Math.round((totalHoursLowAdj/estDays)*2)/2:totalHoursLowAdj;
+  const perDayHigh=estDays>1?Math.round((totalHoursHighAdj/estDays)*2)/2:totalHoursHighAdj;
+
   const labourMin=Math.round(totalHoursLowAdj*rate);
   const labourMax=Math.round(totalHoursHighAdj*rate);
   const totalMin=labourMin+fuelEstimate+(packingMaterials||0);
@@ -14883,15 +14943,15 @@ function generateAIQuote(){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${isOutsideSF?' · outside SF billing':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Est. labour hours</div>
-        <div style="font-size:16px;font-weight:600">${totalHoursLowAdj}–${totalHoursHighAdj} hrs</div>
-        <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${extraDriveHours>0?'incl. ~'+Math.round(extraDriveHours*60)+'min drive time':'clock starts on arrival'}</div>
+        <div style="font-size:16px;font-weight:600">${totalHoursLowAdj}–${totalHoursHighAdj} hrs${estDays>1?' total':''}</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${estDays>1?'📅 '+estDays+'-day job · ~'+perDayLow+'–'+perDayHigh+' hrs/day (9.5h/day max)':(extraDriveHours>0?'incl. ~'+Math.round(extraDriveHours*60)+'min drive time':'clock starts on arrival')}</div>
       </div>
       <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)${crewMismatch?';border-left:3px solid #b7860b':''}">
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Suggested crew</div>
