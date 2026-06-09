@@ -14291,7 +14291,7 @@ function estimateFuelAndTime(loadZip,unloadZip,men,rate){
 function estimatePackingMaterials(size,moveType){
   if(!moveType||!moveType.toLowerCase().includes('pack'))return 0;
 
-  const allData=getJobTrainingData();
+  const allData=_aiTrainingPool();
   const packJobs=allData.filter(j=>
     j.feePackMaterials&&j.feePackMaterials>0&&
     j.moveType&&j.moveType.toLowerCase().includes('pack')
@@ -14595,7 +14595,7 @@ function clearAIQuoteDraft(){
 // fall back to the neighbor-only estimate. This is recomputed on every quote so it improves
 // as more jobs are completed — "future quotes built off past jobs."
 function computeVaultRegression(){
-  const data=getJobTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0);
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0);
   // Need a reasonable sample to fit a line — below this, the fit is too noisy to trust.
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
@@ -14633,7 +14633,7 @@ function computeVaultRegression(){
 // jobs. Fit on all completed jobs with a recorded sqft; for multi-day jobs actualHours is the
 // total across days, so the line predicts total job hours, which the 9.5h/day cap then splits.
 function computeSqftRegression(){
-  const data=getJobTrainingData().filter(j=>j.actualHours&&j.sqft&&j.sqft>0);
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.sqft&&j.sqft>0);
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
   const xs=data.map(j=>j.sqft);
@@ -14663,7 +14663,7 @@ function computeSqftRegression(){
 // in the training data — meaning the suggestion is extrapolation, not interpolation.
 function computeCrewRecommendation(vaults){
   if(!vaults||vaults<=0)return null;
-  const data=getJobTrainingData().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0&&j.moveMen);
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0&&j.moveMen);
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
   const xs=data.map(j=>j.estimatedVaults);
@@ -14688,7 +14688,18 @@ function computeCrewRecommendation(vaults){
   return {suggested,confidence,maxVaultsInData,slope,intercept,rawSuggested};
 }
 
-function generateAIQuote(){
+// ── Per-quote training exclusions (non-destructive) ──────────────────────────
+// Lets the user drop specific past jobs from a SINGLE AI quote to see the effect,
+// WITHOUT deleting anything. Keyed by a stable signature so the same record is matched
+// across recalcs. Cleared on every fresh quote. Jobs flagged for AI training stay
+// permanently in the data — this only hides them from the current estimate.
+let _aiExcludedKeys=new Set();
+let _aiLastScored=[];
+function _trainKey(r){return [r.id||'',r.name||'',r.date||'',r.actualHours||'',r.sqft||'',r.estimatedVaults||r.actualVaults||''].join('¦');}
+function _aiTrainingPool(){return getJobTrainingData().filter(r=>!_aiExcludedKeys.has(_trainKey(r)));}
+
+function generateAIQuote(isRecalc){
+  if(!isRecalc)_aiExcludedKeys=new Set();
   const inputs={
     size:document.getElementById('ai-size').value,
     vaults:parseFloat(document.getElementById('ai-vaults').value)||null,
@@ -14715,7 +14726,7 @@ function generateAIQuote(){
   // packing-only estimate from your actual packing data, not a guess scaled off move work.
   // Falls through to a friendly "no data" message if no jobs have packHoursActual recorded.
   if((inputs.moveType||'').toLowerCase()==='packing only'){
-    const _allPackData=getJobTrainingData().filter(j=>
+    const _allPackData=_aiTrainingPool().filter(j=>
       j.packHoursActual&&j.packHoursActual>0
     );
     if(_allPackData.length===0){
@@ -14778,15 +14789,16 @@ function generateAIQuote(){
     return;
   }
 
-  const allData=getJobTrainingData();
+  const allData=_aiTrainingPool();
   const scored=allData
     .filter(j=>j.actualHours)
     .map(j=>({...j,score:similarity(j,inputs)}))
     .sort((a,b)=>b.score-a.score)
     .slice(0,8);
+  _aiLastScored=scored;
 
   if(!scored.length){
-    document.getElementById('ai-result').innerHTML='<div class="empty-state"><div class="empty-title">Not enough data yet</div></div>';
+    document.getElementById('ai-result').innerHTML='<div class="empty-state"><div class="empty-title">Not enough data yet</div>'+(_aiExcludedKeys.size?'<div style="margin-top:8px;font-size:12px;color:var(--text2)">You\'ve hidden '+_aiExcludedKeys.size+' job(s) from this estimate.</div><button onclick="resetAIExclusions()" class="btn" style="margin-top:10px;font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':'')+'</div>';
     return;
   }
 
@@ -15005,8 +15017,38 @@ function generateAIQuote(){
     <div style="font-size:11.5px;color:var(--text3);line-height:1.6">
       Labour: $${labourMin.toLocaleString()}–$${labourMax.toLocaleString()} · Fuel: $${fuelEstimate}${packingMaterials?' · Packing: $'+packingMaterials:''}<br>
       <em>Add insurance, COI, parking, dump fees as needed. 3.5% CC fee if applicable.</em>
-    </div>`;
+    </div>
+    <details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px"${_aiExcludedKeys.size?' open':''}>
+      <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">🔍 Jobs used for this estimate (${scored.length})${_aiExcludedKeys.size?' · '+_aiExcludedKeys.size+' hidden':''}</summary>
+      <div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Uncheck any job to drop it from <strong>this estimate only</strong>, then recalculate. Nothing is deleted — your AI training data is untouched.</div>
+        ${scored.map((j,i)=>{const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');return `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border2);font-size:12px;cursor:pointer">
+          <input type="checkbox" class="ai-job-incl" data-idx="${i}" checked style="flex:none">
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_e(j.name)||'Unnamed job'}</span>
+          <span style="color:var(--text3);flex:none">${_e(j.size)||'—'}${j.sqft?' · '+j.sqft+'sqft':''}</span>
+          <span style="font-family:'DM Mono',monospace;font-weight:600;flex:none">${j.actualHours} hrs</span>
+          <span style="color:var(--text3);font-size:10px;flex:none">match ${Math.round(j.score)}</span>
+        </label>`;}).join('')}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button onclick="recalcAIQuote()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate without unchecked</button>
+          ${_aiExcludedKeys.size?'<button onclick="resetAIExclusions()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':''}
+        </div>
+      </div>
+    </details>`;
 }
+
+// Recalculate the current AI quote, dropping any jobs the user unchecked in the readout.
+// Exclusions accumulate (key-based) so each recalc narrows further; Reset clears them.
+function recalcAIQuote(){
+  document.querySelectorAll('.ai-job-incl').forEach(cb=>{
+    if(!cb.checked){
+      const rec=_aiLastScored[Number(cb.getAttribute('data-idx'))];
+      if(rec)_aiExcludedKeys.add(_trainKey(rec));
+    }
+  });
+  generateAIQuote(true);
+}
+function resetAIExclusions(){_aiExcludedKeys=new Set();generateAIQuote(true);}
 
 function renderAIQuote(){
   // Restore any in-progress draft inputs so the user's work survives navigation/refresh
