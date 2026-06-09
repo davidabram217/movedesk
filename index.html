@@ -15075,17 +15075,17 @@ function generateAIQuote(isRecalc){
           const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null].filter(Boolean).join(' · ');
           const line3=[j.moveType?_e(j.moveType):null,j.packing?'pack: '+_e(j.packing):null,(j.accessLoad||j.accessUnload)?(_e(j.accessLoad||'?')+'→'+_e(j.accessUnload||'?')):null,j.moveMen?j.moveMen+' movers':null,j.packMen?'+'+j.packMen+' packers':null].filter(Boolean).join(' · ');
           const hrs=(qmin||qmax)?`Quoted ${qmin||'?'}–${qmax||'?'} → actual <strong>${j.actualHours} hrs</strong>${over?' <span style="color:#b7860b;font-weight:600">⚠ ran over</span>':''}`:`Actual <strong>${j.actualHours} hrs</strong>`;
-          return `<div style="padding:8px 6px;border-bottom:1px solid var(--border2)">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
-            <input type="checkbox" class="ai-job-incl" data-idx="${i}" checked style="margin-top:3px;flex:none">
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><span style="font-weight:600;font-size:12.5px">${nm}</span><span style="color:var(--text3);font-size:10.5px;white-space:nowrap;flex:none">match ${Math.round(j.score)} · ${src}</span></div>
-              ${line2?`<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${line2}</div>`:''}
-              ${line3?`<div style="font-size:11.5px;color:var(--text2);margin-top:1px">${line3}</div>`:''}
-              <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${hrs}</div>
-              ${j.notes?`<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic">📝 ${_e(j.notes)}</div>`:''}
-            </div>
+          return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2);overflow-wrap:anywhere;word-break:break-word">
+          <label style="display:block;cursor:pointer">
+            <span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="ai-job-incl" data-idx="${i}" checked style="vertical-align:middle;margin-right:8px">${nm}</span>
+            <span style="color:var(--text3);font-size:10.5px;margin-left:6px">match ${Math.round(j.score)} · ${src}</span>
           </label>
+          <div style="margin-left:24px">
+            ${line2?`<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${line2}</div>`:''}
+            ${line3?`<div style="font-size:11.5px;color:var(--text2);margin-top:1px">${line3}</div>`:''}
+            <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${hrs}</div>
+            ${j.notes?`<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic">📝 ${_e(j.notes)}</div>`:''}
+          </div>
         </div>`;}).join('')}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <button onclick="recalcAIQuote()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate without unchecked</button>
