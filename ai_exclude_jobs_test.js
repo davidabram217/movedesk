@@ -31,7 +31,10 @@ check('vault regression uses filtered pool',/const data=_aiTrainingPool\(\)\.fil
 check('sqft regression uses filtered pool',/const data=_aiTrainingPool\(\)\.filter\(j=>j\.actualHours&&j\.sqft/.test(script));
 check('scored list captured for checkbox mapping',/_aiLastScored=scored;/.test(script));
 check('readout lists jobs with checkboxes',/class="ai-job-incl" data-idx="\$\{i\}" checked/.test(script));
-check('readout shows name/size/sqft/hours/score',/\$\{j\.actualHours\} hrs[\s\S]{0,80}match \$\{Math\.round\(j\.score\)\}/.test(script));
+check('readout shows match score and actual hours',/match \$\{Math\.round\(j\.score\)\}/.test(script)&&/\$\{j\.actualHours\} hrs/.test(script));
+check('readout shows full detail (date/size/sqft/vaults + move/access/crew)',[/j\.date\?_e\(j\.date\)/,/j\.sqft\+' sqft'/,/vaults\+' vaults'/,/j\.moveType\?_e\(j\.moveType\)/,/accessUnload/,/j\.moveMen\+' movers'/].every(re=>re.test(script)));
+check('readout shows quoted-vs-actual with ran-over flag',/Quoted \$\{qmin/.test(script)&&/ran over/.test(script)&&/const over=\(qmax&&j\.actualHours&&Number\(j\.actualHours\)>Number\(qmax\)\)/.test(script));
+check('readout tags source (seed data vs your job)',/j\.fromSpreadsheet\?'seed data':'your job'/.test(script));
 check('recalc button present',/onclick="recalcAIQuote\(\)"/.test(script));
 check('recalcAIQuote collects unchecked into exclusions',/recalcAIQuote\(\)\{[\s\S]{0,260}if\(!cb\.checked\)[\s\S]{0,160}_aiExcludedKeys\.add\(_trainKey\(rec\)\)/.test(script));
 check('resetAIExclusions clears and re-runs',/function resetAIExclusions\(\)\{_aiExcludedKeys=new Set\(\);generateAIQuote\(true\);\}/.test(script));
