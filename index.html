@@ -14834,7 +14834,24 @@ function generateAIQuote(isRecalc){
   let _cands=allData.filter(j=>j.actualHours);
   if(_wantType)_cands=_cands.filter(j=>_normMoveType(j.moveType)===_wantType);
   const _sameTypeCount=_cands.length;
-  const scored=_cands
+  // VOLUME GUARD: volume is the owner's top priority, so don't let a job of a very different size
+  // class into the neighbour pool (e.g. a 3-bed/8-vault job informing a 1-bed/3-vault quote).
+  // Compare on vaults when both have them, else sqft; drop a job when the larger volume is more
+  // than VOL_RATIO_MAX× the smaller. Tunable. (The sqft/vault regressions are NOT gated — they
+  // intentionally span all sizes to extrapolate; only the neighbour list is tightened.)
+  const VOL_RATIO_MAX=2.2;
+  const _volOK=(j)=>{
+    const jv=Number(j.estimatedVaults||j.actualVaults)||0;
+    if(inputs.vaults&&jv>0){const a=Number(inputs.vaults),b=jv;return Math.max(a,b)/Math.min(a,b)<=VOL_RATIO_MAX;}
+    if(inputs.sqft&&j.sqft>0){const a=Number(inputs.sqft),b=Number(j.sqft);return Math.max(a,b)/Math.min(a,b)<=VOL_RATIO_MAX;}
+    return true; // not enough info to compare volume — don't gate it out
+  };
+  const _inBand=_cands.filter(_volOK);
+  // If the guard leaves nothing, fall back to the same-type pool so a quote can still be produced,
+  // and flag it so the UI can warn that the closest available jobs differ in size.
+  const _volFallback=_inBand.length===0&&_cands.length>0;
+  const _pool=_inBand.length>0?_inBand:_cands;
+  const scored=_pool
     .map(j=>({...j,score:similarity(j,inputs),_work:_jobWorkHours(j)}))
     .sort((a,b)=>b.score-a.score)
     .slice(0,8);
@@ -14998,7 +15015,7 @@ function generateAIQuote(isRecalc){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_volFallback?' · closest available differ in size':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
