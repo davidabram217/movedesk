@@ -14915,7 +14915,12 @@ function generateAIQuote(isRecalc){
   let adjustedHours;
   let _usedVaultReg=false;
   let _usedSqftReg=false;
-  if(_vaultReg&&inputs.vaults){
+  // When the user is CURATING (has excluded jobs), the trend line is turned off so their chosen
+  // jobs drive the estimate 100% — otherwise the regression (fit over all non-excluded training
+  // jobs, including ones never shown in the top-8) would override part of their hand-picked list.
+  // A fresh, un-curated quote still gets the trend line as a light assist.
+  const _curating=_aiExcludedKeys.size>0;
+  if(_vaultReg&&inputs.vaults&&!_curating){
     // The regression is fit on raw actual hours, which are mostly 3-man jobs. Convert its
     // prediction to the requested crew size using the same crew ratio basis as the neighbor
     // estimate (regression baseline ≈ 3-man, so scale by crewRatios[men]/crewRatios[3]).
@@ -14927,7 +14932,7 @@ function generateAIQuote(isRecalc){
     const VAULT_WEIGHT=0.35;
     adjustedHours=regCrewAdjusted*VAULT_WEIGHT+neighborHours*(1-VAULT_WEIGHT);
     _usedVaultReg=true;
-  } else if(_sqftReg&&inputs.sqft){
+  } else if(_sqftReg&&inputs.sqft&&!_curating){
     // No vault count, but we have sq ft — use it to assist. Predict TOTAL hours from sqft,
     // crew-adjust (baseline ≈ 3-man), then blend as a LIGHTER assist behind the matched jobs (same
     // 0.35 as vaults; sqft is a rougher proxy so it never dominates). The 9.5h/day cap downstream
@@ -15018,7 +15023,7 @@ function generateAIQuote(isRecalc){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_volFallback?' · closest available differ in size':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
