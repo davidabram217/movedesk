@@ -5271,10 +5271,20 @@ function openConfirmEmail(leadId,bookedJob){
     bj._moveDetailsBlock=moveDetailsSection.replace(/^\n+/,'');
   }
   // Subject line uses the booked-job date first (matches body precedence — booking edits win).
-  // For multi-day quotes, Day 1's date is what shows in the subject; booking-form date overrides
-  // it only when present.
+  // Single-day: Day 1's date. Multi-day: ALL day dates, compact — weekday on each for a 2-day
+  // job, no weekday for 3+ (to keep it short), year shown once at the end. Day 1 still honors a
+  // booking-form date override; Days 2+ come from the quote. (Booking & Confirming, inv #13/#21.)
   var subject=isMulti
-    ?'Multi-Day Move Confirmation — '+fmtDateWithDay(bj?.date||(q.days[0]&&q.days[0].date)||'')
+    ?'Multi-Day Move Confirmation — '+(function(){
+        var raw=[(bj&&bj.date)||(q.days[0]&&q.days[0].date)].concat((q.days||[]).slice(1).map(function(d){return d&&d.date;}));
+        var ds=[]; raw.forEach(function(d){ if(d&&ds[ds.length-1]!==d) ds.push(d); });
+        if(!ds.length) return fmtDateWithDay((bj&&bj.date)||'');
+        if(ds.length===1) return fmtDateWithDay(ds[0]);
+        var wd=ds.length<=2; // weekday per day only for 2-day jobs; 3+ stays compact
+        var parts=ds.map(function(d){ return new Date(d+'T12:00:00').toLocaleDateString('en-US', wd?{weekday:'long',month:'short',day:'numeric'}:{month:'short',day:'numeric'}); });
+        var yr=new Date(ds[ds.length-1]+'T12:00:00').getFullYear();
+        return parts.slice(0,-1).join(', ')+' & '+parts[parts.length-1]+', '+yr;
+      })()
     :'Move Confirmation — '+fmtDateWithDay(bj?.date||l?.date||'');
   var body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:'
     +moveDetailsSection
@@ -14279,7 +14289,11 @@ function estimateFuelAndTime(loadZip,unloadZip,men,rate){
   }
 
   const fullTripMiles=Math.round(whToLoad+loadToUnload+unloadToWH);
-  const driveHours=loadSF&&unloadSF?Math.max(0.5,unloadToWH/15):fullTripMiles/20;
+  // Drive time: SF-to-SF stays local-speed (one return leg). Out-of-area used to assume a flat
+  // 20 mph (city) for the whole trip, which massively over-counts highway miles — a 100-mile haul
+  // came out ~10 hrs. Now: short regional trips (≤60 round-trip mi) at ~25 mph, longer trips at
+  // ~45 mph blended (local maneuvering + highway). Tune these divisors if real drive times differ.
+  const driveHours=loadSF&&unloadSF?Math.max(0.5,unloadToWH/15):(fullTripMiles<=60?fullTripMiles/25:fullTripMiles/45);
   const fuel=Math.max(35,Math.round(fullTripMiles*RATE_PER_MILE/5)*5);
   const actualFuelLow=Math.round(fullTripMiles/8*5);
   const actualFuelHigh=Math.round(fullTripMiles/8*8);
@@ -14490,59 +14504,82 @@ function accessScore(access){
   return map[access]||0;
 }
 
+// Normalize a move-type label (form input or record) so equivalent labels compare equal.
+// Used as a HARD FILTER in the AI quote: only same-move-type jobs are ever compared.
+function _normMoveType(s){return String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();}
+
+// Driving is handled as a SEPARATE CALCULATION (not a matching factor): we estimate the WORK
+// from same-type jobs, then add THIS trip's drive from its zips. To keep the work estimate
+// distance-independent, we strip each past job's own baked-in drive out of its recorded hours.
+// SF jobs bill clock-on-arrival (no drive baked in); out-of-area jobs bill warehouse-to-
+// warehouse (drive IS baked in), so only those get stripped. Avoids double-counting drive.
+function _jobDriveHours(j){
+  const nf=j.fromZip?String(j.fromZip).split('.')[0]:'';
+  const nt=j.toZip?String(j.toZip).split('.')[0]:'';
+  if(!nf||!nt)return 0;
+  try{return estimateFuelAndTime(nf,nt,3,75).driveHours||0;}catch(e){return 0;}
+}
+function _jobWorkHours(j){
+  const h=Number(j.actualHours)||0;
+  if(!h)return 0;
+  const nf=j.fromZip?String(j.fromZip).split('.')[0]:'';
+  const nt=j.toZip?String(j.toZip).split('.')[0]:'';
+  const sf=nf&&nt&&isSFZip(nf)&&isSFZip(nt);
+  if(sf)return h;                       // SF job: recorded hours are already work-only
+  const dh=_jobDriveHours(j);
+  return dh>0?Math.max(1,h-dh):h;       // out-of-area: strip the drive that was on the clock
+}
+
 function similarity(job,inputs){
   let score=0;
-  // Size match — most important
-  if(job.size&&inputs.size){
-    const norm=s=>s.toLowerCase().replace(/\s+/g,'');
-    score+=norm(job.size)===norm(inputs.size)?40:0;
+  // NOTE: move type is now a HARD FILTER applied before scoring (only same-type jobs reach
+  // here), so it carries no weight here. Driving is also NOT scored — it's a separate calc (see
+  // the access note below). Remaining factors, in the owner's priority: volume (vaults / sqft) >
+  // access > packing scope > bedroom count.
+
+  // Volume via VAULTS — the owner's primary volume signal. Up to 35 pts, fading as counts diverge.
+  if(job.estimatedVaults&&inputs.vaults){
+    const diff=Math.abs(job.estimatedVaults-inputs.vaults);
+    score+=Math.max(0,35-(diff*4));
   }
-  // Packing match — a pack-and-move job is fundamentally different work from a move-only,
-  // so we weight this heavily. Buckets ordered by pack scope:
-  //   none (move only) → kitchen only → all breakables → full pack
-  // Adjacent buckets get partial credit, non-adjacent zero.
+  // Volume via SQFT — everyday proxy when no vault count is entered. Up to 30 pts, fading to 0
+  // by ~1,500 sqft apart, so a big home matches other big homes.
+  if(job.sqft&&inputs.sqft){
+    const diff=Math.abs(job.sqft-inputs.sqft);
+    score+=Math.max(0,30-(diff/50));
+  }
+  // Access at each end — third priority. Up to 13 pts per end.
+  const loadDiff=Math.abs(accessScore(job.accessLoad)-accessScore(inputs.accessLoad));
+  const unloadDiff=Math.abs(accessScore(job.accessUnload)-accessScore(inputs.accessUnload));
+  score+=Math.max(0,13-(loadDiff*3));
+  score+=Math.max(0,13-(unloadDiff*3));
+  // NOTE: driving is NOT scored here. Two jobs of the same size do the same loading/unloading
+  // work whether local or 100 miles away — only the drive differs, and that's added later as a
+  // separate calculation from this trip's zips. Matching on distance would wrongly down-rank a
+  // perfectly good local job just because this trip happens to be long-haul.
+  // Packing scope — a refinement WITHIN the same move type (full pack vs kitchen-only). Lower
+  // weight now that move type is filtered. Buckets: none → kitchen → breakables → full.
   const _normPack=p=>{
     const s=(p||'').toLowerCase().trim();
     if(!s||s==='no'||s.includes('just moving'))return 'none';
     if(s.includes('kitchen'))return 'kitchen';
     if(s.includes('breakable'))return 'breakables';
     if(s.includes('full')||s==='yes')return 'full';
-    // Legacy "Partial" maps closest to "all breakables" since old partial usually meant
-    // kitchen + bathrooms + breakables. "All breakables" is the closest modern bucket.
     if(s.includes('partial')||s.includes('part'))return 'breakables';
     return 'unknown';
   };
   if(job.packing!==undefined&&job.packing!==null&&inputs.packing){
-    const jp=_normPack(job.packing);
-    const ip=_normPack(inputs.packing);
+    const jp=_normPack(job.packing),ip=_normPack(inputs.packing);
     if(jp!=='unknown'&&ip!=='unknown'){
-      // Ordered scale so we can measure "distance" between buckets
       const _scale={none:0,kitchen:1,breakables:2,full:3};
       const dist=Math.abs(_scale[jp]-_scale[ip]);
-      if(dist===0)score+=25;       // exact match
-      else if(dist===1)score+=12;  // adjacent (e.g. breakables vs full)
-      else if(dist===2)score+=3;   // 2 buckets apart (e.g. kitchen vs full)
-      // dist === 3: opposite ends (none vs full) — no score, fundamentally different work
+      if(dist===0)score+=15;else if(dist===1)score+=7;else if(dist===2)score+=2;
     }
   }
-  // Move type — but down-weighted because moveType often correlates with packing already
-  if(job.moveType&&inputs.moveType&&job.moveType.toLowerCase()===inputs.moveType.toLowerCase())score+=10;
-  // Vaults — weighted
-  if(job.estimatedVaults&&inputs.vaults){
-    const diff=Math.abs(job.estimatedVaults-inputs.vaults);
-    score+=Math.max(0,20-(diff*4));
-  }
-  // Access
-  const loadDiff=Math.abs(accessScore(job.accessLoad)-accessScore(inputs.accessLoad));
-  const unloadDiff=Math.abs(accessScore(job.accessUnload)-accessScore(inputs.accessUnload));
-  score+=Math.max(0,10-(loadDiff*3));
-  score+=Math.max(0,10-(unloadDiff*3));
-  // Sqft — the real volume signal, so weight it heavily (up to 30, near bedroom's 40) instead of
-  // the old token 10. Full credit for near-identical size, fading to 0 by ~1,500 sqft apart, so a
-  // 1,886 sqft home is matched to other big homes rather than every same-bedroom job.
-  if(job.sqft&&inputs.sqft){
-    const diff=Math.abs(job.sqft-inputs.sqft);
-    score+=Math.max(0,30-(diff/50));
+  // Bedroom count — minor now; volume (vaults / sqft) carries the size signal.
+  if(job.size&&inputs.size){
+    const norm=s=>s.toLowerCase().replace(/\s+/g,'');
+    score+=norm(job.size)===norm(inputs.size)?15:0;
   }
   return score;
 }
@@ -14600,7 +14637,7 @@ function computeVaultRegression(){
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
   const xs=data.map(j=>j.estimatedVaults);
-  const ys=data.map(j=>j.actualHours);
+  const ys=data.map(j=>_jobWorkHours(j));
   const n=xs.length;
   const meanX=xs.reduce((a,b)=>a+b,0)/n;
   const meanY=ys.reduce((a,b)=>a+b,0)/n;
@@ -14637,7 +14674,7 @@ function computeSqftRegression(){
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
   const xs=data.map(j=>j.sqft);
-  const ys=data.map(j=>j.actualHours);
+  const ys=data.map(j=>_jobWorkHours(j));
   const n=xs.length;
   const meanX=xs.reduce((a,b)=>a+b,0)/n;
   const meanY=ys.reduce((a,b)=>a+b,0)/n;
@@ -14790,15 +14827,21 @@ function generateAIQuote(isRecalc){
   }
 
   const allData=_aiTrainingPool();
-  const scored=allData
-    .filter(j=>j.actualHours)
-    .map(j=>({...j,score:similarity(j,inputs)}))
+  // HARD FILTER: only ever learn from jobs of the SAME move type as this quote (owner's rule).
+  // Pack-only is already handled by its own path above; this keeps Move / Move&Pack / Storage /
+  // etc. from contaminating each other. Falls to the empty state if there are no same-type jobs.
+  const _wantType=_normMoveType(inputs.moveType);
+  let _cands=allData.filter(j=>j.actualHours);
+  if(_wantType)_cands=_cands.filter(j=>_normMoveType(j.moveType)===_wantType);
+  const _sameTypeCount=_cands.length;
+  const scored=_cands
+    .map(j=>({...j,score:similarity(j,inputs),_work:_jobWorkHours(j)}))
     .sort((a,b)=>b.score-a.score)
     .slice(0,8);
   _aiLastScored=scored;
 
   if(!scored.length){
-    document.getElementById('ai-result').innerHTML='<div class="empty-state"><div class="empty-title">Not enough data yet</div>'+(_aiExcludedKeys.size?'<div style="margin-top:8px;font-size:12px;color:var(--text2)">You\'ve hidden '+_aiExcludedKeys.size+' job(s) from this estimate.</div><button onclick="resetAIExclusions()" class="btn" style="margin-top:10px;font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':'')+'</div>';
+    document.getElementById('ai-result').innerHTML='<div class="empty-state"><div class="empty-title">No matching jobs yet</div>'+(_wantType?'<div style="margin-top:8px;font-size:12px;color:var(--text2)">No completed <strong>'+(inputs.moveType||'')+'</strong> jobs in your AI training data yet. Move type is matched exactly, so complete a few of this type and this will start working.</div>':'')+(_aiExcludedKeys.size?'<div style="margin-top:8px;font-size:12px;color:var(--text2)">You\'ve also hidden '+_aiExcludedKeys.size+' job(s) from this estimate.</div><button onclick="resetAIExclusions()" class="btn" style="margin-top:10px;font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':'')+'</div>';
     return;
   }
 
@@ -14808,7 +14851,7 @@ function generateAIQuote(isRecalc){
     return valid.reduce((s,j)=>s+j[field]*j.score,0)/valid.reduce((s,j)=>s+j.score,0);
   };
 
-  const avgHours=wavg('actualHours');
+  const avgHours=wavg('_work');
   const avgMen=wavg('moveMen')||3;
   const ratePerMan=inputs.rate;
   const men=inputs.men||Math.round(avgMen);
@@ -14884,7 +14927,7 @@ function generateAIQuote(isRecalc){
   // a job at 5 vaults will always have a range whose top is HIGHER than the same range at
   // 3 vaults, because both endpoints are derived from the same vault-driven midpoint with a
   // constant spread. When the regression isn't in play, fall back to neighbor percentiles.
-  const actualHoursList=scored.filter(j=>j.actualHours).map(j=>(j.actualHours*crewAdjust)+accessHourDelta).sort((a,b)=>a-b);
+  const actualHoursList=scored.filter(j=>j._work).map(j=>(j._work*crewAdjust)+accessHourDelta).sort((a,b)=>a-b);
   let p25,p75;
   if(_usedVaultReg){
     // The crew-adjusted spread width should be smaller for bigger crews (more men finish
@@ -14955,7 +14998,7 @@ function generateAIQuote(isRecalc){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
@@ -15022,13 +15065,28 @@ function generateAIQuote(isRecalc){
       <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">🔍 Jobs used for this estimate (${scored.length})${_aiExcludedKeys.size?' · '+_aiExcludedKeys.size+' hidden':''}</summary>
       <div style="margin-top:8px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Uncheck any job to drop it from <strong>this estimate only</strong>, then recalculate. Nothing is deleted — your AI training data is untouched.</div>
-        ${scored.map((j,i)=>{const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');return `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border2);font-size:12px;cursor:pointer">
-          <input type="checkbox" class="ai-job-incl" data-idx="${i}" checked style="flex:none">
-          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_e(j.name)||'Unnamed job'}</span>
-          <span style="color:var(--text3);flex:none">${_e(j.size)||'—'}${j.sqft?' · '+j.sqft+'sqft':''}</span>
-          <span style="font-family:'DM Mono',monospace;font-weight:600;flex:none">${j.actualHours} hrs</span>
-          <span style="color:var(--text3);font-size:10px;flex:none">match ${Math.round(j.score)}</span>
-        </label>`;}).join('')}
+        ${scored.map((j,i)=>{
+          const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          const nm=_e(j.name).trim()||'(no name on record)';
+          const src=j.fromSpreadsheet?'seed data':'your job';
+          const vaults=j.estimatedVaults||j.actualVaults;
+          const qmin=j.quotedHoursMin,qmax=j.quotedHoursMax;
+          const over=(qmax&&j.actualHours&&Number(j.actualHours)>Number(qmax));
+          const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null].filter(Boolean).join(' · ');
+          const line3=[j.moveType?_e(j.moveType):null,j.packing?'pack: '+_e(j.packing):null,(j.accessLoad||j.accessUnload)?(_e(j.accessLoad||'?')+'→'+_e(j.accessUnload||'?')):null,j.moveMen?j.moveMen+' movers':null,j.packMen?'+'+j.packMen+' packers':null].filter(Boolean).join(' · ');
+          const hrs=(qmin||qmax)?`Quoted ${qmin||'?'}–${qmax||'?'} → actual <strong>${j.actualHours} hrs</strong>${over?' <span style="color:#b7860b;font-weight:600">⚠ ran over</span>':''}`:`Actual <strong>${j.actualHours} hrs</strong>`;
+          return `<div style="padding:8px 6px;border-bottom:1px solid var(--border2)">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <input type="checkbox" class="ai-job-incl" data-idx="${i}" checked style="margin-top:3px;flex:none">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><span style="font-weight:600;font-size:12.5px">${nm}</span><span style="color:var(--text3);font-size:10.5px;white-space:nowrap;flex:none">match ${Math.round(j.score)} · ${src}</span></div>
+              ${line2?`<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${line2}</div>`:''}
+              ${line3?`<div style="font-size:11.5px;color:var(--text2);margin-top:1px">${line3}</div>`:''}
+              <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${hrs}</div>
+              ${j.notes?`<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic">📝 ${_e(j.notes)}</div>`:''}
+            </div>
+          </label>
+        </div>`;}).join('')}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <button onclick="recalcAIQuote()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate without unchecked</button>
           ${_aiExcludedKeys.size?'<button onclick="resetAIExclusions()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':''}
