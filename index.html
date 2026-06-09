@@ -2019,6 +2019,11 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <input type="text" id="qb-cash-discount" placeholder="e.g. 3 men rate reduced to $210/hr if paid in cash" oninput="qbAutoSave()">
       </div>
 
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Storage Costs <span style="font-size:11px;color:var(--text3)">(leave blank to hide)</span></label>
+        <input type="text" id="qb-storage-costs" placeholder="e.g. $150/month for storage in transit" oninput="qbAutoSave()">
+      </div>
+
       
       <div class="form-group" style="margin-bottom:12px">
         <label>Stipulations <span style="font-size:11px;color:var(--text3)">(leave blank to hide)</span></label>
@@ -12076,6 +12081,7 @@ function openQuoteBuilder(leadId){
   if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=l?.packing||'';
   document.getElementById('qb-description').value='Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF.';
   document.getElementById('qb-cash-discount').value='';
+  document.getElementById('qb-storage-costs').value='';
   document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
   // qb-notes is hidden and unused (customer-facing notes are typed manually in the confirmation
   // email modal at send time). FORCE-CLEAR unconditionally so stale content from a previous lead's
@@ -12149,6 +12155,7 @@ function loadQuoteIntoBuilder(q){
   document.getElementById('qb-project-name').value=q.projectName||'';
   document.getElementById('qb-description').value=q.description||'';
   document.getElementById('qb-cash-discount').value=q.cashDiscount||'';
+  document.getElementById('qb-storage-costs').value=q.storageCosts||'';
   document.getElementById('qb-stipulations').value=q.stipulations||'';
   // Legacy cleanup: if a saved DRAFT quote was created before we removed the boilerplate
   // disclaimer, the notes field still contains it. On load, detect that exact text and
@@ -12690,6 +12697,7 @@ function buildQuoteHTML(){
     packing:document.getElementById('qb-packing')?.value||l?.packing||'',
     description:document.getElementById('qb-description')?.value?.trim()||'',
     cashDiscount:document.getElementById('qb-cash-discount')?.value?.trim()||'',
+    storageCosts:document.getElementById('qb-storage-costs')?.value?.trim()||'',
     stipulations:document.getElementById('qb-stipulations')?.value?.trim()||'',
     notes:document.getElementById('qb-notes')?.value?.trim()||'',
     size:l?l.size||'':'',
@@ -12845,6 +12853,7 @@ function renderQuoteHTML(q,lead){
       </tr></tfoot>
     </table>
     ${q.cashDiscount?`<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Cash discount:</strong> ${esc(q.cashDiscount)}</div>`:''}
+    ${q.storageCosts?`<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Storage costs:</strong> ${esc(q.storageCosts)}</div>`:''}
   </div>`;
 
   // ── Stipulations ──
@@ -12959,6 +12968,7 @@ function saveQuote(status,opts){
     projectName:document.getElementById('qb-project-name').value,moveType:document.getElementById('qb-move-type')?.value||'',packing:document.getElementById('qb-packing')?.value||'',
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
+    storageCosts:document.getElementById('qb-storage-costs').value,
     stipulations:document.getElementById('qb-stipulations').value,
     notes:document.getElementById('qb-notes').value,officeNotes:(()=>{
       // Office notes: take whatever's in the qb-office-notes field, then route it through the
@@ -13128,6 +13138,7 @@ function buildQuotePlainText(){
   const projectName=document.getElementById('qb-project-name').value.trim();
   const desc=document.getElementById('qb-description').value.trim();
   const cashDiscount=document.getElementById('qb-cash-discount').value.trim();
+  const storageCosts=document.getElementById('qb-storage-costs').value.trim();
   const stipulations=document.getElementById('qb-stipulations').value.trim();
   const notes=document.getElementById('qb-notes').value.trim();
   const d0=qbDays[0]||{};
@@ -13180,6 +13191,7 @@ function buildQuotePlainText(){
   });
   txt+='\nESTIMATED TOTAL: '+fmtMoney(t.low)+' - '+fmtMoney(t.high)+'\n';
   if(cashDiscount)txt+='Cash discount: '+cashDiscount+'\n';
+  if(storageCosts)txt+='Storage costs: '+storageCosts+'\n';
   if(t.depositAmount)txt+='Deposit: '+fmtMoney(t.depositAmount)+'\n';
   txt+='\n----------------------------------------------\n';
   txt+='TERMS & CONDITIONS\n';

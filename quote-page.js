@@ -187,6 +187,7 @@ function renderQuote(q){
     '<td style="padding:14px 6px;text-align:right;font-weight:700;font-size:16px;color:#2d5a3d">'+(q.totalMin===q.totalMax?fmt(q.totalMin):fmt(q.totalMin)+' \u2013 '+fmt(q.totalMax))+(q.cashTotalMin?'<div style="font-size:14px;color:#2d5a3d;margin-top:4px;font-weight:600">or '+(q.cashTotalMin===q.cashTotalMax?fmt(q.cashTotalMin):fmt(q.cashTotalMin)+' \u2013 '+fmt(q.cashTotalMax))+' cash</div>':'')+'</td>'+
     '</tr></tfoot></table>'+
     (q.cashDiscount?'<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Cash discount:</strong> '+esc(q.cashDiscount)+'</div>':'')+
+    (q.storageCosts?'<div style="margin-top:12px;padding:10px 14px;background:#f0faf4;border-radius:6px;font-size:13px;color:#2d5a3d"><strong>Storage costs:</strong> '+esc(q.storageCosts)+'</div>':'')+
     '</div>';
 
   // Stipulations

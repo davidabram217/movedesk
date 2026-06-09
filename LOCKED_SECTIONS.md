@@ -309,3 +309,17 @@ Test guard: `phase2_perday_training_test.js` (65 assertions — extraction, dedu
 
 **Section 3 guard tests now include:** `multiday_subject_test.js` (8) AND `multiday_direct_booking_test.js` (32).
 **Section 3 RE-LOCKED 2026-06-08** after this change.
+
+- **2026-06-08** — Completed job: added a "📋 View quote" button (NOT a locked section — completed-job view/extraction is unlocked). In `viewCompletedJob`, captured `_realQuoteId` from the linked quote right after the lead→quote / bookedJobId lookup and BEFORE `quote` is reassigned to any synthetic/rough reconstruction (so the button never points at a fabricated quote). Added a footer button next to "✏ Edit" that calls the existing read-only viewer `previewQuoteFromList(_realQuoteId)`; shown only when a real `db.quotes` entry is linked (hidden for synthetic/rough-quote jobs and for jobs booked directly with no estimate). Reused the existing preview modal — no new quote-rendering code. Test: `completed_view_quote_test.js` (5). All suites green.
+
+---
+## UNLOCK + CHANGE — 2026-06-08 — Storage Costs quote line
+**Build and Send unlocked by David:** "I am unlocking Build and Send because I want to add a storage costs line to the quote." Instruction: make sure nothing else is changed.
+
+Added a **"Storage Costs (leave blank to hide)"** text field in the quote builder directly below the cash-discount field, mirroring the cash-discount line byte-for-byte:
+- `index.html`: builder field `#qb-storage-costs` (after `#qb-cash-discount`); reset in fresh builder; load `q.storageCosts`; both save paths (`storageCosts:`); green-box render in the SHARED renderer (used by buildQuoteHTML preview + viewAcceptedQuote) directly below the cash-discount box, same styling (`background:#f0faf4;color:#2d5a3d`, "Storage costs: …"); plain-text quote read + line.
+- `quote-page.js` (customer-facing): same green box below cash discount (line ~190).
+- Stored as `q.storageCosts` so it persists/reloads with the quote.
+
+Verified exact mirror: `qb-cash-discount`/`qb-storage-costs` and `cashDiscount`/`storageCosts` occur the same number of times. The confirmation-email "Cash Discount" text (line ~5315) is unrelated (cash rate, not q.cashDiscount) and was deliberately NOT touched. Test: `quote_storage_costs_test.js` (12). All 14 suites green.
+**Build and Send RE-LOCKED 2026-06-08.**
