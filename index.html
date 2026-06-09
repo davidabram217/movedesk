@@ -1153,6 +1153,18 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="modal-body" oninput="bjAutoSave()" onchange="bjAutoSave()">
       <div id="book-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div>
 
+      <div id="bj-multiday-wrap" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0">
+          <input type="checkbox" id="bj-multiday" onchange="toggleBjMultiDay()" style="accent-color:var(--accent)">
+          Multi-day job — set each day's schedule, crew &amp; rate
+        </label>
+        <div id="bj-multiday-section" style="display:none;margin-top:10px">
+          <div id="bj-multiday-list"></div>
+          <button type="button" class="btn" onclick="addBjDay()" style="font-size:12px;padding:6px 12px;margin-top:2px">+ Add day</button>
+          <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">Day 1's date, crew and rate stay in sync with the Schedule &amp; Rates fields below. All days are saved with the booking — completion, the calendar and the confirmation email will show every day.</div>
+        </div>
+      </div>
+
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Schedule & crew</div>
       <div class="form-grid form-grid-2" style="margin-bottom:12px">
         <div class="form-group"><label>Confirmed date *</label><input type="date" id="bj-date"></div>
@@ -5098,10 +5110,21 @@ function openConfirmEmail(leadId,bookedJob){
   currentBookedJobId=bj?bj.id:null;
   window._bookingCalUrl=bj?buildJobCalUrl(bj):null;
   const firstName=((l?.name||bj?.name||'')).split(' ')[0];
-  const q=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
+  const q0=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.days&&qt.days.length);
-  const isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
+  let q=q0;
+  let isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
+  // Direct multi-day booking with no governing multi-day quote: build a quote-like object from the
+  // booking's own day snapshot so the multi-day email body + all-days subject work without a quote.
+  // Only the fields this function reads (days, jobType, fees, cashRate, totalMin/Max) are provided.
+  if(!isMulti&&bj&&bj.multiDay&&bj.quoteDays&&bj.quoteDays.length>1){
+    q={days:bj.quoteDays,jobType:'multi',
+       fees:(bj.quoteFees&&bj.quoteFees.length)?bj.quoteFees:((q0&&q0.fees)||[]),
+       cashRate:Number(bj.rateCash)||(bj.quoteDays[0]&&Number(bj.quoteDays[0].rateCash))||(q0&&Number(q0.cashRate))||0,
+       totalMin:0,totalMax:0};
+    isMulti=true;
+  }
 
   function fmtRate(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 
@@ -6231,6 +6254,102 @@ function toggleBjPackCrew(){
   document.getElementById('bj-pack-crew-fields').style.display=checked?'block':'none';
 }
 let _bjAutoSaveTimer=null;
+// ---- Direct multi-day booking (no quote) ----
+// _bjDays holds the editable per-day rows when the multi-day toggle is on. Each row mirrors the
+// quote "day" shape (date, crew, rate, flatRate, hrsMin/Max, flatPrice...) so everything downstream
+// — completion, the booking checklist, per-day calendar, and the confirmation email — reads it with
+// no special-casing. This is purely additive: when the toggle is OFF, none of this runs and the
+// single-day booking path is untouched.
+let _bjDays=[];
+function _bjBlankDay(){return {date:'',crew:'3',rate:'',rateCash:'',flatRate:false,hrsMin:'',hrsMax:'',flatPrice:'',flatPriceCash:''};}
+function toggleBjMultiDay(){
+  const cb=document.getElementById('bj-multiday');const on=cb&&cb.checked;
+  const sec=document.getElementById('bj-multiday-section');if(sec)sec.style.display=on?'block':'none';
+  if(on&&!_bjDays.length){
+    const d0=_bjBlankDay();
+    d0.date=document.getElementById('bj-date').value||'';
+    d0.crew=document.getElementById('bj-movers').value||'3';
+    d0.rate=document.getElementById('bj-rate-regular').value||'';
+    d0.rateCash=document.getElementById('bj-rate-cash').value||'';
+    _bjDays=[d0];
+  }
+  renderBjDays();bjAutoSave();
+}
+function addBjDay(){_bjDays.push(_bjBlankDay());renderBjDays();bjAutoSave();}
+function removeBjDay(i){if(_bjDays.length<=1)return;_bjDays.splice(i,1);renderBjDays();bjAutoSave();}
+function bjDayToggleFlat(i){const el=document.getElementById('bjd-flat-'+i);if(_bjDays[i])_bjDays[i].flatRate=!!(el&&el.checked);renderBjDays();bjAutoSave();}
+function bjDayChanged(i){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const d=_bjDays[i];if(!d)return;
+  d.date=g('bjd-date-'+i);d.crew=g('bjd-crew-'+i);d.rate=g('bjd-rate-'+i);d.rateCash=g('bjd-ratecash-'+i);
+  d.hrsMin=g('bjd-hmin-'+i);d.hrsMax=g('bjd-hmax-'+i);d.flatPrice=g('bjd-flat-price-'+i);d.flatPriceCash=g('bjd-flat-cash-'+i);
+  // Day 1 mirrors into the canonical single-day fields so date validation, autosave and the
+  // booked-job summary all see the right values with no special-casing elsewhere.
+  if(i===0){
+    if(d.date)document.getElementById('bj-date').value=d.date;
+    if(d.crew)document.getElementById('bj-movers').value=d.crew;
+    if(d.rate)document.getElementById('bj-rate-regular').value=d.rate;
+    if(d.rateCash)document.getElementById('bj-rate-cash').value=d.rateCash;
+  }
+  bjAutoSave();
+}
+function renderBjDays(){
+  const wrap=document.getElementById('bj-multiday-list');if(!wrap)return;
+  const moverOpts=[1,2,3,4,5,6,7,8];
+  wrap.innerHTML=_bjDays.map((d,i)=>{
+    const flat=!!d.flatRate;
+    return '<div style="border:1px solid var(--border2);border-radius:var(--radius);padding:10px;margin-bottom:8px;background:var(--surface)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+      +'<span style="font-weight:600;font-size:12.5px">Day '+(i+1)+'</span>'
+      +(_bjDays.length>1?'<button type="button" onclick="removeBjDay('+i+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px">Remove</button>':'')
+      +'</div>'
+      +'<div class="form-grid form-grid-2">'
+      +'<div class="form-group"><label>Date</label><input type="date" id="bjd-date-'+i+'" value="'+(d.date||'')+'" onchange="bjDayChanged('+i+')"></div>'
+      +'<div class="form-group"><label>Movers</label><select id="bjd-crew-'+i+'" onchange="bjDayChanged('+i+')">'+moverOpts.map(m=>'<option'+(String(d.crew)===String(m)?' selected':'')+'>'+m+'</option>').join('')+'</select></div>'
+      +'</div>'
+      +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;margin:4px 0 8px"><input type="checkbox" id="bjd-flat-'+i+'" '+(flat?'checked':'')+' onchange="bjDayToggleFlat('+i+')" style="accent-color:var(--accent)"> Flat rate for this day</label>'
+      +(flat
+        ?'<div class="form-grid form-grid-2"><div class="form-group"><label>Flat price ($)</label><input type="number" id="bjd-flat-price-'+i+'" value="'+(d.flatPrice||'')+'" placeholder="e.g. 1200" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Flat price cash ($)</label><input type="number" id="bjd-flat-cash-'+i+'" value="'+(d.flatPriceCash||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div></div>'
+        :'<div class="form-grid form-grid-2"><div class="form-group"><label>Rate ($/hr)</label><input type="number" id="bjd-rate-'+i+'" value="'+(d.rate||'')+'" placeholder="e.g. 225" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Rate cash ($/hr)</label><input type="number" id="bjd-ratecash-'+i+'" value="'+(d.rateCash||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Hours min</label><input type="number" id="bjd-hmin-'+i+'" value="'+(d.hrsMin||'')+'" placeholder="e.g. 4" step="0.5" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Hours max</label><input type="number" id="bjd-hmax-'+i+'" value="'+(d.hrsMax||'')+'" placeholder="e.g. 6" step="0.5" onchange="bjDayChanged('+i+')"></div></div>')
+      +'</div>';
+  }).join('');
+}
+function _bjResetMultiDay(showToggle){
+  _bjDays=[];
+  const cb=document.getElementById('bj-multiday');if(cb)cb.checked=false;
+  const sec=document.getElementById('bj-multiday-section');if(sec)sec.style.display='none';
+  const wrap=document.getElementById('bj-multiday-wrap');if(wrap)wrap.style.display=showToggle?'block':'none';
+  const list=document.getElementById('bj-multiday-list');if(list)list.innerHTML='';
+}
+function _bjLoadMultiDay(days){
+  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||''}));
+  if(!_bjDays.length)_bjDays=[_bjBlankDay()];
+  const cb=document.getElementById('bj-multiday');if(cb)cb.checked=true;
+  const wrap=document.getElementById('bj-multiday-wrap');if(wrap)wrap.style.display='block';
+  const sec=document.getElementById('bj-multiday-section');if(sec)sec.style.display='block';
+  renderBjDays();
+}
+// Convert the editable rows into the quote-day shape stored on the booked job.
+function _bjReadDays(){
+  return _bjDays.map(d=>{
+    const flat=!!d.flatRate;
+    return {date:d.date||'',crew:Number(d.crew)||0,
+      rate:flat?'':(Number(d.rate)||''),rateCash:flat?'':(Number(d.rateCash)||''),
+      flatRate:flat,
+      hrsMin:flat?'':(Number(d.hrsMin)||''),hrsMax:flat?'':(Number(d.hrsMax)||''),
+      flatPrice:flat?(Number(d.flatPrice)||0):'',flatPriceCash:flat?(Number(d.flatPriceCash)||0):''};
+  });
+}
+// Apply the multi-day rows onto a booked-job record when the toggle is on. No-op otherwise, so the
+// single-day path is never altered.
+function _bjApplyMultiDay(j){
+  const cb=document.getElementById('bj-multiday');
+  if(!cb||!cb.checked||!_bjDays.length)return;
+  const days=_bjReadDays();
+  j.multiDay=days.length>1;
+  j.quoteDays=days;
+}
+
 function bjAutoSave(){
   const targetId=editingBookedJobId||currentBookingLeadId;
   if(!targetId)return;
@@ -6293,6 +6412,7 @@ function bjWriteFields(j){
   j.packRate=document.getElementById('bj-pack-rate')?.value||'';
   j.packHrsMin=document.getElementById('bj-pack-hrs-min')?.value||'';
   j.packHrsMax=document.getElementById('bj-pack-hrs-max')?.value||'';
+  _bjApplyMultiDay(j);
 }
 
 function openBooking(leadId){
@@ -6340,6 +6460,10 @@ function openBooking(leadId){
   document.getElementById('bj-time').value='8:30–9:30am';
   document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bj-date').value=l.date||'';
+  // Multi-day: when a multi-day QUOTE governs this lead, the existing read-only banner handles it,
+  // so the manual toggle is hidden. Otherwise the owner may flip it on to book a multi-day job
+  // directly. Reset to off each open; a direct multi-day draft is restored further below.
+  _bjResetMultiDay(!_isMultiDay);
   // Helper to set a field only if it's empty AND we have a value to set
   const setIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val===undefined||val===null||val==='')return;if(!el.value)el.value=val;};
   // Auto-populate from formal quote if one exists (most authoritative). Prefer the accepted
@@ -6532,6 +6656,10 @@ function openBooking(leadId){
     }
     // Stash the existing draft's id so confirmBooking can update in place
     window._reopeningDraftId=_existingDraft.id;
+    // Restore a directly-booked multi-day job's per-day rows (only when no multi-day quote governs)
+    if(!_isMultiDay&&_existingDraft.multiDay&&_existingDraft.quoteDays&&_existingDraft.quoteDays.length>1){
+      _bjLoadMultiDay(_existingDraft.quoteDays);
+    }
   } else {
     window._reopeningDraftId=null;
   }
@@ -6758,6 +6886,7 @@ function confirmBooking(){
     j.crewNotes=document.getElementById('bj-crew-notes').value;
     j.emailNote=document.getElementById('bj-email-note').value;
     j.officeNotes=document.getElementById('bj-office-notes')?.value||'';
+    _bjApplyMultiDay(j);
     // Invalidate the cached "what was sent to customer" block so the next confirmation email
     // re-send or calendar entry rebuild reflects the latest booking-form values.
     delete j._moveDetailsBlock;
@@ -6801,6 +6930,9 @@ function confirmBooking(){
   const job={id:jobId,leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',sqft:l?l.sqft:null,accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:_existingDraft?_existingDraft.confirmEmailSent:(l?!!l.emailConfirmationSent:false),pendingConfirmation:true,bookedAt:jobBookedAt,
     multiDay:isMultiDayQuote,quoteDays:_quoteDaysSnap,quoteFees:_quoteFeesSnap,quoteId:leadQuote?leadQuote.id:null
   };
+  // Direct multi-day booking (toggle on, no governing quote): overwrite the quote-derived multiDay/
+  // quoteDays with the per-day rows the user entered. No-op when the toggle is off.
+  _bjApplyMultiDay(job);
   // Preserve calendar/email-done flags from the existing draft if reopening
   if(_existingDraft){
     if(_existingDraft.calendarAdded)job.calendarAdded=_existingDraft.calendarAdded;
@@ -7675,6 +7807,10 @@ function editBookedJob(jobId){
   const btnEl=document.querySelector('#modal-book-job .btn-primary');
   if(titleEl)titleEl.textContent='Edit booked job';
   if(btnEl)btnEl.textContent='Save changes';
+  // Multi-day editor: show + load this job's days if it's multi-day; otherwise reset (toggle still
+  // available so a single-day job could be converted).
+  if(j.multiDay&&j.quoteDays&&j.quoteDays.length>1){_bjLoadMultiDay(j.quoteDays);}
+  else{_bjResetMultiDay(true);}
   closeModal('view');
   setTimeout(()=>openModal('book-job'),200);
 }
