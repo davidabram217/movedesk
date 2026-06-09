@@ -8969,6 +8969,10 @@ let quote=lead?db.quotes.find(q=>q.leadId===lead.id&&q.status==='sent')
 if(!quote&&j.bookedJobId){
   quote=db.quotes.find(q=>q.bookedJobId===j.bookedJobId)||null;
 }
+// Capture the id of the REAL linked quote (if any) now, before `quote` may be reassigned to a
+// synthetic/rough reconstruction below. Used to offer a "View quote" button that opens the actual
+// saved quote read-only. Null when the job has no real quote (e.g. booked directly with no estimate).
+const _realQuoteId=(quote&&quote.id&&db.quotes.some(x=>x.id===quote.id))?quote.id:null;
 
 function compRow(label,quotedVal,actualVal,isAddon,isDiscount){
   if(!actualVal&&actualVal!==0)return'';
@@ -9284,7 +9288,7 @@ const _rqBlock=(_rqOnLead||_rqOnJob)
       <span>No rough quote on file yet</span>
       <button class="btn btn-secondary btn-sm" onclick="openCompletedJobRoughQuote('${j.id}')" title="Backfill a rough quote that was sent before tracking it here — counts in analytics">+ Add rough quote</button>
     </div>`;
-document.getElementById('view-modal-footer').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">${_rqBlock}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button><button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button><button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${!aiRec?`<button class="btn btn-secondary" style="color:var(--accent);border-color:var(--accent)" onclick="saveJobForAI('${j.id}')">🤖 Save for AI</button>`:''}${owed>0?`<button class="btn" style="background:var(--amber-light);color:var(--amber);border-color:#f0d080" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 Update payment</button>`:''}</div></div>`;openModal('view');}
+document.getElementById('view-modal-footer').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">${_rqBlock}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button>${_realQuoteId?`<button class="btn btn-secondary" onclick="closeModal('view');previewQuoteFromList('${_realQuoteId}')">📋 View quote</button>`:''}<button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button><button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${!aiRec?`<button class="btn btn-secondary" style="color:var(--accent);border-color:var(--accent)" onclick="saveJobForAI('${j.id}')">🤖 Save for AI</button>`:''}${owed>0?`<button class="btn" style="background:var(--amber-light);color:var(--amber);border-color:#f0d080" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 Update payment</button>`:''}</div></div>`;openModal('view');}
 
 let currentEditCompletedJobId=null;
 
