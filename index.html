@@ -14921,17 +14921,20 @@ function generateAIQuote(isRecalc){
     // estimate (regression baseline ≈ 3-man, so scale by crewRatios[men]/crewRatios[3]).
     const regBaseHours=_vaultReg.intercept+_vaultReg.slope*inputs.vaults;
     const regCrewAdjusted=regBaseHours*((crewRatios[men]||1.0)/(crewRatios[3]||1.0))+accessHourDelta;
-    const VAULT_WEIGHT=0.65;
+    // Matched jobs drive the estimate (they carry move type, access, driving, packing — the full
+    // picture); the vaults trend line is a lighter assist, mostly for extrapolating to sizes with
+    // no close neighbours. Lower weight also makes the user's job exclusions visibly move the number.
+    const VAULT_WEIGHT=0.35;
     adjustedHours=regCrewAdjusted*VAULT_WEIGHT+neighborHours*(1-VAULT_WEIGHT);
     _usedVaultReg=true;
   } else if(_sqftReg&&inputs.sqft){
-    // No vault count, but we have sq ft — let square footage drive the estimate. Predict TOTAL
-    // hours from sqft, crew-adjust the same way as vaults (baseline ≈ 3-man), then blend with the
-    // neighbor average. Slightly lower weight than vaults (0.6) since sqft is a rougher volume
-    // proxy. The 9.5h/day cap downstream turns a large total into a multi-day job.
+    // No vault count, but we have sq ft — use it to assist. Predict TOTAL hours from sqft,
+    // crew-adjust (baseline ≈ 3-man), then blend as a LIGHTER assist behind the matched jobs (same
+    // 0.35 as vaults; sqft is a rougher proxy so it never dominates). The 9.5h/day cap downstream
+    // turns a large total into a multi-day job.
     const regBaseHours=Math.max(1,_sqftReg.intercept+_sqftReg.slope*inputs.sqft);
     const regCrewAdjusted=regBaseHours*((crewRatios[men]||1.0)/(crewRatios[3]||1.0))+accessHourDelta;
-    const SQFT_WEIGHT=0.6;
+    const SQFT_WEIGHT=0.35;
     adjustedHours=regCrewAdjusted*SQFT_WEIGHT+neighborHours*(1-SQFT_WEIGHT);
     _usedSqftReg=true;
   } else {
