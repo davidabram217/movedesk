@@ -323,3 +323,23 @@ Added a **"Storage Costs (leave blank to hide)"** text field in the quote builde
 
 Verified exact mirror: `qb-cash-discount`/`qb-storage-costs` and `cashDiscount`/`storageCosts` occur the same number of times. The confirmation-email "Cash Discount" text (line ~5315) is unrelated (cash rate, not q.cashDiscount) and was deliberately NOT touched. Test: `quote_storage_costs_test.js` (12). All 14 suites green.
 **Build and Send RE-LOCKED 2026-06-08.**
+
+---
+## UNLOCK + CHANGE — 2026-06-08 — Drop-a-day / convert-to-single-day at booking
+**Section 3 (Booking and Confirming) unlocked by David:** "I am unlocking Booking and Confirming because I want to add a drop-a-day / convert-to-single-day control at booking." Instruction: make sure this does not change anything else.
+
+**Use case:** customer accepts a multi-day quote (e.g. Day 1 pack + Day 2 move) but decides to self-pack, so a day is dropped and the job becomes single-day. Purely additive — when no day is unchecked, every path behaves exactly as before.
+
+**What was added:**
+- **Booking banner (`openBooking`):** the read-only multi-day banner now renders an **"Include this day" checkbox per quote day** (default checked) + a live status line ("→ Will be booked as a single-day move · N days dropped") + updated caption. `_renderBjQuoteDays()` draws it; `bjToggleQuoteDay(i)` toggles `_bjKeptDays[i]`, refuses to drop the last day, and re-syncs the canonical Day-1 fields (date/crew/rate) to the FIRST kept day (so overrides land correctly even if Day 1 was the dropped pack day). `window._bjQuoteDaysFull` + `window._bjQuoteForScope` stashed so the autosave path can rebuild.
+- **State + helpers (by the other `_bj*` fns):** `_bjKeptDays`, `_renderBjQuoteDays`, `bjToggleQuoteDay`, `_bookedScopeQuotedRange(keptDays,quote)` (mirrors `calcQbTotals` per-day labor formula + whole-job fees), `_bjApplyDroppedDays(j)` (sets `j.quoteDays`=kept, `j.multiDay`=kept>1, `j._keptDayFlags`, and `j.bookedQuotedMin/Max` ONLY when days were dropped). All no-op unless `window._bjIsMultiDay`.
+- **Save wiring:** `_bjApplyDroppedDays` called from `bjWriteFields` (autosave) and `confirmBooking` (commit). `openBooking` restores a draft's dropped-day selection from `_keptDayFlags`. `editBookedJob` forces `window._bjIsMultiDay=false` so the hook is inert in edit mode (multi-day edits go through the manual editor instead).
+- **Confirmation email (`openConfirmEmail`):** new gated branch — when the booking kept FEWER days than the quote (`_bjDayCount<_qDayCount`), the day list/`isMulti` come from `bj.quoteDays` (kept days), preserving q0's fees/cashRate/totals. Collapsing to one day sends a single-day email + subject. Untouched bookings (counts equal) skip the branch entirely → identical output. Calendar/checklist already key off `bj.quoteDays`, so they follow automatically.
+- **Estimate accuracy (NOT locked — completion/analytics):** `resolveQuotedInfo` and the analytics Quote-Accuracy caller now compare against the **booked scope** when days were dropped — hours summed over the kept days, dollars from `bookedQuotedMin/Max` — instead of the full original quote total. So a self-pack job is measured on the move day it actually did, not penalized for the removed pack day. Jobs with no dropped days are unaffected (fall back to `fq.totalMin/Max`).
+
+**Invariant added to Section 3 (#25):** A quote-driven multi-day booking may drop days via per-day Include checkboxes; the booking's kept days (`bj.quoteDays`, `bj._keptDayFlags`, and `bj.bookedQuotedMin/Max` when reduced) are authoritative for the booked job, the confirmation email, the calendar, and estimate-accuracy — the original quote on record is never mutated.
+
+**Tests:** `multiday_drop_day_test.js` (28) — functional `_bookedScopeQuotedRange` + `_bjApplyDroppedDays` + structural wiring across banner/save/email/accuracy. NOTE: the original `booking_pipeline_test.js` (95) is still not in this session; could not re-run it. Change is additive and the untouched path is provably unchanged (gated on a dropped-day count). All 15 available suites green: drop-day 28, direct-booking 32, subject 8, view-quote 5, storage 12, quoted-hrs 7, sqft 18, volume 14, exclude 19, drive 16, movetype 19, multiday-split 13, phase2 66, phone 10, goodwill 18.
+
+**Section 3 guard tests now include:** `multiday_subject_test.js` (8), `multiday_direct_booking_test.js` (32), `multiday_drop_day_test.js` (28).
+**Section 3 RE-LOCKED 2026-06-08** after this change.

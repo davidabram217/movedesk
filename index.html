@@ -3996,18 +3996,22 @@ function resolveQuotedInfo(j){
   }
   if(!fq&&j.bookedJobId)fq=(db.quotes||[]).find(q=>q.bookedJobId===j.bookedJobId);
   if(fq){
-    out.quotedMin=fq.totalMin||null;
-    out.quotedMax=fq.totalMax||null;
-    // Sum quoted hours across ALL quote days (multi-day quotes), not just Day 1.
+    // If the booking dropped one or more quote days (for example the customer self-packed), the
+    // booked scope — not the full original quote — is the fair baseline for estimate accuracy.
+    // Use the kept days for hours and the stored booked-scope dollar range when present.
+    const _bkDropped=_bk&&Array.isArray(_bk.quoteDays)&&Array.isArray(fq.days)&&_bk.quoteDays.length<fq.days.length;
+    out.quotedMin=(_bkDropped&&_bk.bookedQuotedMin!=null)?_bk.bookedQuotedMin:(fq.totalMin||null);
+    out.quotedMax=(_bkDropped&&_bk.bookedQuotedMax!=null)?_bk.bookedQuotedMax:(fq.totalMax||null);
+    // Sum quoted hours across the relevant days (booked kept days when dropped, else all quote days).
     {
-      const _ds=Array.isArray(fq.days)?fq.days:[];
+      const _ds=_bkDropped?_bk.quoteDays:(Array.isArray(fq.days)?fq.days:[]);
       let _hmin=0,_hmax=0,_any=false;
       _ds.forEach(d=>{if(!d||d.flatRate)return;const a=Number(d.hrsMin)||0,b=Number(d.hrsMax)||0;if(a||b){_hmin+=a;_hmax+=b;_any=true;}});
-      out.quotedHoursMin=_any?_hmin:(fq.days?.[0]?.hrsMin||null);
-      out.quotedHoursMax=_any?_hmax:(fq.days?.[0]?.hrsMax||null);
+      out.quotedHoursMin=_any?_hmin:(_ds[0]?.hrsMin||null);
+      out.quotedHoursMax=_any?_hmax:(_ds[0]?.hrsMax||null);
     }
-    out.quotedRate=fq.days?.[0]?.rate||null;
-    out.quotedCrew=fq.days?.[0]?.crew||null;
+    out.quotedRate=(_bkDropped?_bk.quoteDays[0]:fq.days?.[0])?.rate||null;
+    out.quotedCrew=(_bkDropped?_bk.quoteDays[0]:fq.days?.[0])?.crew||null;
     out.estimatedVaults=Number(fq.estimatedVaults)||null;
     out.source='formal';
     return out;
@@ -5120,6 +5124,17 @@ function openConfirmEmail(leadId,bookedJob){
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.days&&qt.days.length);
   let q=q0;
   let isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
+  // Drop-a-day: if the booking kept FEWER days than the quote (owner dropped a day, e.g. the
+  // customer self-packs), the booking's kept days are authoritative for the email. Point the day
+  // list at bj.quoteDays and recompute isMulti from it (so a collapse to one day sends a single-day
+  // email). Whole-quote fields (fees/cashRate/totals) are preserved from q0. Untouched bookings
+  // (kept count === quote day count) skip this entirely and behave exactly as before.
+  const _qDayCount=(q0&&q0.days)?q0.days.length:0;
+  const _bjDayCount=(bj&&bj.quoteDays)?bj.quoteDays.length:0;
+  if(q0&&_bjDayCount&&_bjDayCount<_qDayCount){
+    q=Object.assign({},q0,{days:bj.quoteDays,jobType:_bjDayCount>1?'multi':q0.jobType});
+    isMulti=_bjDayCount>1;
+  } else
   // Direct multi-day booking with no governing multi-day quote: build a quote-like object from the
   // booking's own day snapshot so the multi-day email body + all-days subject work without a quote.
   // Only the fields this function reads (days, jobType, fees, cashRate, totalMin/Max) are provided.
@@ -6355,6 +6370,88 @@ function _bjApplyMultiDay(j){
   j.quoteDays=days;
 }
 
+// ---- Drop-a-day / convert-to-single-day for a quote-driven multi-day booking ----
+// When a multi-day QUOTE governs the booking, the owner can uncheck days the customer isn't doing
+// (e.g. they decide to self-pack). _bjKeptDays[i] mirrors which of the quote's days are kept.
+// window._bjQuoteDaysFull / _bjQuoteForScope are stashed in openBooking so the autosave path (which
+// has no leadQuote in scope) can rebuild. Inert unless window._bjIsMultiDay is true.
+let _bjKeptDays=[];
+function _renderBjQuoteDays(){
+  const el=document.getElementById('bj-mday-rows');if(!el)return;
+  const full=window._bjQuoteDaysFull||[];
+  if(_bjKeptDays.length!==full.length)_bjKeptDays=full.map(()=>true);
+  el.innerHTML=full.map((d,i)=>{
+    const crew=d.crewLoadDiff?(d.crewLoad||d.crew)+'/'+(d.crewUnload||d.crew):d.crew;
+    const rateInfo=d.flatRate?
+      ('Flat $'+(Number(d.flatPrice)||0).toLocaleString()+(d.flatPriceCash?' / $'+(Number(d.flatPriceCash)||0).toLocaleString()+' cash':'')):
+      ((d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr · '+crew+' movers');
+    return '<label style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:12px;cursor:pointer">'
+      +'<span style="display:flex;align-items:center;gap:7px;min-width:90px"><input type="checkbox" id="bj-qday-'+i+'" '+(_bjKeptDays[i]?'checked':'')+' onchange="bjToggleQuoteDay('+i+')" style="accent-color:var(--accent)"><span style="color:var(--text);font-weight:500">Day '+(i+1)+'</span></span>'
+      +'<span style="color:var(--text2);flex:1">'+(d.date?fmtDate(d.date):'date TBD')+'</span>'
+      +'<span style="color:var(--text3);text-align:right">'+rateInfo+'</span>'
+      +'</label>';
+  }).join('');
+  const kept=_bjKeptDays.filter(Boolean).length;
+  const st=document.getElementById('bj-mday-status');
+  if(st){
+    if(kept<full.length){
+      const dropped=full.length-kept;
+      st.textContent='→ Will be booked as '+(kept>1?(kept+'-day move'):'a single-day move')+' · '+dropped+' day'+(dropped>1?'s':'')+' dropped';
+      st.style.display='block';
+    } else { st.textContent='';st.style.display='none'; }
+  }
+}
+function bjToggleQuoteDay(i){
+  const cb=document.getElementById('bj-qday-'+i);if(cb)_bjKeptDays[i]=cb.checked;
+  if(!_bjKeptDays.some(Boolean)){_bjKeptDays[i]=true;if(cb)cb.checked=true;showToast('At least one day must stay');}
+  // Keep the canonical Day-1 fields pointed at the FIRST kept day, so the booking-form overrides
+  // (date, crew, rate) land on the right day even if the dropped day was Day 1 (e.g. a pack day).
+  const full=window._bjQuoteDaysFull||[];const fk=_bjKeptDays.findIndex(Boolean);
+  if(fk>=0&&full[fk]){const d=full[fk];
+    if(d.date){const el=document.getElementById('bj-date');if(el)el.value=d.date;}
+    const cr=d.crewLoadDiff?(d.crewLoad||d.crew):d.crew;if(cr){const el=document.getElementById('bj-movers');if(el)el.value=cr;}
+    if(!d.flatRate&&d.rate){const el=document.getElementById('bj-rate-regular');if(el)el.value=d.rate;}
+    if(!d.flatRate&&d.rateCash){const el=document.getElementById('bj-rate-cash');if(el)el.value=d.rateCash;}
+  }
+  _renderBjQuoteDays();bjAutoSave();
+}
+// Booked-scope quoted $ range over the KEPT days — mirrors calcQbTotals' per-day labor formula plus
+// the quote's whole-job fees, so a dropped-day job is measured against what was actually booked.
+function _bookedScopeQuotedRange(keptDays,quote){
+  let lMin=0,lMax=0;
+  (keptDays||[]).forEach(d=>{
+    if(d.flatRate){const f=Number(d.flatPrice)||0;lMin+=f;lMax+=f;}
+    else{
+      lMin+=(Number(d.hrsMin)||0)*(Number(d.rate)||0);
+      lMax+=(Number(d.hrsMax)||0)*(Number(d.rate)||0);
+      if(d.packCrew&&d.packRate){lMin+=(Number(d.packHrsMin)||0)*(Number(d.packRate)||0);lMax+=(Number(d.packHrsMax)||0)*(Number(d.packRate)||0);}
+    }
+  });
+  let fMin=0,fMax=0;
+  ((quote&&quote.fees)||[]).filter(f=>f.included).forEach(f=>{
+    if(f.type==='range'){fMin+=Number(f.hrsMin)||0;fMax+=Number(f.hrsMax)||0;}
+    else{fMin+=Number(f.amount)||0;fMax+=Number(f.amount)||0;}
+  });
+  return {min:Math.round(lMin+fMin),max:Math.round(lMax+fMax)};
+}
+// Apply dropped-day selection onto a booked-job record. No-op unless a multi-day quote governs.
+// Called from both bjWriteFields (autosave draft) and confirmBooking (commit).
+function _bjApplyDroppedDays(j){
+  if(!window._bjIsMultiDay)return;
+  const full=window._bjQuoteDaysFull||[];
+  if(!full.length)return;
+  const flags=(_bjKeptDays.length===full.length)?_bjKeptDays:full.map(()=>true);
+  const kept=full.filter((d,i)=>flags[i]);
+  if(!kept.length)return; // safety — never book zero days
+  j.quoteDays=JSON.parse(JSON.stringify(kept));
+  j.multiDay=kept.length>1;
+  j._keptDayFlags=flags.slice();
+  if(kept.length<full.length){
+    const r=_bookedScopeQuotedRange(kept,window._bjQuoteForScope||{});
+    j.bookedQuotedMin=r.min;j.bookedQuotedMax=r.max;
+  } else { delete j.bookedQuotedMin;delete j.bookedQuotedMax; }
+}
+
 function bjAutoSave(){
   const targetId=editingBookedJobId||currentBookingLeadId;
   if(!targetId)return;
@@ -6418,6 +6515,7 @@ function bjWriteFields(j){
   j.packHrsMin=document.getElementById('bj-pack-hrs-min')?.value||'';
   j.packHrsMax=document.getElementById('bj-pack-hrs-max')?.value||'';
   _bjApplyMultiDay(j);
+  _bjApplyDroppedDays(j);
 }
 
 function openBooking(leadId){
@@ -6437,26 +6535,23 @@ function openBooking(leadId){
   const _isMultiDay=_leadQuote&&_leadQuote.jobType==='multi'&&_leadQuote.days&&_leadQuote.days.length>1;
   let summaryHtml=`<strong>${l.name}</strong> · ${l.phone||''} · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;
   if(_isMultiDay){
-    // Banner listing every day of the multi-day quote, so the user knows what's coming
-    const dayRows=_leadQuote.days.map((d,i)=>{
-      const crew=d.crewLoadDiff?(d.crewLoad||d.crew)+'/'+(d.crewUnload||d.crew):d.crew;
-      const rateInfo=d.flatRate?
-        ('Flat $'+(Number(d.flatPrice)||0).toLocaleString()+(d.flatPriceCash?' / $'+(Number(d.flatPriceCash)||0).toLocaleString()+' cash':'')):
-        ((d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr · '+crew+' movers');
-      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:12px">
-        <span style="color:var(--text);font-weight:500;min-width:80px">Day ${i+1}</span>
-        <span style="color:var(--text2);flex:1">${d.date?fmtDate(d.date):'date TBD'}</span>
-        <span style="color:var(--text3);text-align:right">${rateInfo}</span>
-      </div>`;
-    }).join('');
+    // Stash the full day list + quote so the autosave path (no leadQuote in scope) can rebuild,
+    // and start with every day kept (a reopened draft restores its saved selection further below).
+    window._bjQuoteDaysFull=JSON.parse(JSON.stringify(_leadQuote.days));
+    window._bjQuoteForScope=_leadQuote;
+    _bjKeptDays=_leadQuote.days.map(()=>true);
     summaryHtml+=`
       <div style="margin-top:10px;padding:9px 11px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px">
         <div style="font-size:11px;font-weight:600;color:#b7860b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚠ Multi-day move — ${_leadQuote.days.length} days</div>
-        ${dayRows}
-        <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">The fields below are for <strong>Day 1</strong>. The other days from the accepted quote will be saved with the booking automatically — you can adjust per-day specifics later from the booked job view.</div>
+        <div id="bj-mday-rows"></div>
+        <div id="bj-mday-status" style="display:none;font-size:11px;font-weight:600;color:var(--accent);margin-top:7px"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">Uncheck a day the customer isn't doing (e.g. they're self-packing) to drop it from this booking. The Schedule &amp; Rates fields below apply to the <strong>first kept day</strong>; the rest are saved with the booking. Drop down to one day and it books as a single-day move.</div>
       </div>`;
+  } else {
+    window._bjQuoteDaysFull=[];window._bjQuoteForScope=null;_bjKeptDays=[];
   }
   document.getElementById('book-job-summary').innerHTML=summaryHtml;
+  if(_isMultiDay)_renderBjQuoteDays();
   // Stash for label adjustments below
   window._bjIsMultiDay=_isMultiDay;
   window._bjMultiDayCount=_isMultiDay?_leadQuote.days.length:0;
@@ -6664,6 +6759,11 @@ function openBooking(leadId){
     // Restore a directly-booked multi-day job's per-day rows (only when no multi-day quote governs)
     if(!_isMultiDay&&_existingDraft.multiDay&&_existingDraft.quoteDays&&_existingDraft.quoteDays.length>1){
       _bjLoadMultiDay(_existingDraft.quoteDays);
+    }
+    // Restore a quote-driven booking's dropped-day selection (which days were kept)
+    if(_isMultiDay&&Array.isArray(_existingDraft._keptDayFlags)&&_existingDraft._keptDayFlags.length===(window._bjQuoteDaysFull||[]).length){
+      _bjKeptDays=_existingDraft._keptDayFlags.slice();
+      _renderBjQuoteDays();
     }
   } else {
     window._reopeningDraftId=null;
@@ -6938,6 +7038,9 @@ function confirmBooking(){
   // Direct multi-day booking (toggle on, no governing quote): overwrite the quote-derived multiDay/
   // quoteDays with the per-day rows the user entered. No-op when the toggle is off.
   _bjApplyMultiDay(job);
+  // Quote-driven booking where the owner dropped one or more days (e.g. customer self-packs):
+  // keep only the checked days. No-op unless a multi-day quote governs.
+  _bjApplyDroppedDays(job);
   // Preserve calendar/email-done flags from the existing draft if reopening
   if(_existingDraft){
     if(_existingDraft.calendarAdded)job.calendarAdded=_existingDraft.calendarAdded;
@@ -7814,6 +7917,7 @@ function editBookedJob(jobId){
   if(btnEl)btnEl.textContent='Save changes';
   // Multi-day editor: show + load this job's days if it's multi-day; otherwise reset (toggle still
   // available so a single-day job could be converted).
+  window._bjIsMultiDay=false;_bjKeptDays=[];window._bjQuoteDaysFull=[];window._bjQuoteForScope=null;
   if(j.multiDay&&j.quoteDays&&j.quoteDays.length>1){_bjLoadMultiDay(j.quoteDays);}
   else{_bjResetMultiDay(true);}
   closeModal('view');
@@ -10450,7 +10554,11 @@ function renderAnalytics(){
     const q=found.quote;
     const cmp=getQuoteCompareTotal(j);
     const actual=cmp.compareTotal;
-    const qMin=Number(q.totalMin);const qMax=Number(q.totalMax);
+    // Booked-scope override: if the booking dropped one or more quote days (e.g. customer self-packs),
+    // compare against the booked range stored at booking, not the full original quote total.
+    const _bkA=j.bookedJobId?db.bookedJobs.find(b=>b.id===j.bookedJobId):null;
+    const _dropped=_bkA&&_bkA.bookedQuotedMin!=null&&_bkA.bookedQuotedMax!=null&&Array.isArray(_bkA.quoteDays)&&Array.isArray(q.days)&&_bkA.quoteDays.length<q.days.length;
+    const qMin=_dropped?Number(_bkA.bookedQuotedMin):Number(q.totalMin);const qMax=_dropped?Number(_bkA.bookedQuotedMax):Number(q.totalMax);
     const withinRange=actual>=qMin&&actual<=qMax;
     const pctDiff=Math.round((actual-qMax)/qMax*100);
     return{actual,actualPaid:cmp.actualPaid,paidCash:cmp.paidCash,qMin,qMax,withinRange,pctDiff,name:j.name,quoteSource:found.source};
