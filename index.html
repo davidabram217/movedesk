@@ -3206,6 +3206,17 @@ async function refreshFromSupabase(){
         if(table==='leads'&&local&&rec){
           const localStatusIso=local._statusChangedAt||'';
           const remoteStatusIso=rec._statusChangedAt||'';
+          // RESURRECTION GUARD: never let stale cloud data drag a finished lead back into the active
+          // pipeline. If the lead is terminal locally (Booked / Completed / Did not book) but the
+          // cloud copy is non-terminal, keep local UNLESS the cloud carries a STRICTLY NEWER status
+          // change (a genuine reactivation from another device — reactivateLead stamps _statusChangedAt
+          // so that case still syncs). Without this, a stale "Estimate sent" cloud row could overwrite
+          // a booked/completed/lost lead on the next refresh and it reappears in Leads.
+          const _isTerminal=s=>s==='Booked'||s==='Completed'||s==='Did not book';
+          if(_isTerminal(local.status)&&!_isTerminal(rec.status)){
+            const _remoteNewer=localStatusIso&&remoteStatusIso&&remoteStatusIso>localStatusIso;
+            if(!_remoteNewer)return;
+          }
           // Determine the "winner" by status timestamp first
           let _statusWinner=null;
           if(localStatusIso&&remoteStatusIso){
@@ -4750,6 +4761,7 @@ function reactivateLead(id){
     l.status='Need to follow up';
   }
   l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  l._statusChangedAt=new Date().toISOString();
   // Clear did-not-book fields so it's a clean reactivation
   delete l.dnbStage;delete l.dnbReason;delete l.dnbNotes;delete l.dnbDate;
   // If the linked quote was marked declined when the lead went DNB, restore it to sent
@@ -5920,6 +5932,7 @@ function confirmDidNotBook(){
   if(!stage){showToast('Please select where we lost them');return;}
   l.status='Did not book';
   l.statusUpdatedAt=new Date().toISOString().split('T')[0];
+  l._statusChangedAt=new Date().toISOString();
   l.dnbStage=stage;
   l.dnbReason=document.getElementById('dnb-reason').value;
   l.dnbNotes=document.getElementById('dnb-notes').value;
@@ -9002,7 +9015,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   // Explicitly delete the booked-jobs row from Supabase, otherwise it lingers in the cloud
   // and reappears as a duplicate on the next refresh from another device.
   sbDelete('booked_jobs',_completedBookedJobId);
-  if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead)lead.status='Completed';}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
+  if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead){lead.status='Completed';lead.statusUpdatedAt=new Date().toISOString().split('T')[0];lead._statusChangedAt=new Date().toISOString();}}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
 
 function saveJobForAI(completedJobId){
   const j=db.completedJobs.find(x=>x.id===completedJobId);
