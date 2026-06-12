@@ -6446,6 +6446,13 @@ function _bjApplyDroppedDays(j){
   j.quoteDays=JSON.parse(JSON.stringify(kept));
   j.multiDay=kept.length>1;
   j._keptDayFlags=flags.slice();
+  // Keep the date on the first kept day in sync with the canonical booking-form date. The owner may
+  // have overridden the move date (e.g. the kept day was quoted for the 6th but the customer moved
+  // it to the 20th); without this, anything that dates an event from the day object — notably the
+  // per-day Google Calendar URL (buildDayCalUrl uses day.date) — would land on the stale quote date
+  // even though the email and body show the override. Day 1 is the day the booking-form fields drive.
+  const _cdEl=document.getElementById('bj-date');
+  if(_cdEl&&_cdEl.value&&j.quoteDays[0])j.quoteDays[0].date=_cdEl.value;
   if(kept.length<full.length){
     const r=_bookedScopeQuotedRange(kept,window._bjQuoteForScope||{});
     j.bookedQuotedMin=r.min;j.bookedQuotedMax=r.max;

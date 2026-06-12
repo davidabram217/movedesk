@@ -343,3 +343,14 @@ Verified exact mirror: `qb-cash-discount`/`qb-storage-costs` and `cashDiscount`/
 
 **Section 3 guard tests now include:** `multiday_subject_test.js` (8), `multiday_direct_booking_test.js` (32), `multiday_drop_day_test.js` (28).
 **Section 3 RE-LOCKED 2026-06-08** after this change.
+
+---
+## UNLOCK + FIX — 2026-06-08 — Calendar date on a dropped-day booking
+**Section 3 unlocked by David:** "I am unlocking Booking and Confirming because I want to fix the calendar date on a dropped-day booking." Instruction: make sure nothing else is changed.
+
+**Bug:** on a drop-a-day booking where the owner also overrode the move date in the Schedule field (e.g. a 2-day quote for the 5th/6th, dropped to one day, then the customer moved it to the 20th), the confirmation email + calendar DESCRIPTION correctly showed the 20th, but the calendar EVENT landed on the 6th. Cause: `buildDayCalUrl` dates the event from `day.date` (the kept quote day's original date), while the override only updated the canonical `bj.date`. The kept day object (`bj.quoteDays[0]`) still held the old quote date, so any per-day calendar path used it.
+
+**Fix (one line, in `_bjApplyDroppedDays`):** after building `j.quoteDays`, sync the first kept day's date to the current `bj-date` field value — `if(_cdEl&&_cdEl.value&&j.quoteDays[0])j.quoteDays[0].date=_cdEl.value;`. Now Day 1's stored date matches the booking-form override, so the per-day calendar, the whole-job calendar, the email, and the description all use the same date. Only affects quote-driven multi-day bookings (the helper is already a no-op otherwise); changes nothing for untouched bookings. Already-saved jobs are unaffected until re-confirmed (owner can re-open + confirm, or drag the one calendar event).
+
+**Test:** added 1 assertion to `multiday_drop_day_test.js` (now 29) — kept Day 1 date follows the `bj-date` override. All 15 suites green.
+**Section 3 RE-LOCKED 2026-06-08** after this fix.

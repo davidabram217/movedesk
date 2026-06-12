@@ -20,6 +20,8 @@ function extract(name){
 // ---- Functional: _bookedScopeQuotedRange + _bjApplyDroppedDays ----
 const ctx={Number,Math,Array,Object,JSON,console};
 ctx.window={};
+ctx._bjdate={value:''};
+ctx.document={getElementById:id=>id==='bj-date'?ctx._bjdate:null};
 vm.createContext(ctx);
 ctx._bjKeptDays=[];
 vm.runInContext('let _bjKeptDays=globalThis._bjKeptDays;',ctx);
@@ -49,6 +51,12 @@ check('drop: kept day is the move day',ctx.__j.quoteDays&&ctx.__j.quoteDays[0].d
 check('drop: multiDay false (collapsed to single)',ctx.__j.multiDay===false);
 check('drop: keptDayFlags stored',JSON.stringify(ctx.__j._keptDayFlags)==='[false,true]');
 check('drop: booked range = move day 5-7h@225 = 1125-1575',ctx.__j.bookedQuotedMin===1125&&ctx.__j.bookedQuotedMax===1575);
+
+// date-override sync: kept Day 1 date follows the booking-form date (the calendar-date fix)
+ctx._bjdate.value='2026-06-20';
+ctx.__j={};vm.runInContext('_bjApplyDroppedDays(globalThis.__j);',ctx);
+check('override: kept Day 1 date follows bj-date (20th, not the old 6th)',ctx.__j.quoteDays[0].date==='2026-06-20');
+ctx._bjdate.value='';  // reset for remaining cases
 
 // all days kept → no booked range, multiDay true
 ctx._bjKeptDays=[true,true];vm.runInContext('_bjKeptDays=globalThis._bjKeptDays;',ctx);
