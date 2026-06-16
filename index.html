@@ -3784,6 +3784,28 @@ async function parsePasteToLead(){
     }
   }
 
+  // City is frequently missed by the parser even when the ZIP is correct. Backfill From/To city from the
+  // address string (the city usually sits just before the state/ZIP) or from a known SF ZIP, so the city
+  // is captured as reliably as the ZIP and shows up in the review preview below.
+  const _cityFromAddr=(addr)=>{
+    if(!addr)return '';
+    const a=String(addr).trim();
+    let m=a.match(/,\s*([A-Za-z][A-Za-z .'\-]{1,40}?)\s*,?\s+[A-Z]{2}\b(?:\s+\d{5}(?:-\d{4})?)?\s*$/);
+    if(m&&m[1])return m[1].trim();
+    m=a.match(/,\s*([A-Za-z][A-Za-z .'\-]{1,40}?)\s*,?\s+\d{5}(?:-\d{4})?\s*$/);
+    if(m&&m[1])return m[1].trim();
+    return '';
+  };
+  const _cityFromZip=(zip)=>{
+    const z=String(zip||'').trim();
+    if(/^941\d\d$/.test(z))return 'San Francisco';
+    return '';
+  };
+  if(extracted){
+    if(!extracted.fromCity)extracted.fromCity=_cityFromAddr(extracted.fromAddress)||_cityFromZip(extracted.fromZip);
+    if(!extracted.toCity)extracted.toCity=_cityFromAddr(extracted.toAddress)||_cityFromZip(extracted.toZip);
+  }
+
   // Each row in the preview is editable. Fields have a unique key matching the extracted object.
   // The user can change any value, or click ✕ to remove a field they don't want imported.
   // The "Apply to form" button below reads the current state of these inputs.
@@ -3871,9 +3893,18 @@ function applyPastedToForm(d){
   setIfEmpty('nl-name',d.name);
   setIfEmpty('nl-phone',d.phone);
   setIfEmpty('nl-email',d.email);
-  setIfEmpty('nl-from',d.fromAddress);
+  // No separate city field exists on the lead form, so fold the parsed city into the address — otherwise
+  // the city is dropped. Guarded (case-insensitive) so we never duplicate a city the address already has.
+  const _withCity=(addr,city)=>{
+    let a=(addr||'').trim();
+    const c=(city||'').trim();
+    if(c&&a.toLowerCase().indexOf(c.toLowerCase())===-1)a=a?a+', '+c:c;
+    if(c&&!a)a=c;
+    return a;
+  };
+  setIfEmpty('nl-from',_withCity(d.fromAddress,d.fromCity));
   setIfEmpty('nl-from-zip',d.fromZip);
-  setIfEmpty('nl-to',d.toAddress);
+  setIfEmpty('nl-to',_withCity(d.toAddress,d.toCity));
   setIfEmpty('nl-to-zip',d.toZip);
   // The "date" field on a lead is the move date
   const dateEl=document.getElementById('nl-date');
