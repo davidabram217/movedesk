@@ -1355,6 +1355,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           </label>
         </div>
       </div>
+      <div style="margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500">
+          <input type="checkbox" id="cj-exclude-accuracy" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0">
+          <span style="display:block">
+            <span style="font-size:13px;color:var(--text)">⚠ Exclude from Quote Accuracy</span>
+            <span style="display:block;font-size:11.5px;color:var(--text3);margin-top:2px;line-height:1.45">Skip this job in the Quote Accuracy chart on Analytics. Use when the job's scope changed from what was quoted (e.g. you added a day) so comparing it to the original quote would be misleading. The quote data stays on the record.</span>
+          </span>
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('complete-job')">Cancel</button>
@@ -1473,6 +1482,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
             <span style="font-size:12px;color:var(--text2);white-space:nowrap">Yes, save it</span>
           </label>
         </div>
+      </div>
+      <div style="margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500">
+          <input type="checkbox" id="cjmd-exclude-accuracy" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0">
+          <span style="display:block">
+            <span style="font-size:13px;color:var(--text)">⚠ Exclude from Quote Accuracy</span>
+            <span style="display:block;font-size:11.5px;color:var(--text3);margin-top:2px;line-height:1.45">Skip this job in the Quote Accuracy chart on Analytics. Use when the job's scope changed from what was quoted (e.g. you added a day) so comparing it to the original quote would be misleading. The quote data stays on the record.</span>
+          </span>
+        </label>
       </div>
     </div>
     <div class="modal-footer">
@@ -1832,6 +1850,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
             <span style="font-size:12px;color:var(--text2);white-space:nowrap">Yes, save it</span>
           </label>
         </div>
+      </div>
+      <div style="margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500">
+          <input type="checkbox" id="ecjmd-exclude-accuracy" style="margin-top:3px;width:16px;height:16px;cursor:pointer;flex-shrink:0">
+          <span style="display:block">
+            <span style="font-size:13px;color:var(--text)">⚠ Exclude from Quote Accuracy</span>
+            <span style="display:block;font-size:11.5px;color:var(--text3);margin-top:2px;line-height:1.45">Skip this job in the Quote Accuracy chart on Analytics. Use when the job's scope changed from what was quoted (e.g. a day was added) so comparing it to the original quote would be misleading. The quote data stays on the record.</span>
+          </span>
+        </label>
       </div>
     </div>
     <div class="modal-footer">
@@ -8207,6 +8234,7 @@ function openCompleteMultiDay(jobId){
   ['cjmd-size','cjmd-movetype','cjmd-access-load','cjmd-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
   ['cjmd-misc-1-ai','cjmd-misc-2-ai','cjmd-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
   const _aiEl=document.getElementById('cjmd-ai-training');if(_aiEl)_aiEl.checked=false;
+  const _exEl=document.getElementById('cjmd-exclude-accuracy');if(_exEl)_exEl.checked=false;
   const _crewEl=document.getElementById('cjmd-crew');if(_crewEl)_crewEl.value=j.crew||'';
   const _srcEl=document.getElementById('cjmd-source');if(_srcEl)_srcEl.value=j.source||'';
   const _insTypeEl=document.getElementById('cjmd-insurance-type');if(_insTypeEl)_insTypeEl.value=j.insuranceType||'';
@@ -8542,6 +8570,7 @@ function confirmCompleteMultiDay(paymentState){
     crew:crew,
     notes:notes,officeNotes:j.officeNotes||'',
     usedForAI:useForAI,
+    excludeFromAccuracy:(document.getElementById('cjmd-exclude-accuracy')?document.getElementById('cjmd-exclude-accuracy').checked:false),
     bookedFromRoughQuote:j.bookedFromRoughQuote||false,
     roughQuoteMin:j.roughQuoteMin||null,
     roughQuoteMax:j.roughQuoteMax||null,
@@ -8645,6 +8674,7 @@ function openEditCompleteMultiDay(jobId){
   document.getElementById('ecjmd-source').value=j.source||'';
   document.getElementById('ecjmd-notes').value=j.notes||'';
   const _aiEl=document.getElementById('ecjmd-ai-training');if(_aiEl)_aiEl.checked=!!j.usedForAI;
+  const _exAccEl=document.getElementById('ecjmd-exclude-accuracy');if(_exAccEl)_exAccEl.checked=!!j.excludeFromAccuracy;
   // Job Context — prefill from cj (already auto-filled at completion time from booked job/lead)
   const _setVal=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
   _setVal('ecjmd-size',j.size);_setVal('ecjmd-sqft',j.sqft);_setVal('ecjmd-movetype',j.moveType);
@@ -8895,6 +8925,7 @@ function saveEditedCompletedJobMultiDay(){
   j.source=document.getElementById('ecjmd-source').value;
   j.notes=document.getElementById('ecjmd-notes').value;
   j.usedForAI=document.getElementById('ecjmd-ai-training').checked;
+  j.excludeFromAccuracy=document.getElementById('ecjmd-exclude-accuracy')?document.getElementById('ecjmd-exclude-accuracy').checked:!!j.excludeFromAccuracy;
   // Job Context written back
   j.size=ctxSize;j.sqft=ctxSqft;j.moveType=ctxMoveType;
   j.accessLoad=ctxAccessLoad;j.accessUnload=ctxAccessUnload;
@@ -8923,7 +8954,7 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
 // MULTI-DAY ROUTING — if this booked job is multi-day, open the dedicated multi-day modal
 // instead of the single-day form. Keeps single-day completion behavior fully unchanged.
 if(j.multiDay||((j.quoteDays||[]).length>1)){return openCompleteMultiDay(jobId);}
-document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';const _cjDateEl=document.getElementById('cj-date');if(_cjDateEl)_cjDateEl.value=j.date||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes','cj-sqft','cj-misc-1-label','cj-misc-1-amount','cj-misc-2-label','cj-misc-2-amount','cj-misc-3-label','cj-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers','cj-size','cj-movetype','cj-access-load','cj-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['cj-misc-1-ai','cj-misc-2-ai','cj-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
+document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';const _cjDateEl=document.getElementById('cj-date');if(_cjDateEl)_cjDateEl.value=j.date||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;const _cjExEl=document.getElementById('cj-exclude-accuracy');if(_cjExEl)_cjExEl.checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes','cj-sqft','cj-misc-1-label','cj-misc-1-amount','cj-misc-2-label','cj-misc-2-amount','cj-misc-3-label','cj-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers','cj-size','cj-movetype','cj-access-load','cj-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['cj-misc-1-ai','cj-misc-2-ai','cj-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
   // Pre-fill the new "Job context" fields from the booked job, with the linked lead as a
   // fallback. This makes the completion form a single place to confirm/correct the AI training
   // record — even if size/access/movetype were never set on the original lead/booking.
@@ -9012,7 +9043,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
     paidCashRate:_paidCash&&!!_cashRate,
-    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,miscCharges:_miscCharges,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,miscCharges:_miscCharges,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,excludeFromAccuracy:(document.getElementById('cj-exclude-accuracy')?document.getElementById('cj-exclude-accuracy').checked:false),bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
