@@ -4046,12 +4046,18 @@ function resolveQuotedInfo(j){
   // revised and re-accepted; comparing accuracy against that stale draft showed a lower range than the
   // real quote (e.g. 2-4h when the accepted quote actually says 3-5h). Accepted wins; the booked
   // quoteId is the next-best link, then most-recent sent, then any.
-  if(lead)fq=(db.quotes||[]).find(q=>q.leadId===lead.id&&q.status==='accepted')||null;
+  if(lead){
+    const _ls=(db.quotes||[]).filter(q=>q.leadId===lead.id);
+    const _recent=arr=>[...arr].sort((a,b)=>(b.sentAt||b.savedAt||b.createdAt||'').localeCompare(a.sentAt||a.savedAt||a.createdAt||''))[0]||null;
+    // Use the MOST RECENT sent/accepted quote — the latest version the customer was given, and what the
+    // Quotes page shows. A quote revised after booking creates a NEWER record; comparing accuracy to an
+    // older version made the quote look lower than the real one (e.g. 2-4h vs the revised 3-5h).
+    fq=_recent(_ls.filter(q=>q.status==='accepted'||q.status==='sent'))||null;
+  }
   if(!fq&&_bk&&_bk.quoteId)fq=(db.quotes||[]).find(q=>q.id===_bk.quoteId);
   if(!fq&&lead){
     const _ls=(db.quotes||[]).filter(q=>q.leadId===lead.id);
-    fq=[..._ls].filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0]
-      ||_ls[0];
+    fq=[..._ls].sort((a,b)=>(b.sentAt||b.savedAt||b.createdAt||'').localeCompare(a.sentAt||a.savedAt||a.createdAt||''))[0]||_ls[0];
   }
   if(!fq&&j.bookedJobId)fq=(db.quotes||[]).find(q=>q.bookedJobId===j.bookedJobId);
   if(fq){
@@ -9195,10 +9201,14 @@ const field=(label,val)=>val?`<div><div style="font-size:10.5px;color:var(--text
 const lead=(j.leadId?db.leads.find(l=>l.id===j.leadId):null)
   ||(j.bookedJobId?db.leads.find(l=>db.bookedJobs.some(b=>b.id===j.bookedJobId&&b.leadId===l.id)):null)
   ||(j.name?db.leads.find(l=>l.name===j.name):null);
-// Prefer the ACCEPTED quote (the real agreement / what the Quotes page shows), then sent, then any.
-let quote=lead?(db.quotes.find(q=>q.leadId===lead.id&&q.status==='accepted')
-  ||db.quotes.find(q=>q.leadId===lead.id&&q.status==='sent')
-  ||db.quotes.find(q=>q.leadId===lead.id)):null;
+// Prefer the MOST RECENT sent/accepted quote (the latest version / what the Quotes page shows), then
+// any most-recent quote, so a quote revised after booking is used instead of the stale original.
+let quote=null;
+if(lead){
+  const _lq=db.quotes.filter(q=>q.leadId===lead.id);
+  const _mostRecent=arr=>[...arr].sort((a,b)=>(b.sentAt||b.savedAt||b.createdAt||'').localeCompare(a.sentAt||a.savedAt||a.createdAt||''))[0]||null;
+  quote=_mostRecent(_lq.filter(q=>q.status==='accepted'||q.status==='sent'))||_mostRecent(_lq)||null;
+}
 // Also try matching by bookedJobId (in case the quote rec stored that)
 if(!quote&&j.bookedJobId){
   quote=db.quotes.find(q=>q.bookedJobId===j.bookedJobId)||null;
