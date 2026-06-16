@@ -37,5 +37,17 @@ const cases=[
 ];
 cases.forEach(([a,exp])=>check('city from "'+a+'" = "'+exp+'"',_cityFromAddr(a)===exp));
 
+// Full California ZIP -> city map present and wired into _cityFromZip
+check('CA_ZIP_CITY map is present',/const CA_ZIP_CITY=\{/.test(script));
+check('_cityFromZip uses CA_ZIP_CITY',/if\(typeof CA_ZIP_CITY!=='undefined'&&CA_ZIP_CITY\[z\]\)return CA_ZIP_CITY\[z\];/.test(script));
+// Behavioral: eval the embedded map and spot-check statewide coverage
+try{
+  const m=script.match(/const CA_ZIP_CITY=\{[\s\S]*?\};/);
+  const vm=require('vm');const ctx={};vm.runInNewContext(m[0]+';globalThis.__m=CA_ZIP_CITY;',ctx);
+  const M=ctx.__m;
+  check('CA map has >2000 entries',Object.keys(M).length>2000);
+  [['94103','San Francisco'],['90001','Los Angeles'],['94601','Oakland'],['95112','San Jose'],['92101','San Diego'],['95814','Sacramento'],['93701','Fresno']].forEach(([z,c])=>check('ZIP '+z+' -> '+c,M[z]===c));
+}catch(e){check('CA map evaluates',false);}
+
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
 process.exit(fail?1:0);
