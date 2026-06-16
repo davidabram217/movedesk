@@ -2725,7 +2725,14 @@ async function loadDB(){
       console.log('Cleaning up '+orphans.length+' orphaned booked job(s) that are also completed:',orphans.map(o=>o.name||o.id).join(', '));
       const orphanIds=new Set(orphans.map(o=>o.id));
       db.bookedJobs=(db.bookedJobs||[]).filter(j=>!orphanIds.has(j.id));
-      // Best-effort cloud cleanup so it doesn't come back next refresh
+      // Tombstone + cloud-delete so a stale cloud copy cannot bring them back on a later sync. The
+      // tombstone is the durable guard — a best-effort sbDelete alone can be lost to a network blip,
+      // and these jobs already live in completedJobs so they must never return as booked jobs.
+      try{
+        const _bt=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+        orphans.forEach(j=>{_bt[j.id]=new Date().toISOString();});
+        localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(_bt));
+      }catch(_){}
       orphans.forEach(j=>{try{sbDelete('booked_jobs',j.id);}catch(_){}});
     }
     // (Removed: auto-flip-to-Completed self-heal. It was over-aggressive and silently
@@ -8550,6 +8557,15 @@ function confirmCompleteMultiDay(paymentState){
   if(useForAI){try{selfHealAITraining();}catch(_){}}
   // Remove the booked job
   db.bookedJobs=db.bookedJobs.filter(x=>x.id!==j.id);
+  // Tombstone + cloud-delete it so a stale cloud copy cannot resurrect it as a duplicate booked job
+  // on the next sync (the job now lives in completedJobs). Mirrors the single-day completion and the
+  // booked-job delete path — the multi-day path was missing this, leaving a job in BOTH lists.
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+    tombstones[j.id]=new Date().toISOString();
+    localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
+  try{sbDelete('booked_jobs',j.id);}catch(_){}
   // Flip the lead status to Completed
   if(j.leadId){
     const l=db.leads.find(x=>x.id===j.leadId);
@@ -9053,6 +9069,12 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
   db.bookedJobs=db.bookedJobs.filter(x=>x.id!==_completedBookedJobId);
   // Explicitly delete the booked-jobs row from Supabase, otherwise it lingers in the cloud
   // and reappears as a duplicate on the next refresh from another device.
+  // Also tombstone it so even a failed/lagged cloud-delete cannot resurrect it on the next sync.
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+    tombstones[_completedBookedJobId]=new Date().toISOString();
+    localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
   sbDelete('booked_jobs',_completedBookedJobId);
   if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead){lead.status='Completed';lead.statusUpdatedAt=new Date().toISOString().split('T')[0];lead._statusChangedAt=new Date().toISOString();}}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
 
