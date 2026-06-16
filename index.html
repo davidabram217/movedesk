@@ -1441,6 +1441,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
       </div>
 
+      <div id="cjmd-cc-fee-row" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;margin-top:14px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">
+        <span style="color:var(--text2)">⚠ Credit card surcharge (3.5%)</span>
+        <span id="cjmd-cc-fee-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
+      </div>
       <div style="margin-top:14px;padding:16px;background:var(--accent-light);border-radius:var(--radius);border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:13px;color:var(--text2)">Computed total <span style="font-size:11px;color:var(--text3)">(sum of per-day subtotals + whole-job fees)</span></div>
         <div id="cjmd-total-display" style="font-size:20px;font-weight:700;color:var(--accent)">$0</div>
@@ -1450,7 +1454,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 
       <div class="form-grid form-grid-3" style="margin-top:14px">
         <div class="form-group"><label>Total paid ($)</label><input type="number" id="cjmd-paid" placeholder="0"></div>
-        <div class="form-group"><label>Payment method</label><select id="cjmd-payment"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
+        <div class="form-group"><label>Payment method</label><select id="cjmd-payment" onchange="calcMultiDayTotal()"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
         <div class="form-group"><label>Crew leader</label><input type="text" id="cjmd-crew" placeholder="e.g. John"></div>
       </div>
 
@@ -1796,6 +1800,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
       </div>
 
+      <div id="ecjmd-cc-fee-row" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;margin-top:14px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">
+        <span style="color:var(--text2)">⚠ Credit card surcharge (3.5%)</span>
+        <span id="ecjmd-cc-fee-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
+      </div>
       <div style="margin-top:14px;padding:16px;background:var(--accent-light);border-radius:var(--radius);border:1px solid var(--accent);display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:13px;color:var(--text2)">Computed total</div>
         <div id="ecjmd-total-display" style="font-size:20px;font-weight:700;color:var(--accent)">$0</div>
@@ -1805,7 +1813,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 
       <div class="form-grid form-grid-3" style="margin-top:14px">
         <div class="form-group"><label>Total paid ($)</label><input type="number" id="ecjmd-paid" placeholder="0"></div>
-        <div class="form-group"><label>Payment method</label><select id="ecjmd-payment"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
+        <div class="form-group"><label>Payment method</label><select id="ecjmd-payment" onchange="calcEditMultiDayTotal()"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
         <div class="form-group"><label>Crew leader</label><input type="text" id="ecjmd-crew"></div>
       </div>
 
@@ -8376,9 +8384,22 @@ function calcMultiDayTotal(){
   let miscSum=0;
   for(let i=1;i<=3;i++){miscSum+=Number(document.getElementById('cjmd-misc-'+i+'-amount')?.value)||0;}
   grand+=miscSum;
+  // Credit card surcharge — 3.5% of the whole-job subtotal, added on top when payment method is CC.
+  // Mirrors the single-day form (calcTotal). Stash the fee so confirmCompleteMultiDay records the same
+  // number without recomputing it from a different basis.
+  const _pay=document.getElementById('cjmd-payment')?.value||'';
+  const _ccFee=_pay==='Credit card'?Math.round(grand*0.035*100)/100:0;
+  window._cjmdCcFee=_ccFee;
+  const _ccRow=document.getElementById('cjmd-cc-fee-row');
+  const _ccAmt=document.getElementById('cjmd-cc-fee-amount');
+  if(_ccRow&&_ccAmt){
+    if(_ccFee>0){_ccRow.style.display='flex';_ccAmt.textContent='$'+_ccFee.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+    else{_ccRow.style.display='none';}
+  }
+  const grandWithCc=Math.round((grand+_ccFee)*100)/100;
   const _totEl=document.getElementById('cjmd-total-display');
-  if(_totEl)_totEl.textContent='$'+Math.round(grand).toLocaleString('en-US');
-  return grand;
+  if(_totEl)_totEl.textContent='$'+Math.round(grandWithCc).toLocaleString('en-US');
+  return grandWithCc;
 }
 
 // Commit: build the completedJob with days[] AND legacy fields. Push to db, remove the
@@ -8460,8 +8481,9 @@ function confirmCompleteMultiDay(paymentState){
       miscTotal+=amount;
     }
   }
-  // CC fee (3.5% if paid via credit card)
-  const _ccFee=payment==='Credit card'?Math.round(((Number(paid)||0)*0.035)*100)/100:0;
+  // CC fee (3.5% of the whole-job subtotal) — computed in calcMultiDayTotal so the saved fee matches
+  // the number shown live on the form. Only non-zero when payment method is Credit card.
+  const _ccFee=Number(window._cjmdCcFee)||0;
   // Build the completedJob record
   const cj={
     id:uid(),bookedJobId:j.id,leadId:j.leadId||null,
@@ -8479,7 +8501,7 @@ function confirmCompleteMultiDay(paymentState){
     packMen:String(avgPackers||''),
     packRate:avgPackRate||'',
     // Whole-job fees
-    feeLabour:Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking))||0,
+    feeLabour:Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking+_ccFee))||0,
     feeMaterials:String(aggMaterials||''),
     feePackMaterials:'',
     feeFuel:String(aggFuel||''),
@@ -8504,9 +8526,11 @@ function confirmCompleteMultiDay(paymentState){
     miscCharges:miscCharges,
     // Computed totals and book-keeping. Misc charges are added to the computed total so
     // they show up in revenue, paid-vs-quoted comparisons, etc.
-    total:Math.round((Number(total)||0)+miscTotal),
-    actualTotal:_mdActualTotal||Math.round((Number(total)||0)+miscTotal)||null,
-    capDiscount:(_mdActualTotal&&_mdActualTotal>Math.round((Number(total)||0)+miscTotal))?Math.round((_mdActualTotal-(Math.round((Number(total)||0)+miscTotal)))*100)/100:0,
+    // total already includes per-day subtotals, whole-job fees, misc charges, AND the CC surcharge
+    // (all folded in by calcMultiDayTotal). Do NOT add miscTotal again — that double-counted misc.
+    total:Math.round(Number(total)||0),
+    actualTotal:_mdActualTotal||Math.round(Number(total)||0)||null,
+    capDiscount:(_mdActualTotal&&_mdActualTotal>Math.round(Number(total)||0))?Math.round((_mdActualTotal-(Math.round(Number(total)||0)))*100)/100:0,
     paid:paid,payment:payment,
     crew:crew,
     notes:notes,officeNotes:j.officeNotes||'',
@@ -8749,9 +8773,21 @@ function calcEditMultiDayTotal(){
   let miscSum=0;
   for(let i=1;i<=3;i++){miscSum+=Number(document.getElementById('ecjmd-misc-'+i+'-amount')?.value)||0;}
   grand+=miscSum;
+  // Credit card surcharge — 3.5% of the whole-job subtotal when payment method is CC. Mirrors the
+  // completion form. Stash the fee so saveEditedCompletedJobMultiDay records the same number.
+  const _pay=document.getElementById('ecjmd-payment')?.value||'';
+  const _ccFee=_pay==='Credit card'?Math.round(grand*0.035*100)/100:0;
+  window._ecjmdCcFee=_ccFee;
+  const _ccRow=document.getElementById('ecjmd-cc-fee-row');
+  const _ccAmt=document.getElementById('ecjmd-cc-fee-amount');
+  if(_ccRow&&_ccAmt){
+    if(_ccFee>0){_ccRow.style.display='flex';_ccAmt.textContent='$'+_ccFee.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+    else{_ccRow.style.display='none';}
+  }
+  const grandWithCc=Math.round((grand+_ccFee)*100)/100;
   const _tot=document.getElementById('ecjmd-total-display');
-  if(_tot)_tot.textContent='$'+Math.round(grand).toLocaleString('en-US');
-  return grand;
+  if(_tot)_tot.textContent='$'+Math.round(grandWithCc).toLocaleString('en-US');
+  return grandWithCc;
 }
 
 // Save edits back to the existing completedJob in place.
@@ -8787,6 +8823,7 @@ function saveEditedCompletedJobMultiDay(){
     aggFuel+=fuel;aggMaterials+=materials;aggParking+=parking;
   });
   const total=calcEditMultiDayTotal();
+  const _ecjCcFee=Number(window._ecjmdCcFee)||0; // 3.5% of subtotal (CC only), from calcEditMultiDayTotal
   const avgMoveRate=nMoveDays>0?Math.round(aggMoveRate/nMoveDays):0;
   const avgMovers=nMoveDays>0?Math.round(aggMovers/nMoveDays):0;
   const avgPackRate=nPackDays>0?Math.round(aggPackRate/nPackDays):0;
@@ -8831,12 +8868,13 @@ function saveEditedCompletedJobMultiDay(){
   j.feeDump=String(feeDump||'');
   j.feeDamage=String(feeDamage||'');
   j.feeYelp=String(feeYelp||'');
-  j.feeLabour=Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking+miscTotal))||0;
+  j.feeLabour=Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking+miscTotal+_ecjCcFee))||0;
   j.vaults=Number(document.getElementById('ecjmd-vaults').value)||0;
   j.insuranceType=document.getElementById('ecjmd-insurance-type').value;
   j.packing=document.getElementById('ecjmd-packing').value;
   j.paid=document.getElementById('ecjmd-paid').value;
   j.payment=document.getElementById('ecjmd-payment').value;
+  j.feeCC=_ecjCcFee||0;
   j.crew=crew;
   j.source=document.getElementById('ecjmd-source').value;
   j.notes=document.getElementById('ecjmd-notes').value;
