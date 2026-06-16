@@ -9043,7 +9043,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const _ai=document.getElementById('cj-misc-'+_i+'-ai')?.checked||false;
     if(_amt>0)_miscCharges.push({label:_lab,amount:_amt,aiTraining:_ai});
   }
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:(j?j.leadId:null),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -9188,9 +9188,17 @@ const field=(label,val)=>val?`<div><div style="font-size:10.5px;color:var(--text
 // First try direct lookup via lead → quote chain. If that fails (lead deleted, quote
 // detached, job booked from rough quote, etc.) we fall back AFTER the AI rec is built
 // to a synthetic quote made from the training record's stored quote data.
-const lead=j.bookedJobId?db.leads.find(l=>db.bookedJobs.some(b=>b.id===j.bookedJobId&&b.leadId===l.id)):null;
-let quote=lead?db.quotes.find(q=>q.leadId===lead.id&&q.status==='sent')
-  ||db.quotes.find(q=>q.leadId===lead.id):null;
+// Resolve the lead WITHOUT depending on the booked job, which is deleted once the job is completed.
+// Prefer the completed job's own leadId, then the (possibly still-present) booked job, then name.
+// Without this the lead came back null after completion, so the real quote could not be found and
+// the comparison fell back to the stale AI-training snapshot ("reconstructed from AI training data").
+const lead=(j.leadId?db.leads.find(l=>l.id===j.leadId):null)
+  ||(j.bookedJobId?db.leads.find(l=>db.bookedJobs.some(b=>b.id===j.bookedJobId&&b.leadId===l.id)):null)
+  ||(j.name?db.leads.find(l=>l.name===j.name):null);
+// Prefer the ACCEPTED quote (the real agreement / what the Quotes page shows), then sent, then any.
+let quote=lead?(db.quotes.find(q=>q.leadId===lead.id&&q.status==='accepted')
+  ||db.quotes.find(q=>q.leadId===lead.id&&q.status==='sent')
+  ||db.quotes.find(q=>q.leadId===lead.id)):null;
 // Also try matching by bookedJobId (in case the quote rec stored that)
 if(!quote&&j.bookedJobId){
   quote=db.quotes.find(q=>q.bookedJobId===j.bookedJobId)||null;
@@ -9273,6 +9281,21 @@ if(!aiRec&&j.usedForAI){
   if(!db.aiTraining)db.aiTraining=[];
   db.aiTraining.push(aiRec);
   try{saveDB();}catch(e){}
+}
+// If a real quote is resolvable, refresh the stored AI record's quoted range from it. Older records
+// may have captured an earlier/stale draft (e.g. before the quote was revised), which left the
+// "Saved for AI" summary showing the wrong quoted range (too low) and falsely flagging the job as
+// over. Correcting it here fixes both the display and the persisted training value.
+if(aiRec&&quote&&quote.id&&db.quotes.some(x=>x.id===quote.id)){
+  const _qiR=resolveQuotedInfo(j);
+  if(_qiR&&(_qiR.quotedMin!=null||_qiR.quotedMax!=null)
+     &&(aiRec.quotedMin!==_qiR.quotedMin||aiRec.quotedMax!==_qiR.quotedMax
+        ||aiRec.quotedHoursMin!==_qiR.quotedHoursMin||aiRec.quotedHoursMax!==_qiR.quotedHoursMax)){
+    aiRec.quotedMin=_qiR.quotedMin;aiRec.quotedMax=_qiR.quotedMax;
+    aiRec.quotedHoursMin=_qiR.quotedHoursMin;aiRec.quotedHoursMax=_qiR.quotedHoursMax;
+    aiRec.quotedRate=_qiR.quotedRate;aiRec.quoteSource=_qiR.source;
+    try{saveDB();}catch(e){}
+  }
 }
 // Rough quote fallback — if no formal quote was sent but a rough quote was given (either
 // on the lead or backfilled directly on the completed job), use it for the comparison.
