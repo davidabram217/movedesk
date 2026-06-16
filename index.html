@@ -4041,11 +4041,16 @@ function resolveQuotedInfo(j){
   //   4) Any quote linked by bookedJobId
   //   5) Any quote on the lead (last resort)
   let fq=null;
-  if(_bk&&_bk.quoteId)fq=(db.quotes||[]).find(q=>q.id===_bk.quoteId);
+  // Prefer the lead's ACCEPTED quote — it is the agreement the customer signed off on, and it is what
+  // the Quotes page shows. A booking can be tied (via quoteId) to an EARLIER draft that was later
+  // revised and re-accepted; comparing accuracy against that stale draft showed a lower range than the
+  // real quote (e.g. 2-4h when the accepted quote actually says 3-5h). Accepted wins; the booked
+  // quoteId is the next-best link, then most-recent sent, then any.
+  if(lead)fq=(db.quotes||[]).find(q=>q.leadId===lead.id&&q.status==='accepted')||null;
+  if(!fq&&_bk&&_bk.quoteId)fq=(db.quotes||[]).find(q=>q.id===_bk.quoteId);
   if(!fq&&lead){
     const _ls=(db.quotes||[]).filter(q=>q.leadId===lead.id);
-    fq=_ls.find(q=>q.status==='accepted')
-      ||[..._ls].filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0]
+    fq=[..._ls].filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0]
       ||_ls[0];
   }
   if(!fq&&j.bookedJobId)fq=(db.quotes||[]).find(q=>q.bookedJobId===j.bookedJobId);
@@ -10627,6 +10632,17 @@ function renderAnalytics(){
   // breaks when the booked job has been deleted (which is correct behaviour after completion).
   // Try multiple paths, then fall back to the AI training record's stored quote data.
   function findQuoteForCompletedJob(j){
+    // Path 0: prefer the lead's ACCEPTED quote (the real agreement / what the Quotes page shows), so
+    // the accuracy chart matches the per-job view. A booking may be linked to an earlier revised draft.
+    {
+      const _bk0=j.bookedJobId?db.bookedJobs.find(b=>b.id===j.bookedJobId):null;
+      let _lead0=_bk0?db.leads.find(l=>l.id===_bk0.leadId):null;
+      if(!_lead0&&j.name)_lead0=db.leads.find(l=>l.name===j.name&&l.date===j.date)||db.leads.find(l=>l.name===j.name);
+      if(_lead0){
+        const qa=(db.quotes||[]).find(q=>q.leadId===_lead0.id&&q.status==='accepted'&&q.totalMin&&q.totalMax);
+        if(qa)return{quote:qa,source:'accepted'};
+      }
+    }
     // Path 1: bookedJobId direct match on quotes table
     if(j.bookedJobId){
       const q1=(db.quotes||[]).find(q=>q.bookedJobId===j.bookedJobId&&q.totalMin&&q.totalMax);
