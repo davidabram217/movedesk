@@ -4111,7 +4111,9 @@ function resolveQuotedInfo(j){
   // revised and re-accepted; comparing accuracy against that stale draft showed a lower range than the
   // real quote (e.g. 2-4h when the accepted quote actually says 3-5h). Accepted wins; the booked
   // quoteId is the next-best link, then most-recent sent, then any.
-  if(lead){
+  // Explicit pin first: if the completed job names which quote to measure against, use it.
+  if(j&&j.accuracyQuoteId)fq=(db.quotes||[]).find(q=>q.id===j.accuracyQuoteId)||null;
+  if(!fq&&lead){
     const _ls=(db.quotes||[]).filter(q=>q.leadId===lead.id);
     // Use the MOST RECENTLY EDITED quote for the lead, regardless of status. savedAt is stamped on every
     // save (drafts included), so this picks the latest version worked on - exactly what the Quotes page
@@ -9245,6 +9247,15 @@ function filterCompletedCrew(v){compFilter.crew=v;renderCompleted();}
 function filterCompletedSource(v){compFilter.source=v;renderCompleted();}
 function filterCompletedPaid(v){compFilter.paid=v;renderCompleted();}
 function feeRow(label,val){return val?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${label}</div><div>${fmtMoney(val)}</div></div>`:'';}
+function setAccuracyQuote(jobId,quoteId){
+  const j=db.completedJobs.find(x=>x.id===jobId);if(!j)return;
+  j.accuracyQuoteId=quoteId||null;
+  // saveDB stamps _localEditedAt on the completed job (so the pin survives cloud sync) and persists.
+  saveDB();
+  // Re-render; viewCompletedJob recomputes the comparison and refreshes the AI snapshot from the pick.
+  viewCompletedJob(jobId);
+  showToast('\u2713 Accuracy now compares against the selected quote');
+}
 function viewCompletedJob(id){const j=db.completedJobs.find(x=>x.id===id);if(!j)return;const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));document.getElementById('view-modal-title').textContent=j.name+' — Completed';
 document.getElementById('view-modal-status').innerHTML=owed>0?'<span class="badge pill-amber">Owes '+fmtMoney(owed)+'</span>':'<span class="badge pill-green">Paid in full ✓</span>';
 const hasExtras=j.feeMaterials||j.feeFuel||j.feeParkingPermit||j.feeCOI||j.feeInsurance||j.feeDump||j.feeDamage||j.feeYelp;
@@ -9265,7 +9276,9 @@ const lead=(j.leadId?db.leads.find(l=>l.id===j.leadId):null)
 // Use the MOST RECENTLY EDITED quote for the lead, regardless of status (savedAt is stamped on every
 // save), so a quote revised after booking is used instead of the stale original — matching the Quotes page.
 let quote=null;
-if(lead){
+// Explicit pin: if the user chose which quote this job is measured against, honor it above all else.
+if(j.accuracyQuoteId){quote=db.quotes.find(q=>q.id===j.accuracyQuoteId)||null;}
+if(!quote&&lead){
   const _lq=db.quotes.filter(q=>q.leadId===lead.id);
   quote=[..._lq].sort((a,b)=>(b.savedAt||b._localEditedAt||b.sentAt||b.createdAt||'').localeCompare(a.savedAt||a._localEditedAt||a.sentAt||a.createdAt||''))[0]||null;
 }
@@ -9495,6 +9508,7 @@ ${(function(){
 })()}
   ${quote?`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
     <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📊 Quote vs Actual${quote._fromRoughQuote?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· based on rough quote (no formal quote sent)</span>':quote._synthetic?' <span style="text-transform:none;font-weight:400;font-size:10.5px;color:var(--text3);letter-spacing:0;margin-left:4px">· reconstructed from AI training data</span>':''}</div>
+    ${(()=>{const _lq=lead?(db.quotes||[]).filter(q=>q.leadId===lead.id):[];if(_lq.length<2)return '';const _cur=(j.accuracyQuoteId||(quote&&quote.id)||'');const _opts=[..._lq].sort((a,b)=>(b.savedAt||b.createdAt||'').localeCompare(a.savedAt||a.createdAt||'')).map(qq=>{const _h=(qq.days&&qq.days[0])?(qq.days[0].hrsMin+'-'+qq.days[0].hrsMax+' hrs'):'';const _t=(qq.totalMin!=null&&qq.totalMax!=null)?(' \u00b7 $'+qq.totalMin+'\u2013$'+qq.totalMax):'';const _d=qq.savedAt?fmtDate(qq.savedAt.slice(0,10)):(qq.createdAt?fmtDate(qq.createdAt):'');return '<option value="'+qq.id+'" '+(qq.id===_cur?'selected':'')+'>'+_h+_t+' \u00b7 '+(qq.status||'draft')+(_d?' \u00b7 '+_d:'')+'</option>';}).join('');return '<div style="margin-bottom:10px;font-size:11.5px;color:var(--text2)">This customer has '+_lq.length+' quotes \u2014 compare against: <select onchange="setAccuracyQuote(\''+j.id+'\',this.value)" style="font-size:11.5px;padding:3px 7px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">'+_opts+'</select></div>';})()}
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr>
         <th style="padding:7px 10px;text-align:left;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:2px solid var(--border)">Item</th>
