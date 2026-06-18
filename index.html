@@ -1462,9 +1462,13 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div class="form-group" style="margin-top:12px"><label>True job value ($) <span style="font-size:10.5px;color:var(--text3)">if you gave a discount or freebie — what the job was really worth. Leave blank if you charged full price. The difference is recorded as goodwill for AI training.</span></label><input type="number" id="cjmd-actual-total" placeholder="e.g. 7350"></div>
 
       <div class="form-grid form-grid-3" style="margin-top:14px">
-        <div class="form-group"><label>Total paid ($)</label><input type="number" id="cjmd-paid" placeholder="0"></div>
+        <div class="form-group"><label>Total paid ($)</label><input type="number" id="cjmd-paid" placeholder="0" oninput="calcMultiDayBalance()"></div>
         <div class="form-group"><label>Payment method</label><select id="cjmd-payment" onchange="calcMultiDayTotal()"><option value="">—</option><option>Cash</option><option>Check</option><option>Credit card</option><option>Zelle</option><option>Venmo</option><option>Wire</option></select></div>
         <div class="form-group"><label>Crew leader</label><input type="text" id="cjmd-crew" placeholder="e.g. John"></div>
+      </div>
+      <div id="cjmd-balance-bar" style="display:none;padding:10px 12px;border-radius:var(--radius);border:1px solid;margin-top:8px;align-items:center;justify-content:space-between">
+        <div id="cjmd-balance-label" style="font-size:13px;font-weight:600"></div>
+        <div id="cjmd-balance-amount" style="font-size:16px;font-weight:600;font-family:'DM Mono',monospace"></div>
       </div>
 
       <div class="form-group full" style="margin-top:8px"><label>Source confirm</label><select id="cjmd-source"><option value="">—</option><option>Google</option><option>Yelp</option><option>Repeat customer</option><option>Referral</option><option>Thumbtack</option><option>Storage Out</option><option>Other</option></select></div>
@@ -8517,7 +8521,42 @@ function calcMultiDayTotal(){
   const grandWithCc=Math.round((grand+_ccFee)*100)/100;
   const _totEl=document.getElementById('cjmd-total-display');
   if(_totEl)_totEl.textContent='$'+Math.round(grandWithCc).toLocaleString('en-US');
+  window._cjmdGrandTotal=grandWithCc;
+  calcMultiDayBalance();
   return grandWithCc;
+}
+function calcMultiDayBalance(){
+  const total=Number(window._cjmdGrandTotal)||0;
+  const paidEl=document.getElementById('cjmd-paid');
+  const bar=document.getElementById('cjmd-balance-bar');
+  const label=document.getElementById('cjmd-balance-label');
+  const amount=document.getElementById('cjmd-balance-amount');
+  const btnOwing=document.getElementById('cjmd-btn-owing');
+  const btnPaid=document.getElementById('cjmd-btn-paid');
+  if(!btnOwing||!btnPaid)return;
+  const paidRaw=paidEl?paidEl.value:'';
+  // Nothing entered yet, or no total -> neutral (matches the single-day form before any amount is typed).
+  if(paidRaw===''||paidRaw==null||total<=0){
+    if(bar)bar.style.display='none';
+    btnOwing.style.display='none';
+    btnPaid.style.display='';btnPaid.style.background='var(--accent)';btnPaid.style.color='#fff';btnPaid.style.borderColor='var(--accent)';
+    return;
+  }
+  const paid=Number(paidRaw)||0;
+  const owing=total-paid;
+  if(owing>0.01){
+    if(bar){bar.style.display='flex';bar.style.background='var(--amber-light)';bar.style.borderColor='#f0d080';}
+    if(label){label.textContent='Balance owing';label.style.color='var(--amber)';}
+    if(amount){amount.textContent='$'+owing.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});amount.style.color='var(--amber)';}
+    btnOwing.style.display='';
+    btnPaid.style.background='var(--surface2)';btnPaid.style.color='var(--text2)';btnPaid.style.borderColor='var(--border2)';
+  } else {
+    if(bar){bar.style.display='flex';bar.style.background='var(--accent-light)';bar.style.borderColor='#a8d5b5';}
+    if(label){label.textContent='Paid in full \u2713';label.style.color='var(--accent)';}
+    if(amount){amount.textContent='$'+paid.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});amount.style.color='var(--accent)';}
+    btnOwing.style.display='none';
+    btnPaid.style.background='var(--accent)';btnPaid.style.color='#fff';btnPaid.style.borderColor='var(--accent)';
+  }
 }
 
 // Commit: build the completedJob with days[] AND legacy fields. Push to db, remove the
