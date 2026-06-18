@@ -858,7 +858,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       </div>
 
       <div class="form-grid form-grid-2">
-        <div class="form-group"><label>Preferred move date</label><input type="date" id="nl-date"></div>
+        <div class="form-group"><label>Preferred move date</label><input type="date" id="nl-date"><label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:400;cursor:pointer"><input type="checkbox" id="nl-date-tbd" onchange="nlToggleDateTBD()" style="width:15px;height:15px;cursor:pointer">Date TBD (not decided yet)</label></div>
         <div class="form-group"><label>Home size</label>
           <select id="nl-size" onchange="toggleSizeOther()"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select>
         </div>
@@ -3998,7 +3998,7 @@ function autoSaveLeadDraft(){
     phone:document.getElementById('nl-phone')?.value||'',
     email:document.getElementById('nl-email')?.value||'',
     source:document.getElementById('nl-source')?.value||'',sourceDetail:document.getElementById('nl-source-detail')?.value||'',
-    date:document.getElementById('nl-date')?.value||'',
+    date:(document.getElementById('nl-date-tbd')&&document.getElementById('nl-date-tbd').checked)?'TBD':(document.getElementById('nl-date')?.value||''),
     size:document.getElementById('nl-size')?.value||'',
     sqft:document.getElementById('nl-sqft')?.value||'',
     moveType:document.getElementById('nl-move-type')?.value||'',
@@ -4053,7 +4053,8 @@ function restoreLeadDraft(){
     }
     const set=(id,val)=>{const el=document.getElementById(id);if(el&&val)el.value=val;};
     set('nl-name',d.name);set('nl-phone',d.phone);set('nl-email',d.email);
-    set('nl-source',d.source);set('nl-source-detail',d.sourceDetail);toggleSourceDetail();set('nl-date',d.date);set('nl-size',d.size);set('nl-size-other',d.sizeOther||'');toggleSizeOther();
+    set('nl-source',d.source);set('nl-source-detail',d.sourceDetail);toggleSourceDetail();set('nl-date',d.date==='TBD'?'':d.date);set('nl-size',d.size);set('nl-size-other',d.sizeOther||'');toggleSizeOther();
+    {const _tb=document.getElementById('nl-date-tbd');if(_tb){_tb.checked=(d.date==='TBD');nlToggleDateTBD();}}
     set('nl-sqft',d.sqft);set('nl-move-type',d.moveType);set('nl-packing',d.packing);
     set('nl-taken-by',d.takenBy);set('nl-from',d.from);set('nl-from-zip',d.fromZip);
     set('nl-from-unit',d.fromUnit);set('nl-from-type',d.fromType);set('nl-from-floor',d.fromFloor);
@@ -4081,9 +4082,16 @@ document.addEventListener('click',e=>{
 function resetNewLeadForm(){editingLeadId=null;document.querySelector('#modal-new-lead .modal-title').textContent='New lead intake';const _slBtn=document.querySelector('#modal-new-lead .btn-primary');if(_slBtn)_slBtn.textContent='Save lead';const _backBtn2=document.getElementById('nl-go-back-btn');if(_backBtn2)_backBtn2.style.display='none';const _savedInd2=document.getElementById('nl-saved-indicator');if(_savedInd2)_savedInd2.style.display='none';['nl-name','nl-phone','nl-email','nl-from','nl-from-zip','nl-from-unit','nl-from-floor','nl-from-notes','nl-to','nl-to-zip','nl-to-unit','nl-to-floor','nl-to-notes','nl-notes','nl-office-notes','nl-sqft','nl-source-other','nl-source-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['nl-source','nl-size','nl-move-type','nl-packing','nl-access-load','nl-access-unload','nl-parking-load','nl-parking-unload','nl-from-type','nl-to-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['nl-storage'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const storSel=document.getElementById('nl-storage-select');if(storSel)storSel.value='no';const og=document.getElementById('nl-source-other-group');if(og)og.style.display='none';const dg=document.getElementById('nl-source-detail-group');if(dg)dg.style.display='none';resetExtraLocations();const rcp=document.getElementById('nl-repeat-customer-panel');if(rcp)rcp.style.display='none';['nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-pack-mat-min','nl-rq-pack-mat-max','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const rqm=document.getElementById('nl-rq-movers');if(rqm)rqm.selectedIndex=0;
 const rqcb=document.getElementById('nl-include-rq');if(rqcb)rqcb.checked=false;
 const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none';
-  const d=new Date();d.setDate(d.getDate()+7);document.getElementById('nl-date').value=d.toISOString().split('T')[0];populateStaffSelect('nl-taken-by','');}
+  const d=new Date();d.setDate(d.getDate()+7);const _tbR=document.getElementById('nl-date-tbd');if(_tbR)_tbR.checked=false;nlToggleDateTBD();document.getElementById('nl-date').value=d.toISOString().split('T')[0];populateStaffSelect('nl-taken-by','');}
+function nlToggleDateTBD(){
+  const cb=document.getElementById('nl-date-tbd');
+  const dEl=document.getElementById('nl-date');
+  if(!cb||!dEl)return;
+  if(cb.checked){dEl.value='';dEl.disabled=true;dEl.style.opacity='0.45';}
+  else{dEl.disabled=false;dEl.style.opacity='';}
+}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
-function fmtDate(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function fmtDate(d){if(!d)return'—';if(d==='TBD')return'TBD';const dt=new Date(d+'T12:00:00');if(isNaN(dt))return'—';return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 // Like fmtDate but includes the weekday — used specifically in the confirmation email so the
 // customer sees "Thursday, Jun 4, 2026" rather than just "Jun 4, 2026". Not used anywhere else
 // in the app — the standard fmtDate is preferred for compact UI displays (lead cards, lists, etc.).
@@ -4386,7 +4394,8 @@ function openEditLead(leadId){
   document.getElementById('nl-source').value=l.source||'';
   document.getElementById('nl-source-detail').value=l.sourceDetail||l.sourceOther||l.sourceCompany||'';
   toggleSourceDetail();
-  document.getElementById('nl-date').value=l.date||'';
+  document.getElementById('nl-date').value=(l.date==='TBD')?'':(l.date||'');
+  {const _tb=document.getElementById('nl-date-tbd');if(_tb){_tb.checked=(l.date==='TBD');nlToggleDateTBD();}}
   document.getElementById('nl-size').value=l.size||'';
   document.getElementById('nl-move-type').value=l.moveType||'';
   document.getElementById('nl-packing').value=l.packing||'No';
