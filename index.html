@@ -10752,6 +10752,12 @@ function renderAnalytics(){
   // breaks when the booked job has been deleted (which is correct behaviour after completion).
   // Try multiple paths, then fall back to the AI training record's stored quote data.
   function findQuoteForCompletedJob(j){
+    // Pinned quote wins: if the user explicitly chose which quote this job is measured against
+    // (via the completed-job picker), honor it above every automatic path.
+    if(j.accuracyQuoteId){
+      const _pin=(db.quotes||[]).find(q=>q.id===j.accuracyQuoteId&&q.totalMin!=null&&q.totalMax!=null);
+      if(_pin)return{quote:_pin,source:'pinned'};
+    }
     // Path 0: prefer the lead's ACCEPTED quote (the real agreement / what the Quotes page shows), so
     // the accuracy chart matches the per-job view. A booking may be linked to an earlier revised draft.
     {
