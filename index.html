@@ -3077,6 +3077,27 @@ function saveDB(){
         l._localEditedAt=l._localEditedAt||_nowIso;
       }
     });
+    // Same protection for completed jobs — stamp _localEditedAt on any content change so a stale cloud
+    // copy (e.g. pushed by another device or an old tab that never saw this edit) cannot overwrite it on
+    // the next refresh. Without this, toggling "Exclude from Quote Accuracy" or any completed-job edit
+    // could silently revert after a sync.
+    const _prevCompById={};
+    (_prev.completedJobs||[]).forEach(j=>{if(j&&j.id)_prevCompById[j.id]=j;});
+    (db.completedJobs||[]).forEach(j=>{
+      if(!j||!j.id)return;
+      const before=_prevCompById[j.id];
+      if(before){
+        let changed=false;
+        const allKeys=new Set([...Object.keys(before||{}),...Object.keys(j||{})]);
+        for(const k of allKeys){
+          if(_metaKeys.has(k))continue;
+          if(JSON.stringify(before[k])!==JSON.stringify(j[k])){changed=true;break;}
+        }
+        if(changed)j._localEditedAt=_nowIso;
+      } else {
+        j._localEditedAt=j._localEditedAt||_nowIso;
+      }
+    });
   }catch(_){}
   // Save to localStorage immediately as fast fallback
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
@@ -3319,6 +3340,18 @@ async function refreshFromSupabase(){
             if(localEditIso>=remoteTime)return;
           }
         }
+        // For completed jobs — protect local edits (the Exclude-from-Accuracy toggle, payment updates,
+        // corrections) from being overwritten by a stale cloud copy that another device re-pushed.
+        // Same _localEditedAt mechanism as quotes.
+        if(table==='completedJobs'&&local&&rec){
+          const localEditIso=local._localEditedAt||'';
+          const remoteEditIso=rec._localEditedAt||'';
+          if(localEditIso&&remoteEditIso){
+            if(localEditIso>=remoteEditIso)return;
+          } else if(localEditIso){
+            if(localEditIso>=remoteTime)return;
+          }
+        }
         // Use remote if: not local, or remote updated_at is newer than our last sync
         if(!local||(remoteTime&&remoteTime>localTime)){
           localMap[id]={...rec,_syncedAt:remoteTime};
@@ -3341,7 +3374,7 @@ async function refreshFromSupabase(){
       db.bookedJobs=db.bookedJobs.filter(j=>!_allTombstones.booked_jobs[j.id]);
       if(db.bookedJobs.length<before)updated++;
     }
-    db.completedJobs=mergeTable(completedResFiltered,db.completedJobs);
+    db.completedJobs=mergeTable(completedResFiltered,db.completedJobs,'id','completedJobs');
     if(Object.keys(_allTombstones.completed_jobs).length){
       const before=db.completedJobs.length;
       db.completedJobs=db.completedJobs.filter(j=>!_allTombstones.completed_jobs[j.id]);
