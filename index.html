@@ -1134,7 +1134,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <select id="se-type"><option value="">Select estimate type…</option><option>FaceTime</option><option>Video</option><option>Onsite</option><option>Summary + rough quote</option><option>Unseen</option></select>
           <div class="form-hint">Tracked in analytics for close rate reporting</div>
         </div>
-        <div class="form-group"><label>Estimate date</label><input type="date" id="se-date"></div>
+        <div class="form-group"><label>Estimate date</label><input type="date" id="se-date"><label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:400;cursor:pointer"><input type="checkbox" id="se-date-tbd" onchange="seToggleDateTBD()" style="width:15px;height:15px;cursor:pointer">Date TBD (not decided yet)</label></div>
         <div class="form-group"><label>Quoted amount ($)</label><input type="number" id="se-quote" placeholder="0.00"></div>
         <div class="form-group"><label>Sent by</label><input type="text" id="se-sent-by" placeholder="e.g. John" list="se-sent-by-list"><datalist id="se-sent-by-list"><option value="John"><option value="Dave"></datalist></div>
         <!-- se-notes is HIDDEN — same reason as sche-notes. Office notes is the only notes field
@@ -4090,6 +4090,13 @@ function nlToggleDateTBD(){
   if(cb.checked){dEl.value='';dEl.disabled=true;dEl.style.opacity='0.45';}
   else{dEl.disabled=false;dEl.style.opacity='';}
 }
+function seToggleDateTBD(){
+  const cb=document.getElementById('se-date-tbd');
+  const dEl=document.getElementById('se-date');
+  if(!cb||!dEl)return;
+  if(cb.checked){dEl.value='';dEl.disabled=true;dEl.style.opacity='0.45';}
+  else{dEl.disabled=false;dEl.style.opacity='';}
+}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 function fmtDate(d){if(!d)return'—';if(d==='TBD')return'TBD';const dt=new Date(d+'T12:00:00');if(isNaN(dt))return'—';return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 // Like fmtDate but includes the weekday — used specifically in the confirmation email so the
@@ -6087,14 +6094,14 @@ function confirmDidNotBook(){
 }
 
 let currentEstimateLeadId=null;
-function openSendEstimate(leadId){currentEstimateLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('estimate-lead-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;document.getElementById('se-type').value=l.estimateType||'';document.getElementById('se-date').value=new Date().toISOString().split('T')[0];document.getElementById('se-quote').value=l.estimateQuote||'';document.getElementById('se-notes').value=l.estimateNotes||'';populateStaffSelect('se-sent-by',l.estimateSentBy||'');openModal('send-estimate');}
+function openSendEstimate(leadId){currentEstimateLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('estimate-lead-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;document.getElementById('se-type').value=l.estimateType||'';document.getElementById('se-date').value=new Date().toISOString().split('T')[0];{const _seTb=document.getElementById('se-date-tbd');if(_seTb){_seTb.checked=(l.estimateDate==='TBD');seToggleDateTBD();}}document.getElementById('se-quote').value=l.estimateQuote||'';document.getElementById('se-notes').value=l.estimateNotes||'';populateStaffSelect('se-sent-by',l.estimateSentBy||'');openModal('send-estimate');}
 function confirmEstimate(){
   const type=document.getElementById('se-type').value;
   const sentBy=document.getElementById('se-sent-by').value.trim();
   if(!type){showToast('Please select an estimate type.');return;}
   if(!sentBy){showToast('Please fill in who sent the estimate.');return;}
   const l=db.leads.find(x=>x.id===currentEstimateLeadId);if(!l)return;
-  l.estimateType=type;l.estimateDate=document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=sentBy;l.status='Estimate sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast('✓ Estimate logged — '+type+' for '+l.name);renderLeads();
+  l.estimateType=type;l.estimateDate=(document.getElementById('se-date-tbd')&&document.getElementById('se-date-tbd').checked)?'TBD':document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=sentBy;l.status='Estimate sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast('✓ Estimate logged — '+type+' for '+l.name);renderLeads();
 }
 
 // ── SCHEDULE ESTIMATE ──
@@ -12860,7 +12867,7 @@ function renderQbDays(){
       <div style="background:${isMulti?'#2d5a3d':'var(--surface2)'};padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
         <div style="display:flex;align-items:center;gap:12px">
           <div style="font-size:15px;font-weight:700;color:${isMulti?'#fff':'var(--text2)'}">📅 ${dayLabel}</div>
-          ${d.date?`<div style="font-size:12.5px;color:${isMulti?'rgba(255,255,255,.8)':'var(--text3)'}">${new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>`:''}
+          ${d.date?`<div style="font-size:12.5px;color:${isMulti?'rgba(255,255,255,.8)':'var(--text3)'}">${d.date==='TBD'?'TBD':new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>`:''}
         </div>
         ${isMulti&&qbDays.length>1?`<button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3);font-size:11px" onclick="removeQuoteDay('${d.id}')">✕ Remove</button>`:''}
       </div>
@@ -12869,7 +12876,7 @@ function renderQbDays(){
         <!-- Schedule -->
         <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Schedule</div>
         <div class="form-grid form-grid-2" style="margin-bottom:16px">
-          <div class="form-group"><label>Date *</label><input type="date" value="${d.date||''}" oninput="updateQbDay('${d.id}','date',this.value);renderQbDays()"></div>
+          <div class="form-group"><label>Date *</label><input type="date" value="${d.date==='TBD'?'':(d.date||'')}" ${d.date==='TBD'?'disabled':''} oninput="updateQbDay('${d.id}','date',this.value);renderQbDays()"><label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:400;cursor:pointer"><input type="checkbox" ${d.date==='TBD'?'checked':''} onchange="updateQbDay('${d.id}','date',this.checked?'TBD':'');renderQbDays()" style="width:15px;height:15px;cursor:pointer">Date TBD</label></div>
           <div class="form-group"><label>Arrival start</label><input type="text" value="${escHtml(d.arrivalStart||'')}" oninput="updateQbDay('${d.id}','arrivalStart',this.value)" placeholder="e.g. 8:00 AM"></div>
           <div class="form-group"><label>Arrival end</label><input type="text" value="${escHtml(d.arrivalEnd||'')}" oninput="updateQbDay('${d.id}','arrivalEnd',this.value)" placeholder="e.g. 9:00 AM"></div>
         </div>
@@ -13125,7 +13132,7 @@ function renderQuoteHTML(q,lead){
   const days=q.days||[];
   const fees=(q.fees||[]).filter(f=>f.included);
   const d0=days[0]||{};
-  const fmtD=d=>{if(!d)return'--';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});};
+  const fmtD=d=>{if(!d)return'--';if(d==='TBD')return'TBD';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});};
   const esc=s=>{const div=document.createElement('div');div.textContent=s||'';return div.innerHTML;};
   const fmt=n=>'$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
 
