@@ -1165,8 +1165,8 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
       </div>
 
-      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Schedule & crew</div>
-      <div class="form-grid form-grid-2" style="margin-bottom:12px">
+      <div id="bj-md-sched-hdr" style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Schedule & crew</div>
+      <div id="bj-md-sched-grid" class="form-grid form-grid-2" style="margin-bottom:12px">
         <div class="form-group"><label>Confirmed date *</label><input type="date" id="bj-date"></div>
         <div class="form-group"><label>Arrival window</label><input type="text" id="bj-time" placeholder="e.g. 8:30–9:30am"></div>
         <div class="form-group"><label>No. of movers</label><select id="bj-movers"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
@@ -1204,10 +1204,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Rates & fees</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
-        <div class="form-group"><label>Hourly rate (regular $)</label><input type="number" id="bj-rate-regular" placeholder="e.g. 225"></div>
-        <div class="form-group"><label>Hourly rate (cash $)</label><input type="number" id="bj-rate-cash" placeholder="e.g. 210"></div>
-        <div class="form-group"><label>Material fee ($)</label><input type="number" id="bj-fee-materials" placeholder="e.g. 50"></div>
-        <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="bj-fee-fuel" placeholder="e.g. 80"></div>
+        <div class="form-group bj-md-dup"><label>Hourly rate (regular $)</label><input type="number" id="bj-rate-regular" placeholder="e.g. 225"></div>
+        <div class="form-group bj-md-dup"><label>Hourly rate (cash $)</label><input type="number" id="bj-rate-cash" placeholder="e.g. 210"></div>
+        <div class="form-group bj-md-dup"><label>Material fee ($)</label><input type="number" id="bj-fee-materials" placeholder="e.g. 50"></div>
+        <div class="form-group bj-md-dup"><label>Fuel fee ($)</label><input type="number" id="bj-fee-fuel" placeholder="e.g. 80"></div>
         <div class="form-group"><label>Packing materials min ($)</label><input type="number" id="bj-pack-mat-min" placeholder="e.g. 50"></div>
         <div class="form-group"><label>Packing materials max ($)</label><input type="number" id="bj-pack-mat-max" placeholder="e.g. 150"></div>
         <div class="form-group"><label>Drive time to job</label><input type="text" id="bj-drive-to" placeholder="e.g. 1 hour"></div>
@@ -6575,6 +6575,16 @@ function _bjApplyMultiDay(j){
 // window._bjQuoteDaysFull / _bjQuoteForScope are stashed in openBooking so the autosave path (which
 // has no leadQuote in scope) can rebuild. Inert unless window._bjIsMultiDay is true.
 let _bjKeptDays=[];
+// For a quote-governed multi-day booking, Day 1 is edited in the multi-day list (like every other
+// day), so the duplicate Day-1 schedule/rate/fee fields in the lower section are hidden. Single-day
+// bookings and the manual "+ Add day" editor (which keeps its synced lower fields) are unaffected,
+// because window._bjIsMultiDay is only true for quote-governed multi-day. The hidden inputs stay in
+// the DOM and are mirrored from the list, so booking + email read them normally.
+function _bjSyncDay1FieldVisibility(){
+  const hide=!!window._bjIsMultiDay;
+  ['bj-md-sched-hdr','bj-md-sched-grid'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=hide?'none':'';});
+  document.querySelectorAll('.bj-md-dup').forEach(el=>{el.style.display=hide?'none':'';});
+}
 function _renderBjQuoteDays(){
   const el=document.getElementById('bj-mday-rows');if(!el)return;
   const full=window._bjQuoteDaysFull||[];
@@ -6592,8 +6602,6 @@ function _renderBjQuoteDays(){
     let body='';
     if(!kept){
       body='<div style="color:var(--text3);font-size:11.5px;padding:3px 0 0 27px">Dropped from this booking</div>';
-    } else if(isFirstKept){
-      body='<div style="color:var(--text3);font-size:11.5px;padding:3px 0 0 27px">'+(d.date?fmtDate(d.date):'date TBD')+' · '+rateInfo+' <span style="color:var(--accent)">— set in the Day 1 fields below</span></div>';
     } else {
       const arr=d.arrivalWindow||(d.arrivalStart?(d.arrivalStart+(d.arrivalEnd?'–'+d.arrivalEnd:'')):'');
       const rateFields=d.flatRate
@@ -6629,6 +6637,14 @@ function _renderBjQuoteDays(){
 function bjEditQuoteDay(i,field,val){
   const full=window._bjQuoteDaysFull||[];if(!full[i])return;
   full[i][field]=val;
+  // The first kept day is "Day 1" — the email + booking read the canonical bj-* fields for it,
+  // so mirror this edit into those (now-hidden) fields. Flat price/cash have no single-day field
+  // and flow straight from the day object, so they're intentionally not mapped here.
+  const firstKept=_bjKeptDays.findIndex(Boolean);
+  if(i===firstKept){
+    const _m={date:'bj-date',arrivalWindow:'bj-time',crew:'bj-movers',rate:'bj-rate-regular',rateCash:'bj-rate-cash',feeFuel:'bj-fee-fuel',feeMaterials:'bj-fee-materials'};
+    const _tid=_m[field];if(_tid){const _el=document.getElementById(_tid);if(_el)_el.value=val;}
+  }
   bjAutoSave();
 }
 function bjToggleQuoteDay(i){
@@ -6791,6 +6807,7 @@ function openBooking(leadId){
   if(_isMultiDay)_renderBjQuoteDays();
   // Stash for label adjustments below
   window._bjIsMultiDay=_isMultiDay;
+  _bjSyncDay1FieldVisibility();
   window._bjMultiDayCount=_isMultiDay?_leadQuote.days.length:0;
   // Reset all fields first
   ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes','bj-do-not-exceed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -8158,6 +8175,7 @@ function editBookedJob(jobId){
   // Multi-day editor: show + load this job's days if it's multi-day; otherwise reset (toggle still
   // available so a single-day job could be converted).
   window._bjIsMultiDay=false;_bjKeptDays=[];window._bjQuoteDaysFull=[];window._bjQuoteForScope=null;
+  _bjSyncDay1FieldVisibility();
   if(j.multiDay&&j.quoteDays&&j.quoteDays.length>1){_bjLoadMultiDay(j.quoteDays);}
   else{_bjResetMultiDay(true);}
   closeModal('view');
