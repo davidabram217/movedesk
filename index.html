@@ -4697,10 +4697,27 @@ function renderDashboard(){
     db.quotes.filter(q=>q.status==='sent'&&dnbIds.has(q.leadId)).forEach(q=>{
       q.status='declined';q.declinedAt=q.declinedAt||new Date().toISOString().split('T')[0];fixed=true;
     });
-    // Auto-accept sent/draft quotes for booked/completed leads
-    const bookedIds=new Set(db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)).map(l=>l.id));
-    db.quotes.filter(q=>(q.status==='sent'||q.status==='draft')&&bookedIds.has(q.leadId)).forEach(q=>{
-      q.status='accepted';q.acceptedAt=q.acceptedAt||new Date().toISOString().split('T')[0];fixed=true;
+    // Reconcile quote acceptance for accepted/booked/completed leads.
+    // FIX (2026-06-23): the old version auto-accepted EVERY sent OR DRAFT quote for such a lead, so a
+    // stray never-sent DRAFT got wrongly stamped 'accepted' — producing a SECOND accepted quote that
+    // "View quote" / the confirmation email / booking would then show instead of the real one
+    // (Alison Dixon: a $395 single-day draft shadowed her accepted $1,575 2-day quote). Now: never
+    // auto-accept a draft; only promote the most-recent SENT quote, and only when the lead has no
+    // accepted quote yet. If a lead already has 2+ accepted quotes and at least one was actually sent,
+    // demote the never-sent one(s) back to draft to undo prior damage.
+    const _bookedStatuses=['Quote accepted','Confirmation sent','Booked','Completed'];
+    const _bookedIds=new Set(db.leads.filter(l=>_bookedStatuses.includes(l.status)).map(l=>l.id));
+    db.leads.filter(l=>_bookedIds.has(l.id)).forEach(l=>{
+      const _qs=db.quotes.filter(q=>q.leadId===l.id);
+      const _acc=_qs.filter(q=>q.status==='accepted');
+      if(_acc.length){
+        if(_acc.length>1&&_acc.some(q=>q.sentAt)){
+          _acc.forEach(q=>{if(!q.sentAt){q.status='draft';delete q.acceptedAt;fixed=true;}});
+        }
+        return; // lead already has an accepted quote — never auto-accept anything else for it
+      }
+      const _sent=_qs.filter(q=>q.status==='sent').sort((a,b)=>String(b.sentAt||b.savedAt||'').localeCompare(String(a.sentAt||a.savedAt||'')))[0];
+      if(_sent){_sent.status='accepted';_sent.acceptedAt=_sent.acceptedAt||new Date().toISOString().split('T')[0];fixed=true;}
     });
     if(fixed)saveDB();
   }
@@ -4928,7 +4945,7 @@ const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
 // Find associated quote — strict precedence so multi-quote leads always show the right one:
 // accepted > most recent sent > most recent of any other status
 const _allLeadQs=(db.quotes||[]).filter(q=>q.leadId===l.id);
-const _qAccepted=_allLeadQs.find(q=>q.status==='accepted');
+const _qAccepted=_allLeadQs.filter(q=>q.status==='accepted').sort((a,b)=>(b.sentAt?1:0)-(a.sentAt?1:0)||String(b.acceptedAt||'').localeCompare(String(a.acceptedAt||'')))[0];
 const _qSent=_allLeadQs.filter(q=>q.status==='sent').sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0];
 const _qOther=[..._allLeadQs].sort((a,b)=>(b.savedAt||'').localeCompare(a.savedAt||''))[0];
 const quote=_qAccepted||_qSent||_qOther||null;
