@@ -36,7 +36,22 @@ check('both renderers compute per-day fuel from day.feeFuel',(s.match(/isDay1\?\
 check('both renderers compute per-day materials from day.feeMaterials',(s.match(/isDay1\?\(Number\(bj\?\.feeMaterials\)\|\|0\):\(Number\(day\.feeMaterials\)\|\|0\)/g)||[]).length===2);
 check('Day 2+ emits a Fuel Fee line when no matching quote fee (both renderers)',(s.match(/!_fuelShown(Multi|MD)\)[^\n]*Fuel Fee/g)||[]).length===2);
 check('Day 2+ emits a Material Fee line when no matching quote fee (both renderers)',(s.match(/!_matShown(Multi|MD)\)[^\n]*Material Fee/g)||[]).length===2);
-check('after-loop fuel/materials emission gated to Day 2+ (!isDay1) in both renderers',(s.match(/if\(!isDay1\)\{\s*if\(bjFuelFee(Multi|MD)&&!_fuelShown/g)||[]).length===2);
+check('quote-path after-loop gated to Day 2+ (buildMoveDetailsBlock)',/if\(!isDay1\)\{\s*if\(bjFuelFeeMD&&!_fuelShownMD/.test(s));
+check('email after-loop also fires for direct Day 1 (openConfirmEmail)',/if\(!isDay1\|\|_isDirectMulti\)\{\s*if\(bjFuelFeeMulti&&!_fuelShownMulti/.test(s));
+
+// --- Direct (hand-built) multi-day editor: per-day fuel/materials/arrival ---
+check('direct editor blank day seeds feeFuel/feeMaterials/arrivalWindow',/feeFuel:'',feeMaterials:'',arrivalWindow:''/.test(s));
+check('direct editor renders per-day Fuel input',/id="bjd-fuel-'\+i\+'"/.test(s));
+check('direct editor renders per-day Materials input',/id="bjd-mat-'\+i\+'"/.test(s));
+check('direct editor renders per-day Arrival input',/id="bjd-arrival-'\+i\+'"/.test(s));
+check('direct editor change-handler reads the 3 new fields',/d\.arrivalWindow=g\('bjd-arrival-'\+i\);d\.feeFuel=g\('bjd-fuel-'\+i\);d\.feeMaterials=g\('bjd-mat-'\+i\)/.test(s));
+check('direct editor Day 1 mirrors fuel to bj-fee-fuel',/_ff=document\.getElementById\('bj-fee-fuel'\)/.test(s));
+check('direct editor Day 1 mirrors materials to bj-fee-materials',/_fm=document\.getElementById\('bj-fee-materials'\)/.test(s));
+check('direct editor Day 1 mirrors arrival to bj-time',/_ar=document\.getElementById\('bj-time'\)/.test(s));
+check('_bjReadDays emits arrivalWindow/feeFuel/feeMaterials',/arrivalWindow:d\.arrivalWindow\|\|'',feeFuel:Number\(d\.feeFuel\)\|\|'',feeMaterials:Number\(d\.feeMaterials\)\|\|''/.test(s));
+check('_bjLoadMultiDay restores arrivalWindow/feeFuel/feeMaterials',/arrivalWindow:d\.arrivalWindow\|\|'',feeFuel:d\.feeFuel\|\|'',feeMaterials:d\.feeMaterials\|\|''/.test(s));
+check('email surfaces Day-1 fuel/materials for direct bookings (ungated)',/if\(!isDay1\|\|_isDirectMulti\)\{/.test(s));
+check('direct-multi flag set in the no-quote branch',/isMulti=true;_isDirectMulti=true;/.test(s));
 
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
 process.exit(fail?1:0);

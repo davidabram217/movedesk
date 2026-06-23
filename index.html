@@ -5289,6 +5289,7 @@ function openConfirmEmail(leadId,bookedJob){
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.days&&qt.days.length);
   let q=q0;
   let isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
+  let _isDirectMulti=false;
   // Drop-a-day: if the booking kept FEWER days than the quote (owner dropped a day, e.g. the
   // customer self-packs), the booking's kept days are authoritative for the email. Point the day
   // list at bj.quoteDays and recompute isMulti from it (so a collapse to one day sends a single-day
@@ -5308,7 +5309,7 @@ function openConfirmEmail(leadId,bookedJob){
        fees:(bj.quoteFees&&bj.quoteFees.length)?bj.quoteFees:((q0&&q0.fees)||[]),
        cashRate:Number(bj.rateCash)||(bj.quoteDays[0]&&Number(bj.quoteDays[0].rateCash))||(q0&&Number(q0.cashRate))||0,
        totalMin:0,totalMax:0};
-    isMulti=true;
+    isMulti=true;_isDirectMulti=true;
   }
 
   function fmtRate(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
@@ -5386,7 +5387,7 @@ function openConfirmEmail(leadId,bookedJob){
       });
       // Day 2+ only: per-day fuel/materials set at booking with no matching quote fee for this day.
       // Day 1 keeps its existing override-only behavior (unchanged).
-      if(!isDay1){
+      if(!isDay1||_isDirectMulti){
         if(bjFuelFeeMulti&&!_fuelShownMulti)moveDetailsSection+='\n$'+bjFuelFeeMulti.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Fuel Fee';
         if(bjMatFeeMulti&&!_matShownMulti)moveDetailsSection+='\n$'+bjMatFeeMulti.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Material Fee';
       }
@@ -6454,7 +6455,7 @@ let _bjAutoSaveTimer=null;
 // no special-casing. This is purely additive: when the toggle is OFF, none of this runs and the
 // single-day booking path is untouched.
 let _bjDays=[];
-function _bjBlankDay(){return {date:'',crew:'3',rate:'',rateCash:'',flatRate:false,hrsMin:'',hrsMax:'',flatPrice:'',flatPriceCash:''};}
+function _bjBlankDay(){return {date:'',crew:'3',rate:'',rateCash:'',flatRate:false,hrsMin:'',hrsMax:'',flatPrice:'',flatPriceCash:'',feeFuel:'',feeMaterials:'',arrivalWindow:''};}
 function toggleBjMultiDay(){
   const cb=document.getElementById('bj-multiday');const on=cb&&cb.checked;
   const sec=document.getElementById('bj-multiday-section');if(sec)sec.style.display=on?'block':'none';
@@ -6476,6 +6477,7 @@ function bjDayChanged(i){
   const d=_bjDays[i];if(!d)return;
   d.date=g('bjd-date-'+i);d.crew=g('bjd-crew-'+i);d.rate=g('bjd-rate-'+i);d.rateCash=g('bjd-ratecash-'+i);
   d.hrsMin=g('bjd-hmin-'+i);d.hrsMax=g('bjd-hmax-'+i);d.flatPrice=g('bjd-flat-price-'+i);d.flatPriceCash=g('bjd-flat-cash-'+i);
+  d.arrivalWindow=g('bjd-arrival-'+i);d.feeFuel=g('bjd-fuel-'+i);d.feeMaterials=g('bjd-mat-'+i);
   // Day 1 mirrors into the canonical single-day fields so date validation, autosave and the
   // booked-job summary all see the right values with no special-casing elsewhere.
   if(i===0){
@@ -6483,12 +6485,16 @@ function bjDayChanged(i){
     if(d.crew)document.getElementById('bj-movers').value=d.crew;
     if(d.rate)document.getElementById('bj-rate-regular').value=d.rate;
     if(d.rateCash)document.getElementById('bj-rate-cash').value=d.rateCash;
+    const _ar=document.getElementById('bj-time');if(_ar&&d.arrivalWindow)_ar.value=d.arrivalWindow;
+    const _ff=document.getElementById('bj-fee-fuel');if(_ff&&d.feeFuel!=='')_ff.value=d.feeFuel;
+    const _fm=document.getElementById('bj-fee-materials');if(_fm&&d.feeMaterials!=='')_fm.value=d.feeMaterials;
   }
   bjAutoSave();
 }
 function renderBjDays(){
   const wrap=document.getElementById('bj-multiday-list');if(!wrap)return;
   const moverOpts=[1,2,3,4,5,6,7,8];
+  const _ea=s=>String(s==null?'':s).replace(/"/g,'&quot;');
   wrap.innerHTML=_bjDays.map((d,i)=>{
     const flat=!!d.flatRate;
     return '<div style="border:1px solid var(--border2);border-radius:var(--radius);padding:10px;margin-bottom:8px;background:var(--surface)">'
@@ -6499,11 +6505,13 @@ function renderBjDays(){
       +'<div class="form-grid form-grid-2">'
       +'<div class="form-group"><label>Date</label><input type="date" id="bjd-date-'+i+'" value="'+(d.date||'')+'" onchange="bjDayChanged('+i+')"></div>'
       +'<div class="form-group"><label>Movers</label><select id="bjd-crew-'+i+'" onchange="bjDayChanged('+i+')">'+moverOpts.map(m=>'<option'+(String(d.crew)===String(m)?' selected':'')+'>'+m+'</option>').join('')+'</select></div>'
+      +'<div class="form-group"><label>Arrival window</label><input type="text" id="bjd-arrival-'+i+'" value="'+_ea(d.arrivalWindow)+'" placeholder="e.g. 9–10am" onchange="bjDayChanged('+i+')"></div>'
       +'</div>'
       +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;margin:4px 0 8px"><input type="checkbox" id="bjd-flat-'+i+'" '+(flat?'checked':'')+' onchange="bjDayToggleFlat('+i+')" style="accent-color:var(--accent)"> Flat rate for this day</label>'
       +(flat
         ?'<div class="form-grid form-grid-2"><div class="form-group"><label>Flat price ($)</label><input type="number" id="bjd-flat-price-'+i+'" value="'+(d.flatPrice||'')+'" placeholder="e.g. 1200" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Flat price cash ($)</label><input type="number" id="bjd-flat-cash-'+i+'" value="'+(d.flatPriceCash||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div></div>'
         :'<div class="form-grid form-grid-2"><div class="form-group"><label>Rate ($/hr)</label><input type="number" id="bjd-rate-'+i+'" value="'+(d.rate||'')+'" placeholder="e.g. 225" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Rate cash ($/hr)</label><input type="number" id="bjd-ratecash-'+i+'" value="'+(d.rateCash||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Hours min</label><input type="number" id="bjd-hmin-'+i+'" value="'+(d.hrsMin||'')+'" placeholder="e.g. 4" step="0.5" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Hours max</label><input type="number" id="bjd-hmax-'+i+'" value="'+(d.hrsMax||'')+'" placeholder="e.g. 6" step="0.5" onchange="bjDayChanged('+i+')"></div></div>')
+      +'<div class="form-grid form-grid-2"><div class="form-group"><label>Fuel fee ($)</label><input type="number" id="bjd-fuel-'+i+'" value="'+(d.feeFuel||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Materials fee ($)</label><input type="number" id="bjd-mat-'+i+'" value="'+(d.feeMaterials||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div></div>'
       +'</div>';
   }).join('');
 }
@@ -6515,7 +6523,7 @@ function _bjResetMultiDay(showToggle){
   const list=document.getElementById('bj-multiday-list');if(list)list.innerHTML='';
 }
 function _bjLoadMultiDay(days){
-  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||''}));
+  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||'',arrivalWindow:d.arrivalWindow||'',feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||''}));
   if(!_bjDays.length)_bjDays=[_bjBlankDay()];
   const cb=document.getElementById('bj-multiday');if(cb)cb.checked=true;
   const wrap=document.getElementById('bj-multiday-wrap');if(wrap)wrap.style.display='block';
@@ -6530,7 +6538,8 @@ function _bjReadDays(){
       rate:flat?'':(Number(d.rate)||''),rateCash:flat?'':(Number(d.rateCash)||''),
       flatRate:flat,
       hrsMin:flat?'':(Number(d.hrsMin)||''),hrsMax:flat?'':(Number(d.hrsMax)||''),
-      flatPrice:flat?(Number(d.flatPrice)||0):'',flatPriceCash:flat?(Number(d.flatPriceCash)||0):''};
+      flatPrice:flat?(Number(d.flatPrice)||0):'',flatPriceCash:flat?(Number(d.flatPriceCash)||0):'',
+      arrivalWindow:d.arrivalWindow||'',feeFuel:Number(d.feeFuel)||'',feeMaterials:Number(d.feeMaterials)||''};
   });
 }
 // Apply the multi-day rows onto a booked-job record when the toggle is on. No-op otherwise, so the
