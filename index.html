@@ -5100,10 +5100,12 @@ function buildMoveDetailsBlock(l,bj){
   function _fmtRate(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
   // Locate the most relevant quote for this lead/booking — accepted > sent > any with days
   const leadId=(bj&&bj.leadId)||(l&&l.id)||null;
-  const q=leadId?((db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
+  let q=leadId?((db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='accepted')
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')
     ||(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.days&&qt.days.length)):null;
   const isMulti=q&&q.jobType==='multi'&&q.days&&q.days.length>1;
+  // Prefer the booked days (per-day booking edits + dropped-day selection) over the raw quote days.
+  if(isMulti&&bj&&bj.quoteDays&&bj.quoteDays.length){q=Object.assign({},q,{days:bj.quoteDays});}
   let s='';
 
   if(isMulti){
@@ -5115,7 +5117,7 @@ function buildMoveDetailsBlock(l,bj){
                        :(Number(day.rate)||Number(bjDay.rate)||0);
       const cashBase=isDay1?(Number(bj?.rateCash)||Number(q.cashRate)||0):Number(q.cashRate)||0;
       const day1Rate=Number(q.days[0].rate)||rate;
-      const dayCash=cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0;
+      const dayCash=(!isDay1&&Number(day.rateCash))?Number(day.rateCash):(cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0);
       const crew=isDay1?(Number(bj?.movers)||Number(day.crew)||Number(bjDay.crew)||0)
                        :(Number(day.crew)||Number(bjDay.crew)||0);
       const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||''}];
@@ -5124,7 +5126,7 @@ function buildMoveDetailsBlock(l,bj){
       const dayDate=isDay1?(bj?.date||day.date||''):day.date;
       const dayArrivalLine=isDay1&&bj?.time
         ?', arriving '+bj.time
-        :(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
+        :(day.arrivalWindow?', arriving '+day.arrivalWindow:(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):''));
       s+='\nDay '+(i+1);
       if(dayDate)s+='\nWhen: '+fmtDateWithDay(dayDate)+dayArrivalLine;
       loads.filter(function(u){return u.address;}).forEach(function(u){s+='\nFrom: '+u.address+(u.unit?' #'+u.unit:'');if(u.access)s+=' · '+u.access;if(u.parking)s+=' · '+u.parking;});
@@ -5289,7 +5291,7 @@ function openConfirmEmail(leadId,bookedJob){
   // (kept count === quote day count) skip this entirely and behave exactly as before.
   const _qDayCount=(q0&&q0.days)?q0.days.length:0;
   const _bjDayCount=(bj&&bj.quoteDays)?bj.quoteDays.length:0;
-  if(q0&&_bjDayCount&&_bjDayCount<_qDayCount){
+  if(q0&&_bjDayCount&&_bjDayCount<=_qDayCount){
     q=Object.assign({},q0,{days:bj.quoteDays,jobType:_bjDayCount>1?'multi':q0.jobType});
     isMulti=_bjDayCount>1;
   } else
@@ -5318,7 +5320,7 @@ function openConfirmEmail(leadId,bookedJob){
                        :(Number(day.rate)||Number(bjDay.rate)||0);
       const cashBase=isDay1?(Number(bj?.rateCash)||Number(q.cashRate)||0):Number(q.cashRate)||0;
       const day1Rate=Number(q.days[0].rate)||rate;
-      const dayCash=cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0;
+      const dayCash=(!isDay1&&Number(day.rateCash))?Number(day.rateCash):(cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0);
       const crew=isDay1?(Number(bj?.movers)||Number(day.crew)||Number(bjDay.crew)||0)
                        :(Number(day.crew)||Number(bjDay.crew)||0);
       const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||''}];
@@ -5328,7 +5330,7 @@ function openConfirmEmail(leadId,bookedJob){
       const dayDate=isDay1?(bj?.date||day.date||''):day.date;
       const dayArrivalLine=isDay1&&bj?.time
         ?', arriving '+bj.time
-        :(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):'');
+        :(day.arrivalWindow?', arriving '+day.arrivalWindow:(day.arrivalStart?', arriving between '+day.arrivalStart+(day.arrivalEnd?' - '+day.arrivalEnd:''):''));
 
       moveDetailsSection+='\nDay '+(i+1);
       if(dayDate)moveDetailsSection+='\nWhen: '+fmtDateWithDay(dayDate)+dayArrivalLine;
@@ -6539,16 +6541,40 @@ function _renderBjQuoteDays(){
   const el=document.getElementById('bj-mday-rows');if(!el)return;
   const full=window._bjQuoteDaysFull||[];
   if(_bjKeptDays.length!==full.length)_bjKeptDays=full.map(()=>true);
+  const firstKept=_bjKeptDays.findIndex(Boolean);
+  const moverOpts=[1,2,3,4,5,6,7,8];
+  const _ea=s=>String(s==null?'':s).replace(/"/g,'&quot;');
   el.innerHTML=full.map((d,i)=>{
-    const crew=d.crewLoadDiff?(d.crewLoad||d.crew)+'/'+(d.crewUnload||d.crew):d.crew;
+    const kept=_bjKeptDays[i];
+    const isFirstKept=(i===firstKept);
+    const crewDisp=d.crewLoadDiff?(d.crewLoad||d.crew)+'/'+(d.crewUnload||d.crew):d.crew;
     const rateInfo=d.flatRate?
       ('Flat $'+(Number(d.flatPrice)||0).toLocaleString()+(d.flatPriceCash?' / $'+(Number(d.flatPriceCash)||0).toLocaleString()+' cash':'')):
-      ((d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr · '+crew+' movers');
-    return '<label style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:12px;cursor:pointer">'
-      +'<span style="display:flex;align-items:center;gap:7px;min-width:90px"><input type="checkbox" id="bj-qday-'+i+'" '+(_bjKeptDays[i]?'checked':'')+' onchange="bjToggleQuoteDay('+i+')" style="accent-color:var(--accent)"><span style="color:var(--text);font-weight:500">Day '+(i+1)+'</span></span>'
-      +'<span style="color:var(--text2);flex:1">'+(d.date?fmtDate(d.date):'date TBD')+'</span>'
-      +'<span style="color:var(--text3);text-align:right">'+rateInfo+'</span>'
-      +'</label>';
+      ((d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr · '+crewDisp+' movers');
+    let body='';
+    if(!kept){
+      body='<div style="color:var(--text3);font-size:11.5px;padding:3px 0 0 27px">Dropped from this booking</div>';
+    } else if(isFirstKept){
+      body='<div style="color:var(--text3);font-size:11.5px;padding:3px 0 0 27px">'+(d.date?fmtDate(d.date):'date TBD')+' · '+rateInfo+' <span style="color:var(--accent)">— set in the Day 1 fields below</span></div>';
+    } else {
+      const arr=d.arrivalWindow||(d.arrivalStart?(d.arrivalStart+(d.arrivalEnd?'–'+d.arrivalEnd:'')):'');
+      const rateFields=d.flatRate
+        ?'<div class="form-group"><label>Flat price ($)</label><input type="number" value="'+(d.flatPrice||'')+'" placeholder="e.g. 1200" onchange="bjEditQuoteDay('+i+',\'flatPrice\',this.value)"></div><div class="form-group"><label>Flat cash ($)</label><input type="number" value="'+(d.flatPriceCash||'')+'" placeholder="optional" onchange="bjEditQuoteDay('+i+',\'flatPriceCash\',this.value)"></div>'
+        :'<div class="form-group"><label>Rate ($/hr)</label><input type="number" value="'+(d.rate||'')+'" placeholder="e.g. 225" onchange="bjEditQuoteDay('+i+',\'rate\',this.value)"></div><div class="form-group"><label>Rate cash ($/hr)</label><input type="number" value="'+(d.rateCash||'')+'" placeholder="optional" onchange="bjEditQuoteDay('+i+',\'rateCash\',this.value)"></div>';
+      body='<div class="form-grid form-grid-2" style="margin-top:7px;padding-left:27px">'
+        +'<div class="form-group"><label>Date</label><input type="date" value="'+(d.date||'')+'" onchange="bjEditQuoteDay('+i+',\'date\',this.value)"></div>'
+        +'<div class="form-group"><label>Arrival window</label><input type="text" value="'+_ea(arr)+'" placeholder="e.g. 9–10am" onchange="bjEditQuoteDay('+i+',\'arrivalWindow\',this.value)"></div>'
+        +'<div class="form-group"><label>Movers</label><select onchange="bjEditQuoteDay('+i+',\'crew\',this.value)">'+moverOpts.map(m=>'<option'+(String(d.crew)===String(m)?' selected':'')+'>'+m+'</option>').join('')+'</select></div>'
+        +'<div class="form-group"><label></label><div style="height:1px"></div></div>'
+        +rateFields
+        +'</div>';
+    }
+    return '<div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06)">'
+      +'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">'
+      +'<input type="checkbox" id="bj-qday-'+i+'" '+(kept?'checked':'')+' onchange="bjToggleQuoteDay('+i+')" style="accent-color:var(--accent)">'
+      +'<span style="color:var(--text);font-weight:600">Day '+(i+1)+'</span>'
+      +(kept?'':'<span style="color:var(--text3);font-size:11px">— unchecked</span>')
+      +'</label>'+body+'</div>';
   }).join('');
   const kept=_bjKeptDays.filter(Boolean).length;
   const st=document.getElementById('bj-mday-status');
@@ -6559,6 +6585,11 @@ function _renderBjQuoteDays(){
       st.style.display='block';
     } else { st.textContent='';st.style.display='none'; }
   }
+}
+function bjEditQuoteDay(i,field,val){
+  const full=window._bjQuoteDaysFull||[];if(!full[i])return;
+  full[i][field]=val;
+  bjAutoSave();
 }
 function bjToggleQuoteDay(i){
   const cb=document.getElementById('bj-qday-'+i);if(cb)_bjKeptDays[i]=cb.checked;
@@ -6929,6 +6960,9 @@ function openBooking(leadId){
     // Restore a quote-driven booking's dropped-day selection (which days were kept)
     if(_isMultiDay&&Array.isArray(_existingDraft._keptDayFlags)&&_existingDraft._keptDayFlags.length===(window._bjQuoteDaysFull||[]).length){
       _bjKeptDays=_existingDraft._keptDayFlags.slice();
+      // Restore per-day schedule edits saved on the draft. quoteDays holds only the KEPT days (in order),
+      // so walk the flags and merge each kept day's saved fields back into the matching full-list entry.
+      if(Array.isArray(_existingDraft.quoteDays)){let _k=0;_bjKeptDays.forEach((kept,idx)=>{if(kept&&_existingDraft.quoteDays[_k]){window._bjQuoteDaysFull[idx]=Object.assign({},window._bjQuoteDaysFull[idx],_existingDraft.quoteDays[_k]);_k++;}});}
       _renderBjQuoteDays();
     }
   } else {

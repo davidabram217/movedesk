@@ -84,13 +84,13 @@ check('autosave persists dropped days',/_bjApplyMultiDay\(j\);\s*_bjApplyDropped
 check('confirmBooking applies dropped days',/_bjApplyMultiDay\(job\);[\s\S]*?_bjApplyDroppedDays\(job\);/.test(script));
 check('editBookedJob makes drop-day hook inert',/window\._bjIsMultiDay=false;_bjKeptDays=\[\];window\._bjQuoteDaysFull=\[\];/.test(script));
 check('draft restore of kept-day flags',/_existingDraft\._keptDayFlags[\s\S]*?_bjKeptDays=_existingDraft\._keptDayFlags\.slice\(\);/.test(script));
-check('email uses booking kept days when dropped',/if\(q0&&_bjDayCount&&_bjDayCount<_qDayCount\)\{[\s\S]*?days:bj\.quoteDays/.test(script));
+check('email uses booking kept days when dropped',/if\(q0&&_bjDayCount&&_bjDayCount<=_qDayCount\)\{[\s\S]*?days:bj\.quoteDays/.test(script));
 check('email isMulti recomputed from kept count',/isMulti=_bjDayCount>1;/.test(script));
 check('resolveQuotedInfo booked-scope branch',/const _bkDropped=_bk&&Array\.isArray\(_bk\.quoteDays\)[\s\S]*?_bk\.quoteDays\.length<fq\.days\.length;/.test(script));
 check('analytics accuracy booked-scope override',/const _dropped=_bkA&&_bkA\.bookedQuotedMin!=null[\s\S]*?_bkA\.quoteDays\.length<q\.days\.length;/.test(script));
 
 // ---- Guard: untouched bookings behave as before ----
-check('email: dropped-day path gated (counts equal → skipped)',/_bjDayCount<_qDayCount/.test(script));
+check('email uses booked days even when no day dropped (<=)',/_bjDayCount<=_qDayCount/.test(script));
 check('resolveQuotedInfo: falls back to fq totals when not dropped',/_bkDropped&&_bk\.bookedQuotedMin!=null\)\?_bk\.bookedQuotedMin:\(fq\.totalMin\|\|null\)/.test(script));
 
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
