@@ -29,5 +29,14 @@ check('draft reopen merges saved per-day edits back into the full list',/_bjKept
 // --- Untouched: first-kept-day date still synced from the canonical bj-date ---
 check('first kept day date still synced from bj-date in _bjApplyDroppedDays',/if\(_cdEl&&_cdEl\.value&&j\.quoteDays\[0\]\)j\.quoteDays\[0\]\.date=_cdEl\.value;/.test(s));
 
+// --- Per-day fuel + materials fees (Day 2+) ---
+check('rows render editable Fuel fee per day',/bjEditQuoteDay\('\+i\+',\\'feeFuel\\',this\.value\)/.test(s));
+check('rows render editable Materials fee per day',/bjEditQuoteDay\('\+i\+',\\'feeMaterials\\',this\.value\)/.test(s));
+check('both renderers compute per-day fuel from day.feeFuel',(s.match(/isDay1\?\(Number\(bj\?\.feeFuel\)\|\|0\):\(Number\(day\.feeFuel\)\|\|0\)/g)||[]).length===2);
+check('both renderers compute per-day materials from day.feeMaterials',(s.match(/isDay1\?\(Number\(bj\?\.feeMaterials\)\|\|0\):\(Number\(day\.feeMaterials\)\|\|0\)/g)||[]).length===2);
+check('Day 2+ emits a Fuel Fee line when no matching quote fee (both renderers)',(s.match(/!_fuelShown(Multi|MD)\)[^\n]*Fuel Fee/g)||[]).length===2);
+check('Day 2+ emits a Material Fee line when no matching quote fee (both renderers)',(s.match(/!_matShown(Multi|MD)\)[^\n]*Material Fee/g)||[]).length===2);
+check('after-loop fuel/materials emission gated to Day 2+ (!isDay1) in both renderers',(s.match(/if\(!isDay1\)\{\s*if\(bjFuelFee(Multi|MD)&&!_fuelShown/g)||[]).length===2);
+
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
 process.exit(fail?1:0);
