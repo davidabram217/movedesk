@@ -3117,7 +3117,12 @@ function _globalAutoSave(){
   _globalAutoSaveTimer=setTimeout(function(){
     // New lead form
     const newLeadOpen=document.getElementById('modal-new-lead')?.classList.contains('open');
-    if(newLeadOpen){autoSaveLeadDraft();return;}
+    if(newLeadOpen){
+      // Editing an existing lead → truly auto-save (live-commit) to the lead record.
+      // Brand-new lead → local recoverable draft only (don't auto-create half-finished leads).
+      if(editingLeadId){saveLead({auto:true});}else{autoSaveLeadDraft();}
+      return;
+    }
     // Quote builder
     const qbOpen=document.getElementById('modal-quote-builder')?.classList.contains('open');
     if(qbOpen){qbAutoSave();return;}
@@ -4072,7 +4077,7 @@ function clearLeadDraft(){localStorage.removeItem('leadDraft');}
 document.addEventListener('click',e=>{
   if(e.target.classList.contains('modal-bg')){
     if(e.target.id==='modal-new-lead'){
-      autoSaveLeadDraft();
+      if(editingLeadId){try{saveLead({auto:true});}catch(e){}}else{autoSaveLeadDraft();}
       return;
     }
     if(e.target.id==='modal-booking-next')return;
@@ -4380,6 +4385,7 @@ let editingLeadId=null;
 function goBackToView(){
   const _id=editingLeadId;
   if(!_id){closeModal('new-lead');return;}
+  try{saveLead({auto:true});}catch(e){} // flush any edits still inside the auto-save debounce window
   closeModal('new-lead'); // this fires resetNewLeadForm and nulls editingLeadId
   setTimeout(()=>{viewLead(_id);},120);
 }
@@ -4464,13 +4470,15 @@ function openEditLead(leadId){
   document.getElementById('modal-new-lead').classList.add('open');
 }
 
-function saveLead(){
+function saveLead(opts){
+  const auto=!!(opts&&opts.auto); // auto=true: silent live-commit from the editing auto-save — no toast/list re-render, and never creates a NEW lead
   const name=document.getElementById('nl-name').value.trim();
   const phone=document.getElementById('nl-phone').value.trim();
   const source=document.getElementById('nl-source').value;
   const takenBy=document.getElementById('nl-taken-by').value.trim();
-  if(!name||!phone||!source){showToast('Please fill in name, phone, and source.');return;}
-  if(!takenBy){showToast('Please fill in who took the call.');return;}
+  if(!name||!phone||!source){if(auto)return;showToast('Please fill in name, phone, and source.');return;}
+  if(!takenBy){if(auto)return;showToast('Please fill in who took the call.');return;}
+  if(auto&&!editingLeadId)return; // half-finished NEW leads stay as local drafts, not real leads
 
   if(editingLeadId){
     // Edit existing lead
@@ -4527,10 +4535,12 @@ function saveLead(){
     // Save complete — keep the modal open, show a transient saved indicator, and leave
     // editingLeadId set so the user can keep editing OR click Back-to-view when ready.
     saveDB();
-    showToast('✓ Lead updated — '+name);
-    if(document.getElementById('page-leads').classList.contains('active'))renderLeads();
-    if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
-    // Flash the inline "✓ Saved" indicator for ~2 seconds
+    if(!auto){
+      showToast('✓ Lead updated — '+name);
+      if(document.getElementById('page-leads').classList.contains('active'))renderLeads();
+      if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
+    }
+    // Flash the inline "✓ Saved" indicator for ~2 seconds (manual save AND live auto-save)
     const _savedInd=document.getElementById('nl-saved-indicator');
     if(_savedInd){
       _savedInd.style.display='inline-block';
