@@ -4384,6 +4384,19 @@ function goBackToView(){
   setTimeout(()=>{viewLead(_id);},120);
 }
 
+// A lead's pickups/drop-offs can live in two shapes: a normalized loads[]/unloads[] array (used by
+// the free quote form, the quote builder and the lead view) OR the legacy from+extraLoads fields.
+// These return the full ordered list from whichever is present, so edit/save can round-trip every stop.
+function _leadPickups(l){
+  if(l.loads&&l.loads.length)return l.loads.filter(x=>x&&x.address);
+  const first={address:l.from||'',zip:l.fromZip||'',unit:l.fromUnit||'',type:l.fromType||'',floor:l.fromFloor||'',access:l.accessLoad||'',parking:l.parkingLoad||'',notes:l.fromNotes||''};
+  return [first,...(l.extraLoads||[])].filter(x=>x&&x.address);
+}
+function _leadDropoffs(l){
+  if(l.unloads&&l.unloads.length)return l.unloads.filter(x=>x&&x.address);
+  const first={address:l.to||'',zip:l.toZip||'',unit:l.toUnit||'',type:l.toType||'',floor:l.toFloor||'',access:l.accessUnload||'',parking:l.parkingUnload||'',notes:l.toNotes||''};
+  return [first,...(l.extraUnloads||[])].filter(x=>x&&x.address);
+}
 function openEditLead(leadId){
   editingLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
@@ -4406,22 +4419,36 @@ function openEditLead(leadId){
   document.getElementById('nl-size').value=l.size||'';
   document.getElementById('nl-move-type').value=l.moveType||'';
   document.getElementById('nl-packing').value=l.packing||'No';
-  document.getElementById('nl-from').value=l.from||'';
-  document.getElementById('nl-from-zip').value=l.fromZip||'';
-  document.getElementById('nl-from-unit').value=l.fromUnit||'';
-  document.getElementById('nl-from-type').value=l.fromType||'';
-  document.getElementById('nl-from-floor').value=l.fromFloor||'';
-  document.getElementById('nl-from-notes').value=l.fromNotes||'';
-  document.getElementById('nl-access-load').value=l.accessLoad||'';
-  document.getElementById('nl-parking-load').value=l.parkingLoad||'';
-  document.getElementById('nl-to').value=l.to||'';
-  document.getElementById('nl-to-zip').value=l.toZip||'';
-  document.getElementById('nl-to-unit').value=l.toUnit||'';
-  document.getElementById('nl-to-type').value=l.toType||'';
-  document.getElementById('nl-to-floor').value=l.toFloor||'';
-  document.getElementById('nl-to-notes').value=l.toNotes||'';
-  document.getElementById('nl-access-unload').value=l.accessUnload||'';
-  document.getElementById('nl-parking-unload').value=l.parkingUnload||'';
+  // ----- Pickups & drop-offs: populate EVERY stop, not just the first -----
+  resetExtraLocations();
+  const _pickups=_leadPickups(l);const _p0=_pickups[0]||{};
+  document.getElementById('nl-from').value=_p0.address||l.from||'';
+  document.getElementById('nl-from-zip').value=_p0.zip||l.fromZip||'';
+  document.getElementById('nl-from-unit').value=_p0.unit||l.fromUnit||'';
+  document.getElementById('nl-from-type').value=_p0.type||l.fromType||'';
+  document.getElementById('nl-from-floor').value=_p0.floor||l.fromFloor||'';
+  document.getElementById('nl-from-notes').value=_p0.notes||l.fromNotes||'';
+  document.getElementById('nl-access-load').value=_p0.access||l.accessLoad||'';
+  document.getElementById('nl-parking-load').value=_p0.parking||l.parkingLoad||'';
+  _pickups.slice(1).forEach(p=>{
+    addLoadLocation();const _id=nlExtraLoads[nlExtraLoads.length-1];
+    const _s=(suf,val)=>{const el=document.getElementById('nl-'+suf+'-extra-'+_id);if(el)el.value=val||'';};
+    _s('from',p.address);_s('from-zip',p.zip);_s('from-unit',p.unit);_s('from-floor',p.floor);_s('access-load',p.access);_s('parking-load',p.parking);_s('from-notes',p.notes);
+  });
+  const _drops=_leadDropoffs(l);const _d0=_drops[0]||{};
+  document.getElementById('nl-to').value=_d0.address||l.to||'';
+  document.getElementById('nl-to-zip').value=_d0.zip||l.toZip||'';
+  document.getElementById('nl-to-unit').value=_d0.unit||l.toUnit||'';
+  document.getElementById('nl-to-type').value=_d0.type||l.toType||'';
+  document.getElementById('nl-to-floor').value=_d0.floor||l.toFloor||'';
+  document.getElementById('nl-to-notes').value=_d0.notes||l.toNotes||'';
+  document.getElementById('nl-access-unload').value=_d0.access||l.accessUnload||'';
+  document.getElementById('nl-parking-unload').value=_d0.parking||l.parkingUnload||'';
+  _drops.slice(1).forEach(p=>{
+    addUnloadLocation();const _id=nlExtraUnloads[nlExtraUnloads.length-1];
+    const _s=(suf,val)=>{const el=document.getElementById('nl-'+suf+'-extra-'+_id);if(el)el.value=val||'';};
+    _s('to',p.address);_s('to-zip',p.zip);_s('to-unit',p.unit);_s('to-floor',p.floor);_s('access-unload',p.access);_s('parking-unload',p.parking);_s('to-notes',p.notes);
+  });
   document.getElementById('nl-sqft').value=l.sqft||'';
   const storSel=document.getElementById('nl-storage-select');
   if(storSel){storSel.value=l.storage?'yes':'no';}
@@ -4478,6 +4505,13 @@ function saveLead(){
       l.toNotes=document.getElementById('nl-to-notes').value.trim();
       l.accessUnload=document.getElementById('nl-access-unload').value;
       l.parkingUnload=document.getElementById('nl-parking-unload').value;
+      // Collect every extra pickup/drop-off from the form and rebuild BOTH representations
+      // (normalized loads[]/unloads[] AND legacy extraLoads/extraUnloads) so the view, the quote
+      // builder and booking all stay in sync — and no stop is silently dropped on save.
+      const _ex=getExtraLocations();
+      l.extraLoads=_ex.extraLoads;l.extraUnloads=_ex.extraUnloads;
+      l.loads=[{address:l.from,zip:l.fromZip,unit:l.fromUnit,type:l.fromType,floor:l.fromFloor,access:l.accessLoad,parking:l.parkingLoad,notes:l.fromNotes},..._ex.extraLoads].filter(x=>x.address);
+      l.unloads=[{address:l.to,zip:l.toZip,unit:l.toUnit,type:l.toType,floor:l.toFloor,access:l.accessUnload,parking:l.parkingUnload,notes:l.toNotes},..._ex.extraUnloads].filter(x=>x.address);
       l.packing=document.getElementById('nl-packing').value;
       l.sqft=document.getElementById('nl-sqft').value;
       l.storage=(document.getElementById('nl-storage-select')&&document.getElementById('nl-storage-select').value==='yes');
