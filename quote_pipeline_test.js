@@ -192,34 +192,33 @@ test('SCENARIO 3: HARD LOCK — sent quote cannot be silently overwritten by aut
   assertEq(inDb.status, 'sent', 'Status must remain sent');
 });
 
-test('SCENARIO 4: RESEND — explicit force save DOES update a sent quote', () => {
+test('SCENARIO 4: IMMUTABILITY — force-saving a SENT quote does NOT change it (clone is the resend path)', () => {
   db.leads.push({id:'lead4', name:'Dave'});
   currentQuoteLeadId = 'lead4';
   qbDays = [{id:'d1', crew:3, hrsMin:5, hrsMax:7, rate:225, loads:[{address:'A'}], unloads:[{address:'B'}]}];
-  
-  // Original send
-  const sent = saveQuote('sent', {force:true});
+
+  // Original send. The ONLY authorized writer to a sent quote passes fromSendButton:true.
+  const sent = saveQuote('sent', {fromSendButton:true});
   const sentPublicId = sent.publicId;
-  
-  // User reopens, changes values, then resends
+
+  // User reopens the SAME record, changes values, and tries to re-save with force:true.
+  // Post-2026-05-26 architecture: sent/accepted quotes are ABSOLUTELY IMMUTABLE — a plain
+  // force save is silently refused (only fromSendButton:true may write). To send updated
+  // numbers you clone to a fresh draft (cloneSentQuoteToDraft), which is a separate record.
   qbDays[0].crew = 5;
   qbDays[0].rate = 375;
   qbDays[0].hrsMin = 6;
   qbDays[0].hrsMax = 8;
-  
-  // The send flow: saveQuote('sent', {force:true}) — this is what sendQuoteEmail now does
-  const resent = saveQuote('sent', {force:true});
-  
-  // PublicId must be preserved (customer's link stays the same)
-  assertEq(resent.publicId, sentPublicId, 'PublicId must be preserved on resend');
-  // New values must be saved
-  assertEq(resent.days[0].crew, 5, 'New crew should be saved on resend');
-  assertEq(resent.days[0].rate, 375, 'New rate should be saved on resend');
-  assertEq(resent.totalMin, 6*375, 'totalMin should reflect new values');
-  // Customer link points at same publicId, gets new content
+
+  const afterForce = saveQuote('sent', {force:true}); // force alone is NOT enough anymore
+
+  // Saved quote unchanged — the customer's link still returns the original numbers.
+  assertEq(afterForce.publicId, sentPublicId, 'PublicId preserved (same record returned)');
+  assertEq(afterForce.days[0].crew, 3, 'Sent quote crew must NOT change on a force save');
+  assertEq(afterForce.days[0].rate, 225, 'Sent quote rate must NOT change on a force save');
   const linkPointsTo = db.quotes.find(q => q.publicId === sentPublicId);
-  assertEq(linkPointsTo.days[0].crew, 5, 'Customer link returns the resent crew');
-  assertEq(linkPointsTo.days[0].rate, 375, 'Customer link returns the resent rate');
+  assertEq(linkPointsTo.days[0].crew, 3, 'Customer link still returns the original crew');
+  assertEq(db.quotes.length, 1, 'A blocked force save creates no new quote');
 });
 
 test('SCENARIO 5: Deep-clone — form mutations after save do NOT corrupt saved quote', () => {

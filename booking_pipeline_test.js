@@ -354,8 +354,8 @@ console.log('PART G: Subject lines + draft fingerprint (2026-05-28 follow-up)');
 check('Single-day subject uses fmtDateWithDay',
   /Move Confirmation — '\+fmtDateWithDay\(bj\?\.date\|\|l\?\.date/.test(indexHtml)
 );
-check('Multi-day subject uses fmtDateWithDay',
-  /Multi-Day Move Confirmation — '\+fmtDateWithDay\(bj\?\.date/.test(indexHtml)
+check('Multi-day subject lists all day dates (IIFE) and still uses fmtDateWithDay',
+  /Multi-Day Move Confirmation[\s\S]{0,20}\+\(function\(\)\{[\s\S]{0,600}fmtDateWithDay/.test(indexHtml)
 );
 check('Updated Move Confirmation subject uses fmtDateWithDay',
   /Updated Move Confirmation — '\+fmtDateWithDay\(j\.date\)/.test(indexHtml)

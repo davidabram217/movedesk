@@ -133,54 +133,62 @@ check('Customer sees $1,125', /\$1,125/.test(customerHtml));
 
 console.log('');
 console.log('═══════════════════════════════════════════════════════════');
-console.log('USER STORY 2: RESEND — Customer must see corrected quote');
+console.log('USER STORY 2: RESEND via CLONE — original stays frozen, clone carries new numbers');
 console.log('═══════════════════════════════════════════════════════════');
 
-// User goes back, opens the quote builder for the same lead. Loads the previously-sent quote.
-// (loadQuoteIntoBuilder would do this, but we'll simulate by keeping currentQuoteId and 
-// updating qbDays manually as if the user edited values.)
-const beforeResend = db.quotes.find(q => q.id === sentSave.id);
-console.log('  [Before edit: ' + beforeResend.days[0].crew + ' Movers @ $' + beforeResend.days[0].rate + '/hr]');
+// Under the 2026-05-26 architecture the sent quote is FROZEN. To send corrected numbers the
+// user clicks "New from this", which clones the sent quote into a FRESH draft (new id + new
+// publicId) and sends that. The original quote and its customer link are never mutated.
+const frozen = db.quotes.find(q => q.id === sentSave.id);
+console.log('  [Original sent quote: ' + frozen.days[0].crew + ' Movers @ $' + frozen.days[0].rate + '/hr, link ' + frozen.publicId + ']');
 
-// User changes crew, hrs, rate
+// The user edits the form intending to change the numbers...
 qbDays[0].crew = 5;
 qbDays[0].hrsMin = 6;
 qbDays[0].hrsMax = 8;
 qbDays[0].rate = 375;
 
-// Step 1: Auto-save fires while editing (status='sent' → hard lock blocks it)
-const autoSaveResult = saveQuote('draft'); // no force
-const stillOld = db.quotes.find(q => q.id === sentSave.id);
-check('AUTOSAVE blocked: old values stay in DB during editing', stillOld.days[0].crew === 3);
-check('AUTOSAVE blocked: rate stays old too', stillOld.days[0].rate === 225);
+// Step 1: autosave (no force) AND a plain force save both CANNOT touch the frozen sent quote.
+saveQuote('draft');            // autosave, no force → blocked
+saveQuote('draft', {force:true}); // force alone → still blocked (only fromSendButton writes)
+saveQuote('sent', {force:true});  // force alone → still blocked
+const stillFrozen = db.quotes.find(q => q.id === sentSave.id);
+check('Frozen: sent quote unchanged after autosave + force (still 3 Movers)', stillFrozen.days[0].crew === 3);
+check('Frozen: sent quote rate unchanged (still $225)', stillFrozen.days[0].rate === 225);
+check('Frozen: blocked writes create NO duplicate', db.quotes.filter(q => q.publicId === sentSave.publicId).length === 1);
 
-// Step 2: User clicks Preview → saveQuote('draft', {force:true}) — force overrides lock
-const previewSave2 = saveQuote('draft', {force:true});
-const previewHtml2 = officeRender(previewSave2);
-check('Preview shows NEW values (5 Movers)', /5 Movers/.test(previewHtml2));
-check('Preview NO old values (3 Movers)', !/3 Movers/.test(previewHtml2));
-check('Preview shows NEW rate ($375/hr)', /\$375\/hr/.test(previewHtml2));
-check('Preview shows new total', /\$2,250/.test(previewHtml2));
+// Step 2: "New from this" → cloneSentQuoteToDraft makes a fresh draft (simulated inline here:
+// deep-clone + new id + new publicId + status draft, exactly as the real function does).
+const clone = JSON.parse(JSON.stringify(frozen));
+clone.id = 'clone-' + frozen.id;
+clone.publicId = 'p-clone-2';
+clone.status = 'draft';
+clone.sentAt = '';
+clone.acceptedAt = null;
+clone.clonedFromQuoteId = frozen.id;
+db.quotes.push(clone);
+currentQuoteId = clone.id;                 // now editing the CLONE, not the sent quote
+currentQuoteLeadId = clone.leadId || 'lead-first';
 
-// Step 3: User clicks Open in Gmail → also force-saves
-const gmailSave2 = saveQuote('draft', {force:true});
-check('Open in Gmail re-save kept new values', gmailSave2.days[0].crew === 5);
+// Step 3: user sends the clone. The ONLY authorized writer passes fromSendButton:true.
+const sentClone = saveQuote('sent', {fromSendButton:true});
+check('Clone send: status=sent', sentClone.status === 'sent');
+check('Clone gets a NEW publicId (different customer link)', sentClone.publicId !== sentSave.publicId);
+check('Clone carries the corrected numbers (5 Movers)', sentClone.days[0].crew === 5);
 
-// Step 4: User clicks Send → sendQuoteEmail does saveQuote('sent', {force:true})
-const sentSave2 = saveQuote('sent', {force:true});
-check('Resend status=sent', sentSave2.status === 'sent');
-check('Resend PublicId UNCHANGED (same customer link)', sentSave2.publicId === sentSave.publicId);
+// Step 4: the ORIGINAL customer link still returns the ORIGINAL quote, unchanged.
+const oldLink = db.quotes.find(q => q.publicId === sentSave.publicId);
+const oldHtml = renderCustomer(oldLink);
+check('Old link STILL shows original 3 Movers (frozen)', /3 Movers/.test(oldHtml));
+check('Old link does NOT show the new 5 Movers', !/5 Movers/.test(oldHtml));
 
-// Step 5: Customer clicks the SAME link → fetches db.quotes[X] → renders
-const inDb2 = db.quotes.find(q => q.publicId === sentSave.publicId);
-const customerHtml2 = renderCustomer(inDb2);
-check('Customer link still works (same publicId)', !!inDb2);
-check('Customer NOW sees 5 Movers', /5 Movers/.test(customerHtml2));
-check('Customer does NOT see old 3 Movers', !/3 Movers/.test(customerHtml2));
-check('Customer sees 6 – 8 hrs', /6\s*[\u2013\-]\s*8\s*hrs/.test(customerHtml2));
-check('Customer does NOT see old 5 – 7 hrs', !/5\s*[\u2013\-]\s*7\s*hrs/.test(customerHtml2));
-check('Customer sees $375/hr', /\$375\/hr/.test(customerHtml2));
-check('Customer sees new total $2,250', /\$2,250/.test(customerHtml2));
+// Step 5: the NEW clone link shows the corrected quote.
+const newLink = db.quotes.find(q => q.publicId === sentClone.publicId);
+const customerHtml2 = renderCustomer(newLink);
+check('New link shows corrected 5 Movers', /5 Movers/.test(customerHtml2));
+check('New link shows 6 – 8 hrs', /6\s*[\u2013\-]\s*8\s*hrs/.test(customerHtml2));
+check('New link shows $375/hr', /\$375\/hr/.test(customerHtml2));
+check('New link shows new total $2,250', /\$2,250/.test(customerHtml2));
 
 console.log('');
 console.log('═══════════════════════════════════════════════════════════');
