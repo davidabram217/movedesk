@@ -13634,6 +13634,23 @@ function resendQuoteConfirm(){
 //   - status='draft' (so it's freely editable until sent)
 //   - All form-relevant data deep-cloned from the source
 // Then opens the Quote Builder with the new draft loaded.
+// A draft can be an untouched "shell" that the app auto-creates simply from OPENING the Quote
+// Builder for a lead (a single day at the factory defaults: 2 crew, 2–4 hrs, base rate, default
+// fees). That is not real work, so "New from this" should silently reuse it rather than block on
+// it. We bias STRICT: anything that looks edited — different crew/hours/rate, more than one day,
+// a flat rate, or a draft already cloned from a prior quote — is treated as real work and left
+// untouched (the user still gets the existing "you already have a draft" prompt).
+function _isDraftEmpty(d){
+  if(!d||d.status!=='draft')return false;
+  if(d.clonedFromQuoteId)return false;
+  const days=d.days||[];
+  if(days.length!==1)return false;
+  const dy=days[0]||{};
+  if(dy.flatRate)return false;
+  const baseRate=Number((db.settings&&db.settings.rateBase)||225);
+  return Number(dy.crew)===2&&Number(dy.hrsMin)===2&&Number(dy.hrsMax)===4&&Number(dy.rate)===baseRate;
+}
+
 function cloneSentQuoteToDraft(sourceQuoteId){
   const src=(db.quotes||[]).find(q=>q.id===sourceQuoteId);
   if(!src){showToast('Source quote not found');return;}
@@ -13644,6 +13661,35 @@ function cloneSentQuoteToDraft(sourceQuoteId){
   // Refuse to clone if there's already an active draft for the same lead (would be ambiguous)
   const existingDraft=(db.quotes||[]).find(q=>q.leadId===src.leadId&&q.status==='draft');
   if(existingDraft){
+    // If the only draft in the way is an untouched shell (auto-created just by opening the Quote
+    // Builder), reuse THAT record — fill it with the clone and keep its id so we never leave two
+    // drafts on the lead. This is the "New from this shouldn't block on an empty draft" fix.
+    if(_isDraftEmpty(existingDraft)){
+      const reused=JSON.parse(JSON.stringify(src));
+      reused.id=existingDraft.id;
+      reused.publicId='q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+      reused.status='draft';
+      reused.sentAt='';
+      reused.acceptedAt=null;
+      reused.createdAt=existingDraft.createdAt||new Date().toISOString().split('T')[0];
+      reused._localEditedAt=new Date().toISOString();
+      const _exp2=new Date();_exp2.setMonth(_exp2.getMonth()+3);
+      reused.expiresAt=_exp2.toISOString().split('T')[0];
+      delete reused.viewedAt;
+      delete reused.declinedAt;
+      delete reused._emailDraft;
+      reused.clonedFromQuoteId=src.id;
+      const _idx=db.quotes.findIndex(q=>q.id===existingDraft.id);
+      if(_idx>=0)db.quotes[_idx]=reused;else db.quotes.push(reused);
+      currentQuoteId=reused.id;
+      currentQuoteLeadId=reused.leadId||null;
+      saveDB();
+      loadQuoteIntoBuilder(reused);
+      closeModal('quote-preview');
+      openModal('quote-builder');
+      showToast('✓ Started a fresh draft from the previous quote. Edit and send when ready.');
+      return;
+    }
     if(!confirm('You already have a draft quote in progress for this lead. Clicking OK will open that existing draft instead. (To start completely fresh from this sent quote, first delete the existing draft.)')){
       return;
     }
