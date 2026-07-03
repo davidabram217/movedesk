@@ -943,7 +943,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
               <div class="form-group"><label>Est. hours (min)</label><input type="number" id="nl-rq-hrs-min" placeholder="e.g. 3"></div>
               <div class="form-group"><label>Est. hours (max)</label><input type="number" id="nl-rq-hrs-max" placeholder="e.g. 5"></div>
               <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="nl-rq-fuel" placeholder="e.g. 75"></div>
-              <div class="form-group"><label>Material fee ($)</label><input type="number" id="nl-rq-materials" placeholder="e.g. 50"></div>
+              <div class="form-group"><label>Standard material fee ($)</label><input type="number" id="nl-rq-materials" placeholder="e.g. 50"></div>
               <div class="form-group"><label>Pack materials min ($)</label><input type="number" id="nl-rq-pack-mat-min" placeholder="e.g. 50"></div>
               <div class="form-group"><label>Pack materials max ($)</label><input type="number" id="nl-rq-pack-mat-max" placeholder="e.g. 200"></div>
               <div class="form-group full"><label>Other fees / notes</label><input type="text" id="nl-rq-other" placeholder="e.g. COI fee…"></div>
@@ -1292,7 +1292,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Charges & fees</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Labour total ($) *</label><input type="number" id="cj-labour" placeholder="0.00" oninput="calcTotal()"></div>
-        <div class="form-group"><label>Materials fee ($)</label><input type="number" id="cj-materials" placeholder="0.00" oninput="calcTotal()"></div>
+        <div class="form-group"><label>Standard material fee ($)</label><input type="number" id="cj-materials" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Packing materials ($)</label><input type="number" id="cj-pack-materials" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="cj-fuel" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Parking permits ($)</label><input type="number" id="cj-parking-fee" placeholder="0.00" oninput="calcTotal()"></div>
@@ -1675,7 +1675,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
             <div class="form-group" style="margin:0"><label style="font-size:11.5px">Fuel fee ($)</label>
               <input type="number" id="cs-rq-fuel" placeholder="e.g. 60" oninput="updateRoughQuoteInEmail()">
             </div>
-            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Material fee ($)</label>
+            <div class="form-group" style="margin:0"><label style="font-size:11.5px">Standard material fee ($)</label>
               <input type="number" id="cs-rq-materials" placeholder="e.g. 40" oninput="updateRoughQuoteInEmail()">
             </div>
             <div class="form-group" style="margin:0"><label style="font-size:11.5px">Pack materials min ($)</label>
@@ -1731,7 +1731,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Charges & fees</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Labour total ($)</label><input type="number" id="ecj-labour" placeholder="0.00"></div>
-        <div class="form-group"><label>Materials fee ($)</label><input type="number" id="ecj-materials" placeholder="0.00"></div>
+        <div class="form-group"><label>Standard material fee ($)</label><input type="number" id="ecj-materials" placeholder="0.00"></div>
         <div class="form-group"><label>Packing materials ($)</label><input type="number" id="ecj-pack-materials" placeholder="0.00"></div>
         <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="ecj-fuel" placeholder="0.00"></div>
         <div class="form-group"><label>Parking permits ($)</label><input type="number" id="ecj-parking-fee" placeholder="0.00"></div>
@@ -2366,7 +2366,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Est. hours (min)</label><input type="number" id="rq-hrs-min" placeholder="e.g. 4"></div>
         <div class="form-group"><label>Est. hours (max)</label><input type="number" id="rq-hrs-max" placeholder="e.g. 7"></div>
         <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="rq-fuel" placeholder="e.g. 60"></div>
-        <div class="form-group"><label>Material fee ($)</label><input type="number" id="rq-materials" placeholder="e.g. 40"></div>
+        <div class="form-group"><label>Standard material fee ($)</label><input type="number" id="rq-materials" placeholder="e.g. 40"></div>
         <div class="form-group"><label>Pack materials min ($)</label><input type="number" id="rq-pack-mat-min" placeholder="e.g. 300"></div>
         <div class="form-group"><label>Pack materials max ($)</label><input type="number" id="rq-pack-mat-max" placeholder="e.g. 600"></div>
       </div>
@@ -8697,6 +8697,53 @@ function openCompleteMultiDay(jobId){
 // Build the HTML for a single day card. Reusable so both initial render and "Add another day"
 // can call it. `dayIndex` is the 0-based index used in data-day-index attributes (must be unique
 // across the container). `prefill` is optional pre-populated values (movers, hours, etc).
+// ── Per-day crew SEGMENTS for multi-day completion ──
+// A day's move labour can have more than one crew segment (e.g. 5 movers for the load, then 4
+// for the unload, each at its own rate). Each segment is {movers,hours,rate}; the day's move pay
+// is the sum of hours*rate across segments. Shared by the complete (cjmd) and edit (ecjmd) flows.
+function _cjmdMoversOptions(sel){
+  sel=(sel===''||sel===undefined||sel===null)?2:Number(sel);
+  return [0,1,2,3,4,5,6,7,8].map(function(n){return '<option value="'+n+'"'+(n===sel?' selected':'')+'>'+n+'</option>';}).join('');
+}
+function _cjmdMoveSegRow(prefix,i,seg,isFirst,calcFn){
+  seg=seg||{};
+  var hv=(seg.hours!=null&&seg.hours!=='')?seg.hours:'';
+  var rv=(seg.rate!=null&&seg.rate!=='')?seg.rate:'';
+  var rm=isFirst?'<span></span>':'<button type="button" onclick="'+prefix+'RemoveSegment(this)" title="Remove crew segment" style="height:36px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">\u00d7</button>';
+  return '<div class="'+prefix+'-move-seg" data-day-index="'+i+'" style="display:grid;grid-template-columns:repeat(3,1fr) 32px;gap:8px;margin-bottom:6px;align-items:end">'
+    +'<div class="form-group"><label style="font-size:11px">Movers</label><select class="'+prefix+'-day-movers" data-day-index="'+i+'" oninput="'+calcFn+'" onchange="'+calcFn+'">'+_cjmdMoversOptions(seg.movers)+'</select></div>'
+    +'<div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="'+prefix+'-day-move-hours" data-day-index="'+i+'" placeholder="0.0" step="0.5" value="'+hv+'" oninput="'+calcFn+'"></div>'
+    +'<div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="'+prefix+'-day-move-rate" data-day-index="'+i+'" value="'+rv+'" oninput="'+calcFn+'"></div>'
+    +'<div class="form-group"><label style="font-size:11px">&nbsp;</label>'+rm+'</div>'
+    +'</div>';
+}
+function _cjmdMoveSegsBlock(prefix,i,segs,calcFn){
+  if(!Array.isArray(segs)||!segs.length)segs=[{movers:2,hours:'',rate:''}];
+  var rows=segs.map(function(s,k){return _cjmdMoveSegRow(prefix,i,s,k===0,calcFn);}).join('');
+  return '<div class="'+prefix+'-move-segs" data-day-index="'+i+'">'+rows+'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    +'<button type="button" onclick="'+prefix+'AddSegment('+i+')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11.5px;padding:2px 0">+ crew changed during the day</button>'
+    +'<div style="font-size:11px;color:var(--text2)">Move pay: <span class="'+prefix+'-day-move-pay" data-day-index="'+i+'" style="font-weight:600">$0</span></div>'
+    +'</div>';
+}
+function _cjmdAddSeg(prefix,i,calcFn){
+  var segs=document.querySelector('.'+prefix+'-move-segs[data-day-index="'+i+'"]');
+  if(!segs)return;
+  segs.insertAdjacentHTML('beforeend',_cjmdMoveSegRow(prefix,i,{movers:'',hours:'',rate:''},false,calcFn));
+}
+function cjmdAddSegment(i){_cjmdAddSeg('cjmd',i,'calcMultiDayTotal()');}
+function ecjmdAddSegment(i){_cjmdAddSeg('ecjmd',i,'calcEditMultiDayTotal()');}
+function cjmdRemoveSegment(btn){var s=btn.closest('.cjmd-move-seg');if(s)s.remove();calcMultiDayTotal();}
+function ecjmdRemoveSegment(btn){var s=btn.closest('.ecjmd-move-seg');if(s)s.remove();calcEditMultiDayTotal();}
+// Collect move segments from a day card's DOM into an array.
+function _cjmdReadSegments(card,prefix){
+  var segEls=[].slice.call(card.querySelectorAll('.'+prefix+'-move-seg'));
+  if(!segEls.length){
+    return [{movers:Number(card.querySelector('.'+prefix+'-day-movers')&&card.querySelector('.'+prefix+'-day-movers').value)||0,hours:Number(card.querySelector('.'+prefix+'-day-move-hours')&&card.querySelector('.'+prefix+'-day-move-hours').value)||0,rate:Number(card.querySelector('.'+prefix+'-day-move-rate')&&card.querySelector('.'+prefix+'-day-move-rate').value)||0}];
+  }
+  return segEls.map(function(s){return {movers:Number(s.querySelector('.'+prefix+'-day-movers')&&s.querySelector('.'+prefix+'-day-movers').value)||0,hours:Number(s.querySelector('.'+prefix+'-day-move-hours')&&s.querySelector('.'+prefix+'-day-move-hours').value)||0,rate:Number(s.querySelector('.'+prefix+'-day-move-rate')&&s.querySelector('.'+prefix+'-day-move-rate').value)||0};});
+}
+
 function _buildCjmdDayCard(dayIndex, prefill){
   const i=dayIndex;
   const p=prefill||{};
@@ -8719,12 +8766,7 @@ function _buildCjmdDayCard(dayIndex, prefill){
       <div style="font-size:13px;font-weight:600">Day ${i+1}${dayDate?` <span style="font-weight:400;color:var(--text3);font-size:11.5px">— ${fmtDate(dayDate)}</span>`:''}</div>
       <div style="display:flex;align-items:center;gap:8px"><div style="flex:0 0 200px"><select class="cjmd-day-type" data-day-index="${i}">${typeSelectHtml}</select></div><button type="button" class="cjmd-day-remove" data-day-index="${i}" onclick="cjmdRemoveDay(${i})" title="Remove this day" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px">×</button></div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
-      <div class="form-group"><label style="font-size:11px">Movers</label><select class="cjmd-day-movers" data-day-index="${i}" oninput="calcMultiDayTotal()" onchange="calcMultiDayTotal()">${movSelectHtml}</select></div>
-      <div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="cjmd-day-move-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${moveHrs||''}" oninput="calcMultiDayTotal()"></div>
-      <div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="cjmd-day-move-rate" data-day-index="${i}" placeholder="${moveRate}" value="${moveRate||''}" oninput="calcMultiDayTotal()"></div>
-      <div class="form-group"><label style="font-size:11px">Move pay</label><div class="cjmd-day-move-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
-    </div>
+    ${_cjmdMoveSegsBlock('cjmd',i,(Array.isArray(p.moveSegments)&&p.moveSegments.length)?p.moveSegments:[{movers:movers,hours:moveHrs,rate:moveRate}],'calcMultiDayTotal()')}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
       <div class="form-group"><label style="font-size:11px">Packers</label><select class="cjmd-day-packers" data-day-index="${i}" oninput="calcMultiDayTotal()" onchange="calcMultiDayTotal()">${packSelectHtml}</select></div>
       <div class="form-group"><label style="font-size:11px">Pack hours</label><input type="number" class="cjmd-day-pack-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${packHrs||''}" oninput="calcMultiDayTotal()"></div>
@@ -8763,6 +8805,7 @@ function cjmdRemoveDay(idx){
     if(i===idx)return;
     preserved.push({
       type:card.querySelector('.cjmd-day-type')?.value||'Moving',
+      moveSegments:_cjmdReadSegments(card,'cjmd'),
       movers:Number(card.querySelector('.cjmd-day-movers')?.value)||0,
       moveHours:Number(card.querySelector('.cjmd-day-move-hours')?.value)||0,
       moveRate:Number(card.querySelector('.cjmd-day-move-rate')?.value)||0,
@@ -8819,14 +8862,13 @@ function calcMultiDayTotal(){
   cards.forEach(card=>{
     const idx=card.getAttribute('data-day-index');
     if(idx===null||idx===undefined)return;
-    const mh=Number(card.querySelector('.cjmd-day-move-hours')?.value)||0;
-    const mr=Number(card.querySelector('.cjmd-day-move-rate')?.value)||0;
+    const _mhEls=[...card.querySelectorAll('.cjmd-day-move-hours')];const _mrEls=[...card.querySelectorAll('.cjmd-day-move-rate')];let _movePay=0;_mhEls.forEach((_el,_k)=>{_movePay+=(Number(_el.value)||0)*(Number(_mrEls[_k]?.value)||0);});
     const ph=Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0;
     const pr=Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0;
     const fuel=Number(card.querySelector('.cjmd-day-fuel')?.value)||0;
     const mat=Number(card.querySelector('.cjmd-day-materials')?.value)||0;
     const park=Number(card.querySelector('.cjmd-day-parking')?.value)||0;
-    const movePay=mh*mr;
+    const movePay=_movePay;
     const packPay=ph*pr;
     const subtotal=movePay+packPay+fuel+mat+park;
     const _mPayEl=card.querySelector('.cjmd-day-move-pay');if(_mPayEl)_mPayEl.textContent='$'+Math.round(movePay).toLocaleString('en-US');
@@ -8913,9 +8955,8 @@ function confirmCompleteMultiDay(paymentState){
   [...container.children].forEach(card=>{
     const idx=Number(card.getAttribute('data-day-index'));
     const type=card.querySelector('.cjmd-day-type')?.value||'Moving';
-    const movers=Number(card.querySelector('.cjmd-day-movers')?.value)||0;
-    const moveHours=Number(card.querySelector('.cjmd-day-move-hours')?.value)||0;
-    const moveRate=Number(card.querySelector('.cjmd-day-move-rate')?.value)||0;
+    const moveSegments=_cjmdReadSegments(card,'cjmd');
+    const movers=moveSegments[0].movers;const moveRate=moveSegments[0].rate;const moveHours=moveSegments.reduce((a,_s)=>a+_s.hours,0);const _movePayTotal=moveSegments.reduce((a,_s)=>a+_s.hours*_s.rate,0);
     const packers=Number(card.querySelector('.cjmd-day-packers')?.value)||0;
     const packHours=Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0;
     const packRate=Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0;
@@ -8924,7 +8965,7 @@ function confirmCompleteMultiDay(paymentState){
     const parking=Number(card.querySelector('.cjmd-day-parking')?.value)||0;
     const qDay=(j.quoteDays&&j.quoteDays[idx])||{};
     const dayDate=qDay.date||j.date||'';
-    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,parking:parking});
+    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,moveSegments:moveSegments,movePay:_movePayTotal,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,parking:parking});
     // For averages: only include in average if the day had non-zero hours
     if(moveHours>0){aggMoveHours+=moveHours;aggMovers+=movers;aggMoveRate+=moveRate;nMoveDays++;}
     if(packHours>0){aggPackHours+=packHours;aggPackers+=packers;aggPackRate+=packRate;nPackDays++;}
@@ -9179,12 +9220,7 @@ function _buildEcjmdDayCard(dayIndex, prefill){
       <div style="font-size:13px;font-weight:600">Day ${i+1}${dayDate?` <span style="font-weight:400;color:var(--text3);font-size:11.5px">— ${fmtDate(dayDate)}</span>`:''}</div>
       <div style="display:flex;align-items:center;gap:8px"><div style="flex:0 0 200px"><select class="ecjmd-day-type" data-day-index="${i}">${typeSelectHtml}</select></div><button type="button" class="ecjmd-day-remove" data-day-index="${i}" onclick="ecjmdRemoveDay(${i})" title="Remove this day" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px">×</button></div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
-      <div class="form-group"><label style="font-size:11px">Movers</label><select class="ecjmd-day-movers" data-day-index="${i}" oninput="calcEditMultiDayTotal()" onchange="calcEditMultiDayTotal()">${movSelectHtml}</select></div>
-      <div class="form-group"><label style="font-size:11px">Move hours</label><input type="number" class="ecjmd-day-move-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${moveHrs||''}" oninput="calcEditMultiDayTotal()"></div>
-      <div class="form-group"><label style="font-size:11px">Move rate ($/hr)</label><input type="number" class="ecjmd-day-move-rate" data-day-index="${i}" placeholder="${moveRate}" value="${moveRate||''}" oninput="calcEditMultiDayTotal()"></div>
-      <div class="form-group"><label style="font-size:11px">Move pay</label><div class="ecjmd-day-move-pay" data-day-index="${i}" style="height:36px;line-height:36px;font-weight:600">$0</div></div>
-    </div>
+    ${_cjmdMoveSegsBlock('ecjmd',i,(Array.isArray(p.moveSegments)&&p.moveSegments.length)?p.moveSegments:[{movers:movers,hours:moveHrs,rate:moveRate}],'calcEditMultiDayTotal()')}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
       <div class="form-group"><label style="font-size:11px">Packers</label><select class="ecjmd-day-packers" data-day-index="${i}" oninput="calcEditMultiDayTotal()" onchange="calcEditMultiDayTotal()">${packSelectHtml}</select></div>
       <div class="form-group"><label style="font-size:11px">Pack hours</label><input type="number" class="ecjmd-day-pack-hours" data-day-index="${i}" placeholder="0.0" step="0.5" value="${packHrs||''}" oninput="calcEditMultiDayTotal()"></div>
@@ -9219,6 +9255,7 @@ function ecjmdRemoveDay(idx){
     if(i===idx)return;
     preserved.push({
       type:card.querySelector('.ecjmd-day-type')?.value||'Moving',
+      moveSegments:_cjmdReadSegments(card,'ecjmd'),
       movers:Number(card.querySelector('.ecjmd-day-movers')?.value)||0,
       moveHours:Number(card.querySelector('.ecjmd-day-move-hours')?.value)||0,
       moveRate:Number(card.querySelector('.ecjmd-day-move-rate')?.value)||0,
@@ -9240,7 +9277,7 @@ function renderEditMultiDayCompleteRows(j){
   if(!container)return;
   container.innerHTML=(j.days||[]).map((d,i)=>{
     return _buildEcjmdDayCard(i,{
-      date:d.date||'',type:d.type||'Moving',
+      date:d.date||'',type:d.type||'Moving',moveSegments:d.moveSegments,
       movers:Number(d.movers)||2,moveHours:Number(d.moveHours)||0,moveRate:Number(d.moveRate)||0,
       packers:Number(d.packers)||0,packHours:Number(d.packHours)||0,packRate:Number(d.packRate)||0,
       fuel:Number(d.fuel)||0,materials:Number(d.materials)||0,parking:Number(d.parking)||0
@@ -9256,14 +9293,13 @@ function calcEditMultiDayTotal(){
   [...container.children].forEach(card=>{
     const idx=card.getAttribute('data-day-index');
     if(idx===null||idx===undefined)return;
-    const mh=Number(card.querySelector('.ecjmd-day-move-hours')?.value)||0;
-    const mr=Number(card.querySelector('.ecjmd-day-move-rate')?.value)||0;
+    const _mhEls=[...card.querySelectorAll('.ecjmd-day-move-hours')];const _mrEls=[...card.querySelectorAll('.ecjmd-day-move-rate')];let _movePay=0;_mhEls.forEach((_el,_k)=>{_movePay+=(Number(_el.value)||0)*(Number(_mrEls[_k]?.value)||0);});
     const ph=Number(card.querySelector('.ecjmd-day-pack-hours')?.value)||0;
     const pr=Number(card.querySelector('.ecjmd-day-pack-rate')?.value)||0;
     const fuel=Number(card.querySelector('.ecjmd-day-fuel')?.value)||0;
     const mat=Number(card.querySelector('.ecjmd-day-materials')?.value)||0;
     const park=Number(card.querySelector('.ecjmd-day-parking')?.value)||0;
-    const movePay=mh*mr;
+    const movePay=_movePay;
     const packPay=ph*pr;
     const subtotal=movePay+packPay+fuel+mat+park;
     const _mPay=card.querySelector('.ecjmd-day-move-pay');if(_mPay)_mPay.textContent='$'+Math.round(movePay).toLocaleString('en-US');
@@ -9313,9 +9349,8 @@ function saveEditedCompletedJobMultiDay(){
     const idx=Number(card.getAttribute('data-day-index'));
     const existing=(j.days&&j.days[idx])||{};
     const type=card.querySelector('.ecjmd-day-type')?.value||existing.type||'Moving';
-    const movers=Number(card.querySelector('.ecjmd-day-movers')?.value)||0;
-    const moveHours=Number(card.querySelector('.ecjmd-day-move-hours')?.value)||0;
-    const moveRate=Number(card.querySelector('.ecjmd-day-move-rate')?.value)||0;
+    const moveSegments=_cjmdReadSegments(card,'ecjmd');
+    const movers=moveSegments[0].movers;const moveRate=moveSegments[0].rate;const moveHours=moveSegments.reduce((a,_s)=>a+_s.hours,0);const _movePayTotal=moveSegments.reduce((a,_s)=>a+_s.hours*_s.rate,0);
     const packers=Number(card.querySelector('.ecjmd-day-packers')?.value)||0;
     const packHours=Number(card.querySelector('.ecjmd-day-pack-hours')?.value)||0;
     const packRate=Number(card.querySelector('.ecjmd-day-pack-rate')?.value)||0;
@@ -9323,7 +9358,7 @@ function saveEditedCompletedJobMultiDay(){
     const materials=Number(card.querySelector('.ecjmd-day-materials')?.value)||0;
     const parking=Number(card.querySelector('.ecjmd-day-parking')?.value)||0;
     const dayDate=existing.date||j.date||'';
-    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,parking:parking});
+    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,moveSegments:moveSegments,movePay:_movePayTotal,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,parking:parking});
     if(moveHours>0){aggMoveHours+=moveHours;aggMovers+=movers;aggMoveRate+=moveRate;nMoveDays++;}
     if(packHours>0){aggPackHours+=packHours;aggPackers+=packers;aggPackRate+=packRate;nPackDays++;}
     aggFuel+=fuel;aggMaterials+=materials;aggParking+=parking;
@@ -9628,7 +9663,7 @@ function deleteCompletedJob(id){
   renderCompleted();showToast('Job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
-function renderCompleted(){let jobs=db.completedJobs;if(compFilter.text)jobs=jobs.filter(j=>j.name.toLowerCase().includes(compFilter.text.toLowerCase()));if(compFilter.crew)jobs=jobs.filter(j=>j.crew===compFilter.crew);if(compFilter.source)jobs=jobs.filter(j=>j.source===compFilter.source);if(compFilter.paid==='paid')jobs=jobs.filter(j=>Number(j.total)===Number(j.paid));if(compFilter.paid==='owing')jobs=jobs.filter(j=>Number(j.total)>Number(j.paid));jobs=[...jobs].sort((a,b)=>((a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase()))||((b.date||'').localeCompare(a.date||'')));const tr=jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);const to=jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);document.getElementById('completed-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Jobs shown</div><div class="stat-value">${jobs.length}</div></div><div class="stat-card"><div class="stat-label">Revenue collected</div><div class="stat-value">${fmtMoney(tr)}</div></div><div class="stat-card"><div class="stat-label">Still owing</div><div class="stat-value ${to>0?'owe-badge':''}">${fmtMoney(to)}</div></div>`;document.getElementById('completed-tbody').innerHTML=jobs.length?jobs.map(j=>{const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));return`<tr><td class="td-name">${j.name}${j.multiDay&&j.days&&j.days.length>1?` <span class="badge pill-blue" style="font-size:10px">${j.days.length}d</span>`:''}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${sourceBadge(j.source,j.sourceDetail)}</td><td>${j.crew||'—'}</td><td><span class="badge pill-gray">${j.payment||'—'}</span></td><td class="td-mono">${fmtMoney(j.total)}</td><td class="td-mono">${fmtMoney(j.paid)}</td><td>${owed>0?`<span class="badge pill-amber" style="font-size:11.5px;padding:3px 10px">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid ✓</span>'}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewCompletedJob('${j.id}')">View</button><button class="btn btn-danger btn-sm" onclick="deleteCompletedJob('${j.id}')">✕</button></div></td></tr>`;}).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">▣</div><div class="empty-title">No completed jobs yet</div></div></td></tr>`;}
+function renderCompleted(){let jobs=db.completedJobs;if(compFilter.text)jobs=jobs.filter(j=>j.name.toLowerCase().includes(compFilter.text.toLowerCase()));if(compFilter.crew)jobs=jobs.filter(j=>j.crew===compFilter.crew);if(compFilter.source)jobs=jobs.filter(j=>j.source===compFilter.source);if(compFilter.paid==='paid')jobs=jobs.filter(j=>Number(j.total)===Number(j.paid));if(compFilter.paid==='owing')jobs=jobs.filter(j=>Number(j.total)>Number(j.paid));jobs=[...jobs].sort((a,b)=>((a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase()))||((b.date||'').localeCompare(a.date||'')));const tr=jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);const to=jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);const tsm=jobs.reduce((s,j)=>s+(Number(j.feeMaterials)||0),0);const tpm=jobs.reduce((s,j)=>s+(Number(j.feePackMaterials)||0),0);document.getElementById('completed-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Jobs shown</div><div class="stat-value">${jobs.length}</div></div><div class="stat-card"><div class="stat-label">Revenue collected</div><div class="stat-value">${fmtMoney(tr)}</div></div><div class="stat-card"><div class="stat-label">Still owing</div><div class="stat-value ${to>0?'owe-badge':''}">${fmtMoney(to)}</div></div><div class="stat-card"><div class="stat-label">Standard materials</div><div class="stat-value">${fmtMoney(tsm)}</div></div><div class="stat-card"><div class="stat-label">Packing materials</div><div class="stat-value">${fmtMoney(tpm)}</div></div>`;document.getElementById('completed-tbody').innerHTML=jobs.length?jobs.map(j=>{const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));return`<tr><td class="td-name">${j.name}${j.multiDay&&j.days&&j.days.length>1?` <span class="badge pill-blue" style="font-size:10px">${j.days.length}d</span>`:''}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${sourceBadge(j.source,j.sourceDetail)}</td><td>${j.crew||'—'}</td><td><span class="badge pill-gray">${j.payment||'—'}</span></td><td class="td-mono">${fmtMoney(j.total)}</td><td class="td-mono">${fmtMoney(j.paid)}</td><td>${owed>0?`<span class="badge pill-amber" style="font-size:11.5px;padding:3px 10px">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid ✓</span>'}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewCompletedJob('${j.id}')">View</button><button class="btn btn-danger btn-sm" onclick="deleteCompletedJob('${j.id}')">✕</button></div></td></tr>`;}).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">▣</div><div class="empty-title">No completed jobs yet</div></div></td></tr>`;}
 function filterCompleted(v){compFilter.text=v;renderCompleted();}
 function filterCompletedCrew(v){compFilter.crew=v;renderCompleted();}
 function filterCompletedSource(v){compFilter.source=v;renderCompleted();}
@@ -9646,7 +9681,7 @@ function setAccuracyQuote(jobId,quoteId){
 function viewCompletedJob(id){const j=db.completedJobs.find(x=>x.id===id);if(!j)return;const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));document.getElementById('view-modal-title').textContent=j.name+' — Completed';
 document.getElementById('view-modal-status').innerHTML=owed>0?'<span class="badge pill-amber">Owes '+fmtMoney(owed)+'</span>':'<span class="badge pill-green">Paid in full ✓</span>';
 const hasExtras=j.feeMaterials||j.feeFuel||j.feeParkingPermit||j.feeCOI||j.feeInsurance||j.feeDump||j.feeDamage||j.feeYelp;
-const feeBlock=hasExtras?`<div style="margin-top:14px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fee breakdown</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px">${feeRow('Labour',j.feeLabour)}${feeRow('Materials',j.feeMaterials)}${feeRow('Packing materials',j.feePackMaterials)}${feeRow('Fuel',j.feeFuel)}${feeRow('Parking permits',j.feeParkingPermit)}${feeRow('COI',j.feeCOI)}${feeRow('Insurance',j.feeInsurance)}${feeRow('Dump fee',j.feeDump)}${feeRow('Damage/claim',j.feeDamage)}${j.feeYelp?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Yelp discount</div><div style="color:var(--danger)">-${fmtMoney(j.feeYelp)}</div></div>`:''}</div></div>`:'';
+const feeBlock=hasExtras?`<div style="margin-top:14px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fee breakdown</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px">${feeRow('Labour',j.feeLabour)}${feeRow('Standard materials',j.feeMaterials)}${feeRow('Packing materials',j.feePackMaterials)}${feeRow('Fuel',j.feeFuel)}${feeRow('Parking permits',j.feeParkingPermit)}${feeRow('COI',j.feeCOI)}${feeRow('Insurance',j.feeInsurance)}${feeRow('Dump fee',j.feeDump)}${feeRow('Damage/claim',j.feeDamage)}${j.feeYelp?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Yelp discount</div><div style="color:var(--danger)">-${fmtMoney(j.feeYelp)}</div></div>`:''}</div></div>`:'';
 const field=(label,val)=>val?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">${label}</div><div style="font-size:12.5px">${val}</div></div>`:'';
 
 // Build quote vs actual comparison
