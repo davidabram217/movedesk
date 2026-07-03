@@ -4087,46 +4087,52 @@ function _ptbParseDate(s){
   try{const d=new Date(s+' '+new Date().getFullYear());if(isNaN(d))return '';if(d<new Date(Date.now()-86400000*30))d.setFullYear(d.getFullYear()+1);return d.toISOString().split('T')[0];}catch(e){return '';}
 }
 
+// Edit handlers for the paste preview — write straight back to window._ptbExtracted (the object
+// applyBookingExtract reads), so no re-render is needed and focus is never lost.
+function _ptbEdit(key,val){
+  if(!window._ptbExtracted)window._ptbExtracted={};
+  const numKeys=['movers','rateRegular','rateCash','hoursMin','hoursMax','feeFuel','feeMaterials','deposit'];
+  window._ptbExtracted[key]=(numKeys.indexOf(key)>=0)?(val===''?null:Number(val)):val;
+}
+function _ptbEditDay(i,key,val){
+  const ex=window._ptbExtracted;
+  if(!ex||!Array.isArray(ex.days)||!ex.days[i])return;
+  const numKeys=['movers','rateRegular','rateCash','hoursMin','hoursMax'];
+  ex.days[i][key]=(numKeys.indexOf(key)>=0)?(val===''?null:Number(val)):val;
+}
 function _renderBookingExtractPreview(ex){
   const el=document.getElementById('ptb-preview');if(!el)return;
-  ex=ex||{};
+  ex=ex||{}; window._ptbExtracted=ex;
   const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const av=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   const has=v=>!(v==null||v===''||(typeof v==='number'&&isNaN(v)));
-  const row=(k,v,always)=>{if(!has(v)){if(!always)return '';v='\u2014';}return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--border2)"><span style="color:var(--text3);font-size:12px">'+esc(k)+'</span><span style="font-size:12px;font-weight:600;text-align:right;max-width:62%">'+esc(v)+'</span></div>';};
   const hdr=t=>'<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:12px 0 4px">'+t+'</div>';
-  const money=v=>has(v)?('$'+v):'';
-  const rate=v=>has(v)?('$'+v+'/hr'):'';
+  const inp=(label,key,val,type)=>'<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="color:var(--text3);font-size:11.5px;flex:0 0 34%">'+esc(label)+'</span><input type="'+(type||'text')+'" value="'+av(val)+'" oninput="_ptbEdit(\''+key+'\',this.value)" style="flex:1;min-width:0;font-size:12px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);color:var(--text)"></div>';
+  const inpDay=(i,label,key,val,type)=>'<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="color:var(--text3);font-size:11.5px;flex:0 0 34%">'+esc(label)+'</span><input type="'+(type||'text')+'" value="'+av(val)+'" oninput="_ptbEditDay('+i+',\''+key+'\',this.value)" style="flex:1;min-width:0;font-size:12px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);color:var(--text)"></div>';
   const dayCount=ex.isMultiDay&&Array.isArray(ex.days)?ex.days.length:0;
-  let html='<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;max-height:46vh;overflow:auto">';
+  let html='<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;max-height:52vh;overflow:auto">';
   html+='<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:2px">'+(ex.isMultiDay?('Multi-day booking'+(dayCount?' \u2014 '+dayCount+' day'+(dayCount>1?'s':''):'')):'Single-day booking')+'</div>';
+  html+='<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Edit anything below, then apply.</div>';
   html+=hdr('Customer');
-  html+=row('Name',ex.customerName)+row('Phone',ex.phone)+row('Alt phone',ex.altPhone)+row('Email',ex.email);
+  html+=inp('Name','customerName',ex.customerName)+inp('Phone','phone',ex.phone)+inp('Alt phone','altPhone',ex.altPhone)+inp('Email','email',ex.email);
   if(ex.isMultiDay&&Array.isArray(ex.days)&&ex.days.length){
-    ex.days.forEach((d,i)=>{
-      d=d||{};
-      const hrs=(has(d.hoursMin)?d.hoursMin:'')+(has(d.hoursMax)?' \u2013 '+d.hoursMax:'');
+    ex.days.forEach((d,i)=>{ d=d||{};
       html+='<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:6px"><div style="font-weight:700;font-size:12px;margin-bottom:2px">Day '+(i+1)+(d.label?' \u2014 '+esc(d.label):'')+'</div>';
-      html+=row('Date',d.date,true)+row('Arrival',d.arrivalWindow)+row('Movers',d.movers,true)+row('Hours',hrs)+row('Rate',rate(d.rateRegular),true)+row('Cash rate',rate(d.rateCash))+row('From',d.from)+row('To',d.to)+'</div>';
+      html+=inpDay(i,'Date','date',d.date)+inpDay(i,'Arrival','arrivalWindow',d.arrivalWindow)+inpDay(i,'Movers','movers',d.movers,'number')+inpDay(i,'Hours min','hoursMin',d.hoursMin,'number')+inpDay(i,'Hours max','hoursMax',d.hoursMax,'number')+inpDay(i,'Rate $/hr','rateRegular',d.rateRegular,'number')+inpDay(i,'Cash $/hr','rateCash',d.rateCash,'number')+inpDay(i,'From','from',d.from)+inpDay(i,'To','to',d.to)+'</div>';
     });
   }else{
     html+=hdr('Schedule & rates');
-    html+=row('Date',ex.date,true)+row('Arrival',ex.arrivalWindow)+row('Movers',ex.movers,true)+row('Rate',rate(ex.rateRegular),true)+row('Cash rate',rate(ex.rateCash))+row('From',ex.from)+row('To',ex.to);
+    html+=inp('Date','date',ex.date)+inp('Arrival','arrivalWindow',ex.arrivalWindow)+inp('Movers','movers',ex.movers,'number')+inp('Rate $/hr','rateRegular',ex.rateRegular,'number')+inp('Cash $/hr','rateCash',ex.rateCash,'number')+inp('From','from',ex.from)+inp('To','to',ex.to);
   }
   html+=hdr('Charges');
-  html+=row('Fuel fee',money(ex.feeFuel))+row('Materials fee',money(ex.feeMaterials))+row('Deposit',money(ex.deposit))+row('Drive time',ex.driveTime);
-  if(!has(ex.feeFuel)&&!has(ex.feeMaterials)&&!has(ex.deposit)&&!has(ex.driveTime))html+='<div style="font-size:11.5px;color:var(--text3);padding:3px 0">None detected</div>';
-  if(has(ex.size)||has(ex.packing)||has(ex.source)){html+=hdr('Job details');html+=row('Size',ex.size)+row('Packing',ex.packing)+row('Source',ex.source);}
-  const notesParts=[];
-  if(has(ex.officeNotes))notesParts.push(String(ex.officeNotes));
-  if(has(ex.scope)&&!ex.isMultiDay)notesParts.push('Scope: '+ex.scope);
+  html+=inp('Fuel fee $','feeFuel',ex.feeFuel,'number')+inp('Materials fee $','feeMaterials',ex.feeMaterials,'number')+inp('Deposit $','deposit',ex.deposit,'number')+inp('Drive time','driveTime',ex.driveTime);
+  html+=hdr('Job details');
+  html+=inp('Size','size',ex.size)+inp('Packing','packing',ex.packing)+inp('Source','source',ex.source);
+  if(!ex.isMultiDay)html+=inp('Scope','scope',ex.scope);
   html+=hdr('Notes');
-  if(notesParts.length){
-    html+='<div style="white-space:pre-wrap;font-size:12px;line-height:1.45;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:10px;color:var(--text)">'+esc(notesParts.join('\n\n'))+'</div>';
-  }else{
-    html+='<div style="font-size:11.5px;color:var(--text3);padding:3px 0">No notes detected \u2014 double-check the pasted text if you expected some.</div>';
-  }
-  html+='<button class="btn btn-primary" style="width:100%;margin-top:14px;font-weight:700" onclick="applyBookingExtract(window._ptbExtracted);closeModal(\'paste-to-booking\');showToast(\'\u2713 Booking details filled \u2014 review and confirm\')">Looks right \u2014 apply to booking form \u2192</button>';
-  html+='<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">You can still edit everything on the booking form before you hit Confirm. Dates shown as \u201cTBD\u201d and second phone numbers are worth a quick double-check.</div>';
+  html+='<textarea oninput="_ptbEdit(\'officeNotes\',this.value)" style="width:100%;min-height:90px;font-size:12px;line-height:1.45;padding:8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);color:var(--text)">'+esc(has(ex.officeNotes)?ex.officeNotes:'')+'</textarea>';
+  html+='<button class="btn btn-primary" style="width:100%;margin-top:14px;font-weight:700" onclick="applyBookingExtract(window._ptbExtracted);closeModal(\'paste-to-booking\');showToast(\'\u2713 Booking details filled \u2014 review and confirm\')">Apply to booking form \u2192</button>';
+  html+='<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">Your edits above are what get applied. You can still adjust anything on the booking form before you hit Confirm.</div>';
   html+='</div>';
   el.innerHTML=html;
 }

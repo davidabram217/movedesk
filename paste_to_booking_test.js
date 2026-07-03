@@ -111,7 +111,7 @@ check('structural: locked "do not flip lead status yet" intact',/Don't flip lead
   const previewSrc=grab('function _renderBookingExtractPreview(ex)');
   let captured='';
   const doc={getElementById:()=>({set innerHTML(v){captured=v;},get innerHTML(){return captured;}})};
-  const run=ex=>{captured='';new Function('document','isNaN','String','Array',previewSrc+'\n;_renderBookingExtractPreview('+JSON.stringify(ex)+');')(doc,isNaN,String,Array);return captured;};
+  const run=ex=>{captured='';new Function('document','window','isNaN','String','Array',previewSrc+'\n;_renderBookingExtractPreview('+JSON.stringify(ex)+');')(doc,{},isNaN,String,Array);return captured;};
   const ex={isMultiDay:true,customerName:'Justin & Neha',phone:'(831) 512-2687',feeFuel:450,feeMaterials:50,
     officeNotes:'Sleeper sofa was disassembled. Spiral staircase is tricky - bring straps.',
     days:[{date:'TBD',label:'Load',movers:5,hoursMin:6.5,hoursMax:7.5,rateRegular:375,rateCash:350},
@@ -120,12 +120,36 @@ check('structural: locked "do not flip lead status yet" intact',/Don't flip lead
   check('preview: shows the FULL notes text',/Sleeper sofa was disassembled/.test(html)&&/bring straps/.test(html));
   check('preview: has a Notes section',/Notes/.test(html));
   check('preview: shows Day 1 and Day 2',/Day 1/.test(html)&&/Day 2/.test(html));
-  check('preview: shows per-day rate + movers',/375\/hr/.test(html)&&/Movers/.test(html));
-  check('preview: shows shared fuel + materials',/\$450/.test(html)&&/\$50/.test(html));
+  check('preview: shows per-day rate + movers (editable)',/value="375"/.test(html)&&/Movers/.test(html));
+  check('preview: shows shared fuel + materials (editable)',/value="450"/.test(html)&&/value="50"/.test(html));
   check('preview: has the Apply button wired',/applyBookingExtract\(window\._ptbExtracted\)/.test(html));
   const html2=run({isMultiDay:false,date:'2026-06-15',movers:3,rateRegular:225});
   check('preview: single-day shows schedule + date',/Schedule/.test(html2)&&/2026-06-15/.test(html2));
-  check('preview: flags when no notes were detected',/No notes detected/.test(html2));
+  check('preview: notes is always an editable textarea',/<textarea oninput="_ptbEdit\('officeNotes'/.test(html2));
+}
+
+// 7) NEW editable preview: inputs render with edit handlers, and edits flow into window._ptbExtracted
+{
+  const editSrc=grab('function _ptbEdit(key,val)');
+  const editDaySrc=grab('function _ptbEditDay(i,key,val)');
+  const previewSrc=grab('function _renderBookingExtractPreview(ex)');
+  let captured='';
+  const doc={getElementById:()=>({set innerHTML(v){captured=v;},get innerHTML(){return captured;}})};
+  const win={};
+  new Function('document','window','isNaN','String','Array','Number',previewSrc+'\n;_renderBookingExtractPreview('+JSON.stringify({isMultiDay:false,date:'2026-06-15',movers:3,rateRegular:225,officeNotes:'note'})+');')(doc,win,isNaN,String,Array,Number);
+  check('editable: renders inputs with _ptbEdit handlers',/oninput="_ptbEdit\('rateRegular',this\.value\)"/.test(captured));
+  check('editable: notes is an editable textarea',/<textarea oninput="_ptbEdit\('officeNotes'/.test(captured));
+  check('editable: input pre-filled with extracted value',/value="225"/.test(captured));
+  const editRunner=(exObj,calls)=>{
+    const w={_ptbExtracted:exObj};
+    return new Function('window','Number','Array',editSrc+'\n'+editDaySrc+'\n'+calls+'\nreturn window._ptbExtracted;')(w,Number,Array);
+  };
+  const r1=editRunner({movers:3,rateRegular:225,days:null},"_ptbEdit('rateRegular','999');_ptbEdit('customerName','Jane');");
+  check('editable: _ptbEdit coerces numeric to Number',r1.rateRegular===999);
+  check('editable: _ptbEdit keeps text as string',r1.customerName==='Jane');
+  const r2=editRunner({isMultiDay:true,days:[{movers:5,rateRegular:375}]},"_ptbEditDay(0,'movers','7');_ptbEditDay(0,'rateRegular','400');");
+  check('editable: _ptbEditDay edits the right day',r2.days[0].movers===7&&r2.days[0].rateRegular===400);
+  check('editable: clearing a numeric field yields null',editRunner({feeFuel:60},"_ptbEdit('feeFuel','');").feeFuel===null);
 }
 
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
