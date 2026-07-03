@@ -1153,6 +1153,8 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="modal-body" oninput="bjAutoSave()" onchange="bjAutoSave()">
       <div id="book-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div>
 
+      <div style="margin-bottom:14px"><button type="button" class="btn" onclick="openPasteToBooking()" style="width:100%;font-size:12px;padding:8px 12px;border:1px dashed var(--border2);background:var(--surface2);color:var(--text2);cursor:pointer">📋 Paste booking details from an email or text →</button></div>
+
       <div id="bj-multiday-wrap" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0">
           <input type="checkbox" id="bj-multiday" onchange="toggleBjMultiDay()" style="accent-color:var(--accent)">
@@ -1543,6 +1545,27 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('paste-to-lead')">Cancel</button>
       <button id="ptl-parse-btn" class="btn btn-primary" onclick="parsePasteToLead()">✨ Extract info →</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-paste-to-booking">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">📋 Paste booking details</div>
+        <div style="margin-top:4px;font-size:12.5px;color:var(--text3)">Booked this job over email or text? Paste the thread and we'll fill the booking form for you to review.</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('paste-to-booking')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="ptb-text" placeholder="Paste the full email or text message here…" style="width:100%;min-height:220px;font-size:13px;line-height:1.5"></textarea>
+      <div id="ptb-status" style="margin-top:10px;font-size:12px;color:var(--text3);min-height:18px"></div>
+      <div id="ptb-preview" style="margin-top:10px;display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('paste-to-booking')">Cancel</button>
+      <button id="ptb-parse-btn" class="btn btn-primary" onclick="parsePasteToBooking()">✨ Extract →</button>
     </div>
   </div>
 </div>
@@ -3986,6 +4009,145 @@ function applyPastedToForm(d){
   if(typeof toggleSourceDetail==='function')toggleSourceDetail();
   // Run repeat-customer check on the phone number
   if(d.phone&&typeof checkRepeatByPhone==='function')checkRepeatByPhone(d.phone);
+}
+
+// ── Paste-to-booking ── extract booking details from a pasted email/text and fill the booking form.
+// Mirrors the paste-to-lead flow: calls the parse-booking edge function, falls back to a local regex
+// parser, shows a review preview, then FILLS existing booking-form fields. It never changes booking
+// logic — it only sets the same fields the user would type into (single-day fields, or the multi-day
+// rows via the existing _bjLoadMultiDay).
+function openPasteToBooking(){
+  const t=document.getElementById('ptb-text');if(t)t.value='';
+  const s=document.getElementById('ptb-status');if(s){s.textContent='';s.style.color='var(--text3)';}
+  const p=document.getElementById('ptb-preview');if(p){p.style.display='none';p.innerHTML='';}
+  window._ptbExtracted=null;
+  const btn=document.getElementById('ptb-parse-btn');if(btn){btn.disabled=false;btn.innerHTML='\u2728 Extract \u2192';}
+  openModal('paste-to-booking');
+  setTimeout(()=>{const el=document.getElementById('ptb-text');if(el)el.focus();},100);
+}
+
+async function parsePasteToBooking(){
+  const text=(document.getElementById('ptb-text').value||'').trim();
+  const statusEl=document.getElementById('ptb-status');
+  const previewEl=document.getElementById('ptb-preview');
+  const btn=document.getElementById('ptb-parse-btn');
+  if(!text){statusEl.textContent='Please paste some text first.';statusEl.style.color='var(--error)';return;}
+  if(text.length<20){statusEl.textContent='That looks too short \u2014 paste more context.';statusEl.style.color='var(--error)';return;}
+  btn.disabled=true;btn.innerHTML='\u23f3 Reading\u2026';
+  statusEl.textContent='Asking Claude to extract the booking\u2026';statusEl.style.color='var(--text3)';
+  let extracted;
+  try{
+    const response=await fetch(SUPABASE_URL+'/functions/v1/parse-booking',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+      body:JSON.stringify({text})
+    });
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw new Error(data.error||('Edge function error '+response.status));
+    extracted=data.extracted;
+  }catch(e){
+    console.error('Paste-to-booking error:',e);
+    statusEl.textContent='\u26a0 Cloud parsing failed ('+(e.message||'unknown')+'). Using basic parser\u2026';statusEl.style.color='var(--amber)';
+    try{extracted=extractBookingFromText(text);}
+    catch(e2){statusEl.textContent='Sorry \u2014 couldn\u2019t parse that. You can still fill the form manually.';statusEl.style.color='var(--error)';btn.disabled=false;btn.innerHTML='\u2728 Try again \u2192';return;}
+  }
+  window._ptbExtracted=extracted;
+  _renderBookingExtractPreview(extracted);
+  previewEl.style.display='block';
+  statusEl.textContent='\u2713 Extracted \u2014 review below, then apply.';statusEl.style.color='var(--text3)';
+  btn.disabled=false;btn.innerHTML='\u2728 Re-extract \u2192';
+}
+
+// Local regex fallback — best-effort extraction if the edge function is unavailable.
+function extractBookingFromText(text){
+  const out={isMultiDay:false,days:[]};
+  if(!text||typeof text!=='string')return out;
+  const t=text.replace(/\r/g,'');
+  if((/\bday\s*1\b/i.test(t)&&/\bday\s*2\b/i.test(t))||/\btwo[- ]day\b/i.test(t)||/\bmulti[- ]?day\b/i.test(t))out.isMultiDay=true;
+  let m=t.match(/(\d+)\s*(?:men|movers|guys)\b/i)||t.match(/crew\s*:?\s*(\d+)/i);
+  if(m)out.movers=Number(m[1]);
+  m=t.match(/\$\s*(\d{2,4})\s*(?:\/\s*hr|per hour|\/hour|hourly)/i);
+  if(m)out.rateRegular=Number(m[1]);
+  m=t.match(/\$\s*(\d{2,4})\s*\(?\s*cash/i);
+  if(m)out.rateCash=Number(m[1]);
+  m=t.match(/\$?\s*(\d{2,4})\s*fuel\s*fee/i)||t.match(/fuel\s*fee\s*:?\s*\$?\s*(\d{2,4})/i);
+  if(m)out.feeFuel=Number(m[1]);
+  m=t.match(/\$?\s*(\d{1,4})\s*material/i)||t.match(/materials?\s*fee[^$\d]*\$?\s*(\d{1,4})/i);
+  if(m)out.feeMaterials=Number(m[1]);
+  m=t.match(/\$?\s*(\d{2,5})\s*deposit/i)||t.match(/deposit\s*:?\s*\$?\s*(\d{2,5})/i);
+  if(m)out.deposit=Number(m[1]);
+  m=t.match(/(\d{1,2}:?\d{0,2}\s*[ap]m?\s*[-\u2013]\s*\d{1,2}:?\d{0,2}\s*[ap]m)/i);
+  if(m)out.arrivalWindow=m[1].replace(/\s+/g,'');
+  m=t.match(/\b(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+([a-z]+\s+\d{1,2})(?:st|nd|rd|th)?/i)||t.match(/\b([a-z]{3,9}\s+\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if(m){const parsed=_ptbParseDate(m[1]);if(parsed)out.date=parsed;}
+  out.officeNotes='(Auto-extract fallback — please double-check all fields.)';
+  return out;
+}
+function _ptbParseDate(s){
+  try{const d=new Date(s+' '+new Date().getFullYear());if(isNaN(d))return '';if(d<new Date(Date.now()-86400000*30))d.setFullYear(d.getFullYear()+1);return d.toISOString().split('T')[0];}catch(e){return '';}
+}
+
+function _renderBookingExtractPreview(ex){
+  const el=document.getElementById('ptb-preview');if(!el)return;
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const row=(k,v)=>(v==null||v==='')?'':'<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid var(--border2)"><span style="color:var(--text3);font-size:12px">'+k+'</span><span style="font-size:12px;font-weight:600;text-align:right">'+esc(v)+'</span></div>';
+  let html='<div style="background:var(--surface2);border-radius:var(--radius);padding:12px">';
+  html+='<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">'+(ex.isMultiDay?'Multi-day booking':'Single-day booking')+'</div>';
+  if(ex.isMultiDay&&Array.isArray(ex.days)){
+    ex.days.forEach((d,i)=>{
+      const hrs=(d.hoursMin!=null&&d.hoursMin!==''?d.hoursMin:'')+(d.hoursMax!=null&&d.hoursMax!==''?' \u2013 '+d.hoursMax:'');
+      html+='<div style="font-weight:600;font-size:12px;margin:8px 0 4px">Day '+(i+1)+(d.label?' \u2014 '+esc(d.label):'')+'</div>';
+      html+=row('Date',d.date)+row('Movers',d.movers)+row('Hours',hrs)+row('Rate',d.rateRegular?('$'+d.rateRegular+'/hr'):'')+row('Cash',d.rateCash?('$'+d.rateCash+'/hr'):'')+row('From',d.from)+row('To',d.to);
+    });
+  }else{
+    html+=row('Date',ex.date)+row('Arrival',ex.arrivalWindow)+row('Movers',ex.movers)+row('Rate',ex.rateRegular?('$'+ex.rateRegular+'/hr'):'')+row('Cash',ex.rateCash?('$'+ex.rateCash+'/hr'):'')+row('From',ex.from)+row('To',ex.to);
+  }
+  html+=row('Fuel fee',ex.feeFuel?('$'+ex.feeFuel):'')+row('Materials',ex.feeMaterials?('$'+ex.feeMaterials):'')+row('Deposit',ex.deposit?('$'+ex.deposit):'')+row('Customer',ex.customerName)+row('Phone',ex.phone)+row('Alt phone',ex.altPhone)+row('Size',ex.size)+row('Packing',ex.packing)+row('Drive time',ex.driveTime);
+  html+='<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="applyBookingExtract(window._ptbExtracted);closeModal(\'paste-to-booking\');showToast(\'\u2713 Booking details filled \u2014 review and confirm\')">Apply to booking form \u2192</button>';
+  html+='<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">Review everything on the booking form before confirming. A date shown as \u201cTBD\u201d and a second phone number are worth a double-check.</div>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function applyBookingExtract(ex){
+  if(!ex)return;
+  const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!=null&&val!=='')el.value=val;};
+  const setSel=(id,val)=>{const el=document.getElementById(id);if(el&&val!=null&&val!=='')el.value=String(val);};
+  set('bj-fee-fuel',ex.feeFuel);
+  set('bj-fee-materials',ex.feeMaterials);
+  set('bj-deposit',ex.deposit);
+  const bits=[];
+  if(!ex.isMultiDay){if(ex.from)bits.push('From: '+ex.from);if(ex.to)bits.push('To: '+ex.to);}
+  if(ex.size)bits.push('Size: '+ex.size);
+  if(ex.packing)bits.push('Packing: '+ex.packing);
+  if(ex.driveTime)bits.push('Drive time: '+ex.driveTime);
+  if(ex.altPhone)bits.push('Alt phone: '+ex.altPhone);
+  if(ex.source)bits.push('Source: '+ex.source);
+  if(ex.officeNotes)bits.push(ex.officeNotes);
+  if(bits.length){const on=document.getElementById('bj-office-notes');if(on)on.value=(on.value?on.value+'\n':'')+bits.join('\n');}
+  const sc=document.getElementById('bj-scope');if(sc&&ex.scope&&!sc.value)sc.value=ex.scope;
+  if(ex.isMultiDay&&Array.isArray(ex.days)&&ex.days.length){
+    const days=ex.days.map(d=>({
+      date:(d.date&&d.date!=='TBD')?d.date:'',
+      crew:d.movers||'',rate:d.rateRegular||'',rateCash:d.rateCash||'',
+      hrsMin:d.hoursMin||'',hrsMax:d.hoursMax||'',arrivalWindow:d.arrivalWindow||'',
+      feeFuel:'',feeMaterials:''
+    }));
+    if(typeof _bjLoadMultiDay==='function')_bjLoadMultiDay(days);
+    const d0=ex.days[0]||{};
+    if(d0.date&&d0.date!=='TBD')set('bj-date',d0.date);
+    set('bj-time',d0.arrivalWindow);
+    if(d0.movers)setSel('bj-movers',d0.movers);
+    set('bj-rate-regular',d0.rateRegular);
+    set('bj-rate-cash',d0.rateCash);
+  }else{
+    if(ex.date&&ex.date!=='TBD')set('bj-date',ex.date);
+    set('bj-time',ex.arrivalWindow);
+    if(ex.movers)setSel('bj-movers',ex.movers);
+    set('bj-rate-regular',ex.rateRegular);
+    set('bj-rate-cash',ex.rateCash);
+  }
+  if(typeof bjAutoSave==='function')bjAutoSave();
 }
 
 function openModal(n){
