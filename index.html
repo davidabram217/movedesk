@@ -4051,6 +4051,9 @@ async function parsePasteToBooking(){
     try{extracted=extractBookingFromText(text);}
     catch(e2){statusEl.textContent='Sorry \u2014 couldn\u2019t parse that. You can still fill the form manually.';statusEl.style.color='var(--error)';btn.disabled=false;btn.innerHTML='\u2728 Try again \u2192';return;}
   }
+  // Save the FULL original pasted text as the notes — guarantees nothing is ever lost, and lets
+  // the AI focus purely on the structured fields. Shown in the editable notes box for review.
+  if(extracted&&typeof extracted==='object')extracted.officeNotes=text;
   window._ptbExtracted=extracted;
   _renderBookingExtractPreview(extracted);
   previewEl.style.display='block';
@@ -4144,15 +4147,9 @@ function applyBookingExtract(ex){
   set('bj-fee-fuel',ex.feeFuel);
   set('bj-fee-materials',ex.feeMaterials);
   set('bj-deposit',ex.deposit);
-  const bits=[];
-  if(!ex.isMultiDay){if(ex.from)bits.push('From: '+ex.from);if(ex.to)bits.push('To: '+ex.to);}
-  if(ex.size)bits.push('Size: '+ex.size);
-  if(ex.packing)bits.push('Packing: '+ex.packing);
-  if(ex.driveTime)bits.push('Drive time: '+ex.driveTime);
-  if(ex.altPhone)bits.push('Alt phone: '+ex.altPhone);
-  if(ex.source)bits.push('Source: '+ex.source);
-  if(ex.officeNotes)bits.push(ex.officeNotes);
-  if(bits.length){const on=document.getElementById('bj-office-notes');if(on)on.value=(on.value?on.value+'\n':'')+bits.join('\n');}
+  // Notes: the full pasted text lives in ex.officeNotes (set by parsePasteToBooking, editable in
+  // the preview). Save it verbatim, appended to any existing office notes so nothing is lost.
+  if(ex.officeNotes){const on=document.getElementById('bj-office-notes');if(on)on.value=(on.value?on.value+'\n\n':'')+ex.officeNotes;}
   const sc=document.getElementById('bj-scope');if(sc&&ex.scope&&!sc.value)sc.value=ex.scope;
   if(ex.isMultiDay&&Array.isArray(ex.days)&&ex.days.length){
     const days=ex.days.map(d=>({

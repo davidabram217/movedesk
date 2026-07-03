@@ -43,7 +43,7 @@ function runExtract(text){
     email:'alexpark1990@proton.me',size:'1 Bdrm',packing:'No packing but needs boxes',source:'Google',
     date:'2026-06-15',arrivalWindow:'830am-930am',movers:3,rateRegular:225,rateCash:210,
     from:'2764 22nd street, San Francisco CA',to:'77 lenox ave #22 Oakland CA',
-    feeFuel:60,feeMaterials:25,deposit:null,driveTime:'Return drive time',days:[]};
+    feeFuel:60,feeMaterials:25,deposit:null,driveTime:'Return drive time',days:[],officeNotes:'Full paste: From 2764 22nd street, San Francisco CA to 77 lenox ave #22 Oakland CA. 1 Bdrm home, needs boxes.'};
   const {val}=runApply(ex);
   check('single: date filled',val('bj-date')==='2026-06-15');
   check('single: arrival filled',val('bj-time')==='830am-930am');
@@ -52,15 +52,15 @@ function runExtract(text){
   check('single: cash rate',String(val('bj-rate-cash'))==='210');
   check('single: fuel fee',String(val('bj-fee-fuel'))==='60');
   check('single: materials fee',String(val('bj-fee-materials'))==='25');
-  check('single: addresses land in office notes',/2764 22nd street/.test(val('bj-office-notes'))&&/77 lenox/.test(val('bj-office-notes')));
-  check('single: size + packing in office notes',/1 Bdrm/.test(val('bj-office-notes'))&&/needs boxes/.test(val('bj-office-notes')));
+  check('single: addresses land in saved notes',/2764 22nd street/.test(val('bj-office-notes'))&&/77 lenox/.test(val('bj-office-notes')));
+  check('single: size + packing in saved notes',/1 Bdrm/.test(val('bj-office-notes'))&&/needs boxes/.test(val('bj-office-notes')));
 }
 
 // 2) MULTI-DAY apply (Justin/Neha shape) with TBD dates
 {
   const ex={isMultiDay:true,customerName:'Justin Piearcy and Neha Mohan',phone:'(831) 512-2687',
     email:'justin@justinpiearcy.com',feeFuel:450,feeMaterials:50,deposit:null,
-    driveTime:'Drive time from San Francisco and return applies each day',
+    driveTime:'Drive time from San Francisco and return applies each day',officeNotes:'Two-day move. Drive time from San Francisco and return applies each day. High-value items.',
     days:[
       {date:'TBD',label:'Load & Return to Warehouse',from:'69 Vintage Circle #3159, Pleasanton, CA',movers:5,hoursMin:6.5,hoursMax:7.5,rateRegular:375,rateCash:350},
       {date:'TBD',label:'Delivery & Return to Warehouse',to:'25430 Loma Robles, Carmel Valley, CA',movers:5,hoursMin:8,hoursMax:9,rateRegular:375,rateCash:350}
@@ -151,6 +151,14 @@ check('structural: locked "do not flip lead status yet" intact',/Don't flip lead
   check('editable: _ptbEditDay edits the right day',r2.days[0].movers===7&&r2.days[0].rateRegular===400);
   check('editable: clearing a numeric field yields null',editRunner({feeFuel:60},"_ptbEdit('feeFuel','');").feeFuel===null);
 }
+
+// 8) Full-paste-as-notes behavior
+{
+  const {val}=runApply({isMultiDay:false,movers:3,rateRegular:225,officeNotes:'LINE ONE\nLINE TWO — verbatim notes'});
+  check('notes: officeNotes (full paste) written verbatim to booking notes',/LINE ONE/.test(val('bj-office-notes'))&&/verbatim notes/.test(val('bj-office-notes')));
+}
+check('structural: parse saves the pasted text as notes',/extracted\.officeNotes=text/.test(src));
+check('structural: apply writes officeNotes to bj-office-notes',/bj-office-notes[\s\S]{0,40}ex\.officeNotes|ex\.officeNotes[\s\S]{0,80}bj-office-notes/.test(src));
 
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
 process.exit(fail?1:0);
