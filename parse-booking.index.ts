@@ -56,7 +56,7 @@ Return EXACTLY this shape:
   "deposit": number|null,         // $ deposit if stated
   "driveTime": string|null,       // free text, e.g. "Return drive time applies each day"
   "scope": string|null,           // short scope summary
-  "officeNotes": string|null,     // logistics/notes blob for the office (NOT customer-facing)
+  "officeNotes": string|null,     // CATCH-ALL for the office: capture ALL notes, special instructions, access/parking details, item-specific notes, warnings, prior-rate mentions, and any freeform text that doesn't fit another field (NOT customer-facing)
   "days": [                       // MULTI-DAY only; use [] when single-day
     {
       "date": string|null,        // ISO YYYY-MM-DD or "TBD"
@@ -80,6 +80,7 @@ Rules:
 - Hours: "2 hour minimum" with no range → hoursMin=2, hoursMax=null. "6.5 – 7.5 hours" → hoursMin=6.5, hoursMax=7.5.
 - Multi-day: set isMultiDay=true and fill "days" in order. Put SHARED charges (fuel, materials, deposit, driveTime) at the TOP level, not per day. Leave the single-day fields (date, from, to, movers, hoursMin/Max, rateRegular, rateCash, arrivalWindow, scope) null when isMultiDay=true.
 - Money: numbers only — no "$", no commas (e.g. 2437.5, not "$2,437.50").
+- officeNotes is the CATCH-ALL and must not lose information. Put EVERY note, special instruction, access/parking detail, item-specific note (e.g. "sleeper sofa was disassembled"), staircase/elevator warning, prior-rate history, and any leftover freeform text here — thoroughly and close to verbatim. Do NOT drop notes and do NOT heavily summarize them. When you are unsure where a piece of information belongs, include it in officeNotes. It is always better to over-include here than to lose something the mover needs.
 - Output raw JSON only. Never wrap it in backticks.`;
 
 serve(async (req) => {
