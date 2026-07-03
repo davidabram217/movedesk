@@ -106,5 +106,27 @@ check('structural: multi-day fill reuses existing _bjLoadMultiDay',/_bjLoadMulti
 check('structural: locked confirmBooking draft behavior intact',/job\._draft=true/.test(src));
 check('structural: locked "do not flip lead status yet" intact',/Don't flip lead status to/.test(src));
 
+// 6) NEW preview renders every detail incl. the FULL notes
+{
+  const previewSrc=grab('function _renderBookingExtractPreview(ex)');
+  let captured='';
+  const doc={getElementById:()=>({set innerHTML(v){captured=v;},get innerHTML(){return captured;}})};
+  const run=ex=>{captured='';new Function('document','isNaN','String','Array',previewSrc+'\n;_renderBookingExtractPreview('+JSON.stringify(ex)+');')(doc,isNaN,String,Array);return captured;};
+  const ex={isMultiDay:true,customerName:'Justin & Neha',phone:'(831) 512-2687',feeFuel:450,feeMaterials:50,
+    officeNotes:'Sleeper sofa was disassembled. Spiral staircase is tricky - bring straps.',
+    days:[{date:'TBD',label:'Load',movers:5,hoursMin:6.5,hoursMax:7.5,rateRegular:375,rateCash:350},
+          {date:'TBD',label:'Delivery',movers:5,hoursMin:8,hoursMax:9,rateRegular:375,rateCash:350}]};
+  const html=run(ex);
+  check('preview: shows the FULL notes text',/Sleeper sofa was disassembled/.test(html)&&/bring straps/.test(html));
+  check('preview: has a Notes section',/Notes/.test(html));
+  check('preview: shows Day 1 and Day 2',/Day 1/.test(html)&&/Day 2/.test(html));
+  check('preview: shows per-day rate + movers',/375\/hr/.test(html)&&/Movers/.test(html));
+  check('preview: shows shared fuel + materials',/\$450/.test(html)&&/\$50/.test(html));
+  check('preview: has the Apply button wired',/applyBookingExtract\(window\._ptbExtracted\)/.test(html));
+  const html2=run({isMultiDay:false,date:'2026-06-15',movers:3,rateRegular:225});
+  check('preview: single-day shows schedule + date',/Schedule/.test(html2)&&/2026-06-15/.test(html2));
+  check('preview: flags when no notes were detected',/No notes detected/.test(html2));
+}
+
 console.log('RESULTS: '+pass+' passed, '+fail+' failed');
 process.exit(fail?1:0);

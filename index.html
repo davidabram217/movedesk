@@ -4089,22 +4089,44 @@ function _ptbParseDate(s){
 
 function _renderBookingExtractPreview(ex){
   const el=document.getElementById('ptb-preview');if(!el)return;
+  ex=ex||{};
   const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const row=(k,v)=>(v==null||v==='')?'':'<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-bottom:1px solid var(--border2)"><span style="color:var(--text3);font-size:12px">'+k+'</span><span style="font-size:12px;font-weight:600;text-align:right">'+esc(v)+'</span></div>';
-  let html='<div style="background:var(--surface2);border-radius:var(--radius);padding:12px">';
-  html+='<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">'+(ex.isMultiDay?'Multi-day booking':'Single-day booking')+'</div>';
-  if(ex.isMultiDay&&Array.isArray(ex.days)){
+  const has=v=>!(v==null||v===''||(typeof v==='number'&&isNaN(v)));
+  const row=(k,v,always)=>{if(!has(v)){if(!always)return '';v='\u2014';}return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--border2)"><span style="color:var(--text3);font-size:12px">'+esc(k)+'</span><span style="font-size:12px;font-weight:600;text-align:right;max-width:62%">'+esc(v)+'</span></div>';};
+  const hdr=t=>'<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin:12px 0 4px">'+t+'</div>';
+  const money=v=>has(v)?('$'+v):'';
+  const rate=v=>has(v)?('$'+v+'/hr'):'';
+  const dayCount=ex.isMultiDay&&Array.isArray(ex.days)?ex.days.length:0;
+  let html='<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;max-height:46vh;overflow:auto">';
+  html+='<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:2px">'+(ex.isMultiDay?('Multi-day booking'+(dayCount?' \u2014 '+dayCount+' day'+(dayCount>1?'s':''):'')):'Single-day booking')+'</div>';
+  html+=hdr('Customer');
+  html+=row('Name',ex.customerName)+row('Phone',ex.phone)+row('Alt phone',ex.altPhone)+row('Email',ex.email);
+  if(ex.isMultiDay&&Array.isArray(ex.days)&&ex.days.length){
     ex.days.forEach((d,i)=>{
-      const hrs=(d.hoursMin!=null&&d.hoursMin!==''?d.hoursMin:'')+(d.hoursMax!=null&&d.hoursMax!==''?' \u2013 '+d.hoursMax:'');
-      html+='<div style="font-weight:600;font-size:12px;margin:8px 0 4px">Day '+(i+1)+(d.label?' \u2014 '+esc(d.label):'')+'</div>';
-      html+=row('Date',d.date)+row('Movers',d.movers)+row('Hours',hrs)+row('Rate',d.rateRegular?('$'+d.rateRegular+'/hr'):'')+row('Cash',d.rateCash?('$'+d.rateCash+'/hr'):'')+row('From',d.from)+row('To',d.to);
+      d=d||{};
+      const hrs=(has(d.hoursMin)?d.hoursMin:'')+(has(d.hoursMax)?' \u2013 '+d.hoursMax:'');
+      html+='<div style="border-top:1px solid var(--border2);margin-top:8px;padding-top:6px"><div style="font-weight:700;font-size:12px;margin-bottom:2px">Day '+(i+1)+(d.label?' \u2014 '+esc(d.label):'')+'</div>';
+      html+=row('Date',d.date,true)+row('Arrival',d.arrivalWindow)+row('Movers',d.movers,true)+row('Hours',hrs)+row('Rate',rate(d.rateRegular),true)+row('Cash rate',rate(d.rateCash))+row('From',d.from)+row('To',d.to)+'</div>';
     });
   }else{
-    html+=row('Date',ex.date)+row('Arrival',ex.arrivalWindow)+row('Movers',ex.movers)+row('Rate',ex.rateRegular?('$'+ex.rateRegular+'/hr'):'')+row('Cash',ex.rateCash?('$'+ex.rateCash+'/hr'):'')+row('From',ex.from)+row('To',ex.to);
+    html+=hdr('Schedule & rates');
+    html+=row('Date',ex.date,true)+row('Arrival',ex.arrivalWindow)+row('Movers',ex.movers,true)+row('Rate',rate(ex.rateRegular),true)+row('Cash rate',rate(ex.rateCash))+row('From',ex.from)+row('To',ex.to);
   }
-  html+=row('Fuel fee',ex.feeFuel?('$'+ex.feeFuel):'')+row('Materials',ex.feeMaterials?('$'+ex.feeMaterials):'')+row('Deposit',ex.deposit?('$'+ex.deposit):'')+row('Customer',ex.customerName)+row('Phone',ex.phone)+row('Alt phone',ex.altPhone)+row('Size',ex.size)+row('Packing',ex.packing)+row('Drive time',ex.driveTime);
-  html+='<button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="applyBookingExtract(window._ptbExtracted);closeModal(\'paste-to-booking\');showToast(\'\u2713 Booking details filled \u2014 review and confirm\')">Apply to booking form \u2192</button>';
-  html+='<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">Review everything on the booking form before confirming. A date shown as \u201cTBD\u201d and a second phone number are worth a double-check.</div>';
+  html+=hdr('Charges');
+  html+=row('Fuel fee',money(ex.feeFuel))+row('Materials fee',money(ex.feeMaterials))+row('Deposit',money(ex.deposit))+row('Drive time',ex.driveTime);
+  if(!has(ex.feeFuel)&&!has(ex.feeMaterials)&&!has(ex.deposit)&&!has(ex.driveTime))html+='<div style="font-size:11.5px;color:var(--text3);padding:3px 0">None detected</div>';
+  if(has(ex.size)||has(ex.packing)||has(ex.source)){html+=hdr('Job details');html+=row('Size',ex.size)+row('Packing',ex.packing)+row('Source',ex.source);}
+  const notesParts=[];
+  if(has(ex.officeNotes))notesParts.push(String(ex.officeNotes));
+  if(has(ex.scope)&&!ex.isMultiDay)notesParts.push('Scope: '+ex.scope);
+  html+=hdr('Notes');
+  if(notesParts.length){
+    html+='<div style="white-space:pre-wrap;font-size:12px;line-height:1.45;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:10px;color:var(--text)">'+esc(notesParts.join('\n\n'))+'</div>';
+  }else{
+    html+='<div style="font-size:11.5px;color:var(--text3);padding:3px 0">No notes detected \u2014 double-check the pasted text if you expected some.</div>';
+  }
+  html+='<button class="btn btn-primary" style="width:100%;margin-top:14px;font-weight:700" onclick="applyBookingExtract(window._ptbExtracted);closeModal(\'paste-to-booking\');showToast(\'\u2713 Booking details filled \u2014 review and confirm\')">Looks right \u2014 apply to booking form \u2192</button>';
+  html+='<div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">You can still edit everything on the booking form before you hit Confirm. Dates shown as \u201cTBD\u201d and second phone numbers are worth a quick double-check.</div>';
   html+='</div>';
   el.innerHTML=html;
 }
