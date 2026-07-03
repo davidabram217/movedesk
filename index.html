@@ -3849,6 +3849,11 @@ async function parsePasteToLead(){
     }
   }
 
+  // Notes: save the FULL typed text as the notes so nothing is ever missed (the AI only fills the
+  // structured fields). This also guarantees the Notes section always shows in the review preview,
+  // pre-filled with everything typed and editable before applying.
+  if(extracted&&typeof extracted==='object')extracted.notes=text;
+
   // City is frequently missed by the parser even when the ZIP is correct. Backfill From/To city from the
   // address string (the city usually sits just before the state/ZIP) or from a known SF ZIP, so the city
   // is captured as reliably as the ZIP and shows up in the review preview below.
