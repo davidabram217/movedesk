@@ -1558,8 +1558,8 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 <div class="modal-bg" id="modal-vehicle">
   <div class="modal" style="max-width:620px">
     <div class="modal-header"><div class="modal-title" id="vehicle-modal-title">Add vehicle</div><button class="modal-close" onclick="closeModal('vehicle')">&times;</button></div>
-    <div class="modal-body"><div id="vehicle-fields"></div></div>
-    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('vehicle')">Cancel</button><button class="btn btn-primary" onclick="saveVehicle()">Save vehicle</button></div>
+    <div class="modal-body"><div id="vehicle-fields" oninput="_debouncedVehicleAutoSave()"></div></div>
+    <div class="modal-footer"><span id="vehicle-saved-ind" style="display:none;color:var(--text3);font-size:12px;margin-right:auto">✓ Auto-saved</span><button class="btn btn-secondary" onclick="closeModal('vehicle')">Done</button><button class="btn btn-primary" onclick="saveVehicle()">Save vehicle</button></div>
   </div>
 </div>
 <div class="modal-bg" id="modal-vehicle-repair">
@@ -4217,11 +4217,11 @@ function closeModal(n){document.getElementById('modal-'+n).classList.remove('ope
 if(!db.vehicles)db.vehicles=[];
 const _VEHICLE_TYPES={truck:'Moving truck',forklift:'Forklift',suv:'SUV / Other'};
 const _VEHICLE_FIELDS={
-  truck:[['year','Year','number'],['make','Make','text'],['model','Model','text'],['licensePlate','License plate','text'],['vin','VIN','text'],['costPrice','Cost price ($)','number'],['registrationInfo','Registration info','textarea'],['boxL','Box length','text'],['boxH','Box height','text'],['boxW','Box width','text'],['totalL','Total length (incl. cab)','text'],['totalH','Total height (incl. cab)','text'],['totalW','Total width (incl. cab)','text'],['emptyWeight','Empty weight','text'],['maxLoadedWeight','Max legal loaded weight','text']],
-  forklift:[['year','Year','number'],['purchasePrice','Purchase price ($)','number']],
-  suv:[['year','Year','number'],['make','Make','text'],['model','Model','text'],['vin','VIN','text'],['licensePlate','License plate','text']]
+  truck:[['name','Name / nickname','text'],['year','Year','number'],['make','Make','text'],['model','Model','text'],['licensePlate','License plate','text'],['vin','VIN','text'],['costPrice','Cost price ($)','number'],['registrationInfo','Registration info','textarea'],['boxL','Box length','text'],['boxH','Box height','text'],['boxW','Box width','text'],['totalL','Total length (incl. cab)','text'],['totalH','Total height (incl. cab)','text'],['totalW','Total width (incl. cab)','text'],['emptyWeight','Empty weight','text'],['maxLoadedWeight','Max legal loaded weight','text']],
+  forklift:[['name','Name / nickname','text'],['year','Year','number'],['purchasePrice','Purchase price ($)','number']],
+  suv:[['name','Name / nickname','text'],['year','Year','number'],['make','Make','text'],['model','Model','text'],['vin','VIN','text'],['licensePlate','License plate','text']]
 };
-function _vehTitle(v){ if(v.type==='forklift')return 'Forklift'+(v.year?' ('+v.year+')':''); return [v.year,v.make,v.model].filter(Boolean).join(' ')||_VEHICLE_TYPES[v.type]||'Vehicle'; }
+function _vehTitle(v){ if(v.name)return v.name; if(v.type==='forklift')return 'Forklift'+(v.year?' ('+v.year+')':''); return [v.year,v.make,v.model].filter(Boolean).join(' ')||_VEHICLE_TYPES[v.type]||'Vehicle'; }
 function _vehRepairTotal(v){ return (v.repairs||[]).reduce(function(a,r){return a+(Number(r.cost)||0);},0); }
 function renderFleet(){
   const el=document.getElementById('fleet-content'); if(!el)return;
@@ -4241,14 +4241,14 @@ function _vehCard(v){
   const fields=_VEHICLE_FIELDS[v.type]||[];
   const rows=fields.filter(function(f){return v[f[0]]!=null&&v[f[0]]!=='';}).map(function(f){
     const isMoney=(f[0]==='costPrice'||f[0]==='purchasePrice');
-    const disp=isMoney?fmtMoney(v[f[0]]):esc(String(v[f[0]]));
+    const disp=isMoney?fmtMoney(v[f[0]]):escHtml(String(v[f[0]]));
     return '<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;font-size:12.5px"><span style="color:var(--text3)">'+f[1]+'</span><span style="font-weight:600;text-align:right">'+disp+'</span></div>';
   }).join('');
   const repairs=(v.repairs||[]).slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
   const repTotal=_vehRepairTotal(v);
-  const repList=repairs.length?repairs.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--border2);font-size:12px"><span>'+esc(r.date||'')+(r.desc?' \u2014 '+esc(r.desc):'')+'</span><span style="font-weight:600;white-space:nowrap">'+fmtMoney(r.cost)+' <button title="Delete repair" onclick="deleteVehicleRepair(\''+v.id+'\',\''+r.id+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">\u00d7</button></span></div>';}).join(''):'<div style="font-size:12px;color:var(--text3);padding:4px 0">No repairs logged yet.</div>';
+  const repList=repairs.length?repairs.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--border2);font-size:12px"><span>'+escHtml(r.date||'')+(r.desc?' \u2014 '+escHtml(r.desc):'')+'</span><span style="font-weight:600;white-space:nowrap">'+fmtMoney(r.cost)+' <button title="Delete repair" onclick="deleteVehicleRepair(\''+v.id+'\',\''+r.id+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">\u00d7</button></span></div>';}).join(''):'<div style="font-size:12px;color:var(--text3);padding:4px 0">No repairs logged yet.</div>';
   return '<div class="card" style="margin-bottom:14px"><div class="card-body">'
-    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div style="font-weight:700;font-size:15px">'+esc(_vehTitle(v))+'</div><div style="white-space:nowrap"><button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="openVehicleModal(\''+v.type+'\',\''+v.id+'\')">Edit</button> <button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="deleteVehicle(\''+v.id+'\')">Delete</button></div></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div style="font-weight:700;font-size:15px">'+escHtml(_vehTitle(v))+'</div><div style="white-space:nowrap"><button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="openVehicleModal(\''+v.type+'\',\''+v.id+'\')">Edit</button> <button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="deleteVehicle(\''+v.id+'\')">Delete</button></div></div>'
     +rows
     +'<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)">Repairs \u00b7 '+fmtMoney(repTotal)+'</div><button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="openVehicleRepairModal(\''+v.id+'\')">+ Add repair</button></div>'
     +repList
@@ -4262,20 +4262,37 @@ function openVehicleModal(type,id){
   document.getElementById('vehicle-modal-title').textContent=(v?'Edit ':'Add ')+_VEHICLE_TYPES[t];
   const fields=_VEHICLE_FIELDS[t]||[];
   document.getElementById('vehicle-fields').innerHTML='<div class="form-grid form-grid-2">'+fields.map(function(f){
-    const val=(v&&v[f[0]]!=null)?esc(String(v[f[0]])).replace(/"/g,'&quot;'):'';
+    const val=(v&&v[f[0]]!=null)?escHtml(String(v[f[0]])).replace(/"/g,'&quot;'):'';
     if(f[2]==='textarea')return '<div class="form-group" style="grid-column:1/-1"><label>'+f[1]+'</label><textarea id="veh-'+f[0]+'">'+val+'</textarea></div>';
     return '<div class="form-group"><label>'+f[1]+'</label><input type="'+(f[2]==='number'?'number':'text')+'" id="veh-'+f[0]+'" value="'+val+'"></div>';
   }).join('')+'</div>';
   openModal('vehicle');
 }
-function saveVehicle(){
+function _commitVehicle(opts){
+  opts=opts||{};
   const modal=document.getElementById('modal-vehicle');
-  const id=modal.dataset.editId, type=modal.dataset.vehType;
+  const type=modal.dataset.vehType;
   const fields=_VEHICLE_FIELDS[type]||[];
+  let id=modal.dataset.editId;
   let v=id?(db.vehicles||[]).find(function(x){return x.id===id;}):null;
-  if(!v){ v={id:'veh'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),type:type,repairs:[]}; if(!db.vehicles)db.vehicles=[]; db.vehicles.push(v); }
+  if(!v){ v={id:'veh'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),type:type,repairs:[]}; if(!db.vehicles)db.vehicles=[]; db.vehicles.push(v); modal.dataset.editId=v.id; }
   fields.forEach(function(f){ const el=document.getElementById('veh-'+f[0]); if(el)v[f[0]]=el.value.trim(); });
-  saveDB(); closeModal('vehicle'); renderFleet(); showToast('\u2713 Vehicle saved');
+  saveDB(); renderFleet();
+  if(opts.close){ closeModal('vehicle'); showToast('\u2713 Vehicle saved'); return; }
+  // Auto-save: flash the inline "Auto-saved" indicator, keep the modal open
+  const ind=document.getElementById('vehicle-saved-ind');
+  if(ind){ ind.style.display='inline'; clearTimeout(window._vehSavedIndTimer); window._vehSavedIndTimer=setTimeout(function(){ind.style.display='none';},1600); }
+}
+function saveVehicle(){ _commitVehicle({close:true}); }
+let _vehAutoTimer=null;
+function _debouncedVehicleAutoSave(){ clearTimeout(_vehAutoTimer); _vehAutoTimer=setTimeout(_autoSaveVehicle,700); }
+function _autoSaveVehicle(){
+  const modal=document.getElementById('modal-vehicle');
+  if(!modal||!modal.classList.contains('open'))return;
+  const type=modal.dataset.vehType; const fields=_VEHICLE_FIELDS[type]||[];
+  // Don't auto-create a brand-new vehicle until at least one field has a value.
+  if(!modal.dataset.editId){ const any=fields.some(function(f){const el=document.getElementById('veh-'+f[0]);return el&&el.value.trim();}); if(!any)return; }
+  _commitVehicle({auto:true});
 }
 function deleteVehicle(id){ if(!confirm('Delete this vehicle and its repair history? This cannot be undone.'))return; db.vehicles=(db.vehicles||[]).filter(function(v){return v.id!==id;}); saveDB(); renderFleet(); showToast('Vehicle deleted'); }
 function openVehicleRepairModal(vid){
