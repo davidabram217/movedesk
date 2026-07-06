@@ -2782,6 +2782,10 @@ async function loadDB(){
       // preserve whatever localStorage had
       try{const raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');if(raw){const ld=JSON.parse(raw);if(Array.isArray(ld.aiTraining))db.aiTraining=ld.aiTraining;}}catch(_){}
     }
+    // Vehicles (Fleet) are local-only for now (no cloud table yet). The cloud load above rebuilds
+    // db from Supabase tables and does NOT include vehicles, so restore them from localStorage here
+    // — otherwise they'd vanish on every reload.
+    try{const _raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');if(_raw){const _ld=JSON.parse(_raw);if(Array.isArray(_ld.vehicles))db.vehicles=_ld.vehicles;}}catch(_){}
     // Customers are rebuilt from leads/jobs on startup - not stored in Supabase
     db.customers=[];
     // Settings
