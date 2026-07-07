@@ -13628,6 +13628,7 @@ function buildQuoteHTML(){
   return renderQuoteHTML(q,l);
 }
 
+function _fmtCell(p){var d=String(p||'').replace(/\D/g,'');var n=(d.length===11&&d.charAt(0)==='1')?d.slice(1):d;return n.length===10?(n.slice(0,3)+'-'+n.slice(3,6)+'-'+n.slice(6)):String(p||'');}
 function renderQuoteHTML(q,lead){
   // Shared renderer — used by buildQuoteHTML (preview) AND viewAcceptedQuote
   const isMulti=q.jobType==='multi';
@@ -13648,7 +13649,8 @@ function renderQuoteHTML(q,lead){
     <div style="font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:#9e9b94;margin-top:4px">San Francisco, CA</div>
     <div style="margin-top:20px;font-size:24px;font-weight:700;color:#1a1a1a">Move Estimate</div>
     ${q.customerName?`<div style="font-size:14px;color:#6b6860;margin-top:6px">Prepared for ${esc(q.customerName)}</div>`:''}
-    ${q.customerPhone?`<div style="font-size:13px;color:#9e9b94;margin-top:3px">${esc(q.customerPhone)}</div>`:''}
+    ${q.customerPhone?`<div style="font-size:13px;color:#9e9b94;margin-top:3px">Cell - ${esc(_fmtCell(q.customerPhone))}</div>`:''}
+    ${q.customerEmail?`<div style="font-size:13px;color:#9e9b94;margin-top:3px">${esc(q.customerEmail)}</div>`:''}
     <div style="font-size:12px;color:#9e9b94;margin-top:8px;line-height:1.6">CareMore Moving &amp; Storage &nbsp;·&nbsp; Cal-T #0190970<br>925 Palou Ave, San Francisco, CA 94124 &nbsp;·&nbsp; (415) 822-8547</div>
   </div>`;
 
