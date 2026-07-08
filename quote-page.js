@@ -107,7 +107,7 @@ function renderQuote(q){
       var loads=d.loads&&d.loads.length?d.loads:[{address:d.from||'',unit:d.fromUnit||'',floor:d.fromFloor||'',access:d.fromAccess||'',parking:d.fromParking||''}];
       var unloads=d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'',unit:d.toUnit||'',floor:d.toFloor||'',access:d.toAccess||'',parking:d.toParking||''}];
       html+='<div style="margin-bottom:20px;padding-bottom:16px;'+(i<days.length-1?'border-bottom:1px dashed #e8e4dc':'')+'">'+
-        '<div style="font-weight:700;font-size:15px;color:#2d5a3d;margin-bottom:10px">Day '+(i+1)+'</div>'+
+        '<div style="font-weight:700;font-size:15px;color:#2d5a3d;margin-bottom:10px">Day '+(i+1)+(d.dayLabel?' – '+esc(d.dayLabel):'')+'</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
         (d.date?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Date</div><div style="font-weight:500;font-size:14px">'+fmtD(d.date)+'</div></div>':'')+
         (d.arrivalStart?'<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Arrival window</div><div style="font-weight:500;font-size:14px">'+esc(d.arrivalStart+(d.arrivalEnd?' \u2013 '+d.arrivalEnd:''))+'</div></div>':'')+

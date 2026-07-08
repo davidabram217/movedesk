@@ -13361,7 +13361,7 @@ function renderQbDays(){
       d.unloads=[{address:d.to||'',unit:d.toUnit||'',floor:d.toFloor||'',access:d.toAccess||'',locType:d.toType||'',parking:d.toParking||''},...(d.extraUnloads||[]).map(ex=>({address:ex.address||'',unit:ex.unit||'',floor:ex.floor||'',access:ex.access||'',locType:'',parking:ex.parking||''}))];
       d.locations=true;
     }
-    const dayLabel=isMulti?`Day ${i+1}`:'Move Details';
+    const dayLabel=isMulti?`Day ${i+1}${d.dayLabel?' – '+escHtml(d.dayLabel):''}`:'Move Details';
     const dayColor=isMulti?'#2d5a3d':'var(--text2)';
     return`
     <div style="border:2px solid ${isMulti?'#2d5a3d':'var(--border2)'};border-radius:var(--radius);margin-bottom:20px;overflow:hidden">
@@ -13375,6 +13375,7 @@ function renderQbDays(){
       </div>
 
       <div style="padding:14px">
+        ${isMulti?`<div class="form-group full" style="margin-bottom:14px"><label>Day name <span style="font-size:10.5px;color:var(--text3)">(optional)</span></label><input type="text" value="${escHtml(d.dayLabel||'')}" oninput="updateQbDay('${d.id}','dayLabel',this.value)" placeholder="e.g. Pack Day, Move Day"></div>`:''}
         <!-- Schedule -->
         <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Schedule</div>
         <div class="form-grid form-grid-2" style="margin-bottom:16px">
@@ -13689,7 +13690,7 @@ function renderQuoteHTML(q,lead){
       const loads=d.loads&&d.loads.length?d.loads:[{address:d.from||'',unit:d.fromUnit||'',floor:d.fromFloor||'',access:d.fromAccess||'',parking:d.fromParking||''}];
       const unloads=d.unloads&&d.unloads.length?d.unloads:[{address:d.to||'',unit:d.toUnit||'',floor:d.toFloor||'',access:d.toAccess||'',parking:d.toParking||''}];
       html+=`<div style="margin-bottom:20px;padding-bottom:16px;${i<days.length-1?'border-bottom:1px dashed #e8e4dc':''}">
-        <div style="font-weight:700;font-size:15px;color:#2d5a3d;margin-bottom:10px">Day ${i+1}</div>
+        <div style="font-weight:700;font-size:15px;color:#2d5a3d;margin-bottom:10px">Day ${i+1}${d.dayLabel?` – ${escHtml(d.dayLabel)}`:''}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           ${d.date?`<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Date</div><div style="font-weight:500;font-size:14px">${fmtD(d.date)}</div></div>`:''}
           ${d.arrivalStart?`<div><div style="font-size:11px;color:#9e9b94;margin-bottom:3px">Arrival window</div><div style="font-weight:500;font-size:14px">${esc(d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:''))}</div></div>`:''}
