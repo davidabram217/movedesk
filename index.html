@@ -3267,6 +3267,7 @@ function showSyncIndicator(msg,color){
 }
 
 async function refreshFromSupabase(){
+  let _quotesNeedingRepush=[];
   if(_refreshBusy)return;
   // Don't refresh if a modal is open (user is actively editing)
   const anyModalOpen=document.querySelector('.modal-bg.open');
@@ -3385,12 +3386,14 @@ async function refreshFromSupabase(){
           // backward. If we see a backward move, treat the remote as corrupt and skip.
           if((local.status==='sent'||local.status==='accepted')&&rec.status==='draft'){
             console.warn('Sent→draft regression blocked for quote',id,'(local:',local.status,'remote:',rec.status,') — skipping cloud overwrite');
+            if(table==='quotes')_quotesNeedingRepush.push(id);
             return;
           }
           // ACCEPTED→SENT REGRESSION GUARD: similarly, an accepted quote shouldn't become
           // sent. If a customer accepted on the local side, that's the truth.
           if(local.status==='accepted'&&rec.status==='sent'){
             console.warn('Accepted→sent regression blocked for quote',id,'— skipping cloud overwrite');
+            if(table==='quotes')_quotesNeedingRepush.push(id);
             return;
           }
           const localEditIso=local._localEditedAt||'';
@@ -3442,6 +3445,14 @@ async function refreshFromSupabase(){
       if(db.completedJobs.length<before)updated++;
     }
     db.quotes=mergeTable(quotesRes,db.quotes||[],'id','quotes');
+    // SELF-HEAL: if the guard above blocked the cloud from downgrading a sent/accepted quote,
+    // the cloud is holding a stale version that the customer's link reads from. Push our correct
+    // sent/accepted version back up so the cloud (and the customer) converges to what we see.
+    if(_quotesNeedingRepush.length){
+      const _seen={},_rows=[];
+      _quotesNeedingRepush.forEach(function(qid){ if(_seen[qid])return; _seen[qid]=1; const q=(db.quotes||[]).find(function(x){return x.id===qid;}); if(q&&(q.status==='sent'||q.status==='accepted'))_rows.push({id:q.id,data:q}); });
+      if(_rows.length){ try{ await sbFetch('quotes','POST',_rows); console.log('Cloud self-heal: re-pushed '+_rows.length+' sent/accepted quote(s) the cloud had stale — customer link now matches your version.'); }catch(_e){ console.warn('Quote self-heal re-push failed:',_e); } }
+    }
     // ─── LEGACY NOTES MIGRATION ────────────────────────────────────────────────
     // Same migration as runs in loadDB. Catches the case where a freshly-synced lead from the
     // cloud has content in l.notes — we merge it into l.officeNotes and clear l.notes.
