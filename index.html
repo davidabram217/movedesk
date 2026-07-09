@@ -4535,14 +4535,26 @@ function getQuoteCompareTotal(j){
   const ccFee=Number(j.feeCC)||0;
   const insurance=Number(j.feeInsurance)||0;
   const addOns=ccFee+insurance;
+  // OUT-OF-SCOPE ADJUSTMENTS — money that moved for reasons unrelated to whether we estimated the
+  // WORK correctly. A goodwill credit for damages, or a Yelp deal discount, says nothing about the
+  // accuracy of the quote, so leaving them in makes a perfectly-quoted job look under/over.
+  // We remove whatever signed effect they had on j.total.
+  //   • Damage/claim is ADDED to the total on BOTH the single-day and multi-day forms
+  //     (a credit is entered as a negative number).
+  //   • Yelp is INCONSISTENT by design of the two forms: single-day "Yelp deal discount" is
+  //     SUBTRACTED; multi-day "Yelp fee" is ADDED. Key off j.multiDay to undo the right direction.
+  const damageAdj=Number(j.feeDamage)||0;
+  const yelpRaw=Number(j.feeYelp)||0;
+  const yelpAdj=j.multiDay?yelpRaw:-yelpRaw;
+  const scopeAdj=damageAdj+yelpAdj;
   if(!j.paidCashRate||!j.quotedRate||!j.cashRate||!j.hours){
     return{
-      compareTotal:Math.max(0,realJobValue-addOns),
+      compareTotal:Math.max(0,realJobValue-addOns-scopeAdj),
       actualPaid:charged||realJobValue,
       paidCash:false,
       regularEquiv:null,
       capDiscountApplied:capDiscount>0,
-      addOns,ccFee,insurance
+      addOns,ccFee,insurance,scopeAdj,damageAdj,yelpAdj
     };
   }
   // Reconstruct the regular-rate-equivalent: replace the labour line with hours × quoted rate
@@ -4552,12 +4564,12 @@ function getQuoteCompareTotal(j){
   // Take the real job value (or what they actually paid), swap cash labour for regular labour
   const regularEquiv=Math.round(realJobValue-cashLabour+regularLabour);
   return{
-    compareTotal:Math.max(0,regularEquiv-addOns),
+    compareTotal:Math.max(0,regularEquiv-addOns-scopeAdj),
     actualPaid:charged,
     paidCash:true,
     regularEquiv,
     capDiscountApplied:capDiscount>0,
-    addOns,ccFee,insurance
+    addOns,ccFee,insurance,scopeAdj,damageAdj,yelpAdj
   };
 }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
