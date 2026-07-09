@@ -13192,6 +13192,9 @@ function setJobType(type){
     d.locations=true;
   });
   renderQbDays();
+  // Persist the single/multi-day switch like every other Quote Builder edit. qbAutoSave is
+  // debounced and still refuses to overwrite a sent/accepted quote (drafts only).
+  qbAutoSave();
 }
 
 function addQuoteDay(){
