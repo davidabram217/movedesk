@@ -1303,7 +1303,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="cj-fuel" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Parking permits ($)</label><input type="number" id="cj-parking-fee" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>COI fee ($)</label><input type="number" id="cj-coi" placeholder="0.00" oninput="calcTotal()"></div>
-        <div class="form-group"><label>Insurance type chosen</label><select id="cj-insurance-type" onchange="autoFillInsuranceFee()"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option></select></div>
+        <div class="form-group"><label>Insurance type chosen</label><select id="cj-insurance-type" onchange="autoFillInsuranceFee()"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
         <div class="form-group"><label>Insurance fee ($)</label><input type="number" id="cj-insurance" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Dump fee ($)</label><input type="number" id="cj-dump" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Damage / claim ($)</label><input type="number" id="cj-damage" placeholder="0.00" oninput="calcTotal()"></div>
@@ -1430,7 +1430,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="cjmd-yelp" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="cjmd-damage" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="cjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option></select></div>
+          <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
         </div>
       </div>
@@ -1843,7 +1843,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="ecjmd-yelp" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="ecjmd-damage" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option></select></div>
+          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
         </div>
       </div>
@@ -8683,7 +8683,8 @@ function autoFillInsuranceFee(){
     'Option 2 — Full Value Protection, No Deductible ($300)':300,
     'Option 2 — Full Value Protection, $250 Deductible ($100)':100,
     'Option 2 — Full Value Protection, $500 Deductible ($50)':50,
-    'Option 3 — Basic Liability (included)':0
+    'Option 3 — Basic Liability (included)':0,
+    'Did not get an answer':0
   };
   if(type&&feeMap[type]!==undefined){
     document.getElementById('cj-insurance').value=feeMap[type]||'';
