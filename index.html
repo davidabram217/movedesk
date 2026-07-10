@@ -2094,7 +2094,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       
       <div class="form-group" style="margin-bottom:16px">
         <label>Project description <span style="font-size:11px;color:var(--text3)">(shown on quote — describe the scope of work)</span></label>
-        <textarea id="qb-description" style="min-height:60px" placeholder="e.g. Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF." oninput="qbAutoSave()"></textarea>
+        <textarea id="qb-description" style="min-height:60px" oninput="qbAutoSave()"></textarea>
       </div>
 
       
@@ -13354,7 +13354,7 @@ function openQuoteBuilder(leadId){
   document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
   if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=l?.moveType||'';
   if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=l?.packing||'';
-  document.getElementById('qb-description').value='Wrapping and protecting all items, loading onto truck, driving to new home, unloading and driving back to warehouse in SF.';
+  document.getElementById('qb-description').value=''; // no default project description (removed 2026-07-10)
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-storage-costs').value='';
   document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
