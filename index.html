@@ -13372,6 +13372,25 @@ function openQuoteBuilder(leadId){
       return;
     }
   }
+  // No draft exists, but if this lead already has a SENT/ACCEPTED quote, don't silently hand
+  // back a blank form — offer to start pre-filled from the sent quote instead. This keeps the
+  // "never edit a sent quote" rule fully intact: choosing "from sent" routes through
+  // cloneSentQuoteToDraft(), which makes a brand-new draft (new id + new customer link) from a
+  // deep copy of the sent quote. The sent quote itself is never touched.
+  if(l&&db.quotes){
+    const _priorSent=(db.quotes||[]).filter(q=>q.leadId===leadId&&(q.status==='sent'||q.status==='accepted'));
+    if(_priorSent.length){
+      const _latestSent=_priorSent.slice().sort(function(a,b){
+        return String(b.sentAt||b.createdAt||'').localeCompare(String(a.sentAt||a.createdAt||''));
+      })[0];
+      const _useSent=(typeof confirm==='function')&&confirm(
+        'This lead already has a sent quote.\n\n'+
+        'OK  \u2014 start a NEW quote pre-filled from the sent one (edit the details, then send). Recommended.\n'+
+        'Cancel  \u2014 start a blank quote.'
+      );
+      if(_useSent){ cloneSentQuoteToDraft(_latestSent.id); return; }
+    }
+  }
   // No active draft — create a fresh blank draft.
   currentQuoteId=null; // explicit: no current quote yet; the first save will create it
   // Default values from lead — fresh new quote
