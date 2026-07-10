@@ -3538,6 +3538,9 @@ function showSyncIndicator(msg,color){
 
 async function refreshFromSupabase(){
   let _quotesNeedingRepush=[];
+  // Count the days on a quote object defensively — a quote is "multi-day" only if it genuinely
+  // carries more than one day. Used by the multi→single collapse guard in the merge below.
+  const _quoteDayCount=function(q){return q&&Array.isArray(q.days)?q.days.length:0;};
   if(_refreshBusy)return;
   // Don't refresh if a modal is open (user is actively editing)
   const anyModalOpen=document.querySelector('.modal-bg.open');
@@ -3701,6 +3704,19 @@ async function refreshFromSupabase(){
             if(table==='quotes')_quotesNeedingRepush.push(id);
             return;
           }
+          // MULTI→SINGLE COLLAPSE GUARD: refuse to let a remote copy that has collapsed a
+          // multi-day quote down to a single (usually blank) day overwrite our intact multi-day
+          // version. This is the corruption that destroyed the Charlotte Smith and Don Jones
+          // quotes (2026-07-08/09, again 2026-07-10): a stale tab or second device pushed a
+          // reset single-day draft up to the cloud, and the sync had no shape check to stop it.
+          // Status guards above only watch draft/accepted transitions — they miss a sent→sent
+          // collapse. Shape only ever GAINS days from a deliberate edit; a sync that DROPS days
+          // is treated as corrupt. If we hold the good multi-day copy, keep it and re-push.
+          if(_quoteDayCount(local)>1&&_quoteDayCount(rec)<=1){
+            console.warn('Multi→single collapse blocked for quote',id,'(local days:',_quoteDayCount(local),'remote days:',_quoteDayCount(rec),') — skipping cloud overwrite and scheduling re-push');
+            if(table==='quotes')_quotesNeedingRepush.push(id);
+            return;
+          }
           const localEditIso=local._localEditedAt||'';
           const remoteEditIso=rec._localEditedAt||'';
           if(localEditIso&&remoteEditIso){
@@ -3756,7 +3772,19 @@ async function refreshFromSupabase(){
     // sent/accepted version back up so the cloud (and the customer) converges to what we see.
     if(_quotesNeedingRepush.length){
       const _seen={},_rows=[];
-      _quotesNeedingRepush.forEach(function(qid){ if(_seen[qid])return; _seen[qid]=1; const q=(db.quotes||[]).find(function(x){return x.id===qid;}); if(q&&(q.status==='sent'||q.status==='accepted'))_rows.push({id:q.id,data:q}); });
+      _quotesNeedingRepush.forEach(function(qid){
+        if(_seen[qid])return; _seen[qid]=1;
+        const q=(db.quotes||[]).find(function(x){return x.id===qid;});
+        if(!q||!(q.status==='sent'||q.status==='accepted'))return;
+        // SAFETY: never push a collapsed single/blank copy up. If the version we hold locally is
+        // itself a single-day quote whose type says multi, re-pushing it would spread the corruption
+        // to the cloud instead of healing it. Only re-push a quote we are confident is intact.
+        if(q.jobType==='multi'&&_quoteDayCount(q)<=1){
+          console.warn('Self-heal refused: local quote',qid,'is multi-day type but collapsed to',_quoteDayCount(q),'day(s) — NOT pushing corruption up. Restore from backup.');
+          return;
+        }
+        _rows.push({id:q.id,data:q});
+      });
       if(_rows.length){ try{ await sbFetch('quotes','POST',_rows); console.log('Cloud self-heal: re-pushed '+_rows.length+' sent/accepted quote(s) the cloud had stale — customer link now matches your version.'); }catch(_e){ console.warn('Quote self-heal re-push failed:',_e); } }
     }
     // ─── LEGACY NOTES MIGRATION ────────────────────────────────────────────────
@@ -14259,6 +14287,23 @@ function saveQuote(status,opts){
       console.warn('Refused to overwrite quote',existingQ.id,'with a blank builder \u2014 no changes saved.');
       if(typeof showToast==='function')showToast('\u26a0 Refused to overwrite this quote with a blank form. Re-open the quote and try again.');
       return existingQ;
+    }
+    // MULTI→SINGLE COLLAPSE GUARD: a saved multi-day quote is about to be overwritten by a
+    // single-day builder. This is the corruption that destroyed the Charlotte Smith / Don Jones
+    // quotes — a stale tab or reset builder wiping a real 2-day quote down to 1 blank day.
+    // A DELIBERATE conversion (you really do want it as one day) is legitimate, so we confirm
+    // rather than hard-block: intentional conversions proceed, accidental collapses get caught.
+    // If confirm() is unavailable for any reason, fail safe by refusing.
+    const _existingDays=(existingQ.days&&existingQ.days.length)||0;
+    const _builderDays=(qbDays&&qbDays.length)||0;
+    if(_existingDays>1&&_builderDays<=1){
+      console.warn('Multi-day quote',existingQ.id,'is about to collapse from',_existingDays,'days to',_builderDays,'\u2014 asking for confirmation.');
+      const _msg='\u26a0 This is currently a '+_existingDays+'-day quote, but the form only has 1 day.\n\nSaving now will permanently change it to a single-day quote. If you did NOT mean to remove a day (e.g. this tab was left open, or the form reset), click Cancel and re-open the quote from the lead.\n\nConvert this to a single-day quote?';
+      const _confirmed=(typeof confirm==='function')?confirm(_msg):false;
+      if(!_confirmed){
+        if(typeof showToast==='function')showToast('Save cancelled \u2014 multi-day quote left unchanged.');
+        return existingQ;
+      }
     }
   }
   const publicId=existingQ?.publicId||('q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
