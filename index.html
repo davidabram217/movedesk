@@ -14229,6 +14229,38 @@ function saveQuote(status,opts){
       return existingQ;
     }
   }
+  // ── BLANK-BUILDER GUARD ──
+  // A freshly-opened Quote Builder holds exactly one day at crew 2 / 2-4 hrs / base rate. It does
+  // carry the lead addresses, so addresses cannot be part of the test. If a save carrying THAT
+  // state lands on a quote that already has real work in it, it is a wipe, not an edit. That is how
+  // the Charlotte Smith and Don Jones multi-day quotes were destroyed on 2026-07-08/09.
+  // This protects DRAFTS too; the hard lock above only covers sent/accepted. Deliberate edits still
+  // pass: deleting a day leaves 2, changing an hour leaves a non-default value. Fails LOUDLY.
+  // Declared inline so saveQuote stays self-contained (no external globals to go missing).
+  // NOTE: no apostrophes in these comments — the guard suites extract this function with a naive
+  // brace counter that treats a quote character in a comment as the start of a string literal.
+  function _isBlankBuilderDays(days,baseRate){
+    if(!Array.isArray(days)||days.length!==1)return false;
+    const d=days[0]||{};
+    if(d.flatRate)return false;
+    if(d.dayLabel)return false;
+    return Number(d.crew)===2&&Number(d.hrsMin)===2&&Number(d.hrsMax)===4&&Number(d.rate)===Number(baseRate);
+  }
+  function _quoteIsSubstantive(q,baseRate){
+    if(!q)return false;
+    const days=q.days||[];
+    if(days.length>1)return true;
+    if(!days.length)return false;
+    return !_isBlankBuilderDays(days,baseRate);
+  }
+  if(existingQ){
+    const _baseRate=Number((db.settings&&db.settings.rateBase)||225);
+    if(_quoteIsSubstantive(existingQ,_baseRate)&&_isBlankBuilderDays(qbDays,_baseRate)){
+      console.warn('Refused to overwrite quote',existingQ.id,'with a blank builder \u2014 no changes saved.');
+      if(typeof showToast==='function')showToast('\u26a0 Refused to overwrite this quote with a blank form. Re-open the quote and try again.');
+      return existingQ;
+    }
+  }
   const publicId=existingQ?.publicId||('q'+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
   // Expires 3 months from now
   const expiresAt=existingQ?.expiresAt||(()=>{const d=new Date();d.setMonth(d.getMonth()+3);return d.toISOString().split('T')[0];})();
