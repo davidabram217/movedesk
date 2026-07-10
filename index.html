@@ -2809,6 +2809,7 @@ async function loadDB(){
     db.completedJobs=(completedJobs===null)
       ? (_LD.completedJobs||[]).filter(j=>!_completedTombs[j.id])
       : completedJobs.filter(r=>!_completedTombs[r.id]).map(r=>({...r.data,id:r.id}));
+    _noteCloudQuoteStatuses(quotes);
     db.quotes=_cloudOrLocal(quotes,_LD.quotes);
     db.employees=_cloudOrLocal(employees,_LD.employees);
     if(_cloudDown){
@@ -3292,6 +3293,24 @@ document.addEventListener('change',_globalAutoSave);
 // confirmed success, so a failed upload is retried next time rather than silently dropped.
 const _syncCache={};
 let _aiTrainingMissing=false;
+// ── Write-side protection for sent quotes ──────────────────────────────────────────────────
+// The read-side guard in mergeTable stops a cloud DRAFT from overwriting a local SENT quote, but
+// nothing stopped this device from UPLOADING a stale draft on top of a sent/accepted cloud quote
+// — which is how a customer's link ended up showing an older draft. We track the cloud's status
+// per quote and refuse to push a lower-ranked status over a higher-ranked one.
+const _cloudQuoteStatus={};
+function _quoteRank(st){return st==='accepted'?3:st==='sent'?2:st==='declined'?2:1;}
+function _noteCloudQuoteStatuses(rows){
+  (rows||[]).forEach(function(r){
+    if(r&&r.id&&r.data&&r.data.status)_cloudQuoteStatus[r.id]=r.data.status;
+  });
+}
+// True when uploading `q` would downgrade what the cloud already has.
+function _wouldDowngradeQuote(q){
+  const cs=_cloudQuoteStatus[q.id];
+  if(!cs)return false;
+  return _quoteRank(q.status)<_quoteRank(cs);
+}
 function _dirtyRows(table,rows,key){
   key=key||'id';
   const seen=_syncCache[table]||(_syncCache[table]={});
@@ -3331,7 +3350,15 @@ async function syncToSupabase(){
     const leadsRows=db.leads.filter(l=>!_leadTombs[l.id]&&!_isDeletedRec(l)).map(l=>({id:l.id,data:l}));
     const bookedRows=db.bookedJobs.map(j=>({id:j.id,data:j}));
     const completedRows=db.completedJobs.map(j=>({id:j.id,data:j}));
-    const quoteRows=(db.quotes||[]).map(q=>({id:q.id,data:q}));
+    // Never push a draft over a quote the cloud already has as sent/accepted.
+    const quoteRows=(db.quotes||[]).filter(function(q){
+      if(_wouldDowngradeQuote(q)){
+        console.warn('Blocked upload of a stale',q.status,'over cloud',_cloudQuoteStatus[q.id],'for quote',q.id,
+          '\u2014 the customer link keeps the sent version. It will be pulled back down on the next refresh.');
+        return false;
+      }
+      return true;
+    }).map(q=>({id:q.id,data:q}));
     const empRows=(db.employees||[]).map(e=>({id:e.id,data:e}));
     const weekRows=Object.entries(db.weeklyPayroll||{}).map(([k,v])=>({week_key:k,data:v}));
     const txnRows=(db.cashTransactions||[]).map(t=>({id:t.id,data:t}));
@@ -3588,6 +3615,7 @@ async function refreshFromSupabase(){
       db.completedJobs=db.completedJobs.filter(j=>!_allTombstones.completed_jobs[j.id]);
       if(db.completedJobs.length<before)updated++;
     }
+    _noteCloudQuoteStatuses(quotesRes);
     db.quotes=mergeTable(quotesRes,db.quotes||[],'id','quotes');
     // SELF-HEAL: if the guard above blocked the cloud from downgrading a sent/accepted quote,
     // the cloud is holding a stale version that the customer's link reads from. Push our correct
@@ -14465,6 +14493,7 @@ async function sendQuoteEmail(){
     // app) — it's the known-good write path with proper auth headers and conflict resolution.
     try{
       await sbFetch('quotes','POST',[{id:q.id,data:q}]);
+      _cloudQuoteStatus[q.id]=q.status; // authorized send: cloud now holds 'sent'
     }catch(pushErr){
       // Direct push failed — the customer's link might not work yet. Fall back to the normal
       // saveDB() which will retry via the background sync. The hard lock will keep the
