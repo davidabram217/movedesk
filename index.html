@@ -13382,9 +13382,12 @@ function setJobType(type){
     d.locations=true;
   });
   renderQbDays();
-  // Persist the single/multi-day switch like every other Quote Builder edit. qbAutoSave is
-  // debounced and still refuses to overwrite a sent/accepted quote (drafts only).
-  qbAutoSave();
+  // NOTE (2026-07-09): deliberately does NOT auto-save here. Reverted after it destroyed a
+  // customer's multi-day quote. qbAutoSave only refuses to overwrite SENT/ACCEPTED quotes, and a
+  // quote whose link was copied out by hand stays a DRAFT — so a blank builder bound to that draft
+  // (currentQuoteId set by openQuoteBuilder) could save 1 day / 2 crew / 2-4h straight over it.
+  // Do not re-add without first making qbAutoSave refuse to write a blank builder over an
+  // existing quote of ANY status.
 }
 
 function addQuoteDay(){
