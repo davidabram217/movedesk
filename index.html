@@ -2678,6 +2678,37 @@ async function sbFetch(path,method,body){
   }catch(e){return null;}
 }
 
+// ── Cloud-offline fallback ──────────────────────────────────────────────────────────────────
+// sbFetch() returns null when a request FAILS and [] when a table is genuinely empty. Startup used
+// to treat both as "empty", so a Supabase outage silently blanked quotes/booked/completed/employees
+// and the next saveDB() would persist that emptiness over the good localStorage copy. These helpers
+// let loadDB tell the two apart and fall back to the local copy per-table.
+let _cloudOffline=false;
+function _localDb(){
+  try{const raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');return raw?JSON.parse(raw):{};}
+  catch(_){return {};}
+}
+// rows===null  -> request failed  -> keep the local copy (unknown, not empty)
+// rows===[]    -> table is empty  -> honour it
+function _cloudOrLocal(rows,localArr){
+  if(rows===null||rows===undefined||!Array.isArray(rows))return Array.isArray(localArr)?localArr:[];
+  return rows.map(r=>({...r.data,id:r.id}));
+}
+function _setCloudOffline(off){
+  _cloudOffline=!!off;
+  let bar=document.getElementById('cloud-offline-bar');
+  if(off){
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='cloud-offline-bar';
+      bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#8a5a00;color:#fff;'+
+        'font-size:13px;font-weight:600;text-align:center;padding:7px 12px;box-shadow:0 1px 4px rgba(0,0,0,.25)';
+      bar.textContent='\u26a0 Working offline \u2014 can\u2019t reach the database. Your data is safe on this device; changes will NOT sync until the connection returns.';
+      document.body.appendChild(bar);
+    }
+  }else if(bar){bar.remove();}
+}
+
 async function loadDB(){
   try{
     // Load all tables in parallel
@@ -2765,14 +2796,25 @@ async function loadDB(){
     // For each tombstoned ID still present in cloud, re-issue the delete
     (bookedJobs||[]).forEach(r=>{if(_bookedTombs[r.id]){try{sbDelete('booked_jobs',r.id);}catch(_){}}});
     (completedJobs||[]).forEach(r=>{if(_completedTombs[r.id]){try{sbDelete('completed_jobs',r.id);}catch(_){}}});
-    db.bookedJobs=(bookedJobs||[]).filter(r=>!_bookedTombs[r.id]).map(r=>({...r.data,id:r.id}));
-    db.completedJobs=(completedJobs||[]).filter(r=>!_completedTombs[r.id]).map(r=>({...r.data,id:r.id}));
-    db.quotes=(quotes||[]).map(r=>({...r.data,id:r.id}));
-    db.employees=(employees||[]).map(r=>({...r.data,id:r.id}));
+    // A failed read (null) must NOT be treated as an empty table — fall back to the local copy.
+    const _LD=_localDb();
+    const _cloudDown=(leads===null&&bookedJobs===null&&completedJobs===null&&quotes===null);
+    db.bookedJobs=(bookedJobs===null)
+      ? (_LD.bookedJobs||[]).filter(j=>!_bookedTombs[j.id])
+      : bookedJobs.filter(r=>!_bookedTombs[r.id]).map(r=>({...r.data,id:r.id}));
+    db.completedJobs=(completedJobs===null)
+      ? (_LD.completedJobs||[]).filter(j=>!_completedTombs[j.id])
+      : completedJobs.filter(r=>!_completedTombs[r.id]).map(r=>({...r.data,id:r.id}));
+    db.quotes=_cloudOrLocal(quotes,_LD.quotes);
+    db.employees=_cloudOrLocal(employees,_LD.employees);
+    if(_cloudDown){
+      console.warn('Cloud unreachable at startup — loaded everything from the local copy. Uploads are paused.');
+      _setCloudOffline(true);
+    }else{_setCloudOffline(false);}
     // Payroll weeks keyed by week_key
-    db.weeklyPayroll={};
-    (payrollRows||[]).forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});
-    db.cashTransactions=(transactions||[]).map(r=>({...r.data,id:r.id}));
+    if(payrollRows===null){db.weeklyPayroll=_LD.weeklyPayroll||{};}
+    else{db.weeklyPayroll={};payrollRows.forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});}
+    db.cashTransactions=_cloudOrLocal(transactions,_LD.cashTransactions);
     // ai_training — load if table exists, otherwise keep whatever's in localStorage
     try{
       const aiRows=await sbFetch('ai_training?select=id,data&order=created_at.desc');
@@ -3159,7 +3201,7 @@ function saveDB(){
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
   // Debounce Supabase saves to avoid hammering the API
   clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(()=>syncToSupabase(),500);
+  _saveTimer=setTimeout(()=>syncToSupabase(),3000);
 }
 
 // ── Global auto-save ── fires 1.5s after any input in any open modal
@@ -3216,7 +3258,44 @@ function _globalAutoSave(){
 document.addEventListener('input',_globalAutoSave);
 document.addEventListener('change',_globalAutoSave);
 
+// ── Dirty-row sync ─────────────────────────────────────────────────────────────────────────
+// syncToSupabase used to re-upload EVERY row of EVERY table on each save (debounced 500ms after
+// any keystroke in an autosaving form). With ~330 records that is a huge amount of write I/O and
+// is what depletes the Supabase Disk IO budget. We now upload only rows whose JSON actually
+// changed since the last SUCCESSFUL upload. Cache is per-session and only updated after a
+// confirmed success, so a failed upload is retried next time rather than silently dropped.
+const _syncCache={};
+let _aiTrainingMissing=false;
+function _dirtyRows(table,rows,key){
+  key=key||'id';
+  const seen=_syncCache[table]||(_syncCache[table]={});
+  const out=[];
+  rows.forEach(function(r){
+    const k=r[key];
+    const json=JSON.stringify(r.data);
+    if(seen[k]!==json)out.push(r);
+  });
+  return out;
+}
+function _markSynced(table,rows,key){
+  key=key||'id';
+  const seen=_syncCache[table]||(_syncCache[table]={});
+  rows.forEach(function(r){seen[r[key]]=JSON.stringify(r.data);});
+}
+// Upload a table only when something changed. Marks rows clean only on a confirmed success.
+function _pushTable(table,rows,key){
+  const dirty=_dirtyRows(table,rows,key);
+  if(!dirty.length)return null;
+  return sbFetch(table,'POST',dirty).then(function(res){
+    if(res!==null)_markSynced(table,dirty,key);
+    return res;
+  });
+}
+
 async function syncToSupabase(){
+  // Never push while offline: db may have been loaded from the local copy only, and uploading it
+  // could overwrite good cloud rows (or wipe tables that failed to read).
+  if(_cloudOffline){console.warn('Offline \u2014 skipping cloud sync (nothing uploaded).');return;}
   try{
     // Upsert all records
     const leadsRows=db.leads.map(l=>({id:l.id,data:l}));
@@ -3228,20 +3307,20 @@ async function syncToSupabase(){
     const txnRows=(db.cashTransactions||[]).map(t=>({id:t.id,data:t}));
     const ops=[];
     const customerRows=(db.customers||[]).map(c=>({id:c.id,data:c}));
-    if(leadsRows.length)ops.push(sbFetch('leads','POST',leadsRows));
-    if(bookedRows.length)ops.push(sbFetch('booked_jobs','POST',bookedRows));
-    if(completedRows.length)ops.push(sbFetch('completed_jobs','POST',completedRows));
-    if(quoteRows.length)ops.push(sbFetch('quotes','POST',quoteRows));
-    if(empRows.length)ops.push(sbFetch('employees','POST',empRows));
-    if(weekRows.length)ops.push(sbFetch('payroll_weeks','POST',weekRows));
-    if(txnRows.length)ops.push(sbFetch('cash_transactions','POST',txnRows));
-    ops.push(sbFetch('settings','POST',[{id:'main',data:db.settings}]));
+    const _push=(t,rows,key)=>{const op=_pushTable(t,rows,key);if(op)ops.push(op);};
+    _push('leads',leadsRows);
+    _push('booked_jobs',bookedRows);
+    _push('completed_jobs',completedRows);
+    _push('quotes',quoteRows);
+    _push('employees',empRows);
+    _push('payroll_weeks',weekRows,'week_key');
+    _push('cash_transactions',txnRows);
+    _push('settings',[{id:'main',data:db.settings}]);
     // ai_training — wrapped so a missing table doesn't break other syncs
     const aiRows=(db.aiTraining||[]).map(r=>({id:r.id,data:r}));
-    if(aiRows.length){
-      ops.push(sbFetch('ai_training','POST',aiRows).catch(e=>{
-        console.warn('ai_training sync skipped (table may not exist yet):',e);
-      }));
+    if(aiRows.length&&!_aiTrainingMissing){
+      const _aiOp=_pushTable('ai_training',aiRows);
+      if(_aiOp)ops.push(_aiOp.then(res=>{if(res===null)_aiTrainingMissing=true;}).catch(()=>{_aiTrainingMissing=true;}));
     }
     await Promise.all(ops);
     _lastSyncAt=Date.now();
@@ -3280,6 +3359,19 @@ async function refreshFromSupabase(){
       sbFetch('completed_jobs','GET'),
       sbFetch('quotes','GET'),
     ]);
+    // Cloud health: all four critical reads failing means we're offline. mergeTable already
+    // treats a null response as "keep local", so nothing is lost either way — but flip the flag
+    // so uploads stay paused and the banner reflects reality.
+    if(leadsRes===null&&bookedRes===null&&completedRes===null&&quotesRes===null){
+      _setCloudOffline(true);
+      _refreshBusy=false;
+      return;
+    }
+    if(_cloudOffline){
+      _setCloudOffline(false);
+      console.log('Cloud reachable again \u2014 syncing resumed.');
+      try{syncToSupabase();}catch(_){}
+    }
     // Load tombstones for every table we sync — IDs deleted locally that must NOT be merged back
     const _tombstoneStores={
       leads:'movedesk_lead_tombstones',
@@ -3644,7 +3736,12 @@ async function refreshFromSupabase(){
 }
 
 // Auto-refresh every 60 seconds
-setInterval(refreshFromSupabase,60000);
+// Poll every 5 minutes instead of every 60s, and skip entirely while the tab is in the background.
+// Each refresh is a full read of the leads/booked/completed/quotes tables; at 60s that was ~1,440
+// full sweeps per day per open tab, which depletes the Supabase Disk IO budget on a Nano instance.
+setInterval(function(){ if(document.hidden)return; refreshFromSupabase(); },5*60*1000);
+// Refresh promptly when the user comes back to the tab, so returning still feels live.
+document.addEventListener('visibilitychange',function(){ if(!document.hidden)refreshFromSupabase(); });
 
 // Also refresh when tab becomes visible again (user switches back)
 document.addEventListener('visibilitychange',function(){
@@ -16627,7 +16724,7 @@ window.deleteLead=deleteLead;
   checkPendingLeads();
   checkAcceptedQuotes();
   // Poll for accepted quotes every 2 minutes
-  setInterval(checkAcceptedQuotes, 2*60*1000);
+  setInterval(function(){ if(document.hidden)return; checkAcceptedQuotes(); }, 5*60*1000);
   document.getElementById('page-title').textContent='Dashboard';
   document.getElementById('page-sub').textContent='Your business at a glance';
 })();
