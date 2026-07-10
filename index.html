@@ -2737,17 +2737,21 @@ async function loadDB(){
     // Tombstones — IDs that were deleted locally. Don't resurrect these from cloud.
     let tombstones={};
     try{tombstones=JSON.parse(localStorage.getItem('movedesk_lead_tombstones')||'{}');}catch(_){}
+    // Cloud tombstones are AUTHORITATIVE and cross-device: absorb them before anything else so a
+    // record deleted on another machine cannot be resurrected from this machine's local copy.
+    _absorbCloudTombstones(cloudLeads,cloudById,localById,tombstones);
     // Drop tombstones older than 30 days
     const _now=Date.now();
     Object.keys(tombstones).forEach(tid=>{
       if(_now-new Date(tombstones[tid]).getTime()>30*24*60*60*1000)delete tombstones[tid];
     });
     try{localStorage.setItem('movedesk_lead_tombstones',JSON.stringify(tombstones));}catch(_){}
-    // For each tombstoned ID still appearing in cloud, re-issue the delete (best effort)
+    // For each tombstoned ID still present in cloud as a LIVE row, re-assert the tombstone.
     Object.keys(tombstones).forEach(tid=>{
       if(cloudById.has(tid)){
-        try{sbDelete('leads',tid);}catch(_){}
+        try{_sbSoftDelete('leads',tid);}catch(_){}
         cloudById.delete(tid);
+        localById.delete(tid);
       }
     });
     const allIds=new Set([...cloudById.keys(),...localById.keys()]);
@@ -2997,6 +3001,28 @@ async function loadDB(){
       if(s2){try{db=JSON.parse(s2);if(!db.settings)db.settings={};if(!db.settings.crew)db.settings.crew=['John','Dave'];return;}catch(e2){}}
     }
   }
+}
+
+// ── Cloud-shared soft delete ───────────────────────────────────────────────────────────────
+// Hard-deleting a row only removes it from the CLOUD. Tombstones live in localStorage, so a
+// second device (John's) that still has the record and no tombstone would union it back in on
+// load and re-upsert it — resurrecting the lead for everyone. And sbDelete was fire-and-forget,
+// so during timeouts the delete silently never happened. Instead we now OVERWRITE the row with a
+// tiny tombstone ({_deleted:true}) via the existing merge-duplicates upsert. Every device sees it,
+// filters it, and records it locally. It cannot be undone by a stale device.
+function _isDeletedRec(r){return !!(r&&r._deleted);}
+async function _sbSoftDelete(table,id){
+  const res=await sbFetch(table,'POST',[{id:id,data:{id:id,_deleted:true,_deletedAt:new Date().toISOString()}}]);
+  return res!==null;
+}
+// Fold any cloud tombstones into the local tombstone map and drop them from both sides.
+function _absorbCloudTombstones(cloudRecs,cloudById,localById,tombstones){
+  (cloudRecs||[]).forEach(function(r){
+    if(!_isDeletedRec(r))return;
+    tombstones[r.id]=r._deletedAt||new Date().toISOString();
+    if(cloudById)cloudById.delete(r.id);
+    if(localById)localById.delete(r.id);
+  });
 }
 
 async function sbDelete(table,id){
@@ -3298,7 +3324,11 @@ async function syncToSupabase(){
   if(_cloudOffline){console.warn('Offline \u2014 skipping cloud sync (nothing uploaded).');return;}
   try{
     // Upsert all records
-    const leadsRows=db.leads.map(l=>({id:l.id,data:l}));
+    // Never re-upload a record this device knows is deleted (belt & braces: it shouldn't be in
+    // db.leads at all, but a stale in-memory copy must not resurrect it in the cloud).
+    let _leadTombs={};
+    try{_leadTombs=JSON.parse(localStorage.getItem('movedesk_lead_tombstones')||'{}');}catch(_){}
+    const leadsRows=db.leads.filter(l=>!_leadTombs[l.id]&&!_isDeletedRec(l)).map(l=>({id:l.id,data:l}));
     const bookedRows=db.bookedJobs.map(j=>({id:j.id,data:j}));
     const completedRows=db.completedJobs.map(j=>({id:j.id,data:j}));
     const quoteRows=(db.quotes||[]).map(q=>({id:q.id,data:q}));
@@ -3406,6 +3436,28 @@ async function refreshFromSupabase(){
     let updated=0;
     function mergeTable(remote,localArr,key='id',table=null){
       if(!remote||!Array.isArray(remote))return localArr;
+      // Cloud soft-delete tombstones win over anything local: drop the record and remember it,
+      // otherwise this device would keep re-uploading a lead someone else deleted.
+      const _tombStore=table&&_tombstoneStores?_tombstoneStores[table]:null;
+      const _deadIds={};
+      remote.forEach(function(row){
+        const rec=row.data||row;
+        if(_isDeletedRec(rec)){
+          const did=rec[key]||row[key];
+          if(did)_deadIds[did]=rec._deletedAt||new Date().toISOString();
+        }
+      });
+      if(Object.keys(_deadIds).length){
+        localArr=localArr.filter(function(r){return !_deadIds[r[key]];});
+        remote=remote.filter(function(row){const rec=row.data||row;return !_isDeletedRec(rec);});
+        if(_tombStore){
+          try{
+            const t=JSON.parse(localStorage.getItem(_tombStore)||'{}');
+            Object.keys(_deadIds).forEach(function(id){t[id]=_deadIds[id];});
+            localStorage.setItem(_tombStore,JSON.stringify(t));
+          }catch(_){}
+        }
+      }
       const localMap={};
       localArr.forEach(r=>{localMap[r[key]]=r;});
       remote.forEach(row=>{
@@ -14807,7 +14859,11 @@ function deleteLead(id){
   }catch(_){}
   // Save to localStorage and delete from Supabase without triggering a full sync
   try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
-  sbDelete('leads',id);
+  // Cloud-shared soft delete. If it fails (offline / timeout) the local tombstone above still
+  // suppresses the lead here, and loadDB re-asserts the tombstone on the next successful load.
+  _sbSoftDelete('leads',id).then(function(ok){
+    if(!ok)console.warn('Lead delete not confirmed in the cloud yet \u2014 will re-assert on next load:',id);
+  });
   closeModal('view');
   showToast('✓ Lead deleted — '+l.name);
   renderLeads();
