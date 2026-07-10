@@ -792,6 +792,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="page" id="page-settings">
       <div style="max-width:520px">
         <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">💾 Backups</div></div>
+          <div class="card-body">
+            <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">A snapshot is saved automatically every time the app loads, and kept on this device. Download one to keep it somewhere safe.</div>
+            <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="downloadBackupNow()">⬇ Download a full backup now</button>
+            <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:4px">Recent snapshots</div>
+            <div id="backups-list"><div style="font-size:12.5px;color:var(--text3)">Loading…</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
           <div class="card-header"><div class="card-title">Business info</div></div>
           <div class="card-body">
             <div class="form-grid form-grid-2">
@@ -3004,6 +3013,125 @@ async function loadDB(){
   }
 }
 
+// ── Local backup snapshots ──────────────────────────────────────────────────────────────────
+// Two quotes were destroyed on 2026-07-08/09 and nothing in the app had a prior copy: localStorage
+// held the damaged version, the cloud held the damaged version, and the free Supabase tier has no
+// backups. Snapshots are kept in IndexedDB (not localStorage) because (a) localStorage is the very
+// store that gets overwritten, and (b) its ~5MB quota would break saveDB if we stacked copies in it.
+const _SNAP_DB='movedesk_backups', _SNAP_STORE='snapshots', _SNAP_KEEP=30;
+function _idb(){
+  return new Promise(function(res,rej){
+    if(!window.indexedDB)return rej(new Error('IndexedDB unavailable'));
+    const req=indexedDB.open(_SNAP_DB,1);
+    req.onupgradeneeded=function(){
+      const d=req.result;
+      if(!d.objectStoreNames.contains(_SNAP_STORE))d.createObjectStore(_SNAP_STORE,{keyPath:'ts'});
+    };
+    req.onsuccess=function(){res(req.result);};
+    req.onerror=function(){rej(req.error);};
+  });
+}
+function _snapCounts(data){
+  return {leads:(data.leads||[]).length,quotes:(data.quotes||[]).length,
+          booked:(data.bookedJobs||[]).length,completed:(data.completedJobs||[]).length,
+          vehicles:(data.vehicles||[]).length};
+}
+// Refuse to snapshot a hollowed-out db over good history (the 2026-07-09 outage lesson).
+function _snapWorthTaking(data,prev){
+  const c=_snapCounts(data);
+  const total=c.leads+c.quotes+c.booked+c.completed;
+  if(total===0)return false;
+  if(prev){
+    const p=_snapCounts(prev);
+    const ptotal=p.leads+p.quotes+p.booked+p.completed;
+    if(ptotal>0&&total<ptotal*0.5)return false; // lost >half the records: almost certainly damage
+  }
+  return true;
+}
+async function takeSnapshot(reason,dataOverride){
+  try{
+    const data=dataOverride||JSON.parse(localStorage.getItem('movedesk_db')||'null')||db;
+    const list=await listSnapshots();
+    const prev=list.length?await getSnapshot(list[0].ts):null;
+    if(!_snapWorthTaking(data,prev&&prev.data)){
+      console.warn('Snapshot skipped \u2014 data looks empty or badly reduced vs the last snapshot.');
+      return null;
+    }
+    const d=await _idb();
+    const rec={ts:Date.now(),reason:reason||'auto',counts:_snapCounts(data),data:data};
+    await new Promise(function(res,rej){
+      const tx=d.transaction(_SNAP_STORE,'readwrite');
+      tx.objectStore(_SNAP_STORE).put(rec);
+      tx.oncomplete=res; tx.onerror=function(){rej(tx.error);};
+    });
+    await _snapPrune();
+    return rec.ts;
+  }catch(e){console.warn('Snapshot failed:',e);return null;}
+}
+async function listSnapshots(){
+  try{
+    const d=await _idb();
+    return await new Promise(function(res,rej){
+      const out=[];
+      const tx=d.transaction(_SNAP_STORE,'readonly');
+      const req=tx.objectStore(_SNAP_STORE).openCursor(null,'prev');
+      req.onsuccess=function(){
+        const c=req.result;
+        if(c){out.push({ts:c.value.ts,reason:c.value.reason,counts:c.value.counts});c.continue();}
+        else res(out);
+      };
+      req.onerror=function(){rej(req.error);};
+    });
+  }catch(e){return [];}
+}
+async function getSnapshot(ts){
+  const d=await _idb();
+  return await new Promise(function(res,rej){
+    const tx=d.transaction(_SNAP_STORE,'readonly');
+    const req=tx.objectStore(_SNAP_STORE).get(Number(ts));
+    req.onsuccess=function(){res(req.result||null);};
+    req.onerror=function(){rej(req.error);};
+  });
+}
+async function _snapPrune(){
+  const list=await listSnapshots();
+  if(list.length<=_SNAP_KEEP)return;
+  const d=await _idb();
+  const doomed=list.slice(_SNAP_KEEP);
+  const tx=d.transaction(_SNAP_STORE,'readwrite');
+  doomed.forEach(function(s){tx.objectStore(_SNAP_STORE).delete(s.ts);});
+}
+function _downloadJson(obj,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(obj)],{type:'application/json'}));
+  a.download=name; a.click();
+}
+function downloadBackupNow(){
+  _downloadJson(db,'movedesk-backup-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.json');
+  takeSnapshot('manual');
+  showToast('\u2713 Backup downloaded');
+  setTimeout(renderBackups,400);
+}
+async function downloadSnapshot(ts){
+  const s=await getSnapshot(ts);
+  if(!s){showToast('Snapshot not found');return;}
+  _downloadJson(s.data,'movedesk-snapshot-'+new Date(s.ts).toISOString().slice(0,19).replace(/[:T]/g,'-')+'.json');
+}
+async function renderBackups(){
+  const el=document.getElementById('backups-list');
+  if(!el)return;
+  const list=await listSnapshots();
+  if(!list.length){el.innerHTML='<div style="font-size:12.5px;color:var(--text3)">No snapshots yet. One is taken automatically each time the app loads.</div>';return;}
+  el.innerHTML=list.slice(0,12).map(function(s){
+    const c=s.counts||{};
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border2)">'
+      +'<div style="font-size:12.5px"><strong>'+new Date(s.ts).toLocaleString()+'</strong>'
+      +'<div style="font-size:11px;color:var(--text3)">'+(c.leads||0)+' leads \u00b7 '+(c.quotes||0)+' quotes \u00b7 '+(c.booked||0)+' booked \u00b7 '+(c.completed||0)+' completed \u00b7 '+(s.reason||'')+'</div></div>'
+      +'<button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="downloadSnapshot('+s.ts+')">Download</button>'
+      +'</div>';
+  }).join('');
+}
+
 // ── Cloud-shared soft delete ───────────────────────────────────────────────────────────────
 // Hard-deleting a row only removes it from the CLOUD. Tombstones live in localStorage, so a
 // second device (John's) that still has the record and no tombstone would union it back in on
@@ -3302,7 +3430,13 @@ const _cloudQuoteStatus={};
 function _quoteRank(st){return st==='accepted'?3:st==='sent'?2:st==='declined'?2:1;}
 function _noteCloudQuoteStatuses(rows){
   (rows||[]).forEach(function(r){
-    if(r&&r.id&&r.data&&r.data.status)_cloudQuoteStatus[r.id]=r.data.status;
+    if(r&&r.id&&r.data&&r.data.status){
+      _cloudQuoteStatus[r.id]=r.data.status;
+      // The cloud now has this quote: clear the "not confirmed on the server" flag set when a
+      // send couldn't verify. (Never touches status — only the advisory flag.)
+      const _lq=(typeof db!=='undefined'&&db.quotes?db.quotes:[]).find(function(x){return x.id===r.id;});
+      if(_lq&&_lq._cloudUnconfirmed)delete _lq._cloudUnconfirmed;
+    }
   });
 }
 // True when uploading `q` would downgrade what the cloud already has.
@@ -3830,7 +3964,7 @@ document.addEventListener('visibilitychange',function(){
   }
 });
 const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type']};
-function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();}
+function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
 // Paste-to-lead: takes free-form text (email, SMS, notes) and extracts structured lead fields
 // using regex pattern matching, then auto-fills the New Lead form for review.
 //
@@ -14507,11 +14641,17 @@ async function sendQuoteEmail(){
     saveDB();
   }catch(verifyErr){
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
-    // Revert local status flip so we're not in an inconsistent state
-    q.status='draft';
-    q.sentAt='';
+    // DO NOT revert the status to 'draft' here.
+    // Reverting strips the sent/accepted HARD LOCK in saveQuote(), leaving the record writable by
+    // autosave and by a blank Quote Builder. During the 2026-07-08/09 Supabase outage this verify
+    // step failed routinely, quietly un-protecting quotes that had already reached customers — and
+    // two of them were later overwritten with blank-builder defaults (1 day, 2 crew, 2-4h) and lost.
+    // The quote stays 'sent' (and therefore immutable); we only record that the cloud copy is not
+    // yet confirmed. The background sync will push it, and _noteCloudQuoteStatuses clears the flag
+    // once the cloud acknowledges the row.
+    q._cloudUnconfirmed=true;
     saveDB();
-    showToast('⚠ Could not verify quote on server — email NOT sent. '+(verifyErr.message||''));
+    showToast('⚠ Quote saved but not confirmed on the server — email NOT sent. It will sync in the background; try Send again shortly.');
     return;
   }
 
@@ -16800,7 +16940,12 @@ window.deleteLead=deleteLead;
 (async function(){
   document.getElementById('page-title').textContent='Loading…';
   document.getElementById('page-sub').textContent='Connecting to database…';
+  // Snapshot the on-disk copy BEFORE loadDB merges anything from the cloud. This is the
+  // last-known-good state; if a bad merge or a blank save damages the data, this is what saves us.
+  try{ await takeSnapshot('startup'); }catch(_){}
   await loadDB();
+  // And a second one after a healthy load, so the newest snapshot reflects the merged truth.
+  try{ await takeSnapshot('post-load',JSON.parse(JSON.stringify(db))); }catch(_){}
   // Always rebuild customer list from leads and completed jobs
   // This ensures customers page is always complete regardless of Supabase state
   if(!db.customers)db.customers=[];
