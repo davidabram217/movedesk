@@ -14398,7 +14398,7 @@ function viewAcceptedQuote(quoteId){
   openModal('quote-preview');
 }
 
-async function previewQuote(){
+function previewQuote(){
   if(!qbDays||!qbDays.length){showToast('Please add at least one day to the quote.');return;}
   // Check if the current quote is sent/accepted (immutable) or a draft
   const _existing=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
@@ -14414,25 +14414,18 @@ async function previewQuote(){
     // exactly what the customer will see if/when this draft is sent.
     _saved=saveQuote('draft');
   }
-  // PREVIEW PARITY (2026-07-10): do NOT draw the quote with the app's own renderQuoteHTML.
-  // That function is a hand-maintained twin of quote-page.js and can silently drift out of sync,
-  // which is how "what I previewed" could ever differ from "what the customer sees". Instead we
-  // load the REAL customer page in an iframe: same URL, same Supabase row, same renderer the
-  // customer's browser runs. The preview is no longer a copy of the customer view — it IS the
-  // customer view, byte-for-byte, because there is only one page and one data source now.
-  if(!_saved||!_saved.publicId){showToast('Could not prepare preview — please reopen the quote and try again.');return;}
-  const _body=document.getElementById('quote-preview-body');
-  _body.innerHTML='<div style="padding:48px 24px;text-align:center;color:var(--text3);font-size:13px">Loading the live customer view…</div>';
+  // Render the preview from the SAVED quote object — not from form state directly. This is
+  // the same object the customer's page will fetch from Supabase. By rendering preview from
+  // the same data structure that the customer sees, we make it structurally impossible for
+  // preview and customer page to differ.
+  // (2026-07-15) REVERTED the 2026-07-10 iframe experiment that loaded the live quote.html here.
+  // It contradicted invariant #7, was only applied to previewQuote (previewQuoteFromList and
+  // viewAcceptedQuote still used this renderer, so the app had two different previews), and its
+  // parity benefit is now delivered by the Supabase trg_movedesk_freeze_sent_quotes trigger.
+  // Do not re-introduce it for previewQuote alone — see invariant #25.
+  const _previewLead=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
+  document.getElementById('quote-preview-body').innerHTML=renderQuoteHTML({..._saved,_preview:true},_previewLead);
   closeModal('quote-builder');
-  // Ensure the cloud row exists/matches before the iframe fetches it. A draft we just saved gets
-  // pushed up now and awaited. A frozen (sent/accepted) quote is already immutable in the cloud,
-  // so we skip the push entirely — it is the customer's real record and we simply display it.
-  try{
-    if(!_isFrozen){ await sbFetch('quotes','POST',[{id:_saved.id,data:_saved}]); }
-  }catch(_e){ console.warn('Preview cloud push failed (showing whatever the cloud currently has):',_e); }
-  // Cache-buster so the iframe always fetches the current cloud state, never a stale render.
-  const _purl='https://davidabram217.github.io/movedesk/quote.html?id='+encodeURIComponent(_saved.publicId)+'&_cb='+Date.now();
-  _body.innerHTML='<iframe src="'+_purl+'" style="width:100%;height:72vh;border:0;background:#fff;display:block" title="Live customer quote preview"></iframe>';
   // Check if quote was already sent
   const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
   const alreadySent=q&&(q.status==='sent'||q.status==='accepted');
