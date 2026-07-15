@@ -12564,7 +12564,8 @@ const GOOGLE_API_KEY = 'AIzaSyDMInpYFiq8TcphbW_lJXiNXil9hs2frMY';
 
 let acTimers={};
 let placesService=null;
-let autocompleteService=null;
+let autocompleteService=null;   // LEGACY google.maps.places.AutocompleteService — dead since 2026-07, see initPlaces
+let _placesSuggestionAPI=null;  // CURRENT google.maps.places.AutocompleteSuggestion
 
 // Load Google Places API if key is present
 if(GOOGLE_API_KEY){
@@ -12574,7 +12575,20 @@ if(GOOGLE_API_KEY){
   document.head.appendChild(s);
 }
 window.initPlaces=function(){
-  autocompleteService=new google.maps.places.AutocompleteService();
+  // 2026-07-15: the legacy AutocompleteService stopped working. Every getPlacePredictions call
+  // returns UNKNOWN_ERROR (verified 3/3 against the live app on this same API key), which is why
+  // address autocomplete silently died. Google's Mar-2025 notice said the class was closed to new
+  // customers; it is now effectively dead for this project. The CURRENT AutocompleteSuggestion API
+  // works on the SAME key (verified: returned 5 correct predictions), so we prefer it and keep the
+  // legacy service only as a safety net in case Google ever restores it.
+  try{ autocompleteService=new google.maps.places.AutocompleteService(); }catch(e){ autocompleteService=null; }
+  try{ _placesSuggestionAPI=(google.maps.places&&google.maps.places.AutocompleteSuggestion)||null; }catch(e){ _placesSuggestionAPI=null; }
+  if(!_placesSuggestionAPI&&google.maps.importLibrary){
+    google.maps.importLibrary('places').then(function(lib){
+      _placesSuggestionAPI=(lib&&lib.AutocompleteSuggestion)||null;
+      if(!_placesSuggestionAPI)console.warn('Places: AutocompleteSuggestion unavailable — address autocomplete will fall back to previously used addresses.');
+    }).catch(function(e){ console.warn('Places: could not load the current Places library —',e&&e.message); });
+  }
 };
 
 let _map=null;let _directionsRenderer=null;let _distanceService=null;
@@ -12641,20 +12655,48 @@ function acInput(input,dropId){
   const drop=document.getElementById(dropId);
   clearTimeout(acTimers[dropId]);
   if(val.length<3){drop.classList.remove('open');drop.innerHTML='';return;}
-  acTimers[dropId]=setTimeout(()=>{
-    if(autocompleteService){
-      // Google Places path
-      autocompleteService.getPlacePredictions({input:val,types:['address']},function(preds,status){
-        if(status!==google.maps.places.PlacesServiceStatus.OK||!preds){drop.classList.remove('open');return;}
-        renderDropdown(drop,preds.slice(0,5).map(p=>({main:p.structured_formatting.main_text,sub:p.structured_formatting.secondary_text,full:p.description})),input);
-      });
-    } else {
-      // Fallback: smart local suggestions based on typed text
-      const suggestions=buildFallbackSuggestions(val);
-      if(suggestions.length) renderDropdown(drop,suggestions,input);
-      else drop.classList.remove('open');
+  acTimers[dropId]=setTimeout(function(){ _acFetchSuggestions(val,drop,input); },280);
+}
+
+// Address suggestions. Preference order: CURRENT Google API -> legacy service (dead as of
+// 2026-07, kept only as a safety net) -> locally remembered addresses.
+// NOTHING fails silently any more. The old code closed the dropdown on ANY non-OK status, so when
+// Google's legacy API started returning UNKNOWN_ERROR the feature just vanished with no error
+// anywhere — indistinguishable from "no matches found". Every failure now logs and degrades to
+// previously used addresses instead of leaving the user with a dead field.
+async function _acFetchSuggestions(val,drop,input){
+  if(_placesSuggestionAPI){
+    try{
+      const res=await _placesSuggestionAPI.fetchAutocompleteSuggestions({input:val});
+      const items=((res&&res.suggestions)||[]).map(function(s){
+        const p=s&&s.placePrediction; if(!p)return null;
+        const full=p.text?String(p.text):'';
+        if(!full)return null;
+        return {main:p.mainText?String(p.mainText):full,sub:p.secondaryText?String(p.secondaryText):'',full:full};
+      }).filter(Boolean);
+      if(items.length){ renderDropdown(drop,items.slice(0,5),input); return; }
+      drop.classList.remove('open'); return;   // genuine zero results — same as before
+    }catch(e){
+      console.warn('Places autocomplete failed — falling back to previously used addresses:',e&&e.message);
     }
-  },280);
+  } else if(autocompleteService){
+    autocompleteService.getPlacePredictions({input:val,types:['address']},function(preds,status){
+      if(status===google.maps.places.PlacesServiceStatus.OK&&preds&&preds.length){
+        renderDropdown(drop,preds.slice(0,5).map(function(p){return {main:p.structured_formatting.main_text,sub:p.structured_formatting.secondary_text,full:p.description};}),input);
+      }else{
+        console.warn('Legacy Places autocomplete returned',status,'— falling back to previously used addresses');
+        _acHistoryFallback(val,drop,input);
+      }
+    });
+    return;
+  }
+  _acHistoryFallback(val,drop,input);
+}
+
+function _acHistoryFallback(val,drop,input){
+  const suggestions=buildFallbackSuggestions(val);
+  if(suggestions.length) renderDropdown(drop,suggestions,input);
+  else drop.classList.remove('open');
 }
 
 function buildFallbackSuggestions(val){
