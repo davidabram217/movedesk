@@ -634,7 +634,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
               <div class="form-group"><label>Type of move</label>
                 <select id="ai-movetype" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
-                  <option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Pack and move to storage</option><option>Storage Out</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option>
+                  <option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option>
                 </select>
               </div>
               <div class="form-group"><label>Packing service</label>
@@ -643,7 +643,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
                   <option>No — just moving</option>
                   <option>Kitchen pack only</option>
                   <option>All breakables</option>
+                  <option>Partial pack</option>
+                  <option>Fragiles only</option>
                   <option>Full pack</option>
+                  <option>Unpack only</option>
                 </select>
               </div>
               <div class="form-group"><label>Access at load</label>
@@ -883,7 +886,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select>
         </div>
         <div class="form-group"><label>Packing needed?</label>
-          <select id="nl-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select>
+          <select id="nl-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select>
         </div>
         <div class="form-group" style="display:none"><label>Call taken by</label><input type="text" id="nl-taken-by" placeholder="e.g. John" list="nl-taken-by-list"><datalist id="nl-taken-by-list"><option value="John"><option value="Dave"></datalist></div>
       </div>
@@ -1274,7 +1277,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Home size</label><select id="cj-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cj-sqft" placeholder="e.g. 800"></div>
-        <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Pack and move to storage</option><option>Storage Out</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
+        <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group"><label></label><div style="height:1px"></div></div>
         <div class="form-group"><label>Access at load</label><select id="cj-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="cj-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
@@ -1289,7 +1292,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>No. of movers</label><select id="cj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="cj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="cj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
-        <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
+        <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="cj-vaults" placeholder="e.g. 6" step="0.5"></div>
         <div class="form-group"><label>Payment method</label><select id="cj-payment" onchange="calcTotal()"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
       </div>
@@ -1414,7 +1417,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Home size</label><select id="cjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cjmd-sqft" placeholder="e.g. 800"></div>
-        <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Pack and move to storage</option><option>Storage Out</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
+        <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group"><label></label><div style="height:1px"></div></div>
         <div class="form-group"><label>Access at load</label><select id="cjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="cjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
@@ -1440,7 +1443,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="cjmd-damage" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="cjmd-vaults" placeholder="0"></div>
           <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
-          <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
+          <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         </div>
       </div>
 
@@ -1756,7 +1759,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>No. of movers</label><select id="ecj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="ecj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="ecj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
-        <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="ecj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
+        <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="ecj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         <div class="form-group"><label>Payment method</label><select id="ecj-payment"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
         <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="ecj-rate" placeholder="e.g. 145"></div>
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="ecj-vaults" placeholder="e.g. 6" step="0.5"></div>
@@ -1831,7 +1834,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="ecjmd-sqft" placeholder="e.g. 800"></div>
-        <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Move & Pack</option><option>Packing only</option><option>Storage In</option><option>Pack and move to storage</option><option>Storage Out</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
+        <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group"><label></label><div style="height:1px"></div></div>
         <div class="form-group"><label>Access at load</label><select id="ecjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="ecjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
@@ -1854,7 +1857,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="ecjmd-damage" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
           <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
-          <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Full">Full pack</option></select></div>
+          <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         </div>
       </div>
 
@@ -5109,7 +5112,7 @@ function openEditLead(leadId){
   document.getElementById('nl-date').value=(l.date==='TBD')?'':(l.date||'');
   {const _tb=document.getElementById('nl-date-tbd');if(_tb){_tb.checked=(l.date==='TBD');nlToggleDateTBD();}}
   document.getElementById('nl-size').value=l.size||'';
-  document.getElementById('nl-move-type').value=l.moveType||'';
+  document.getElementById('nl-move-type').value=_canonMoveTypeLabel(l.moveType)||'';
   document.getElementById('nl-packing').value=l.packing||'No';
   // ----- Pickups & drop-offs: populate EVERY stop, not just the first -----
   resetExtraLocations();
@@ -9195,7 +9198,7 @@ function openCompleteMultiDay(jobId){
   const _sqftEl=document.getElementById('cjmd-sqft');
   if(_sqftEl)_sqftEl.value=_pick(j.sqft,_l?_l.sqft:'');
   const _movetypeEl=document.getElementById('cjmd-movetype');
-  if(_movetypeEl)_movetypeEl.value=_pick(j.moveType,_l?_l.moveType:'');
+  if(_movetypeEl)_movetypeEl.value=_canonMoveTypeLabel(_pick(j.moveType,_l?_l.moveType:''));
   const _accLoadEl=document.getElementById('cjmd-access-load');
   if(_accLoadEl)_accLoadEl.value=_pick(j.accessLoad,_l?_l.accessLoad:'');
   const _accUnloadEl=document.getElementById('cjmd-access-unload');
@@ -9203,10 +9206,7 @@ function openCompleteMultiDay(jobId){
   const _packScope=_l?.packing||j.packing||'No';
   const _packEl=document.getElementById('cjmd-packing');
   if(_packEl){
-    if(_packScope==='Full'||(_packScope||'').toLowerCase().includes('full'))_packEl.value='Full';
-    else if((_packScope||'').toLowerCase().includes('kitchen'))_packEl.value='Kitchen pack only';
-    else if((_packScope||'').toLowerCase().includes('breakable'))_packEl.value='All breakables';
-    else _packEl.value='No';
+    _packEl.value=_canonPackingValue(_packScope);
   }
   // Render per-day rows
   renderMultiDayCompleteRows(j);
@@ -9699,7 +9699,10 @@ function openEditCompleteMultiDay(jobId){
   const _exAccEl=document.getElementById('ecjmd-exclude-accuracy');if(_exAccEl)_exAccEl.checked=!!j.excludeFromAccuracy;
   // Job Context — prefill from cj (already auto-filled at completion time from booked job/lead)
   const _setVal=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
-  _setVal('ecjmd-size',j.size);_setVal('ecjmd-sqft',j.sqft);_setVal('ecjmd-movetype',j.moveType);
+  _setVal('ecjmd-size',j.size);_setVal('ecjmd-sqft',j.sqft);
+  // Completed jobs recorded before 2026-07-15 hold the LEGACY wording ("Storage In" etc).
+  // Resolve to the canonical label or the <select> silently blanks. See _canonMoveTypeLabel.
+  _setVal('ecjmd-movetype',_canonMoveTypeLabel(j.moveType));
   _setVal('ecjmd-access-load',j.accessLoad);_setVal('ecjmd-access-unload',j.accessUnload);
   // Misc Charges — prefill from saved miscCharges array (empty rows for missing slots)
   const _misc=Array.isArray(j.miscCharges)?j.miscCharges:[];
@@ -9981,7 +9984,7 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
   const _sqftEl=document.getElementById('cj-sqft');
   if(_sqftEl)_sqftEl.value=_pick(j.sqft,_lead?_lead.sqft:'');
   const _movetypeEl=document.getElementById('cj-movetype');
-  if(_movetypeEl)_movetypeEl.value=_pick(j.moveType,_lead?_lead.moveType:'');
+  if(_movetypeEl)_movetypeEl.value=_canonMoveTypeLabel(_pick(j.moveType,_lead?_lead.moveType:''));
   const _accessLoadEl=document.getElementById('cj-access-load');
   if(_accessLoadEl)_accessLoadEl.value=_pick(j.accessLoad,_lead?_lead.accessLoad:'');
   const _accessUnloadEl=document.getElementById('cj-access-unload');
@@ -9996,11 +9999,7 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
       if(_l)_packPreset=_l.packing||'';
     }
     // Map legacy values onto the new dropdown options
-    if(_packPreset==='Full'||(_packPreset||'').toLowerCase().includes('full'))_packEl.value='Full';
-    else if((_packPreset||'').toLowerCase().includes('kitchen'))_packEl.value='Kitchen pack only';
-    else if((_packPreset||'').toLowerCase().includes('breakable'))_packEl.value='All breakables';
-    else if((_packPreset||'').toLowerCase().includes('partial'))_packEl.value='All breakables';
-    else _packEl.value='No';
+    _packEl.value=_canonPackingValue(_packPreset);
   }
   if(j.quote)document.getElementById('cj-labour').value=j.quote;if(j._completeDraft){const d=j._completeDraft;['crew','hours','labour','materials','fuel','vaults','notes'].forEach(k=>{const el=document.getElementById('cj-'+k);if(el&&d[k])el.value=d[k];});if(d.packHours&&document.getElementById('cj-pack-hours'))document.getElementById('cj-pack-hours').value=d.packHours;if(d.packMaterials&&document.getElementById('cj-pack-materials'))document.getElementById('cj-pack-materials').value=d.packMaterials;if(d.moveMen&&document.getElementById('cj-movers'))document.getElementById('cj-movers').value=d.moveMen;if(d.packMen&&document.getElementById('cj-pack-movers'))document.getElementById('cj-pack-movers').value=d.packMen;if(d.packing&&_packEl)_packEl.value=d.packing;calcTotal();}
   // Pre-fill vaults from booking volume — extract max number from text like "4–5 vaults"
@@ -10594,11 +10593,7 @@ function openEditCompletedJob(jobId){
   const _ecjPack=document.getElementById('ecj-packing');
   if(_ecjPack){
     const _v=(j.packing||'').toLowerCase();
-    if(j.packing==='Full'||_v.includes('full'))_ecjPack.value='Full';
-    else if(_v.includes('kitchen'))_ecjPack.value='Kitchen pack only';
-    else if(_v.includes('breakable'))_ecjPack.value='All breakables';
-    else if(_v.includes('partial'))_ecjPack.value='All breakables';
-    else _ecjPack.value='No';
+    _ecjPack.value=_canonPackingValue(j.packing);
   }
   document.getElementById('ecj-rate').value=j.hourlyRateCharged||'';
   document.getElementById('ecj-labour').value=j.feeLabour||'';
@@ -16175,7 +16170,68 @@ function accessScore(access){
 
 // Normalize a move-type label (form input or record) so equivalent labels compare equal.
 // Used as a HARD FILTER in the AI quote: only same-move-type jobs are ever compared.
-function _normMoveType(s){return String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();}
+// ── Job-type ("move type") vocabulary ────────────────────────────────────────────────────────
+// MoveDesk grew TWO divergent label sets for the same job types. The lead form (`nl-move-type`)
+// and Quote Builder (`qb-move-type`) said "Pack and move" / "Move to storage" / "Move out of
+// storage"; the completion and AI forms said "Move & Pack" / "Storage In" / "Storage Out".
+// Consequences (found 2026-07-15):
+//   1. The AI applies a HARD FILTER — a quote only ever learns from completed jobs whose move
+//      type normalizes to the SAME key. Those three types matched NOTHING, so every quote of
+//      that type silently fell to the empty state despite a full history of comparable jobs.
+//   2. `openComplete` prefills `cj-movetype` from the booked job / lead. A <select> given a value
+//      with no matching <option> goes to selectedIndex -1, so the job type silently blanked at
+//      close-out.
+// The dropdowns are now standardized onto the lead/quote wording (_MOVE_TYPE_CANONICAL). This
+// alias map folds the LEGACY wording onto the same key so every historical record still matches —
+// no data migration, nothing stranded.
+// ⚠️ NEVER DELETE AN ALIAS: completed jobs recorded before 2026-07-15 carry the old wording
+// forever, and dropping an alias would silently cut the AI off from them again.
+const _MOVE_TYPE_CANONICAL=['Move','Pack and move','Packing only','Move to storage','Pack and move to storage','Move out of storage','Load pod / truck only','Warehouse labor','Internal'];
+const _MOVE_TYPE_ALIASES={
+  'move and pack':'pack and move',       // legacy "Move & Pack"
+  'storage in':'move to storage',        // legacy "Storage In"
+  'storage out':'move out of storage',   // legacy "Storage Out"
+  'load truck pod only':'load pod truck only',
+  'load truck pod':'load pod truck only',
+  'load pod truck':'load pod truck only'
+};
+function _rawNormMoveType(s){return String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();}
+// ── Packing-scope vocabulary ─────────────────────────────────────────────────────────────────
+// Same disease as the job types: the Quote Builder (`qb-packing`) offers "No — just moving |
+// Full pack | Partial pack | Fragiles only | Kitchen pack | Unpack only" and stores its LABELS,
+// while every other form stored a shorter set via value= attributes ("No" | "Kitchen pack only" |
+// "All breakables" | "Full"). Three hand-rolled if/else translations (openComplete,
+// openCompleteMultiDay, openEditCompletedJob) bridged them, and each lost information:
+//   • "Partial pack"  -> collapsed to "All breakables" (single-day) or "No" (multi-day!)
+//   • "Fragiles only" -> collapsed to "No — just moving"   <- packing work recorded as NO packing
+//   • "Unpack only"   -> collapsed to "No — just moving"   <- ditto
+// That field explicitly feeds AI quote training, and packScope() pulls "packing jobs" by excluding
+// anything marked No/'' — so those jobs looked like plain moves with no packing at all.
+// 2026-07-15: "Partial pack", "Fragiles only" and "Unpack only" are now real options on every
+// form, and this ONE resolver replaces the three divergent if/else chains.
+// EXISTING RECORDS ARE UNTOUCHED — 'No', 'Kitchen pack only', 'All breakables' and 'Full' remain
+// valid option values, so historical jobs still prefill exactly as before.
+const _PACKING_OPTION_VALUES=['No','Kitchen pack only','All breakables','Partial pack','Fragiles only','Full','Unpack only'];
+function _canonPackingValue(s){
+  const v=String(s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+  if(!v||v==='no'||v.includes('just moving'))return 'No';
+  if(v.includes('unpack'))return 'Unpack only';        // before the 'pack' family
+  if(v.includes('full'))return 'Full';
+  if(v.includes('kitchen'))return 'Kitchen pack only';
+  if(v.includes('fragile'))return 'Fragiles only';
+  if(v.includes('breakable'))return 'All breakables';
+  if(v.includes('partial'))return 'Partial pack';
+  return 'No';
+}
+function _normMoveType(s){const k=_rawNormMoveType(s);return _MOVE_TYPE_ALIASES[k]||k;}
+// Resolve ANY stored value (canonical or legacy wording) to the canonical dropdown label, so that
+// prefilling a <select> from a historical record cannot silently blank it. Unknown values are
+// passed through unchanged (same behavior as before this existed).
+function _canonMoveTypeLabel(s){
+  if(!s)return '';
+  const k=_normMoveType(s);
+  return _MOVE_TYPE_CANONICAL.find(function(lbl){return _normMoveType(lbl)===k;})||s;
+}
 
 // Driving is handled as a SEPARATE CALCULATION (not a matching factor): we estimate the WORK
 // from same-type jobs, then add THIS trip's drive from its zips. To keep the work estimate
@@ -16231,8 +16287,13 @@ function similarity(job,inputs){
   const _normPack=p=>{
     const s=(p||'').toLowerCase().trim();
     if(!s||s==='no'||s.includes('just moving'))return 'none';
+    if(s.includes('unpack'))return 'unknown';   // unpacking is not a packing SCOPE on this scale —
+                                                // return unknown so the factor is skipped, not mis-ranked
     if(s.includes('kitchen'))return 'kitchen';
     if(s.includes('breakable'))return 'breakables';
+    if(s.includes('fragile'))return 'breakables';   // 2026-07-15: "Fragiles only" is now a real
+                                                    // option; without this it fell to 'unknown' and
+                                                    // the AI silently dropped packing from scoring
     if(s.includes('full')||s==='yes')return 'full';
     if(s.includes('partial')||s.includes('part'))return 'breakables';
     return 'unknown';
