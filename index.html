@@ -1775,6 +1775,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Damage / claim ($)</label><input type="number" id="ecj-damage" placeholder="0.00"></div>
         <div class="form-group"><label>Yelp deal discount ($)</label><input type="number" id="ecj-yelp" placeholder="0.00"></div>
         <div class="form-group"><label>Total charged ($)</label><input type="number" id="ecj-total" placeholder="0.00"></div>
+        <div class="form-group"><label>True job value ($) <span style="font-size:10.5px;color:var(--text3)">if you gave a discount or freebie — what the job was really worth. Leave blank if you charged full price.</span></label><input type="number" id="ecj-actual-total" placeholder="e.g. 1800"></div>
         <div class="form-group"><label>Amount paid ($)</label><input type="number" id="ecj-paid" placeholder="0.00"></div>
       </div>
 
@@ -9969,7 +9970,7 @@ function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.fi
 // MULTI-DAY ROUTING — if this booked job is multi-day, open the dedicated multi-day modal
 // instead of the single-day form. Keeps single-day completion behavior fully unchanged.
 if(j.multiDay||((j.quoteDays||[]).length>1)){return openCompleteMultiDay(jobId);}
-document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';const _cjDateEl=document.getElementById('cj-date');if(_cjDateEl)_cjDateEl.value=j.date||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;const _cjExEl=document.getElementById('cj-exclude-accuracy');if(_cjExEl)_cjExEl.checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes','cj-sqft','cj-misc-1-label','cj-misc-1-amount','cj-misc-2-label','cj-misc-2-amount','cj-misc-3-label','cj-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers','cj-size','cj-movetype','cj-access-load','cj-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['cj-misc-1-ai','cj-misc-2-ai','cj-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
+document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;const crewEl=document.getElementById('cj-crew');if(crewEl)crewEl.value=j.crew||'';const _cjDateEl=document.getElementById('cj-date');if(_cjDateEl)_cjDateEl.value=j.date||'';document.getElementById('cj-source').value=j.source||'';document.getElementById('cj-ai-training').checked=false;const _cjExEl=document.getElementById('cj-exclude-accuracy');if(_cjExEl)_cjExEl.checked=false;['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage','cj-yelp','cj-rate','cj-paid','cj-hours','cj-pack-hours','cj-vaults','cj-notes','cj-sqft','cj-actual-total','cj-misc-1-label','cj-misc-1-amount','cj-misc-2-label','cj-misc-2-amount','cj-misc-3-label','cj-misc-3-amount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['cj-movers','cj-pack-movers','cj-size','cj-movetype','cj-access-load','cj-access-unload'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['cj-misc-1-ai','cj-misc-2-ai','cj-misc-3-ai'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});if(document.getElementById('cj-insurance-type'))document.getElementById('cj-insurance-type').value=j.insuranceType||'';
   // Pre-fill the new "Job context" fields from the booked job, with the linked lead as a
   // fallback. This makes the completion form a single place to confirm/correct the AI training
   // record — even if size/access/movetype were never set on the original lead/booking.
@@ -10611,6 +10612,12 @@ function openEditCompletedJob(jobId){
   document.getElementById('ecj-damage').value=j.feeDamage||'';
   document.getElementById('ecj-yelp').value=j.feeYelp||'';
   document.getElementById('ecj-total').value=j.total||'';
+  // Prefill True job value only when a goodwill discount was actually recorded (capDiscount>0);
+  // otherwise leave blank so the placeholder shows. Mirrors openEditCompleteMultiDay.
+  // Blanking this field on save means "charged full price" and resets actualTotal to the total —
+  // which is how a value accidentally carried over from a previous job gets corrected.
+  const _ecjAtEl=document.getElementById('ecj-actual-total');
+  if(_ecjAtEl)_ecjAtEl.value=(Number(j.capDiscount)>0&&j.actualTotal)?j.actualTotal:'';
   document.getElementById('ecj-paid').value=j.paid||'';
   document.getElementById('ecj-payment').value=j.payment||'Cash';
   document.getElementById('ecj-notes').value=j.notes||'';
@@ -10667,10 +10674,18 @@ function saveEditedCompletedJob(){
   j.feeYelp=document.getElementById('ecj-yelp').value;
   j.total=total;
   j.paid=paid;
-  // Recompute cap discount: simple gap between actualTotal (real job value, including
-  // insurance/add-ons) and what we charged (also including insurance/add-ons).
-  const _editActual=Number(j.actualTotal)||0;
-  j.capDiscount=(_editActual>total)?Math.round((_editActual-total)*100)/100:0;
+  // True job value vs charged. Mirrors saveEditedCompletedJobMultiDay.
+  // 2026-07-15: previously this read `j.actualTotal` straight back into itself, because the
+  // single-day edit form had NO field for it. That made a wrong actualTotal permanently
+  // uncorrectable — and worse, editing the total then created a phantom capDiscount, which
+  // flips analytics (realJobValue) into preferring the wrong actualTotal over what was charged.
+  // Reported as: Ian Remmel's job value showing 3208 instead of the 796 he actually paid, with
+  // no way to fix it. The stale 3208 came from `cj-actual-total` not being cleared between jobs
+  // (also fixed, in openComplete). A BLANK field now means "charged full price" and resets
+  // actualTotal to the total — which is how a carried-over value gets corrected.
+  const _ecjAt=document.getElementById('ecj-actual-total')?.value?Number(document.getElementById('ecj-actual-total').value):null;
+  j.actualTotal=_ecjAt||total||null;
+  j.capDiscount=(_ecjAt&&_ecjAt>total)?Math.round((_ecjAt-total)*100)/100:0;
   j.owing=Math.max(0,total-paid);
   j.paymentState=j.owing<=0?'paid':'owing';
   j.notes=document.getElementById('ecj-notes').value;
