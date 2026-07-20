@@ -11802,6 +11802,19 @@ function renderAnalytics(){
     const accuracy=Math.round(withinCount/quotedJobs.length*100);
     const avgOver=quotedJobs.filter(j=>!j.withinRange&&j.pctDiff>0);
     const avgOverPct=avgOver.length?Math.round(avgOver.reduce((s,j)=>s+j.pctDiff,0)/avgOver.length):0;
+    // Three-way outcome breakdown (requested 2026-07-15). Defined off the same actual vs qMin/qMax
+    // each job already carries, so these stay consistent with the "within range" score above.
+    //   • OVER   = actual cost exceeded the top of the quoted range (actual > qMax)
+    //   • WITHIN = landed inside the quoted range (qMin ≤ actual ≤ qMax) — same as withinCount
+    //   • AT/BELOW = came in at or under the TOP of the range (actual ≤ qMax); this includes the
+    //     within-range jobs plus any that beat the low end. It is the complement of OVER.
+    const _n=quotedJobs.length;
+    const overCount=quotedJobs.filter(j=>j.actual>j.qMax).length;
+    const belowCount=quotedJobs.filter(j=>j.actual<j.qMin).length;   // strictly under the low end
+    const atOrBelowCount=quotedJobs.filter(j=>j.actual<=j.qMax).length;
+    const overPct=Math.round(overCount/_n*100);
+    const withinPct=accuracy;
+    const atOrBelowPct=Math.round(atOrBelowCount/_n*100);
     const scoreColor=accuracy>=75?'var(--accent)':accuracy>=50?'var(--amber)':'var(--danger,#e74c3c)';
     qaHead.textContent=`Based on ${quotedJobs.length} quoted jobs`;
     qaEl.innerHTML=`
@@ -11814,6 +11827,23 @@ function renderAnalytics(){
           <div>✓ <strong>${withinCount}</strong> of ${quotedJobs.length} jobs came in within the quoted range</div>
           ${avgOver.length?`<div style="color:var(--amber)">⚠ ${avgOver.length} job${avgOver.length>1?'s':''} ran over by avg <strong>${avgOverPct}%</strong></div>`:'<div style="color:var(--accent)">✓ No jobs ran significantly over</div>'}
           <div style="color:var(--text3);font-size:11.5px;margin-top:4px">Note: add-ons (insurance, dump, COI) are excluded from over/under calculation${quotedJobs.some(j=>j.paidCash)?'. Jobs paid at the cash rate are compared at their regular-rate equivalent so the accuracy reflects the quote, not the discount':''}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+        <div style="text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--danger,#e74c3c)">
+          <div style="font-size:24px;font-weight:700;color:var(--danger,#e74c3c)">${overPct}%</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">ran over quote</div>
+          <div style="font-size:10.5px;color:var(--text3)">${overCount} of ${_n} job${_n!==1?'s':''}</div>
+        </div>
+        <div style="text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--accent)">
+          <div style="font-size:24px;font-weight:700;color:var(--accent)">${withinPct}%</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">within range</div>
+          <div style="font-size:10.5px;color:var(--text3)">${withinCount} of ${_n} job${_n!==1?'s':''}</div>
+        </div>
+        <div style="text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--info,#1a5276)">
+          <div style="font-size:24px;font-weight:700;color:var(--info,#1a5276)">${atOrBelowPct}%</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">at or below quote</div>
+          <div style="font-size:10.5px;color:var(--text3)">${atOrBelowCount} of ${_n} job${_n!==1?'s':''}</div>
         </div>
       </div>
       <div class="bar-chart">
