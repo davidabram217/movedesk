@@ -2289,9 +2289,24 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Additional notes <span style="font-weight:400;color:var(--text3)">(optional — appears on the document)</span></label>
       <textarea id="ri-notes" style="width:100%;min-height:64px;font-size:13px;resize:vertical" placeholder="e.g. Thank you for a great move! Don't hesitate to reach out if you have any questions." oninput="updateRINotes()"></textarea>
     </div>
+    <!-- Editable email draft — hidden until "Send" is pressed, then reviewed before the real send -->
+    <div id="ri-draft-panel" style="display:none;padding:14px 20px;border-top:1px solid var(--border);background:var(--amber-light)">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">Review email before sending</div>
+      <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px">To (customer)</label>
+      <input id="ri-draft-to" type="email" style="width:100%;font-size:13px;margin-bottom:4px" placeholder="customer@email.com">
+      <div id="ri-draft-to-warn" style="display:none;font-size:11.5px;color:#c0392b;margin-bottom:8px">⚠ No email on file for this customer — enter one to send.</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">CC: <span id="ri-draft-cc"></span> (office copy)</div>
+      <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px">Subject</label>
+      <input id="ri-draft-subject" type="text" style="width:100%;font-size:13px;margin-bottom:8px">
+      <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:3px">Message</label>
+      <textarea id="ri-draft-body" style="width:100%;min-height:150px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">The formatted receipt/invoice above is attached to the email automatically.</div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('receipt-invoice')">Close</button>
-      <button class="btn btn-primary" id="ri-send-btn" onclick="sendReceiptInvoice()">✉ Send →</button>
+      <button class="btn btn-secondary" id="ri-back-btn" style="display:none" onclick="riBackToPreview()">← Back</button>
+      <button class="btn btn-primary" id="ri-send-btn" onclick="openReceiptDraft()">✉ Send →</button>
+      <button class="btn btn-primary" id="ri-confirm-btn" style="display:none" onclick="sendReceiptInvoice()">Send now →</button>
     </div>
   </div>
 </div>
@@ -15523,6 +15538,7 @@ function openReceiptInvoice(jobId){
   document.getElementById('ri-send-btn').textContent=isInvoice?'✉ Send invoice →':'✉ Send receipt →';
   document.getElementById('ri-notes').value='';
   document.getElementById('ri-preview-body').innerHTML=buildReceiptInvoiceHTML(j);
+  riBackToPreview();  // always open in preview mode, draft panel hidden
   openModal('receipt-invoice');
 }
 
@@ -15700,20 +15716,67 @@ function buildReceiptInvoiceHTML(j){
   </div>`;
 }
 
-async function sendReceiptInvoice(){
-  const j=db.completedJobs.find(x=>x.id===currentRIJobId);
-  if(!j)return;
+// Build the receipt/invoice email text (shared by the draft prefill and any fallback).
+function _riDefaultEmail(j){
   const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));
   const isInvoice=owed>0;
   const firstName=j.name?j.name.split(' ')[0]:'there';
-  const additionalNotes=document.getElementById('ri-notes').value.trim();
+  const additionalNotes=(document.getElementById('ri-notes').value||'').trim();
   const subject=isInvoice?'Your invoice — CareMore Moving & Storage':'Your receipt — CareMore Moving & Storage';
   const body=isInvoice
     ?'Hi '+firstName+',\n\nPlease find your invoice from CareMore Moving & Storage below.\n\nBalance due: '+fmtMoney(owed)+'\n\nPayment methods accepted:\n· Cash\n· Check (payable to CareMore Moving & Storage)\n· Credit card — 3.5% fee applies (no AMEX)\n· Zelle — move@caremoremoving.com\n\n'+(additionalNotes?additionalNotes+'\n\n':'')+'If you have any questions please call us at (415) 822-8547.\n\nThank you,\nJohnathan Hall\nCareMore Moving & Storage\n(415) 822-8547'
     :'Hi '+firstName+',\n\nThank you for your payment! Please find your receipt from CareMore Moving & Storage below.\n\nTotal charged: '+fmtMoney(j.total)+'\nAmount paid: '+fmtMoney(j.paid)+'\n\n'+(additionalNotes?additionalNotes+'\n\n':'')+'Thank you for choosing CareMore Moving & Storage. We hope your move went smoothly!\n\nJohnathan Hall\nCareMore Moving & Storage\n(415) 822-8547';
+  return {subject:subject,body:body,isInvoice:isInvoice};
+}
+
+// Step 1 of Send: reveal an editable draft (To / Subject / Body) instead of firing immediately.
+// The customer's email is prefilled from the job — and if it's blank (common on repeat/imported
+// jobs), the field is empty with a visible warning so it can't silently go only to the office.
+function openReceiptDraft(){
+  const j=db.completedJobs.find(x=>x.id===currentRIJobId);
+  if(!j)return;
+  const def=_riDefaultEmail(j);
+  document.getElementById('ri-draft-to').value=j.email||'';
+  document.getElementById('ri-draft-cc').textContent=OFFICE_EMAIL;
+  document.getElementById('ri-draft-subject').value=def.subject;
+  document.getElementById('ri-draft-body').value=def.body;
+  document.getElementById('ri-draft-to-warn').style.display=j.email?'none':'block';
+  // swap the footer buttons + reveal the draft
+  document.getElementById('ri-draft-panel').style.display='block';
+  document.getElementById('ri-send-btn').style.display='none';
+  document.getElementById('ri-confirm-btn').style.display='';
+  document.getElementById('ri-back-btn').style.display='';
+  document.getElementById('ri-draft-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function riBackToPreview(){
+  document.getElementById('ri-draft-panel').style.display='none';
+  document.getElementById('ri-send-btn').style.display='';
+  document.getElementById('ri-confirm-btn').style.display='none';
+  document.getElementById('ri-back-btn').style.display='none';
+}
+
+async function sendReceiptInvoice(){
+  const j=db.completedJobs.find(x=>x.id===currentRIJobId);
+  if(!j)return;
+  // Read the (possibly edited) draft fields. The customer email is required — the whole point of
+  // this flow is that the receipt reaches the CUSTOMER, not just the office CC.
+  const to=(document.getElementById('ri-draft-to').value||'').trim();
+  const subject=(document.getElementById('ri-draft-subject').value||'').trim();
+  const body=document.getElementById('ri-draft-body').value||'';
+  const isInvoice=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0))>0;
+  if(!to){
+    document.getElementById('ri-draft-to-warn').style.display='block';
+    document.getElementById('ri-draft-to').focus();
+    showToast('⚠ Add the customer\u2019s email before sending.');
+    return;
+  }
+  // Persist the email back onto the job so it's there next time (fixes the blank-email jobs).
+  if(!j.email){ j.email=to; saveDB(); }
+  const htmlBody=buildReceiptInvoiceHTML(j);
   closeModal('receipt-invoice');
-  const sent=await sendEmail(j.email||'',OFFICE_EMAIL,subject,body);
-  showToast(sent?'✓ '+(isInvoice?'Invoice':'Receipt')+' sent to '+j.name:'✉ Gmail opened — customer in To, office in CC');
+  const sent=await sendEmail(to,OFFICE_EMAIL,subject,body,htmlBody);
+  showToast(sent?'✓ '+(isInvoice?'Invoice':'Receipt')+' sent to '+j.name+' (office CC\u2019d)':'✉ Gmail opened — customer in To, office in CC');
 }
 
 // ── AI QUOTE BUILDER ──
