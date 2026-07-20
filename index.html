@@ -2918,6 +2918,17 @@ async function loadDB(){
         const _legacyKey=l.name.trim().toLowerCase()+'|'+l.date;
         if(_legacyCompletedKeys.has(_legacyKey))_isCompleted=true;
       }
+      // 2026-07-15: name+date fails when the move happened on a different date than the lead's
+      // quote/estimate date (reported: Susan Toder — lead 2026-04-27, move 2026-05-04), and when
+      // the completed job never got a leadId (repeat-customer bookings). Final fallback: a UNIQUE
+      // name match. Only when exactly one completed job AND one lead share the name — never an
+      // ambiguous match, so two people (or two jobs) with the same name are left for a human.
+      if(!_isCompleted&&l.name){
+        const _nm=l.name.trim().toLowerCase();
+        const _compSameName=(db.completedJobs||[]).filter(j=>((j.name||'').trim().toLowerCase())===_nm);
+        const _leadsSameName=(db.leads||[]).filter(x=>((x.name||'').trim().toLowerCase())===_nm);
+        if(_compSameName.length===1&&_leadsSameName.length===1)_isCompleted=true;
+      }
       if(!_isCompleted)return;
       l.status='Completed';
       l.statusUpdatedAt=new Date().toISOString().split('T')[0];
@@ -9543,7 +9554,7 @@ function confirmCompleteMultiDay(paymentState){
   const _ccFee=Number(window._cjmdCcFee)||0;
   // Build the completedJob record
   const cj={
-    id:uid(),bookedJobId:j.id,leadId:j.leadId||null,
+    id:uid(),bookedJobId:j.id,leadId:_resolveCompletedLeadId(j),
     name:j.name,phone:j.phone,email:j.email,
     date:j.date, // first-day date for sorting
     // === MULTI-DAY-SPECIFIC FIELDS ===
@@ -10054,7 +10065,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const _ai=document.getElementById('cj-misc-'+_i+'-ai')?.checked||false;
     if(_amt>0)_miscCharges.push({label:_lab,amount:_amt,aiTraining:_ai});
   }
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:(j?j.leadId:null),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:_resolveCompletedLeadId(j),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -15564,15 +15575,24 @@ function buildReceiptInvoiceHTML(j){
   }
 
   addRow('Materials',j.feeMaterials);
+  addRow('Packing materials',j.feePackMaterials);
   addRow('Fuel fee',j.feeFuel);
   addRow('Parking permits',j.feeParkingPermit);
   addRow('COI fee',j.feeCOI);
   addRow('Insurance',j.feeInsurance);
   addRow('Dump fee',j.feeDump);
   addRow('Damage/claim',j.feeDamage);
+  // Custom misc charges captured at completion (each carries its own label + amount).
+  if(Array.isArray(j.miscCharges)){
+    j.miscCharges.forEach(function(m){ if(m&&Number(m.amount)>0) addRow(m.label||'Additional charge',m.amount); });
+  }
   if(j.feeYelp&&Number(j.feeYelp)>0){
     rows+=`<tr><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;color:#c0392b">Yelp discount</td><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500;color:#c0392b">-${fmtMoney(j.feeYelp)}</td></tr>`;
   }
+  // Credit-card surcharge (3.5%), shown as its own line so the itemized charges sum to the total.
+  // Without this, a card-paid receipt's line items came up short of "Total charged" by the fee
+  // amount (e.g. Alexandra Russell: items $1,777 but total $1,839 — the missing $62 surcharge).
+  addRow('Credit card surcharge (3.5%)',j.feeCC);
 
   let paymentsHtml='';
   if(j.paymentHistory&&j.paymentHistory.length){
@@ -16222,6 +16242,22 @@ function _canonPackingValue(s){
   if(v.includes('breakable'))return 'All breakables';
   if(v.includes('partial'))return 'Partial pack';
   return 'No';
+}
+// Resolve the lead a completed job belongs to. A completed job inherits leadId from its booked
+// job, but repeat-customer bookings (and some legacy/imported jobs) can arrive with NO leadId —
+// which then propagates to the completed job as undefined forever. That orphans the job from its
+// lead: the "Completed" self-heal (which matches by leadId, or by name+date) can't connect them,
+// so the lead sits stuck at "Quote accepted" and every sync re-asserts it (reported: Susan Toder,
+// whose lead date 2026-04-27 and move date 2026-05-04 also differ, defeating the name+date
+// fallback). This resolver keeps the booked job's leadId if present; otherwise it links by a
+// UNIQUE name match among leads — never by an ambiguous one, to avoid merging two different people
+// or two jobs for the same repeat customer. Returns null when it can't be certain.
+function _resolveCompletedLeadId(bookedJob){
+  if(bookedJob&&bookedJob.leadId)return bookedJob.leadId;
+  const nm=((bookedJob&&bookedJob.name)||'').trim().toLowerCase();
+  if(!nm)return null;
+  const matches=(db.leads||[]).filter(l=>((l.name||'').trim().toLowerCase())===nm);
+  return matches.length===1?matches[0].id:null;   // only when exactly one lead matches
 }
 function _normMoveType(s){const k=_rawNormMoveType(s);return _MOVE_TYPE_ALIASES[k]||k;}
 // Resolve ANY stored value (canonical or legacy wording) to the canonical dropdown label, so that
