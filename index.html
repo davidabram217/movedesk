@@ -15781,7 +15781,17 @@ async function sendReceiptInvoice(){
   }
   // Persist the email back onto the job so it's there next time (fixes the blank-email jobs).
   if(!j.email){ j.email=to; saveDB(); }
-  const htmlBody=buildReceiptInvoiceHTML(j);
+  // Prepend the typed message ABOVE the receipt, inside the same html_content the customer sees.
+  // The email service's receipt template renders html_content but not the separate `message` field,
+  // so anything typed in the draft body was invisible to the customer (they saw only the receipt).
+  // Building it into the HTML guarantees the note always shows, as an email intro before the receipt.
+  const _receiptHtml=buildReceiptInvoiceHTML(j);
+  const _intro=(body||'').trim()
+    ? '<div style="font-family:\'DM Sans\',Arial,sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto;padding:24px 32px 0;font-size:14px;line-height:1.7;white-space:pre-wrap">'
+      + escHtml(body).replace(/\n/g,'<br>')
+      + '</div>'
+    : '';
+  const htmlBody=_intro+_receiptHtml;
   closeModal('receipt-invoice');
   const sent=await sendEmail(to,OFFICE_EMAIL,subject,body,htmlBody);
   showToast(sent?'✓ '+(isInvoice?'Invoice':'Receipt')+' sent to '+j.name+' (office CC\u2019d)':'✉ Gmail opened — customer in To, office in CC');
