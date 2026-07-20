@@ -11133,6 +11133,56 @@ function calcPackMaterials(){
 // in any of the staff analytics widgets. Lets the user verify the count and remove
 // rough-quote / estimate data from individual records that shouldn't have been counted.
 // `which` is one of: 'estimate-type', 'quote-success', 'how-booked'
+// Drilldown for the Quote-accuracy tiles: shows exactly which completed jobs fall in a bucket,
+// with each job's quoted range vs actual, so the office can verify the data behind the percentages.
+function openAccuracyDrilldown(bucket){
+  const jobs=window._quoteAccuracyJobs||[];
+  let list,label;
+  if(bucket==='over'){ list=jobs.filter(j=>j.actual>j.qMax); label='Ran over quote'; }
+  else if(bucket==='within'){ list=jobs.filter(j=>j.withinRange); label='Within quoted range'; }
+  else { list=jobs.filter(j=>j.actual<=j.qMax); label='At or below quote'; }
+  if(!list.length){ showToast('No jobs in that group'); return; }
+  // Reattach each row to its completed-job record (by name) so the office can open & check it.
+  const byName={}; (db.completedJobs||[]).forEach(cj=>{ const k=(cj.name||'').trim().toLowerCase(); (byName[k]=byName[k]||[]).push(cj); });
+  list.sort((a,b)=>(a.actual-a.qMax)/a.qMax-(b.actual-b.qMax)/b.qMax); // most over → most under
+  document.getElementById('ebd-title').textContent='Quote accuracy — '+label;
+  document.getElementById('ebd-subtitle').textContent=list.length+' job'+(list.length===1?'':'s')+' · click a name to open the job and verify its data';
+  const fmt=n=>'$'+Math.round(Number(n)||0).toLocaleString();
+  document.getElementById('ebd-body').innerHTML=`
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">"Actual" is the comparison value used for accuracy (add-ons removed, cash jobs shown at regular-rate equivalent) — not necessarily what the customer paid. Click a name to open the job if a number looks wrong.</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Customer</th>
+        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Quoted range</th>
+        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">Actual</th>
+        <th style="text-align:right;padding:7px 10px;font-size:10.5px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border)">vs quote</th>
+        <th style="border-bottom:1px solid var(--border);width:30px"></th>
+      </tr></thead>
+      <tbody>
+      ${list.map(r=>{
+        const k=(r.name||'').trim().toLowerCase();
+        const cj=(byName[k]&&byName[k].length===1)?byName[k][0]:null;
+        const escName=(r.name||'').replace(/'/g,"\\'");
+        const over=r.actual>r.qMax, under=r.actual<r.qMin;
+        const diff=over?'+'+fmt(r.actual-r.qMax)+' over':under?fmt(r.qMin-r.actual)+' under':'on target';
+        const diffColor=over?'var(--danger,#e74c3c)':'var(--accent)';
+        const nameCell=cj
+          ?`<a href="#" onclick="event.preventDefault();closeModal('estimate-breakdown');viewCompletedJob('${cj.id}')" style="color:var(--accent);text-decoration:none;font-weight:500">${r.name||'—'}</a>`
+          :`${r.name||'—'}`;
+        const openBtn=cj?`<button class="btn btn-secondary btn-sm" onclick="closeModal('estimate-breakdown');viewCompletedJob('${cj.id}')" title="Open this job to verify its data" style="font-size:10px;padding:3px 6px">✏</button>`:'';
+        return`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px 10px">${nameCell}${r.paidCash?' <span title="Compared at regular-rate equivalent" style="font-size:9.5px;color:var(--text3)">(cash)</span>':''}</td>
+          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;color:var(--text2)">${fmt(r.qMin)}–${fmt(r.qMax)}</td>
+          <td style="padding:8px 10px;text-align:right;font-family:'DM Mono',monospace;font-weight:600">${fmt(r.actual)}</td>
+          <td style="padding:8px 10px;text-align:right;font-size:11.5px;color:${diffColor}">${diff}</td>
+          <td style="padding:8px 6px;text-align:right">${openBtn}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`;
+  openModal('estimate-breakdown');
+}
+
 function openEstimateBreakdownDrilldown(name,key,which){
   which=which||'estimate-type';
   let cell=null,subtitle='';
@@ -11816,6 +11866,9 @@ function renderAnalytics(){
     const withinPct=accuracy;
     const atOrBelowPct=Math.round(atOrBelowCount/_n*100);
     const scoreColor=accuracy>=75?'var(--accent)':accuracy>=50?'var(--amber)':'var(--danger,#e74c3c)';
+    // Stash the per-job data so the tiles can drill down into exactly which jobs are in each bucket
+    // (requested 2026-07-15 — lets the office verify the underlying data is captured correctly).
+    window._quoteAccuracyJobs=quotedJobs;
     qaHead.textContent=`Based on ${quotedJobs.length} quoted jobs`;
     qaEl.innerHTML=`
       <div style="display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;margin-bottom:16px">
@@ -11829,21 +11882,22 @@ function renderAnalytics(){
           <div style="color:var(--text3);font-size:11.5px;margin-top:4px">Note: add-ons (insurance, dump, COI) are excluded from over/under calculation${quotedJobs.some(j=>j.paidCash)?'. Jobs paid at the cash rate are compared at their regular-rate equivalent so the accuracy reflects the quote, not the discount':''}</div>
         </div>
       </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Click any tile to see exactly which jobs are counted</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-        <div style="text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--danger,#e74c3c)">
+        <div onclick="openAccuracyDrilldown('over')" title="See these jobs" style="cursor:pointer;text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--danger,#e74c3c)">
           <div style="font-size:24px;font-weight:700;color:var(--danger,#e74c3c)">${overPct}%</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">ran over quote</div>
-          <div style="font-size:10.5px;color:var(--text3)">${overCount} of ${_n} job${_n!==1?'s':''}</div>
+          <div style="font-size:10.5px;color:var(--text3)">${overCount} of ${_n} job${_n!==1?'s':''} →</div>
         </div>
-        <div style="text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--accent)">
+        <div onclick="openAccuracyDrilldown('within')" title="See these jobs" style="cursor:pointer;text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--accent)">
           <div style="font-size:24px;font-weight:700;color:var(--accent)">${withinPct}%</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">within range</div>
-          <div style="font-size:10.5px;color:var(--text3)">${withinCount} of ${_n} job${_n!==1?'s':''}</div>
+          <div style="font-size:10.5px;color:var(--text3)">${withinCount} of ${_n} job${_n!==1?'s':''} →</div>
         </div>
-        <div style="text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--info,#1a5276)">
+        <div onclick="openAccuracyDrilldown('atOrBelow')" title="See these jobs" style="cursor:pointer;text-align:center;padding:10px 8px;background:var(--surface2);border-radius:var(--radius);border-top:3px solid var(--info,#1a5276)">
           <div style="font-size:24px;font-weight:700;color:var(--info,#1a5276)">${atOrBelowPct}%</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">at or below quote</div>
-          <div style="font-size:10.5px;color:var(--text3)">${atOrBelowCount} of ${_n} job${_n!==1?'s':''}</div>
+          <div style="font-size:10.5px;color:var(--text3)">${atOrBelowCount} of ${_n} job${_n!==1?'s':''} →</div>
         </div>
       </div>
       <div class="bar-chart">
