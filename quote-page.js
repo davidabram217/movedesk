@@ -140,7 +140,10 @@ function renderQuote(q){
     '</tr></thead><tbody>';
 
   days.forEach(function(d,i){
-    var crewDesc=d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':d.crew+' Movers';
+    // When an unload crew is set, the Move crew line IS the load half of the job.
+    var crewDesc=(d.unloadCrew&&d.unloadRate)
+      ?((d.crewLoadDiff?(d.crewLoad||d.crew):d.crew)+' Movers \u2013 Load')
+      :(d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':d.crew+' Movers');
     var label=isMulti?'Day '+(i+1)+' \u2013 '+crewDesc:crewDesc;
     if(d.flatRate){
       var flatPrice=Number(d.flatPrice)||0;
@@ -153,33 +156,22 @@ function renderQuote(q){
         '<td style="padding:11px 6px;text-align:right;color:#9e9b94">\u2014</td>'+
         '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(flatPrice)+(flatCash?'<div style="font-size:11px;color:#2d5a3d;margin-top:2px">or '+fmt(flatCash)+' cash</div>':'')+'</td>'+
         '</tr>';
-    } else if(d.splitRates){
-      // Split load/unload: two separate billing lines in place of the single hourly line.
-      var cL=d.crewLoadDiff?(d.crewLoad||d.crew):d.crew;
-      var cU=d.crewLoadDiff?(d.crewUnload||d.crew):d.crew;
-      var rL=Number(d.rateLoad)||0,rU=Number(d.rateUnload)||0;
-      var hlMin=Number(d.hrsMinLoad)||0,hlMax=Number(d.hrsMaxLoad)||0;
-      var huMin=Number(d.hrsMinUnload)||0,huMax=Number(d.hrsMaxUnload)||0;
-      var lLabel=(isMulti?'Day '+(i+1)+' \u2013 ':'')+cL+' Movers \u2013 Load';
-      var uLabel=(isMulti?'Day '+(i+1)+' \u2013 ':'')+cU+' Movers \u2013 Unload';
-      html+='<tr style="border-bottom:1px solid #f0ece4">'+
-        '<td style="padding:11px 6px">'+esc(lLabel)+'</td>'+
-        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+hlMin+' \u2013 '+hlMax+' hrs</td>'+
-        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(rL)+'/hr</td>'+
-        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(hlMin*rL)+' \u2013 '+fmt(hlMax*rL)+'</td>'+
-        '</tr>';
-      html+='<tr style="border-bottom:1px solid #f0ece4">'+
-        '<td style="padding:11px 6px">'+esc(uLabel)+'</td>'+
-        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+huMin+' \u2013 '+huMax+' hrs</td>'+
-        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(rU)+'/hr</td>'+
-        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(huMin*rU)+' \u2013 '+fmt(huMax*rU)+'</td>'+
-        '</tr>';
     } else {
       html+='<tr style="border-bottom:1px solid #f0ece4">'+
         '<td style="padding:11px 6px">'+esc(label)+'</td>'+
         '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+d.hrsMin+' \u2013 '+d.hrsMax+' hrs</td>'+
         '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(d.rate)+'/hr</td>'+
         '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(d.hrsMin*d.rate)+' \u2013 '+fmt(d.hrsMax*d.rate)+'</td>'+
+        '</tr>';
+    }
+    if(d.unloadCrew&&d.unloadRate){
+      var uCount=Number(d.unloadCrewSize)||0;
+      var ul=(isMulti?'Day '+(i+1)+' \u2013 ':'')+(uCount?uCount+' Movers \u2013 Unload':'Unload crew');
+      html+='<tr style="border-bottom:1px solid #f0ece4">'+
+        '<td style="padding:11px 6px">'+esc(ul)+'</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+(d.unloadHrsMin||'?')+' \u2013 '+(d.unloadHrsMax||'?')+' hrs</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(d.unloadRate)+'/hr</td>'+
+        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt((d.unloadHrsMin||0)*d.unloadRate)+' \u2013 '+fmt((d.unloadHrsMax||0)*d.unloadRate)+'</td>'+
         '</tr>';
     }
     if(d.packCrew&&d.packRate){
