@@ -2007,12 +2007,16 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="modal-header"><div class="modal-title">💰 Update payment</div><button class="modal-close" onclick="closeModal('update-payment')">✕</button></div>
     <div class="modal-body">
       <div id="update-payment-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div>
+      <div style="display:flex;border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden;font-size:12.5px;margin-bottom:14px">
+        <button type="button" id="up-mode-add" onclick="setUpdatePaymentMode('add')" style="flex:1;padding:7px 10px;border:none;cursor:pointer">＋ Record a payment</button>
+        <button type="button" id="up-mode-fix" onclick="setUpdatePaymentMode('fix')" style="flex:1;padding:7px 10px;border:none;cursor:pointer;border-left:1px solid var(--border2)">✎ Correct amount paid</button>
+      </div>
       <div class="form-grid form-grid-2">
         <div class="form-group">
-          <label>Amount received ($) *</label>
+          <label id="up-amount-label">Amount received ($) *</label>
           <input type="number" id="up-amount" placeholder="0.00" oninput="calcUpdateBalance()">
         </div>
-        <div class="form-group">
+        <div class="form-group" id="up-method-wrap">
           <label>Payment method</label>
           <select id="up-method"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option></select>
         </div>
@@ -2021,14 +2025,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <input type="text" id="up-notes" placeholder="e.g. paid remaining balance via e-transfer">
         </div>
       </div>
+      <div id="up-hint" style="margin-top:2px;font-size:11px;color:var(--text3);line-height:1.5"></div>
       <div id="up-balance-bar" style="margin-top:12px;padding:10px 12px;border-radius:var(--radius);border:1px solid var(--border2);background:var(--surface2);display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:12px;color:var(--text2)">Remaining after payment</div>
+        <div id="up-balance-label" style="font-size:12px;color:var(--text2)">Remaining after payment</div>
         <div id="up-balance-display" style="font-size:15px;font-weight:600;font-family:'DM Mono',monospace">—</div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('update-payment')">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmUpdatePayment()">Save payment</button>
+      <button class="btn btn-primary" id="up-save-btn" onclick="confirmUpdatePayment()">Save payment</button>
     </div>
   </div>
 </div>
@@ -10596,7 +10601,7 @@ const _rqBlock=(_rqOnLead||_rqOnJob)
       <span>No rough quote on file yet</span>
       <button class="btn btn-secondary btn-sm" onclick="openCompletedJobRoughQuote('${j.id}')" title="Backfill a rough quote that was sent before tracking it here — counts in analytics">+ Add rough quote</button>
     </div>`;
-document.getElementById('view-modal-footer').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">${_rqBlock}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button>${_realQuoteId?`<button class="btn btn-secondary" onclick="closeModal('view');previewQuoteFromList('${_realQuoteId}')">📋 View quote</button>`:''}<button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button><button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${!aiRec?`<button class="btn btn-secondary" style="color:var(--accent);border-color:var(--accent)" onclick="saveJobForAI('${j.id}')">🤖 Save for AI</button>`:''}${owed>0?`<button class="btn" style="background:var(--amber-light);color:var(--amber);border-color:#f0d080" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 Update payment</button>`:''}</div></div>`;openModal('view');}
+document.getElementById('view-modal-footer').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">${_rqBlock}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button>${_realQuoteId?`<button class="btn btn-secondary" onclick="closeModal('view');previewQuoteFromList('${_realQuoteId}')">📋 View quote</button>`:''}<button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button><button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${!aiRec?`<button class="btn btn-secondary" style="color:var(--accent);border-color:var(--accent)" onclick="saveJobForAI('${j.id}')">🤖 Save for AI</button>`:''}<button class="btn" style="${owed>0?'background:var(--amber-light);color:var(--amber);border-color:#f0d080':''}" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 ${owed>0?'Update payment':'Correct payment'}</button></div></div>`;openModal('view');}
 
 let currentEditCompletedJobId=null;
 
@@ -10795,19 +10800,47 @@ function openUpdatePayment(jobId){
       <div><div style="font-size:10.5px;color:var(--text3)">Already paid</div><div style="font-weight:600;color:var(--accent)">${fmtMoney(j.paid)}</div></div>
       <div><div style="font-size:10.5px;color:var(--text3)">Still owing</div><div style="font-weight:600;color:var(--amber)">${fmtMoney(owed)}</div></div>
     </div>`;
-  document.getElementById('up-amount').value=owed>0?owed:'';
   document.getElementById('up-notes').value='';
   document.getElementById('up-method').selectedIndex=0;
-  calcUpdateBalance();
+  // Default to recording a payment when money is owed; to correcting when it is not, since the only
+  // reason to open this on a settled job is to undo a mistake.
+  setUpdatePaymentMode(owed>0?'add':'fix');
   openModal('update-payment');
+}
+
+// 'add'  = log a new payment received (adds to the running total, cannot reduce it)
+// 'fix'  = correct what the total paid SHOULD read, e.g. a job marked paid in full by mistake
+let updatePaymentMode='add';
+function setUpdatePaymentMode(mode){
+  updatePaymentMode=(mode==='fix')?'fix':'add';
+  const j=db.completedJobs.find(x=>x.id===currentUpdatePaymentJobId);
+  const isFix=updatePaymentMode==='fix';
+  const on=document.getElementById('up-mode-'+(isFix?'fix':'add'));
+  const off=document.getElementById('up-mode-'+(isFix?'add':'fix'));
+  if(on){on.style.background='var(--accent)';on.style.color='#fff';}
+  if(off){off.style.background='var(--surface2)';off.style.color='var(--text2)';}
+  document.getElementById('up-amount-label').textContent=isFix?'Total paid should be ($) *':'Amount received ($) *';
+  document.getElementById('up-method-wrap').style.display=isFix?'none':'';
+  document.getElementById('up-balance-label').textContent=isFix?'Balance after correction':'Remaining after payment';
+  document.getElementById('up-save-btn').textContent=isFix?'Save correction':'Save payment';
+  document.getElementById('up-notes').placeholder=isFix?'e.g. marked paid in full by mistake':'e.g. paid remaining balance via e-transfer';
+  document.getElementById('up-hint').textContent=isFix
+    ?'Replaces the total paid on record and logs the adjustment in the payment history. Use this to undo a mistake, not to record money received.'
+    :'Adds to the total paid on record.';
+  // Prefill: a correction starts from what is currently on record, a payment from what is owed.
+  const owed=j?Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)):0;
+  document.getElementById('up-amount').value=isFix?(Number(j&&j.paid)||0):(owed>0?owed:'');
+  calcUpdateBalance();
 }
 
 function calcUpdateBalance(){
   const j=db.completedJobs.find(x=>x.id===currentUpdatePaymentJobId);
   if(!j)return;
-  const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));
-  const payment=Number(document.getElementById('up-amount').value)||0;
-  const remaining=Math.max(0,owed-payment);
+  const total=Number(j.total)||0;
+  const owed=Math.max(0,total-(Number(j.paid)||0));
+  const entered=Number(document.getElementById('up-amount').value)||0;
+  // In 'fix' mode the entered figure IS the new total paid, so the balance is measured from it.
+  const remaining=updatePaymentMode==='fix'?Math.max(0,total-entered):Math.max(0,owed-entered);
   const bar=document.getElementById('up-balance-bar');
   const display=document.getElementById('up-balance-display');
   display.textContent=fmtMoney(remaining);
@@ -10822,22 +10855,50 @@ function calcUpdateBalance(){
 }
 
 function confirmUpdatePayment(){
-  const amount=Number(document.getElementById('up-amount').value);
-  if(!amount||amount<=0){showToast('Please enter an amount received.');return;}
   const j=db.completedJobs.find(x=>x.id===currentUpdatePaymentJobId);
   if(!j)return;
-  const method=document.getElementById('up-method').value;
+  const total=Number(j.total)||0;
   const notes=document.getElementById('up-notes').value;
-  // Add to payment history
-  if(!j.paymentHistory)j.paymentHistory=[];
-  j.paymentHistory.push({amount,method,notes,date:new Date().toISOString().split('T')[0]});
-  // Update total paid
-  j.paid=Math.min(Number(j.total),(Number(j.paid)||0)+amount);
-  const remaining=Math.max(0,(Number(j.total)||0)-j.paid);
-  j.paymentState=remaining<=0?'paid':'owing';
-  saveDB();
-  closeModal('update-payment');
-  showToast(remaining<=0?`✓ Balance cleared — ${j.name} paid in full`:`✓ Payment recorded — ${fmtMoney(remaining)} still owing`);
+  const raw=document.getElementById('up-amount').value;
+  const entered=Number(raw);
+  let remaining;
+
+  if(updatePaymentMode==='fix'){
+    // Correction: the entered figure REPLACES the total paid on record.
+    if(raw===''||isNaN(entered)||entered<0){showToast('Enter what the total paid should be (0 or more).');return;}
+    if(entered>total){showToast(`That is more than the ${fmtMoney(total)} charged. Edit the job total first if the job was worth more.`);return;}
+    const prev=Number(j.paid)||0;
+    if(entered===prev){showToast('That is already the amount on record.');return;}
+    if(!j.paymentHistory)j.paymentHistory=[];
+    // Logged as a signed delta so the history still sums to the total paid.
+    j.paymentHistory.push({
+      amount:Math.round((entered-prev)*100)/100,
+      method:'Correction',
+      notes:notes||`Corrected total paid from ${fmtMoney(prev)} to ${fmtMoney(entered)}`,
+      date:new Date().toISOString().split('T')[0],
+      correction:true
+    });
+    j.paid=entered;
+    remaining=Math.max(0,total-j.paid);
+    j.owing=remaining;
+    j.paymentState=remaining<=0?'paid':'owing';
+    saveDB();
+    closeModal('update-payment');
+    showToast(remaining>0?`✓ Corrected — ${j.name} now owes ${fmtMoney(remaining)}`:`✓ Corrected — ${j.name} paid in full`);
+  } else {
+    // Record a payment received (unchanged behaviour: add-only, clamped to the total).
+    if(!entered||entered<=0){showToast('Please enter an amount received.');return;}
+    const method=document.getElementById('up-method').value;
+    if(!j.paymentHistory)j.paymentHistory=[];
+    j.paymentHistory.push({amount:entered,method,notes,date:new Date().toISOString().split('T')[0]});
+    j.paid=Math.min(total,(Number(j.paid)||0)+entered);
+    remaining=Math.max(0,total-j.paid);
+    j.owing=remaining;
+    j.paymentState=remaining<=0?'paid':'owing';
+    saveDB();
+    closeModal('update-payment');
+    showToast(remaining<=0?`✓ Balance cleared — ${j.name} paid in full`:`✓ Payment recorded — ${fmtMoney(remaining)} still owing`);
+  }
   renderCompleted();
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
