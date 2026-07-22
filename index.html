@@ -4861,7 +4861,12 @@ function resolveQuotedInfo(j){
     {
       const _ds=_bkDropped?_bk.quoteDays:(Array.isArray(fq.days)?fq.days:[]);
       let _hmin=0,_hmax=0,_any=false;
-      _ds.forEach(d=>{if(!d||d.flatRate)return;const a=Number(d.hrsMin)||0,b=Number(d.hrsMax)||0;if(a||b){_hmin+=a;_hmax+=b;_any=true;}});
+      // A split load/unload day's hours live in the two segments, not in hrsMin/hrsMax — sum both
+      // sides or a split quote reports roughly half its real hours to accuracy + AI training.
+      const _qHrs=(d,lo)=>d.splitRates
+        ?((Number(lo?d.hrsMinLoad:d.hrsMaxLoad)||0)+(Number(lo?d.hrsMinUnload:d.hrsMaxUnload)||0))
+        :(Number(lo?d.hrsMin:d.hrsMax)||0);
+      _ds.forEach(d=>{if(!d||d.flatRate)return;const a=_qHrs(d,1),b=_qHrs(d,0);if(a||b){_hmin+=a;_hmax+=b;_any=true;}});
       out.quotedHoursMin=_any?_hmin:(_ds[0]?.hrsMin||null);
       out.quotedHoursMax=_any?_hmax:(_ds[0]?.hrsMax||null);
     }
@@ -13747,6 +13752,13 @@ function addQuoteDay(){
     crewLoadDiff:last.crewLoadDiff||false,
     crewLoad:last.crewLoad||'',
     crewUnload:last.crewUnload||'',
+    splitRates:last.splitRates||false,
+    rateLoad:last.rateLoad||'',
+    hrsMinLoad:last.hrsMinLoad||'',
+    hrsMaxLoad:last.hrsMaxLoad||'',
+    rateUnload:last.rateUnload||'',
+    hrsMinUnload:last.hrsMinUnload||'',
+    hrsMaxUnload:last.hrsMaxUnload||'',
     packCrew:last.packCrew||false,
     packCrewSize:last.packCrewSize||'',
     packRate:last.packRate||'',
@@ -13774,6 +13786,36 @@ function toggleQbCrewDiff(dayId,checked){
   d.crewLoadDiff=checked;
   if(checked){d.crewLoad=d.crewLoad||d.crew;d.crewUnload=d.crewUnload||d.crew;}
   renderQbDays();qbAutoSave();
+}
+// Seeds the load/unload segments from the day's single rate+hours so that ticking the box does NOT
+// change the price. Hours are split in half on the load side (rounded to the nearest 0.5) and the
+// remainder goes to unload, so load+unload sums EXACTLY back to the original min and max.
+function _qbSeedSplit(d){
+  const _half=v=>Math.round((Number(v)||0)/2*2)/2;
+  const _min=Number(d.hrsMin)||0,_max=Number(d.hrsMax)||0;
+  const _minL=_half(_min),_maxL=_half(_max);
+  d.rateLoad=d.rateLoad||d.rate;
+  d.rateUnload=d.rateUnload||d.rate;
+  if(d.hrsMinLoad===''||d.hrsMinLoad==null){d.hrsMinLoad=_minL;d.hrsMinUnload=Math.max(0,_min-_minL);}
+  if(d.hrsMaxLoad===''||d.hrsMaxLoad==null){d.hrsMaxLoad=_maxL;d.hrsMaxUnload=Math.max(0,_max-_maxL);}
+}
+function toggleQbSplitRates(dayId,checked){
+  const d=qbDays.find(x=>x.id===dayId);if(!d)return;
+  d.splitRates=checked;
+  if(checked)_qbSeedSplit(d);
+  renderQbDays();qbAutoSave();
+}
+// Load/unload segment totals for one day. Returns null when the day is not split, so every caller
+// keeps its original single-line math untouched for non-split days.
+function _qbSplitTotals(d){
+  if(!d||!d.splitRates||d.flatRate)return null;
+  const rL=Number(d.rateLoad)||0,rU=Number(d.rateUnload)||0;
+  return {
+    loadMin:(Number(d.hrsMinLoad)||0)*rL, loadMax:(Number(d.hrsMaxLoad)||0)*rL,
+    unloadMin:(Number(d.hrsMinUnload)||0)*rU, unloadMax:(Number(d.hrsMaxUnload)||0)*rU,
+    hrsMin:(Number(d.hrsMinLoad)||0)+(Number(d.hrsMinUnload)||0),
+    hrsMax:(Number(d.hrsMaxLoad)||0)+(Number(d.hrsMaxUnload)||0)
+  };
 }
 function toggleQbPackCrew(dayId,checked){
   const d=qbDays.find(x=>x.id===dayId);if(!d)return;
@@ -14002,6 +14044,31 @@ function renderQbDays(){
             </div>
           </div>`:''}
 
+          <!-- Different load/unload rate + hours toggle (hourly days only) -->
+          ${d.flatRate?'':`
+          <div style="padding:8px 12px;border-top:1px solid var(--border2);background:var(--surface2)">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px">
+              <input type="checkbox" ${d.splitRates?'checked':''} onchange="toggleQbSplitRates('${d.id}',this.checked)" style="accent-color:var(--accent)">
+              Different rate &amp; hours for load vs unload
+            </label>
+          </div>`}
+          ${(d.splitRates&&!d.flatRate)?`
+          <div style="padding:10px 12px;border-top:1px solid var(--border2);background:var(--surface)">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px">📦 Load segment</div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.rateLoad||''}" oninput="updateQbDay('${d.id}','rateLoad',this.value)" placeholder="e.g. 265"></div>
+              <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMinLoad||''}" min="0" step="0.5" oninput="updateQbDay('${d.id}','hrsMinLoad',this.value)"></div>
+              <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMaxLoad||''}" min="0" step="0.5" oninput="updateQbDay('${d.id}','hrsMaxLoad',this.value)"></div>
+            </div>
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin:12px 0 8px">🏠 Unload segment</div>
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.rateUnload||''}" oninput="updateQbDay('${d.id}','rateUnload',this.value)" placeholder="e.g. 205"></div>
+              <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMinUnload||''}" min="0" step="0.5" oninput="updateQbDay('${d.id}','hrsMinUnload',this.value)"></div>
+              <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMaxUnload||''}" min="0" step="0.5" oninput="updateQbDay('${d.id}','hrsMaxUnload',this.value)"></div>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.5">The customer sees these as two separate billing lines. The "No. of movers", "Rate" and "Min/Max hours" fields above are ignored for pricing while this is on.</div>
+          </div>`:''}
+
           <!-- Packing crew toggle -->
           <div style="padding:8px 12px;border-top:1px solid var(--border2);background:var(--surface2)">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px">
@@ -14042,11 +14109,12 @@ function renderQbDays(){
               return out;
             }
             // Hourly display (original)
-            const moveMin=(d.hrsMin||0)*d.rate;
-            const moveMax=(d.hrsMax||0)*d.rate;
+            const _sp=_qbSplitTotals(d);
+            const moveMin=_sp?(_sp.loadMin+_sp.unloadMin):(d.hrsMin||0)*d.rate;
+            const moveMax=_sp?(_sp.loadMax+_sp.unloadMax):(d.hrsMax||0)*d.rate;
             const crewDesc=d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} movers`;
             let out=`<strong>${dayLabel} estimate:</strong> ${fmtMoney(moveMin+packMin)} – ${fmtMoney(moveMax+packMax)}`;
-            out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${d.hrsMin}–${d.hrsMax} hrs · $${d.rate}/hr`;
+            out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${_sp?`${_sp.hrsMin}–${_sp.hrsMax} hrs · load ${d.hrsMinLoad||0}–${d.hrsMaxLoad||0} hrs @ $${d.rateLoad||0}/hr · unload ${d.hrsMinUnload||0}–${d.hrsMaxUnload||0} hrs @ $${d.rateUnload||0}/hr`:`${d.hrsMin}–${d.hrsMax} hrs · $${d.rate}/hr`}`;
             if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
             out+='</div>';
             return out;
@@ -14134,8 +14202,15 @@ function calcQbTotals(){
         cashMin+=flat;cashMax+=flat;
       }
     } else {
-      laborMin+=(d.hrsMin||0)*d.rate;
-      laborMax+=(d.hrsMax||0)*d.rate;
+      // Split load/unload day: two priced segments replace the single rate x hours line.
+      const _sp=_qbSplitTotals(d);
+      if(_sp){
+        laborMin+=_sp.loadMin+_sp.unloadMin;
+        laborMax+=_sp.loadMax+_sp.unloadMax;
+      } else {
+        laborMin+=(d.hrsMin||0)*d.rate;
+        laborMax+=(d.hrsMax||0)*d.rate;
+      }
       // Add packing crew if set
       if(d.packCrew&&d.packRate){
         laborMin+=(d.packHrsMin||0)*d.packRate;
@@ -14309,6 +14384,27 @@ function renderQuoteHTML(q,lead){
         <td style="padding:11px 6px;text-align:right;color:#9e9b94">—</td>
         <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(flatPrice)}${flatCash?'<div style="font-size:11px;color:#2d5a3d;margin-top:2px">or '+fmt(flatCash)+' cash</div>':''}</td>
       </tr>`;
+    } else if(d.splitRates){
+      // Split load/unload: two separate billing lines in place of the single hourly line.
+      const cL=d.crewLoadDiff?(d.crewLoad||d.crew):d.crew;
+      const cU=d.crewLoadDiff?(d.crewUnload||d.crew):d.crew;
+      const rL=Number(d.rateLoad)||0,rU=Number(d.rateUnload)||0;
+      const hlMin=Number(d.hrsMinLoad)||0,hlMax=Number(d.hrsMaxLoad)||0;
+      const huMin=Number(d.hrsMinUnload)||0,huMax=Number(d.hrsMaxUnload)||0;
+      const lLabel=(isMulti?`Day ${i+1} – `:'')+`${cL} Movers – Load`;
+      const uLabel=(isMulti?`Day ${i+1} – `:'')+`${cU} Movers – Unload`;
+      html+=`<tr style="border-bottom:1px solid #f0ece4">
+        <td style="padding:11px 6px">${esc(lLabel)}</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${hlMin} – ${hlMax} hrs</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${fmt(rL)}/hr</td>
+        <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(hlMin*rL)} – ${fmt(hlMax*rL)}</td>
+      </tr>`;
+      html+=`<tr style="border-bottom:1px solid #f0ece4">
+        <td style="padding:11px 6px">${esc(uLabel)}</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${huMin} – ${huMax} hrs</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${fmt(rU)}/hr</td>
+        <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(huMin*rU)} – ${fmt(huMax*rU)}</td>
+      </tr>`;
     } else {
       html+=`<tr style="border-bottom:1px solid #f0ece4">
         <td style="padding:11px 6px">${esc(label)}</td>
@@ -14453,6 +14549,10 @@ function saveQuote(status,opts){
     const d=days[0]||{};
     if(d.flatRate)return false;
     if(d.dayLabel)return false;
+    // A split load/unload day carries its money in rateLoad/rateUnload + the per-segment hours, so
+    // its base crew/hrs/rate fields can still read as factory defaults while real work sits in the
+    // segment fields. Treat any split day as substantive or this guard would wave through a wipe.
+    if(d.splitRates)return false;
     return Number(d.crew)===2&&Number(d.hrsMin)===2&&Number(d.hrsMax)===4&&Number(d.rate)===Number(baseRate);
   }
   function _quoteIsSubstantive(q,baseRate){
@@ -14641,6 +14741,8 @@ function _isDraftEmpty(d){
   if(days.length!==1)return false;
   const dy=days[0]||{};
   if(dy.flatRate)return false;
+  // Split load/unload days hold real money in the segment fields — never treat one as an empty shell.
+  if(dy.splitRates)return false;
   const baseRate=Number((db.settings&&db.settings.rateBase)||225);
   return Number(dy.crew)===2&&Number(dy.hrsMin)===2&&Number(dy.hrsMax)===4&&Number(dy.rate)===baseRate;
 }
