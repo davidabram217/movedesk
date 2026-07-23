@@ -64,7 +64,7 @@ function makeEnv(job) {
   return { api, job, fields, toasts, el };
 }
 
-const BASE = () => ({ id: 'j1', name: 'Deborah', total: 1200, paid: 1200, paymentState: 'paid' });
+const BASE = () => ({ id: 'j1', name: 'Test Customer', total: 1200, paid: 1200, paymentState: 'paid' });
 
 // ── the reported case: undo "paid in full" ───────────────────────────────────
 console.log('\n\u2500\u2500 reported case: undo a mistaken "paid in full" \u2500\u2500');
@@ -132,7 +132,7 @@ console.log('\n\u2500\u2500 correction guards \u2500\u2500');
 // ── recording a payment is UNCHANGED ─────────────────────────────────────────
 console.log('\n\u2500\u2500 recording a payment (regression) \u2500\u2500');
 {
-  const e = makeEnv({ id: 'j1', name: 'Deborah', total: 1200, paid: 400, paymentState: 'owing' });
+  const e = makeEnv({ id: 'j1', name: 'Test Customer', total: 1200, paid: 400, paymentState: 'owing' });
   e.api.setId('j1');
   e.api.openUpdatePayment('j1');
   eq(e.api.getMode(), 'add', 'a job with a balance opens in payment mode');
@@ -220,6 +220,41 @@ ok(!footer.includes("${owed>0?`<button class=\"btn\" style=\"background:var(--am
 ok(footer.includes("${owed>0?'Update payment':'Correct payment'}"), 'button relabels by balance state');
 const btnFrag = footer.slice(footer.indexOf('openUpdatePayment') - 260, footer.indexOf('openUpdatePayment') + 120);
 ok(!/\$\{owed>0\?`<button/.test(btnFrag), 'no surviving owed>0 gate on the payment button');
+
+
+// ── corrections must not leak into customer-facing or analytics output ───────
+console.log('\n\u2500\u2500 correction containment \u2500\u2500');
+{
+  // Analytics payment-method chart: a correction is not a way anyone paid.
+  const anStart = HTML.indexOf('// Payment method breakdown');
+  const anBlock = HTML.slice(anStart, HTML.indexOf('const pmEntries', anStart));
+  ok(anBlock.includes('if(p.correction)return;'), 'analytics skips correction entries');
+  const agg = new Function('filteredJobs',
+    'const pmData={};' + anBlock.slice(anBlock.indexOf('filteredJobs.forEach')) + 'return pmData;');
+  const pm = agg([{ payment: 'Cash', paid: 0, paymentHistory: [{ amount: -1791, method: 'Correction', correction: true }] }]);
+  ok(!pm['Correction'], 'no phantom "Correction" payment method appears in the chart');
+  eq(pm['Cash'].total, 0, 'cash bucket reflects the corrected figure');
+  const pm2 = agg([{ payment: 'Cash', paid: 1000, paymentHistory: [{ amount: 400, method: 'E-transfer' }] }]);
+  eq(pm2['E-transfer'].total, 400, 'real subsequent payments still counted');
+}
+{
+  // Customer receipt / invoice: corrections are internal and must never print.
+  ok(HTML.includes('var _realPayments=(j.paymentHistory||[]).filter(function(p){return !p.correction;});'),
+     'receipt filters corrections out of the payments list');
+  const recStart = HTML.indexOf('var _realPayments=');
+  const recBlock = HTML.slice(recStart, HTML.indexOf('// Build job details section', recStart));
+  ok(recBlock.includes('if(_realPayments.length){'), 'receipt branches on real payments, not raw history');
+  ok(recBlock.includes('} else if(Number(j.paid)>0){'),
+     'fallback still fires when a job has no real payment rows (e.g. history is all corrections)');
+}
+{
+  // Internal history view SHOULD still show corrections - that is the audit trail.
+  const histIdx = HTML.indexOf('Payment history</div>');
+  const hist = HTML.slice(histIdx, histIdx + 1400);
+  ok(hist.includes("p.correction?'pill-amber':'pill-gray'"), 'corrections badged distinctly in the internal view');
+  ok(hist.includes("Number(p.amount)<0?'\u2212':''"), 'negative corrections render with a proper minus sign');
+  ok(hist.includes('p.correction&&p.notes'), 'correction reason surfaced in the internal history');
+}
 
 console.log('\n' + '\u2500'.repeat(60));
 console.log(`payment_correction_test.js: ${pass} passed, ${fail} failed`);

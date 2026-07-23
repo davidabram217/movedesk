@@ -165,7 +165,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div id="leads-list" style="display:none">
         <div class="filter-bar">
           <div class="search-bar"><span style="color:var(--text3)">⌕</span><input type="text" placeholder="Search leads…" oninput="filterLeads(this.value)"></div>
-          <select onchange="filterLeadsSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
+          <select onchange="filterLeadsSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
           <select onchange="filterLeadsEst(this.value)"><option value="">All estimate types</option><option>FaceTime</option><option>Video</option><option>Onsite</option><option>Summary + rough quote</option><option>Unseen</option></select>
         </div>
         <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Move date</th><th>Size</th><th>Source</th><th>Estimate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="leads-tbody"></tbody></table></div></div></div>
@@ -173,7 +173,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div id="leads-archived" style="display:none">
         <div class="filter-bar">
           <div class="search-bar"><span style="color:var(--text3)">⌕</span><input type="text" placeholder="Search archived…" oninput="filterArchived(this.value)"></div>
-          <select onchange="filterArchivedSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
+          <select onchange="filterArchivedSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
         </div>
         <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Move date</th><th>Size</th><th>Source</th><th>Estimate</th><th>Lost at stage</th><th>Reason</th><th>Actions</th></tr></thead><tbody id="archived-tbody"></tbody></table></div></div></div>
       </div>
@@ -193,7 +193,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div class="filter-bar">
         <div class="search-bar"><span style="color:var(--text3)">⌕</span><input type="text" placeholder="Search…" oninput="filterCompleted(this.value)"></div>
         <select onchange="filterCompletedCrew(this.value)"><option value="">All crew</option></select>
-        <select onchange="filterCompletedSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
+        <select onchange="filterCompletedSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
         <select onchange="filterCompletedPaid(this.value)"><option value="">All payment status</option><option value="paid">Paid in full</option><option value="owing">Balance owing</option></select>
       </div>
       <div class="stats-grid" id="completed-stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px"></div>
@@ -858,7 +858,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Phone *</label><input type="tel" id="nl-phone" placeholder="(555) 000-0000" onblur="checkRepeatByPhone(this.value)"></div>
         <div class="form-group"><label>Email</label><input type="email" id="nl-email" placeholder="email@example.com"></div>
         <div class="form-group"><label>How did they hear about us? *</label>
-          <select id="nl-source" onchange="toggleSourceDetail()"><option value="">Select source…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
+          <select id="nl-source" onchange="toggleSourceDetail()"><option value="">Select source…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
         </div>
         <div class="form-group" id="nl-source-detail-group" style="display:none">
           <label id="nl-source-detail-label">Details</label>
@@ -1491,7 +1491,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div id="cjmd-balance-amount" style="font-size:16px;font-weight:600;font-family:'DM Mono',monospace"></div>
       </div>
 
-      <div class="form-group full" style="margin-top:8px"><label>Source confirm</label><select id="cjmd-source"><option value="">—</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
+      <div class="form-group full" style="margin-top:8px"><label>Source confirm</label><select id="cjmd-source"><option value="">—</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
 
       <div class="form-group full" style="margin-top:8px"><label>Notes</label><textarea id="cjmd-notes" placeholder="Any notes about the multi-day job…" style="min-height:60px"></textarea></div>
 
@@ -1754,7 +1754,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job info</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Crew leader</label><input type="text" id="ecj-crew" placeholder="e.g. John" list="ecj-crew-list"><datalist id="ecj-crew-list"><option value="John"><option value="Dave"></datalist></div>
-        <div class="form-group"><label>Source of job</label><select id="ecj-source"><option value="">Select…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
+        <div class="form-group"><label>Source of job</label><select id="ecj-source"><option value="">Select…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
         <div class="form-group"><label>Move hours <span style="font-size:11px;color:var(--text3);font-weight:400">— movers only</span></label><input type="number" id="ecj-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of movers</label><select id="ecj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="ecj-pack-hours" placeholder="0.0" step="0.5"></div>
@@ -1900,7 +1900,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Crew leader</label><input type="text" id="ecjmd-crew"></div>
       </div>
 
-      <div class="form-group full" style="margin-top:8px"><label>Source</label><select id="ecjmd-source"><option value="">—</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZIPPG</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
+      <div class="form-group full" style="margin-top:8px"><label>Source</label><select id="ecjmd-source"><option value="">—</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
 
       <div class="form-group full" style="margin-top:8px"><label>Notes</label><textarea id="ecjmd-notes" style="min-height:60px"></textarea></div>
 
@@ -3043,9 +3043,69 @@ async function loadDB(){
     const keys=['movedesk_db','movedesk-db'];
     for(var ki=0;ki<keys.length;ki++){
       var s2=localStorage.getItem(keys[ki]);
-      if(s2){try{db=JSON.parse(s2);if(!db.settings)db.settings={};if(!db.settings.crew)db.settings.crew=['John','Dave'];return;}catch(e2){}}
+      if(s2){try{db=JSON.parse(s2);if(!db.settings)db.settings={};if(!db.settings.crew)db.settings.crew=['John','Dave'];_migratePaymentCorrections();_migrateSourceSpellings();return;}catch(e2){}}
     }
   }
+}
+
+// ── Payment-correction migration ────────────────────────────────────────────────────────────
+// Corrections are no longer recorded at all — "Correct amount paid" simply sets the right number,
+// the same as editing Amount paid in the Edit Completed Job form. But a short-lived earlier build
+// wrote them into `paymentHistory`, which every payment reader (customer receipts, the analytics
+// payment-method chart) treats as real money — producing a phantom "Correction" payment method and
+// a bogus line on customer invoices. This lifts any such row out of the ledger on load. The rows are
+// parked in `paymentCorrections` rather than deleted: nothing reads or displays that field, but
+// silently destroying data on load is not something a migration should do.
+function _migratePaymentCorrections(){
+  try{
+    var moved=0;
+    (db.completedJobs||[]).forEach(function(j){
+      if(!Array.isArray(j.paymentHistory)||!j.paymentHistory.length)return;
+      var keep=[],move=[];
+      j.paymentHistory.forEach(function(p){
+        if(p&&(p.correction===true||p.method==='Correction'))move.push(p);else keep.push(p);
+      });
+      if(move.length){
+        j.paymentHistory=keep;
+        j.paymentCorrections=(j.paymentCorrections||[]).concat(move);
+        moved+=move.length;
+      }
+    });
+    return moved;
+  }catch(e){return 0;}
+}
+
+// ── Lead-source canonicalisation ────────────────────────────────────────────────────────────
+// The same source arrives spelled several ways: the dropdowns write one value, the AI booking
+// parser writes whatever the customer said (its prompt asks for free text, not a fixed list), and
+// older records predate both. Every analytics chart groups by exact string, so ZippGo was showing
+// up as two unrelated sources — "Zippgo" (22 leads) and "ZIPPG" (4) — splitting its revenue and
+// its close rate. Add an alias here (lowercased key) whenever a new spelling turns up.
+const SOURCE_ALIASES={
+  'zippgo':'ZippGo','zippg':'ZippGo','zipgo':'ZippGo','zip go':'ZippGo','zippgo.com':'ZippGo',
+  'zippgo referral':'ZippGo','instagram/zippgo':'ZippGo','zippgo com':'ZippGo'
+};
+function canonSource(s){
+  const raw=(s==null?'':String(s)).trim();
+  if(!raw)return '';
+  return SOURCE_ALIASES[raw.toLowerCase()]||raw;
+}
+// Rewrites stored source values to the canonical spelling. This is not cosmetic: the source
+// dropdowns only contain canonical options, and `el.value=stored` on a <select> with no matching
+// option leaves it blank, so opening such a record in an edit form and saving would silently wipe
+// its source. Runs on load; returns how many fields it touched.
+function _migrateSourceSpellings(){
+  try{
+    var n=0;
+    ['leads','completedJobs','bookedJobs','quotes','customers','cancellations'].forEach(function(coll){
+      (db[coll]||[]).forEach(function(r){
+        if(!r||!r.source)return;
+        var c=canonSource(r.source);
+        if(c&&c!==r.source){r.source=c;n++;}
+      });
+    });
+    return n;
+  }catch(e){return 0;}
 }
 
 // ── Local backup snapshots ──────────────────────────────────────────────────────────────────
@@ -5046,7 +5106,7 @@ function toggleSourceDetail(){
     'Building':    ['Which building?','e.g. The Avery, 300 Mission St'],
     'Realtor':     ['Which realtor?','e.g. Sarah Chen at Compass'],
     'Moving Company':['Which company?','e.g. Corrib, One Big Man'],
-    'ZIPPG':       ['Any details?','e.g. contact name, context'],
+    'ZippGo':      ['Any details?','e.g. contact name, context'],
     'Old Folks':   ['Any details?','e.g. contact name'],
     'Woodshanti':  ['Any details?','e.g. contact name'],
     'Juli Lipprie':['Any details?','e.g. context'],
@@ -5070,7 +5130,7 @@ function toggleSourceDetail(){
 }
 
 function sourceBadge(s,detail){
-  const map={'Yelp':'pill-red','Google':'pill-blue','ChatGPT':'pill-purple','Referral':'pill-green','Building':'pill-amber','Realtor':'pill-amber','Social media':'pill-amber','Repeat customer':'pill-green','ZIPPG':'pill-green','Old Folks':'pill-green','Woodshanti':'pill-green','Juli Lipprie':'pill-green','Kuzak':'pill-green','Storage Out':'pill-blue','Pack Attack':'pill-blue','Moving Company':'pill-purple','Tammy / Libby Organizer':'pill-green','Unknown':'pill-gray','Other':'pill-gray'};
+  const map={'Yelp':'pill-red','Google':'pill-blue','ChatGPT':'pill-purple','Referral':'pill-green','Building':'pill-amber','Realtor':'pill-amber','Social media':'pill-amber','Repeat customer':'pill-green','ZippGo':'pill-green','Old Folks':'pill-green','Woodshanti':'pill-green','Juli Lipprie':'pill-green','Kuzak':'pill-green','Storage Out':'pill-blue','Pack Attack':'pill-blue','Moving Company':'pill-purple','Tammy / Libby Organizer':'pill-green','Unknown':'pill-gray','Other':'pill-gray'};
   const label=detail?`${s}: ${detail}`:s;
   return`<span class="badge ${map[s]||'pill-gray'}" title="${detail||''}">${label||'—'}</span>`;
 }
@@ -5400,7 +5460,7 @@ function renderIncomeCard(containerId,period){
   const outstanding=jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);
   const avg=jobs.length?total/jobs.length:0;
   const bySource={};
-  jobs.forEach(j=>{const src=j.source||'Unknown';bySource[src]=(bySource[src]||0)+(Number(j.paid)||0);});
+  jobs.forEach(j=>{const src=canonSource(j.source)||'Unknown';bySource[src]=(bySource[src]||0)+(Number(j.paid)||0);});
   const topSources=Object.entries(bySource).sort((a,b)=>b[1]-a[1]).slice(0,5);
   el.innerHTML=`
     <div style="font-size:11.5px;color:var(--text3);margin-bottom:14px">${label}</div>
@@ -10869,15 +10929,10 @@ function confirmUpdatePayment(){
     if(entered>total){showToast(`That is more than the ${fmtMoney(total)} charged. Edit the job total first if the job was worth more.`);return;}
     const prev=Number(j.paid)||0;
     if(entered===prev){showToast('That is already the amount on record.');return;}
-    if(!j.paymentHistory)j.paymentHistory=[];
-    // Logged as a signed delta so the history still sums to the total paid.
-    j.paymentHistory.push({
-      amount:Math.round((entered-prev)*100)/100,
-      method:'Correction',
-      notes:notes||`Corrected total paid from ${fmtMoney(prev)} to ${fmtMoney(entered)}`,
-      date:new Date().toISOString().split('T')[0],
-      correction:true
-    });
+    // No audit row is written. A correction means the office recorded the wrong number, so it just
+    // sets the right one — same as editing "Amount paid" in the Edit Completed Job form. Corrections
+    // must NEVER be written into paymentHistory: every payment reader (customer receipts, the
+    // analytics payment-method chart) treats those rows as real money.
     j.paid=entered;
     remaining=Math.max(0,total-j.paid);
     j.owing=remaining;
@@ -11382,11 +11437,13 @@ function renderAnalytics(){
   const sources={};const sourceDetails={};
   db.leads.forEach(l=>{
     if(l.source){
-      sources[l.source]=(sources[l.source]||0)+1;
+      // Group by canonical spelling so alternate spellings of one source do not split the bar.
+      const _cs=canonSource(l.source);
+      sources[_cs]=(sources[_cs]||0)+1;
       if(l.sourceDetail){
-        if(!sourceDetails[l.source])sourceDetails[l.source]={};
+        if(!sourceDetails[_cs])sourceDetails[_cs]={};
         const key=l.sourceDetail.trim();
-        sourceDetails[l.source][key]=(sourceDetails[l.source][key]||0)+1;
+        sourceDetails[_cs][key]=(sourceDetails[_cs][key]||0)+1;
       }
     }
   });
@@ -11557,6 +11614,8 @@ function renderAnalytics(){
     // Subsequent payments
     if(j.paymentHistory&&j.paymentHistory.length){
       j.paymentHistory.forEach(p=>{
+        // Skip corrections — they adjust what was recorded, they are not a way anyone paid.
+        if(p.correction)return;
         const m=p.method||'Unknown';
         if(!pmData[m])pmData[m]={jobs:0,total:0};
         pmData[m].total+=Number(p.amount)||0;
@@ -11792,17 +11851,17 @@ function renderAnalytics(){
   renderActivityPatterns();
 
   // ── #11 SOURCE CONVERSION RATES ──
-  const _norm=s=>(s||'').trim().toLowerCase();
+  const _norm=s=>canonSource(s).toLowerCase();
   const _quotedLeadIds={};
   (db.quotes||[]).forEach(q=>{ if(q.leadId&&(q.status==='sent'||q.status==='accepted'||(q.sentAt&&q.sentAt!==''))) _quotedLeadIds[q.leadId]=true; });
   const sourceConv={};const _lblCount={};
   (db.leads||[]).forEach(l=>{
     const key=_norm(l.source); if(!key)return;
-    if(!sourceConv[key])sourceConv[key]={label:(l.source||'').trim(),leads:0,quoted:0,booked:0,revenue:0};
+    if(!sourceConv[key])sourceConv[key]={label:canonSource(l.source),leads:0,quoted:0,booked:0,revenue:0};
     sourceConv[key].leads++;
     if(_quotedLeadIds[l.id])sourceConv[key].quoted++;
     if(['Booked','Completed'].includes(l.status))sourceConv[key].booked++;
-    const lk=key+'||'+(l.source||'').trim(); _lblCount[lk]=(_lblCount[lk]||0)+1;
+    const lk=key+'||'+canonSource(l.source); _lblCount[lk]=(_lblCount[lk]||0)+1;
   });
   Object.keys(sourceConv).forEach(key=>{ let best=sourceConv[key].label,bestN=-1; Object.keys(_lblCount).forEach(lk=>{ if(lk.indexOf(key+'||')===0&&_lblCount[lk]>bestN){bestN=_lblCount[lk];best=lk.slice((key+'||').length);} }); if(best)sourceConv[key].label=best; });
   (db.completedJobs||[]).forEach(j=>{ const key=_norm(j.source); if(!key||!sourceConv[key])return; sourceConv[key].revenue+=Number(j.paid)||0; });
@@ -15826,8 +15885,11 @@ function buildReceiptInvoiceHTML(j){
   addRow('Credit card surcharge (3.5%)',j.feeCC);
 
   let paymentsHtml='';
-  if(j.paymentHistory&&j.paymentHistory.length){
-    j.paymentHistory.forEach(function(p){
+  // Corrections are internal adjustments to what the office recorded, NOT money the customer paid —
+  // they must never appear on a customer-facing receipt or invoice.
+  var _realPayments=(j.paymentHistory||[]).filter(function(p){return !p.correction;});
+  if(_realPayments.length){
+    _realPayments.forEach(function(p){
       paymentsHtml+=`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-bottom:1px solid #eee"><tr><td style="padding:8px 0;font-size:13.5px;color:#555">${fmtDate(p.date)}${p.method?' · '+p.method:''}</td><td style="padding:8px 0;font-size:13.5px;text-align:right;font-weight:500;color:#2d6a4f">-${fmtMoney(p.amount)}</td></tr></table>`;
     });
   } else if(Number(j.paid)>0){
