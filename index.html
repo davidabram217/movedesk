@@ -1206,6 +1206,22 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
       </div>
 
+      <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0">
+          <input type="checkbox" id="bj-unload-crew" onchange="toggleBjUnloadCrew()" style="accent-color:var(--accent)">
+          Different rate &amp; hours for unload
+        </label>
+        <div id="bj-unload-crew-fields" style="display:none;margin-top:10px">
+          <div class="form-grid form-grid-2">
+            <div class="form-group"><label>Unload movers</label><select id="bj-unload-crew-size"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+            <div class="form-group"><label>Unload rate ($/hr)</label><input type="number" id="bj-unload-rate" placeholder="e.g. 180"></div>
+            <div class="form-group"><label>Unload hrs min</label><input type="number" id="bj-unload-hrs-min" placeholder="e.g. 2" step="0.5"></div>
+            <div class="form-group"><label>Unload hrs max</label><input type="number" id="bj-unload-hrs-max" placeholder="e.g. 3" step="0.5"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">The movers &amp; rate above cover the load. This bills the unload separately, the same way it appears on the quote.</div>
+        </div>
+      </div>
+
       
       <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:16px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0">
@@ -6105,8 +6121,18 @@ function buildMoveDetailsBlock(l,bj){
     if(toAddr){s+='\nTo: '+toAddr;if(toAcc)s+=' · '+toAcc;if(toPark)s+=' · '+toPark;}
     (l?.extraUnloads||bj?.extraUnloads||[]).forEach(function(ex,i){if(ex.address){s+='\nDrop-off '+(i+2)+': '+ex.address;if(ex.access)s+=' · '+ex.access;if(ex.parking)s+=' · '+ex.parking;}});
     if(bj?.rateRegular){
-      const _crew=bj.crewDiff?(bj.crewLoad||bj.movers||'?')+' load / '+(bj.crewUnload||bj.movers||'?')+' unload movers':(bj.movers||'?')+' Movers';
+      // When an unload crew is billed separately, the main crew line is the LOAD half and a second
+      // line covers the unload — matching the two-line breakdown on the quote.
+      const _hasUnload=bj.unloadCrew&&bj.unloadRate;
+      const _loadCrewN=bj.crewDiff?(bj.crewLoad||bj.movers||'?'):(bj.movers||'?');
+      const _crew=_hasUnload
+        ?(_loadCrewN+' Movers – Load')
+        :(bj.crewDiff?(bj.crewLoad||bj.movers||'?')+' load / '+(bj.crewUnload||bj.movers||'?')+' unload movers':(bj.movers||'?')+' Movers');
       s+='\n'+_crew+' @ $'+_fmtRate(bj.rateRegular)+' Per Hour'+(bj.rateCash?' ($'+_fmtRate(bj.rateCash)+' If Paid Cash)':'');
+      if(_hasUnload){
+        const _un=(bj.unloadCrewSize||bj.crewUnload||bj.movers||'?')+' Movers – Unload';
+        s+='\n'+_un+' @ $'+_fmtRate(bj.unloadRate)+' Per Hour'+((bj.unloadHrsMin||bj.unloadHrsMax)?' · '+(bj.unloadHrsMin||'?')+'–'+(bj.unloadHrsMax||'?')+' hrs':'');
+      }
     }
     // Hour minimum from quoteDays if present
     const qd0=bj&&bj.quoteDays&&bj.quoteDays[0];
@@ -7308,6 +7334,19 @@ function toggleBjCrewDiff(){
   const checked=document.getElementById('bj-crew-diff').checked;
   document.getElementById('bj-crew-diff-fields').style.display=checked?'block':'none';
 }
+function toggleBjUnloadCrew(){
+  const checked=document.getElementById('bj-unload-crew').checked;
+  document.getElementById('bj-unload-crew-fields').style.display=checked?'block':'none';
+  if(checked){
+    // Seed from what's already on the form so it opens pre-filled, matching the quote builder's behaviour.
+    const _set=(id,val)=>{const el=document.getElementById(id);if(el&&!el.value&&val)el.value=val;};
+    const _crewDiff=document.getElementById('bj-crew-diff').checked;
+    const _unloadDefault=_crewDiff?(document.getElementById('bj-crew-unload').value||document.getElementById('bj-movers').value):document.getElementById('bj-movers').value;
+    const usEl=document.getElementById('bj-unload-crew-size');if(usEl&&_unloadDefault)usEl.value=_unloadDefault;
+    _set('bj-unload-rate',document.getElementById('bj-rate-regular').value);
+  }
+  bjAutoSave();
+}
 function toggleBjPackCrew(){
   const checked=document.getElementById('bj-pack-crew').checked;
   document.getElementById('bj-pack-crew-fields').style.display=checked?'block':'none';
@@ -7615,6 +7654,11 @@ function bjWriteFields(j){
   j.packRate=document.getElementById('bj-pack-rate')?.value||'';
   j.packHrsMin=document.getElementById('bj-pack-hrs-min')?.value||'';
   j.packHrsMax=document.getElementById('bj-pack-hrs-max')?.value||'';
+  j.unloadCrew=document.getElementById('bj-unload-crew')?.checked||false;
+  j.unloadCrewSize=document.getElementById('bj-unload-crew-size')?.value||'';
+  j.unloadRate=document.getElementById('bj-unload-rate')?.value||'';
+  j.unloadHrsMin=document.getElementById('bj-unload-hrs-min')?.value||'';
+  j.unloadHrsMax=document.getElementById('bj-unload-hrs-max')?.value||'';
   _bjApplyMultiDay(j);
   _bjApplyDroppedDays(j);
 }
@@ -7661,6 +7705,7 @@ function openBooking(leadId){
   ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes','bj-do-not-exceed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bj-time').value='8:30–9:30am';
   document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  {const uc=document.getElementById('bj-unload-crew');if(uc)uc.checked=false;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display='none';const ucs=document.getElementById('bj-unload-crew-size');if(ucs)ucs.selectedIndex=0;['bj-unload-rate','bj-unload-hrs-min','bj-unload-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
   document.getElementById('bj-date').value=l.date||'';
   // Multi-day: when a multi-day QUOTE governs this lead, the existing read-only banner handles it,
   // so the manual toggle is hidden. Otherwise the owner may flip it on to book a multi-day job
@@ -7684,6 +7729,15 @@ function openBooking(leadId){
       if(day.crew){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=day.crew;}
       if(day.date)setIfEmpty('bj-date',day.date);
       if(day.arrivalStart)document.getElementById('bj-time').value=day.arrivalStart+(day.arrivalEnd?' – '+day.arrivalEnd:'');
+      // Prefill the unload crew/rate section from the quote day (quote invariant #31).
+      if(day.unloadCrew){
+        const uc=document.getElementById('bj-unload-crew');
+        if(uc){uc.checked=true;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display='block';}
+        if(day.unloadCrewSize){const el=document.getElementById('bj-unload-crew-size');if(el)el.value=day.unloadCrewSize;}
+        setIfEmpty('bj-unload-rate',day.unloadRate);
+        setIfEmpty('bj-unload-hrs-min',day.unloadHrsMin);
+        setIfEmpty('bj-unload-hrs-max',day.unloadHrsMax);
+      }
     }
     setIfEmpty('bj-quote',quote.totalMax||quote.totalMin);
     setIfEmpty('bj-do-not-exceed',quote.totalMax);
@@ -9016,6 +9070,7 @@ function editBookedJob(jobId){
   if(document.getElementById('bj-do-not-exceed'))document.getElementById('bj-do-not-exceed').value=j.doNotExceed||'';
   const _bjLeadOn=db.leads.find(x=>x.id===j.leadId);
   if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=_bjLeadOn?.officeNotes||j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';
+  {const uc=document.getElementById('bj-unload-crew');if(uc){uc.checked=!!j.unloadCrew;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display=j.unloadCrew?'block':'none';}if(j.unloadCrewSize){const el=document.getElementById('bj-unload-crew-size');if(el)el.value=j.unloadCrewSize;}if(document.getElementById('bj-unload-rate'))document.getElementById('bj-unload-rate').value=j.unloadRate||'';if(document.getElementById('bj-unload-hrs-min'))document.getElementById('bj-unload-hrs-min').value=j.unloadHrsMin||'';if(document.getElementById('bj-unload-hrs-max'))document.getElementById('bj-unload-hrs-max').value=j.unloadHrsMax||'';}
   const titleEl=document.querySelector('#modal-book-job .modal-title');
   const btnEl=document.querySelector('#modal-book-job .btn-primary');
   if(titleEl)titleEl.textContent='Edit booked job';
