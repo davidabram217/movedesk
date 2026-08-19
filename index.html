@@ -1304,15 +1304,16 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Actual date <span style="font-size:11px;color:var(--text3);font-weight:400">— date the job was actually done</span></label><input type="date" id="cj-date"></div>
         <div class="form-group"><label>Crew leader</label><input type="text" id="cj-crew" placeholder="e.g. John" list="cj-crew-list"><datalist id="cj-crew-list"><option value="John"><option value="Dave"></datalist></div>
         <div class="form-group"><label>Source of job</label><input type="text" id="cj-source" readonly style="background:var(--surface2);color:var(--text2)"></div>
-        <div class="form-group"><label>Move hours <span style="font-size:11px;color:var(--text3);font-weight:400">— movers only</span></label><input type="number" id="cj-hours" placeholder="0.0" step="0.5" oninput="calcTotal()"></div>
+        <div class="form-group"><label>Move hours <span style="font-size:11px;color:var(--text3);font-weight:400">— movers only</span></label><input type="number" id="cj-hours" placeholder="0.0" step="0.5" oninput="cjAggEdited('hours');calcTotal()"></div>
         <div class="form-group"><label>No. of movers</label><select id="cj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
         <div class="form-group" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500"><input type="checkbox" id="cj-split-crew" onchange="cjToggleSplitCrew()" style="width:auto;margin:0"> Crew size changed between load and unload <span style="font-size:11px;color:var(--text3);font-weight:400">— set hours &amp; rate for each</span></label></div>
         <div class="form-group" id="cj-split-block" style="grid-column:span 2;display:none;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
           <div id="cj-move-segs"></div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
-            <button type="button" onclick="cjAddSegment()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11.5px;padding:2px 0">+ another crew change</button>
+            <div style="display:flex;gap:14px;align-items:center"><button type="button" onclick="cjAddSegment()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11.5px;padding:2px 0">+ another crew change</button><button type="button" onclick="cjRecalcFromRows()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11.5px;padding:2px 0">↻ Recalculate</button></div>
             <div style="font-size:11px;color:var(--text2)">Move pay: <span id="cj-split-pay" style="font-weight:600">$0</span> · <span id="cj-split-summary" style="color:var(--text3)"></span></div>
           </div>
+          <div id="cj-split-note" style="display:none;font-size:11px;color:var(--text3);margin-top:6px">You’ve typed over a calculated figure — it will be saved as you entered it. Press Recalculate to go back to the crew-row totals.</div>
         </div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="cj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="cj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
@@ -1333,7 +1334,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Charges & fees</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
-        <div class="form-group"><label>Labour total ($) *</label><input type="number" id="cj-labour" placeholder="0.00" oninput="calcTotal()"></div>
+        <div class="form-group"><label>Labour total ($) *</label><input type="number" id="cj-labour" placeholder="0.00" oninput="cjAggEdited('labour');calcTotal()"></div>
         <div class="form-group"><label>Standard material fee ($)</label><input type="number" id="cj-materials" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Packing materials ($)</label><input type="number" id="cj-pack-materials" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Fuel fee ($)</label><input type="number" id="cj-fuel" placeholder="0.00" oninput="calcTotal()"></div>
@@ -1343,7 +1344,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Insurance fee ($)</label><input type="number" id="cj-insurance" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Dump fee ($)</label><input type="number" id="cj-dump" placeholder="0.00" oninput="calcTotal()"></div>
         <div class="form-group"><label>Damage / claim ($)</label><input type="number" id="cj-damage" placeholder="0.00" oninput="calcTotal()"></div>
-        <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="cj-rate" placeholder="e.g. 145"></div>
+        <div class="form-group"><label>Hourly rate charged ($/hr)</label><input type="number" id="cj-rate" placeholder="e.g. 145" oninput="cjAggEdited('rate')"></div>
         <div class="form-group"><label>Yelp deal discount ($)</label><input type="number" id="cj-yelp" placeholder="0.00" oninput="calcTotal()"></div>
       </div>
 
@@ -10182,41 +10183,81 @@ function cjAddSegment(){
 function cjRemoveSegment(btn){const s=btn.closest('.cj-move-seg');if(s)s.remove();cjRecalcSplit();}
 // Toggle: seed the two rows from whatever is already in the single-crew fields the first
 // time it is switched on, so the user starts from their existing numbers rather than blanks.
+// Switching it back OFF restores the exact figures that were there beforehand — turning the
+// checkbox on and off again must never leave computed numbers behind.
+let _cjPreSplit=null;
 function cjToggleSplitCrew(){
   const on=cjIsSplitCrew();
   const block=document.getElementById('cj-split-block');
   const wrap=document.getElementById('cj-move-segs');
+  const hEl=document.getElementById('cj-hours'),lEl=document.getElementById('cj-labour'),
+        rEl=document.getElementById('cj-rate'),mEl=document.getElementById('cj-movers');
   if(block)block.style.display=on?'block':'none';
-  if(on&&wrap&&!wrap.children.length){
-    const hrs=Number(document.getElementById('cj-hours').value)||0;
-    const mov=Number(document.getElementById('cj-movers').value)||0;
-    let rate=Number(document.getElementById('cj-rate').value)||0;
-    const lab=Number(document.getElementById('cj-labour').value)||0;
-    if(!rate&&lab>0&&hrs>0)rate=Math.round(lab/hrs);
-    // Split the known hours evenly across load/unload as a starting point; the user edits from there.
-    const half=hrs?Math.round((hrs/2)*2)/2:'';
-    wrap.innerHTML=_cjSegRow({movers:mov,hours:half,rate:rate||''},0)+_cjSegRow({movers:mov,hours:hrs?Math.round((hrs-half)*2)/2:'',rate:rate||''},1);
+  if(on){
+    if(!_cjPreSplit)_cjPreSplit={hours:hEl?hEl.value:'',labour:lEl?lEl.value:'',rate:rEl?rEl.value:'',movers:mEl?mEl.value:''};
+    if(wrap&&!wrap.children.length){
+      const hrs=Number(_cjPreSplit.hours)||0;
+      const mov=Number(_cjPreSplit.movers)||0;
+      let rate=Number(_cjPreSplit.rate)||0;
+      const lab=Number(_cjPreSplit.labour)||0;
+      if(!rate&&lab>0&&hrs>0)rate=Math.round(lab/hrs);
+      // Split the known hours evenly across load/unload as a starting point; the user edits from there.
+      const half=hrs?Math.round(hrs)/2:'';
+      wrap.innerHTML=_cjSegRow({movers:mov,hours:half,rate:rate||''},0)+_cjSegRow({movers:mov,hours:hrs?Math.round((hrs-half)*2)/2:'',rate:rate||''},1);
+    }
+  }else{
+    // Restore and fully clear, so the form is exactly as it was before the box was ticked.
+    if(_cjPreSplit){
+      if(hEl)hEl.value=_cjPreSplit.hours;
+      if(lEl)lEl.value=_cjPreSplit.labour;
+      if(rEl)rEl.value=_cjPreSplit.rate;
+      if(mEl)mEl.value=_cjPreSplit.movers;
+    }
+    _cjPreSplit=null;
+    if(wrap)wrap.innerHTML='';
   }
-  _cjLockAggregates(on);
-  cjRecalcSplit();
+  _cjAggOverride={};
+  const note=document.getElementById('cj-split-note');
+  if(note)note.style.display='none';
+  _cjMarkDerived(on);
+  if(on)cjRecalcSplit();else if(typeof calcTotal==='function')calcTotal();
 }
-// When the split is on the aggregate inputs are computed, so they are made read-only to
-// stop the two from silently disagreeing. A <select> cannot be readonly, so it is disabled
-// instead; a disabled select still exposes .value to script, so confirmComplete reads it
-// exactly as before.
-function _cjLockAggregates(on){
-  const hrs=document.getElementById('cj-hours');
-  const lab=document.getElementById('cj-labour');
-  const rate=document.getElementById('cj-rate');
-  const mov=document.getElementById('cj-movers');
-  [hrs,lab,rate].forEach(function(el){
+// While the split is on the aggregates are DERIVED, but they stay fully editable — the
+// figure on the invoice is the final word, so a typed value always wins over the computed
+// one. Editing a field marks it overridden (see cjAggEdited) and the calculator stops
+// touching that field until "Recalculate" is pressed or the split is switched off.
+function _cjMarkDerived(on){
+  const ids=['cj-hours','cj-labour','cj-rate'];
+  ids.forEach(function(id){
+    const el=document.getElementById(id);
     if(!el)return;
-    el.readOnly=on;
-    el.style.background=on?'var(--surface2)':'';
-    el.style.color=on?'var(--text2)':'';
-    el.title=on?'Calculated from the load/unload rows below':'';
+    // Never leave these locked — an earlier build made them readOnly/disabled, which is
+    // what made the form feel stuck. Explicitly clear that state on every pass.
+    el.readOnly=false;
+    el.disabled=false;
+    el.style.background='';
+    el.style.color='';
+    el.title=on?'Calculated from the load/unload rows above — type here to override':'';
   });
-  if(mov){mov.disabled=on;mov.style.background=on?'var(--surface2)':'';mov.title=on?'Largest crew on site — from the load/unload rows below':'';}
+  const mov=document.getElementById('cj-movers');
+  if(mov){mov.disabled=false;mov.style.background='';mov.title=on?'Largest crew on site — from the load/unload rows above':'';}
+}
+// Back-compat shim: earlier build called this to lock/unlock. Now it only ever unlocks.
+function _cjLockAggregates(on){_cjMarkDerived(!!on);}
+// Remember which aggregates the user has typed into by hand, so the calculator leaves them alone.
+let _cjAggOverride={};
+function cjAggEdited(field){
+  if(!cjIsSplitCrew())return;
+  _cjAggOverride[field]=true;
+  const note=document.getElementById('cj-split-note');
+  if(note)note.style.display='block';
+}
+// Drop all manual overrides and recompute everything from the crew rows.
+function cjRecalcFromRows(){
+  _cjAggOverride={};
+  const note=document.getElementById('cj-split-note');
+  if(note)note.style.display='none';
+  cjRecalcSplit();
 }
 // Recompute the aggregates from the segment rows and push them into the existing fields,
 // so every downstream consumer (calcTotal, payroll, AI training, accuracy) keeps working
@@ -10232,9 +10273,9 @@ function cjRecalcSplit(){
   const lEl=document.getElementById('cj-labour');
   const rEl=document.getElementById('cj-rate');
   const mEl=document.getElementById('cj-movers');
-  if(hEl)hEl.value=hours?Math.round(hours*100)/100:'';
-  if(lEl)lEl.value=pay?Math.round(pay*100)/100:'';
-  if(rEl)rEl.value=blended||'';
+  if(hEl&&!_cjAggOverride.hours)hEl.value=hours?Math.round(hours*100)/100:'';
+  if(lEl&&!_cjAggOverride.labour)lEl.value=pay?Math.round(pay*100)/100:'';
+  if(rEl&&!_cjAggOverride.rate)rEl.value=blended||'';
   if(mEl&&maxCrew)mEl.value=String(maxCrew);
   const payEl=document.getElementById('cj-split-pay');
   if(payEl)payEl.textContent=fmtMoney(pay);
@@ -10251,7 +10292,11 @@ function cjResetSplitCrew(){
   if(wrap)wrap.innerHTML='';
   const block=document.getElementById('cj-split-block');
   if(block)block.style.display='none';
-  _cjLockAggregates(false);
+  const note=document.getElementById('cj-split-note');
+  if(note)note.style.display='none';
+  _cjPreSplit=null;
+  _cjAggOverride={};
+  _cjMarkDerived(false);
 }
 
 function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.find(x=>x.id===jobId);if(!j)return;
