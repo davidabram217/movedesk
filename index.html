@@ -5877,12 +5877,13 @@ document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;g
     </div>`;
 const _bookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
 const _draftBookedJob=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&b._draft);
+const _completedJob=(db.completedJobs||[]).find(c=>c.leadId===l.id);
 const _hasBookedJob=!!_bookedJob;
 const _hasDraftBooking=!!_draftBookedJob;
 const _calUrl=_bookedJob?buildJobCalUrl(_bookedJob):'';
 const _calBtn=_bookedJob?`<button class="btn btn-secondary" onclick="markJobCalAdded('${_bookedJob.id}');openJobCalendar('${_bookedJob.id}')">📅 Add to calendar</button>`:'';
 const _resendBtn=_bookedJob?`<button class="btn btn-secondary" onclick="resendConfirmForJob('${_bookedJob.id}','${l.id}')">✉ Resend confirmation</button>`:'';
-const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:isAccepted&&_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:isAccepted&&_hasDraftBooking?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Continue booking →</button>`:isAccepted&&!_hasBookedJob?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
+const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" onclick="closeModal('view');reactivateLead('${l.id}')">↩ Reactivate lead</button>`:_completedJob?`<button class="btn btn-primary" onclick="closeModal('view');setTimeout(()=>viewCompletedJob('${_completedJob.id}'),200)">▣ View completed job</button>`:_hasBookedJob?`<button class="btn btn-primary" onclick="openConfirmEmail('${l.id}')">✉ Send confirmation →</button>`:_hasDraftBooking?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Continue booking →</button>`:isAccepted?`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">📋 Complete booking →</button>`:`<button class="btn btn-primary" onclick="closeModal('view');openBooking('${l.id}')">Book job →</button>`;
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';

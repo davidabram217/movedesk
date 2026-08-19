@@ -28,7 +28,7 @@ check('View modal: "Complete booking" appears when no booked job',
   /Complete booking →/.test(indexHtml)
 );
 check('View modal: "Send confirmation" appears only for non-draft booked jobs',
-  /isAccepted&&_hasBookedJob\?[^?]*Send confirmation/.test(indexHtml)
+  /_hasBookedJob\?[^?]*Send confirmation/.test(indexHtml)
 );
 
 // A2: openBooking restores draft values into the form

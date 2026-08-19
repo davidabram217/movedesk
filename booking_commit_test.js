@@ -104,7 +104,7 @@ check('View modal: "Continue booking" button when draft exists',
   /Continue booking/.test(indexHtml)
 );
 check('View modal: "Send confirmation" button only when real booking exists',
-  /isAccepted&&_hasBookedJob\?/.test(indexHtml)
+  /_hasBookedJob\?[^?]*Send confirmation/.test(indexHtml)
 );
 
 // A13: Quote data deep-cloned onto booked job (so future quote edits can't mutate)
