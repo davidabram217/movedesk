@@ -1306,6 +1306,14 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Source of job</label><input type="text" id="cj-source" readonly style="background:var(--surface2);color:var(--text2)"></div>
         <div class="form-group"><label>Move hours <span style="font-size:11px;color:var(--text3);font-weight:400">— movers only</span></label><input type="number" id="cj-hours" placeholder="0.0" step="0.5" oninput="calcTotal()"></div>
         <div class="form-group"><label>No. of movers</label><select id="cj-movers"><option value="">—</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+        <div class="form-group" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500"><input type="checkbox" id="cj-split-crew" onchange="cjToggleSplitCrew()" style="width:auto;margin:0"> Crew size changed between load and unload <span style="font-size:11px;color:var(--text3);font-weight:400">— set hours &amp; rate for each</span></label></div>
+        <div class="form-group" id="cj-split-block" style="grid-column:span 2;display:none;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
+          <div id="cj-move-segs"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
+            <button type="button" onclick="cjAddSegment()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11.5px;padding:2px 0">+ another crew change</button>
+            <div style="font-size:11px;color:var(--text2)">Move pay: <span id="cj-split-pay" style="font-weight:600">$0</span> · <span id="cj-split-summary" style="color:var(--text3)"></span></div>
+          </div>
+        </div>
         <div class="form-group"><label>Pack hours <span style="font-size:11px;color:var(--text3);font-weight:400">— packers only</span></label><input type="number" id="cj-pack-hours" placeholder="0.0" step="0.5"></div>
         <div class="form-group"><label>No. of packers</label><select id="cj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
         <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
@@ -10122,6 +10130,130 @@ function saveEditedCompletedJobMultiDay(){
   if(typeof renderDashboard==='function')renderDashboard();
 }
 
+// ── Single-day completion: load vs unload crew split ────────────────────────
+// The multi-day form has had per-segment crew/hours/rate ("+ crew changed during the
+// day") since the multi-day rework; the single-day form had only ONE movers/hours/rate,
+// so a job that ran 4 movers loading and 2 unloading could not be recorded truthfully.
+// This adds the same idea, gated behind the #cj-split-crew checkbox so the default
+// single-crew path is completely untouched when the box is unticked.
+//
+// When ON, the aggregate fields are DERIVED and locked (never hand-edited):
+//   cj-hours  = sum of segment hours
+//   cj-labour = sum of hours x rate across segments
+//   cj-rate   = blended rate (labour / hours), so hourlyRateCharged stays meaningful
+//   cj-movers = the largest crew on site (used as the headline crew size)
+// The per-segment detail is preserved separately on the completed job as moveSegments[].
+const _CJ_SEG_LABELS=['Load','Unload'];
+function _cjSegRow(seg,idx){
+  seg=seg||{};
+  const label=_CJ_SEG_LABELS[idx]||('Segment '+(idx+1));
+  const hv=(seg.hours!=null&&seg.hours!=='')?seg.hours:'';
+  const rv=(seg.rate!=null&&seg.rate!=='')?seg.rate:'';
+  const rm=idx<2?'<span></span>':'<button type="button" onclick="cjRemoveSegment(this)" title="Remove segment" style="height:36px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">\u00d7</button>';
+  return '<div class="cj-move-seg" style="display:grid;grid-template-columns:64px repeat(3,1fr) 32px;gap:8px;margin-bottom:6px;align-items:end">'
+    +'<div class="form-group"><label style="font-size:11px">&nbsp;</label><div style="height:36px;line-height:36px;font-size:12px;font-weight:600;color:var(--text2)">'+label+'</div></div>'
+    +'<div class="form-group"><label style="font-size:11px">Movers</label><select class="cj-seg-movers" oninput="cjRecalcSplit()" onchange="cjRecalcSplit()">'+_cjmdMoversOptions(seg.movers)+'</select></div>'
+    +'<div class="form-group"><label style="font-size:11px">Hours</label><input type="number" class="cj-seg-hours" placeholder="0.0" step="0.5" value="'+hv+'" oninput="cjRecalcSplit()"></div>'
+    +'<div class="form-group"><label style="font-size:11px">Rate ($/hr)</label><input type="number" class="cj-seg-rate" placeholder="0" value="'+rv+'" oninput="cjRecalcSplit()"></div>'
+    +'<div class="form-group"><label style="font-size:11px">&nbsp;</label>'+rm+'</div>'
+    +'</div>';
+}
+// Read the segment rows out of the DOM. Rows with no hours AND no rate are dropped so a
+// half-filled extra row can never zero out the totals.
+function _cjReadSegments(){
+  const wrap=document.getElementById('cj-move-segs');
+  if(!wrap)return[];
+  return [].slice.call(wrap.querySelectorAll('.cj-move-seg')).map(function(s,i){
+    return{
+      label:_CJ_SEG_LABELS[i]||('Segment '+(i+1)),
+      movers:Number(s.querySelector('.cj-seg-movers')&&s.querySelector('.cj-seg-movers').value)||0,
+      hours:Number(s.querySelector('.cj-seg-hours')&&s.querySelector('.cj-seg-hours').value)||0,
+      rate:Number(s.querySelector('.cj-seg-rate')&&s.querySelector('.cj-seg-rate').value)||0
+    };
+  }).filter(function(s){return s.hours>0||s.rate>0;});
+}
+function cjIsSplitCrew(){const el=document.getElementById('cj-split-crew');return!!(el&&el.checked);}
+function cjAddSegment(){
+  const wrap=document.getElementById('cj-move-segs');
+  if(!wrap)return;
+  wrap.insertAdjacentHTML('beforeend',_cjSegRow({movers:'',hours:'',rate:''},wrap.children.length));
+  cjRecalcSplit();
+}
+function cjRemoveSegment(btn){const s=btn.closest('.cj-move-seg');if(s)s.remove();cjRecalcSplit();}
+// Toggle: seed the two rows from whatever is already in the single-crew fields the first
+// time it is switched on, so the user starts from their existing numbers rather than blanks.
+function cjToggleSplitCrew(){
+  const on=cjIsSplitCrew();
+  const block=document.getElementById('cj-split-block');
+  const wrap=document.getElementById('cj-move-segs');
+  if(block)block.style.display=on?'block':'none';
+  if(on&&wrap&&!wrap.children.length){
+    const hrs=Number(document.getElementById('cj-hours').value)||0;
+    const mov=Number(document.getElementById('cj-movers').value)||0;
+    let rate=Number(document.getElementById('cj-rate').value)||0;
+    const lab=Number(document.getElementById('cj-labour').value)||0;
+    if(!rate&&lab>0&&hrs>0)rate=Math.round(lab/hrs);
+    // Split the known hours evenly across load/unload as a starting point; the user edits from there.
+    const half=hrs?Math.round((hrs/2)*2)/2:'';
+    wrap.innerHTML=_cjSegRow({movers:mov,hours:half,rate:rate||''},0)+_cjSegRow({movers:mov,hours:hrs?Math.round((hrs-half)*2)/2:'',rate:rate||''},1);
+  }
+  _cjLockAggregates(on);
+  cjRecalcSplit();
+}
+// When the split is on the aggregate inputs are computed, so they are made read-only to
+// stop the two from silently disagreeing. A <select> cannot be readonly, so it is disabled
+// instead; a disabled select still exposes .value to script, so confirmComplete reads it
+// exactly as before.
+function _cjLockAggregates(on){
+  const hrs=document.getElementById('cj-hours');
+  const lab=document.getElementById('cj-labour');
+  const rate=document.getElementById('cj-rate');
+  const mov=document.getElementById('cj-movers');
+  [hrs,lab,rate].forEach(function(el){
+    if(!el)return;
+    el.readOnly=on;
+    el.style.background=on?'var(--surface2)':'';
+    el.style.color=on?'var(--text2)':'';
+    el.title=on?'Calculated from the load/unload rows below':'';
+  });
+  if(mov){mov.disabled=on;mov.style.background=on?'var(--surface2)':'';mov.title=on?'Largest crew on site — from the load/unload rows below':'';}
+}
+// Recompute the aggregates from the segment rows and push them into the existing fields,
+// so every downstream consumer (calcTotal, payroll, AI training, accuracy) keeps working
+// off the same aggregates it always has.
+function cjRecalcSplit(){
+  if(!cjIsSplitCrew())return;
+  const segs=_cjReadSegments();
+  const hours=segs.reduce(function(a,s){return a+s.hours;},0);
+  const pay=segs.reduce(function(a,s){return a+s.hours*s.rate;},0);
+  const maxCrew=segs.reduce(function(a,s){return Math.max(a,s.movers);},0);
+  const blended=hours>0?Math.round(pay/hours):0;
+  const hEl=document.getElementById('cj-hours');
+  const lEl=document.getElementById('cj-labour');
+  const rEl=document.getElementById('cj-rate');
+  const mEl=document.getElementById('cj-movers');
+  if(hEl)hEl.value=hours?Math.round(hours*100)/100:'';
+  if(lEl)lEl.value=pay?Math.round(pay*100)/100:'';
+  if(rEl)rEl.value=blended||'';
+  if(mEl&&maxCrew)mEl.value=String(maxCrew);
+  const payEl=document.getElementById('cj-split-pay');
+  if(payEl)payEl.textContent=fmtMoney(pay);
+  const sumEl=document.getElementById('cj-split-summary');
+  if(sumEl)sumEl.textContent=segs.length?segs.map(function(s){return s.movers+'\u00d7'+s.hours+'h @ $'+s.rate;}).join('  ·  '):'';
+  if(typeof calcTotal==='function')calcTotal();
+}
+// Reset to the clean single-crew state. Called on every open so a split entered for one
+// job can never leak into the next job opened in the same session.
+function cjResetSplitCrew(){
+  const cb=document.getElementById('cj-split-crew');
+  if(cb)cb.checked=false;
+  const wrap=document.getElementById('cj-move-segs');
+  if(wrap)wrap.innerHTML='';
+  const block=document.getElementById('cj-split-block');
+  if(block)block.style.display='none';
+  _cjLockAggregates(false);
+}
+
 function openComplete(jobId){currentCompleteJobId=jobId;const j=db.bookedJobs.find(x=>x.id===jobId);if(!j)return;
 // MULTI-DAY ROUTING — if this booked job is multi-day, open the dedicated multi-day modal
 // instead of the single-day form. Keeps single-day completion behavior fully unchanged.
@@ -10158,6 +10290,7 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
   // Pre-fill vaults from booking volume — extract max number from text like "4–5 vaults"
   if(j.volume){const nums=(j.volume.match(/[\d.]+/g)||[]).map(Number);if(nums.length)document.getElementById('cj-vaults').value=Math.max(...nums);}
   const _cjPaidEl=document.getElementById('cj-paid');if(_cjPaidEl)_cjPaidEl.value='';
+  cjResetSplitCrew();
   calcTotal();calcBalance();openModal('complete-job');}
 function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;let paid=document.getElementById('cj-paid').value;if((paid===''||paid==null)&&paymentState==='paid')paid=total;
   const actualTotal=document.getElementById('cj-actual-total')?.value?Number(document.getElementById('cj-actual-total').value):null;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
@@ -10207,7 +10340,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const _ai=document.getElementById('cj-misc-'+_i+'-ai')?.checked||false;
     if(_amt>0)_miscCharges.push({label:_lab,amount:_amt,aiTraining:_ai});
   }
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:_resolveCompletedLeadId(j),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:_resolveCompletedLeadId(j),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',splitCrew:(typeof cjIsSplitCrew==='function'&&cjIsSplitCrew()),moveSegments:(typeof cjIsSplitCrew==='function'&&cjIsSplitCrew())?_cjReadSegments():null,packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -10242,6 +10375,11 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       // Actual outcome
       actualHours:Number(completed.hours)||null,
       moveMen:Number(completed.moveMen)||null,
+      // Per-segment crew/hours/rate when the crew size changed between load and unload.
+      // moveMen/actualRate above stay populated (largest crew, blended rate) so every
+      // existing regression keeps working; this is additive detail for future models.
+      splitCrew:!!completed.splitCrew,
+      moveSegments:completed.splitCrew&&Array.isArray(completed.moveSegments)?completed.moveSegments:null,
       packHoursActual:Number(completed.packHoursActual)||null,
       packMen:Number(completed.packMen)||null,
       feePackMaterials:Number(completed.feePackMaterials)||null,
