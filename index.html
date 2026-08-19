@@ -15450,11 +15450,13 @@ function viewCustomer(custId){
   const hist=getCustomerHistory(custId);
   const jobCount=hist.jobs.length;
   const totalSpent=hist.jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  const totalOwed=hist.jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);
 
   document.getElementById('cv-name').textContent=c.name;
   document.getElementById('cv-subtitle').textContent=
     jobCount+' completed job'+(jobCount!==1?'s':'')+
     (totalSpent>0?' · '+fmtMoney(totalSpent)+' total spent':'')+
+    (totalOwed>0?' · '+fmtMoney(totalOwed)+' outstanding':'')+
     (jobCount>1?' · Repeat customer':'');
   document.getElementById('cv-phone').textContent=c.phone||'—';
   document.getElementById('cv-email').textContent=c.email||'—';
@@ -15475,19 +15477,20 @@ function viewCustomer(custId){
   };
 
   // History
+  const _owedOf=j=>Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));
   const allHistory=[
-    ...hist.jobs.map(j=>({date:j.date,type:'completed',label:'Completed job',sub:(j.from||'—')+' → '+(j.to||'—'),amount:fmtMoney(j.paid),id:j.id})),
-    ...hist.leads.filter(l=>l.status!=='Completed').map(l=>({date:l.date,type:'lead',label:l.status||'Lead',sub:(l.from||'—')+' → '+(l.to||'—'),amount:'',id:l.id}))
+    ...hist.jobs.map(j=>({date:j.date,type:'completed',label:'Completed job',sub:(j.from||'—')+' → '+(j.to||'—'),amount:fmtMoney(Number(j.total)||0),owed:_owedOf(j),paidAmt:Number(j.paid)||0,id:j.id})),
+    ...hist.leads.filter(l=>l.status!=='Completed').map(l=>({date:l.date,type:'lead',label:l.status||'Lead',sub:(l.from||'—')+' → '+(l.to||'—'),amount:'',owed:0,paidAmt:0,id:l.id}))
   ].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
   document.getElementById('cv-history').innerHTML=allHistory.length?allHistory.map(h=>`
     <div onclick="openHistoryItem('${h.id}','${h.type}')" style="display:flex;justify-content:space-between;align-items:flex-start;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);margin-bottom:8px;font-size:12.5px;cursor:pointer;border:1px solid transparent;transition:border-color .15s" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='transparent'">
       <div>
-        <div style="font-weight:600;margin-bottom:3px">${h.label} ${h.type==='completed'?'<span class="badge pill-green" style="font-size:10px">✓ Paid</span>':''}</div>
+        <div style="font-weight:600;margin-bottom:3px">${h.label} ${h.type==='completed'?(h.owed>0?`<span class="badge pill-red" style="font-size:10px">⚠ Owes ${fmtMoney(h.owed)}</span>`:`<span class="badge pill-green" style="font-size:10px">✓ Paid</span>`):''}</div>
         <div style="color:var(--text3);font-size:12px">${fmtDate(h.date)} · ${h.sub}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        ${h.amount?`<div style="font-weight:600;font-family:'DM Mono',monospace;color:var(--accent)">${h.amount}</div>`:''}
+        ${h.amount?`<div style="text-align:right"><div style="font-weight:600;font-family:'DM Mono',monospace;color:${h.owed>0?'var(--text)':'var(--accent)'}">${h.amount}</div>${h.owed>0?`<div class="owe-badge" style="font-size:11px;margin-top:2px;white-space:nowrap">${fmtMoney(h.paidAmt)} paid</div>`:''}</div>`:''}
         <span style="color:var(--text3);font-size:11px">View →</span>
       </div>
     </div>`).join(''):`<div style="font-size:13px;color:var(--text3);padding:8px 0">No history yet</div>`;
