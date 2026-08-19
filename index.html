@@ -1368,6 +1368,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       </div>
 
       <div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px">
+        <div id="cj-cap-row" style="display:none;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:8px;background:#eef4ee;border-left:3px solid var(--accent);border-radius:4px;font-size:12.5px">
+          <span style="color:var(--text2)">✓ Capped at the do-not-exceed price — discount applied</span>
+          <span id="cj-cap-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
+        </div>
         <div id="cj-cc-fee-row" style="display:none;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:8px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">
           <span style="color:var(--text2)">⚠ Credit card surcharge (3.5%)</span>
           <span id="cj-cc-fee-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
@@ -1377,7 +1381,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Rate per hour</div><div style="font-size:18px;font-weight:600;color:var(--accent)" id="cj-rate-display">—</div></div>
           <div style="flex:1"></div>
           <div class="form-group" style="margin:0;min-width:160px"><label>Amount paid ($)</label><input type="number" id="cj-paid" placeholder="0.00" oninput="calcBalance()"></div>
-          <div class="form-group" style="margin:0;min-width:160px"><label>Actual job total ($) <span style="font-size:10.5px;color:var(--text3)">if different from quoted</span></label><input type="number" id="cj-actual-total" placeholder="e.g. 1800"></div>
+          <div class="form-group" style="margin:0;min-width:160px"><label>Do not exceed ($) <span style="font-size:10.5px;color:var(--text3)">cap agreed with customer</span></label><input type="number" id="cj-cap" placeholder="none" oninput="calcTotal()"></div><div class="form-group" style="margin:0;min-width:160px"><label>Un-capped value ($) <span style="font-size:10.5px;color:var(--text3)">what it was really worth — fills itself when a cap applies</span></label><input type="number" id="cj-actual-total" placeholder="e.g. 3000" oninput="_capNoteManual('cj')"></div>
           <input type="hidden" id="cj-total">
         </div>
         <div id="cj-balance-bar" style="display:none;padding:10px 12px;border-radius:var(--radius);border:1px solid;display:flex;align-items:center;justify-content:space-between">
@@ -1495,6 +1499,10 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
       </div>
 
+      <div id="cjmd-cap-row" style="display:none;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:8px;background:#eef4ee;border-left:3px solid var(--accent);border-radius:4px;font-size:12.5px">
+        <span style="color:var(--text2)">✓ Capped at the do-not-exceed price — discount applied</span>
+        <span id="cjmd-cap-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
+      </div>
       <div id="cjmd-cc-fee-row" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;margin-top:14px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">
         <span style="color:var(--text2)">⚠ Credit card surcharge (3.5%)</span>
         <span id="cjmd-cc-fee-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
@@ -1504,7 +1512,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div id="cjmd-total-display" style="font-size:20px;font-weight:700;color:var(--accent)">$0</div>
       </div>
 
-      <div class="form-group" style="margin-top:12px"><label>True job value ($) <span style="font-size:10.5px;color:var(--text3)">if you gave a discount or freebie — what the job was really worth. Leave blank if you charged full price. The difference is recorded as goodwill for AI training.</span></label><input type="number" id="cjmd-actual-total" placeholder="e.g. 7350"></div>
+      <div class="form-group" style="margin-top:12px"><label>True job value ($) <span style="font-size:10.5px;color:var(--text3)">if you gave a discount or freebie — what the job was really worth. Leave blank if you charged full price. The difference is recorded as goodwill for AI training.</span></label><input type="number" id="cjmd-actual-total" placeholder="e.g. 7350" oninput="_capNoteManual('cjmd')"></div><div class="form-group" style="margin:0;min-width:160px"><label>Do not exceed ($) <span style="font-size:10.5px;color:var(--text3)">cap agreed with customer</span></label><input type="number" id="cjmd-cap" placeholder="none" oninput="calcMultiDayTotal()"></div>
 
       <div class="form-grid form-grid-3" style="margin-top:14px">
         <div class="form-group"><label>Total paid ($)</label><input type="number" id="cjmd-paid" placeholder="0" oninput="calcMultiDayBalance()"></div>
@@ -9208,6 +9216,60 @@ function autoFillInsuranceFee(){
     calcTotal();
   }
 }
+// ── "Do not exceed" price cap ───────────────────────────────────────────────
+// A capped job is one where the work genuinely came to (say) $3,000 but the customer was
+// quoted a not-to-exceed price of $2,800, so $2,800 is what they were charged.
+//
+// The data model already supported this: `total` is what was CHARGED and `actualTotal` is
+// what the job was WORTH, with capDiscount = actualTotal - total, and the AI's `realValue`
+// preferring actualTotal so the model learns the true cost of an under-quoted job. What was
+// missing was the input side — the form expected the CAPPED figure in the fee fields, so
+// recording a capped job honestly meant reducing the labour line by hand, which corrupted
+// the true hourly rate and taught the AI the job was cheaper than it was.
+//
+// These helpers invert that: enter the REAL hours and rates, state the cap, and the cap
+// adjustment + un-capped value are derived.
+//
+// The cap applies to the pre-surcharge subtotal. A credit-card surcharge is a payment-method
+// fee charged on top of the capped price, not part of the price the cap covers.
+const _capAutoActual={};
+function _capOf(prefix){
+  const el=document.getElementById(prefix+'-cap');
+  const v=Number(el&&el.value)||0;
+  return v>0?v:0;
+}
+// Apply the cap to a subtotal. Returns the charged subtotal and the discount given.
+function _applyCap(prefix,subtotal){
+  const cap=_capOf(prefix);
+  let adj=0,charged=subtotal;
+  if(cap>0&&subtotal>cap){adj=Math.round((subtotal-cap)*100)/100;charged=cap;}
+  const row=document.getElementById(prefix+'-cap-row');
+  const amt=document.getElementById(prefix+'-cap-amount');
+  if(row)row.style.display=adj>0?'flex':'none';
+  if(amt)amt.textContent='−$'+adj.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return{subtotal:charged,capAdj:adj};
+}
+// Keep the un-capped value in step with the cap, without ever clobbering a figure the user
+// typed themselves. We only overwrite what we last wrote (or an empty field).
+function _syncActualTotal(prefix,chargedTotal,capAdj){
+  const el=document.getElementById(prefix+'-actual-total');
+  if(!el)return;
+  const cur=String(el.value==null?'':el.value).trim();
+  const mine=_capAutoActual[prefix];
+  if(cur!==''&&mine!==undefined&&String(mine)!==cur)return;   // user typed their own — leave it
+  if(cur!==''&&mine===undefined)return;                        // pre-existing value — leave it
+  if(capAdj>0){
+    const v=Math.round((chargedTotal+capAdj)*100)/100;
+    el.value=v;_capAutoActual[prefix]=v;
+  }else{
+    if(mine!==undefined){el.value='';}
+    delete _capAutoActual[prefix];
+  }
+}
+// Called from the un-capped field's oninput so a manual edit is respected from then on.
+function _capNoteManual(prefix){delete _capAutoActual[prefix];}
+function _resetCapState(prefix){delete _capAutoActual[prefix];}
+
 function calcTotal(){
   const ids=['cj-labour','cj-materials','cj-pack-materials','cj-fuel','cj-parking-fee','cj-coi','cj-insurance','cj-dump','cj-damage'];
   const discount=Number(document.getElementById('cj-yelp').value)||0;
@@ -9216,6 +9278,9 @@ function calcTotal(){
   const miscIds=['cj-misc-1-amount','cj-misc-2-amount','cj-misc-3-amount'];
   const miscSum=miscIds.reduce((s,id)=>{const el=document.getElementById(id);return s+(el?Number(el.value)||0:0);},0);
   let subtotal=Math.max(0,sum+miscSum-discount);
+  // Do-not-exceed cap: charge the cap, record the difference as a discount.
+  const _cap=_applyCap('cj',subtotal);
+  subtotal=_cap.subtotal;
   // Credit card surcharge — 3.5% of the subtotal added on top when payment method is CC
   const _payment=document.getElementById('cj-payment')?.value||'';
   const _ccFee=(_payment==='Credit card')?Math.round(subtotal*0.035*100)/100:0;
@@ -9232,6 +9297,7 @@ function calcTotal(){
     }
   }
   document.getElementById('cj-total').value=total;
+  _syncActualTotal('cj',total,_cap.capAdj);
   document.getElementById('cj-total-display').textContent='$'+total.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
   const labour=Number(document.getElementById('cj-labour').value)||0;
   const hours=Number(document.getElementById('cj-hours').value)||0;
@@ -9374,6 +9440,11 @@ function openCompleteMultiDay(jobId){
   renderMultiDayCompleteRows(j);
   // Reset total display before user input
   calcMultiDayTotal();
+  // Pre-fill the do-not-exceed cap from the booked job (bj-do-not-exceed). Editable.
+  _resetCapState('cjmd');
+  const _mdCapEl=document.getElementById('cjmd-cap');
+  if(_mdCapEl)_mdCapEl.value=(j&&Number(j.doNotExceed)>0)?Number(j.doNotExceed):'';
+  if(typeof calcMultiDayTotal==='function')calcMultiDayTotal();
   openModal('complete-job-multiday');
 }
 
@@ -9572,6 +9643,9 @@ function calcMultiDayTotal(){
   // Credit card surcharge — 3.5% of the whole-job subtotal, added on top when payment method is CC.
   // Mirrors the single-day form (calcTotal). Stash the fee so confirmCompleteMultiDay records the same
   // number without recomputing it from a different basis.
+  // Do-not-exceed cap: charge the cap, record the difference as a discount. Mirrors calcTotal.
+  const _mdCap=_applyCap('cjmd',grand);
+  grand=_mdCap.subtotal;
   const _pay=document.getElementById('cjmd-payment')?.value||'';
   const _ccFee=_pay==='Credit card'?Math.round(grand*0.035*100)/100:0;
   window._cjmdCcFee=_ccFee;
@@ -9582,6 +9656,7 @@ function calcMultiDayTotal(){
     else{_ccRow.style.display='none';}
   }
   const grandWithCc=Math.round((grand+_ccFee)*100)/100;
+  _syncActualTotal('cjmd',grandWithCc,_mdCap.capAdj);
   const _totEl=document.getElementById('cjmd-total-display');
   if(_totEl)_totEl.textContent='$'+Math.round(grandWithCc).toLocaleString('en-US');
   window._cjmdGrandTotal=grandWithCc;
@@ -10336,6 +10411,10 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
   if(j.volume){const nums=(j.volume.match(/[\d.]+/g)||[]).map(Number);if(nums.length)document.getElementById('cj-vaults').value=Math.max(...nums);}
   const _cjPaidEl=document.getElementById('cj-paid');if(_cjPaidEl)_cjPaidEl.value='';
   cjResetSplitCrew();
+  // Pre-fill the do-not-exceed cap from the booked job (bj-do-not-exceed). Editable.
+  _resetCapState('cj');
+  const _capEl=document.getElementById('cj-cap');
+  if(_capEl)_capEl.value=(j&&Number(j.doNotExceed)>0)?Number(j.doNotExceed):'';
   calcTotal();calcBalance();openModal('complete-job');}
 function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;let paid=document.getElementById('cj-paid').value;if((paid===''||paid==null)&&paymentState==='paid')paid=total;
   const actualTotal=document.getElementById('cj-actual-total')?.value?Number(document.getElementById('cj-actual-total').value):null;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
