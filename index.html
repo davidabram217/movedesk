@@ -1708,6 +1708,34 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 </div>
 
 
+<div class="modal-bg" id="modal-info-request">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header"><div class="modal-title">🎥 Request info + walkthrough video</div><button class="modal-close" onclick="closeModal('info-request')">✕</button></div>
+    <div class="modal-body">
+      <div style="background:var(--info-light);border:1px solid #b3d1f0;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--info)">
+        Anything already on the lead is pre-filled below so the customer only fills the gaps. Edit freely before sending.
+      </div>
+      <div class="form-grid form-grid-2" style="gap:10px;margin-bottom:12px">
+        <div class="form-group"><label>To</label><input type="email" id="ir-to" placeholder="customer@email.com"></div>
+        <div class="form-group"><label>Subject</label><input type="text" id="ir-subject"></div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:13px"><input type="checkbox" id="ir-tone" onchange="buildInfoRequestBody()" style="width:auto;margin:0"> Warmer, more conversational wording</label>
+      </div>
+      <div id="ir-prefill-note" style="display:none;font-size:11.5px;color:var(--text3);margin-bottom:10px"></div>
+      <div class="form-group">
+        <label>Email body</label>
+        <textarea id="ir-body" style="min-height:340px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.7;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('info-request')">Cancel</button>
+      <button class="btn btn-secondary" onclick="buildInfoRequestBody()">↻ Reset text</button>
+      <button class="btn btn-secondary" onclick="copyInfoRequest()">📋 Copy</button>
+      <button class="btn btn-primary" onclick="openInGmail('ir-to','ir-subject','ir-body')">✉ Send email</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-call-summary">
   <div class="modal" style="max-width:580px">
     <div class="modal-header"><div class="modal-title">📋 Call summary email</div><button class="modal-close" onclick="cancelSubModal('call-summary')">✕</button></div>
@@ -5904,6 +5932,8 @@ const footerBtnRight=l.status==='Did not book'?`<button class="btn btn-primary" 
 const viewQuoteBtn=quote?`<button class="btn btn-secondary" onclick="viewAcceptedQuote('${quote.id}')">👁 View quote</button>`:'';
 const mapBtn=l.from&&l.to?`<button class="btn btn-secondary" onclick="showRouteMap('${(l.from+(l.fromZip?' '+l.fromZip:'')).replace(/'/g,"\\'")}','${(l.to+(l.toZip?' '+l.toZip:'')).replace(/'/g,"\\'")}','${l.name.replace(/'/g,"\\'")} — Route')">🗺 Map</button>`:'';
 const summaryBtn=['New','Need to follow up','Need to send summary','Summary sent'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openCallSummaryEmail('${l.id}')">✉ Summary</button>`:'';
+// Info-request email: only useful before a quote goes out, so it follows the same status gate.
+const infoReqBtn=['New','Need to follow up','Need to send summary','Summary sent','Need to send estimate'].includes(l.status)?`<button class="btn btn-secondary" onclick="closeModal('view');openInfoRequestEmail('${l.id}')">🎥 Request info</button>`:'';
 
 const hasSummary=l.summaryEmailBody||(l.summaryLog&&l.summaryLog.length);
 const viewSummaryBtn=hasSummary?`<button class="btn btn-secondary" onclick="${l.summaryEmailBody?`viewSummaryEmail('${l.id}')`:`closeModal('view');openCallSummaryEmail('${l.id}')`}">👁 ${l.summaryEmailBody?'View summary':'Resend summary'}</button>`:'';
@@ -5952,7 +5982,7 @@ document.getElementById('view-modal-footer').innerHTML=`
       <button class="btn btn-secondary" onclick="closeModal('view')">Close</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openEditLead('${l.id}')">✏ Edit</button>
       <button class="btn btn-secondary" onclick="closeModal('view');openQuoteBuilder('${l.id}')">📄 Build quote</button>
-      ${summaryBtn}${viewSummaryBtn}${viewQuoteBtn}${_resendBtn}${_calBtn}${mapBtn}
+      ${summaryBtn}${infoReqBtn}${viewSummaryBtn}${viewQuoteBtn}${_resendBtn}${_calBtn}${mapBtn}
       <button class="btn btn-secondary" style="color:#c0392b;border-color:#c0392b" onclick="window.deleteLead('${l.id}')">🗑 Delete</button>
     </div>
     <div style="display:flex;justify-content:flex-end">${footerBtnRight}</div>
@@ -6616,6 +6646,105 @@ function handleStatusClick(id,status){
 function updateLeadStatus(id,status){const l=db.leads.find(x=>x.id===id);if(l){l.status=status;l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();showToast('Status: '+status);closeModal('view');renderLeads();}}
 
 let currentCallSummaryLeadId=null;
+// ── Info request + walkthrough video email ──────────────────────────────────
+// Sent after the first call, before a quote: asks for a walkthrough video and the details
+// needed to price the job. Anything already captured on the lead is pre-filled so the
+// customer only fills the gaps — the "I've filled in some of the blanks based on our
+// conversation" part happens automatically instead of by hand.
+let currentInfoRequestLeadId=null;
+// Renders one blank line. When we already know the answer it is shown inline so the
+// customer confirms or corrects rather than retyping it.
+function _irLine(label,value,hint){
+  const v=(value==null?'':String(value)).trim();
+  const h=hint?'  ('+hint+')':'';
+  return '  '+label+': '+(v?v:'')+(v?'':h);
+}
+function buildInfoRequestBody(){
+  const l=db.leads.find(x=>x.id===currentInfoRequestLeadId);
+  if(!l)return;
+  const warm=!!(document.getElementById('ir-tone')&&document.getElementById('ir-tone').checked);
+  const first=(l.name||'').trim().split(/\s+/)[0]||'there';
+  const sizeVal=[l.size,l.sqft?(l.sqft+' sq ft'):''].filter(Boolean).join(' · ');
+  // Reuse the exact sign-off block the confirmation and estimate emails already use, so
+  // every email the customer receives is signed identically.
+  const SIGN='Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
+  const bizPhone='(415) 822-8547';
+
+  const fromBlock=['MOVING FROM',
+    _irLine('Address',l.from),
+    _irLine('Access',l.accessLoad,'ground level / stairs — how many flights / elevator'),
+    _irLine('Truck parking',l.parkingLoad,'driveway, street, loading dock, permit needed?')].join('\n');
+  const toBlock=['MOVING TO',
+    _irLine('Address',l.to),
+    _irLine('Access',l.accessUnload,'ground level / stairs — how many flights / elevator'),
+    _irLine('Truck parking',l.parkingUnload,'driveway, street, loading dock, permit needed?')].join('\n');
+  const moveBlock=['THE MOVE',
+    _irLine('Size of place',sizeVal,'bedrooms, or rough square footage'),
+    _irLine('Packing help needed',l.packing,'anything that could reasonably go in a box'),
+    _irLine('Ideal date or dates',l.date)].join('\n');
+
+  const sendLine='Just reply to this email with the video attached. If it\u2019s too big to send, a Google Drive, Dropbox or iCloud link works fine'+(bizPhone?' \u2014 or text it to '+bizPhone:'')+'.';
+
+  let body;
+  if(warm){
+    body='Hi '+first+',\n\n'
+      +'Really enjoyed the chat earlier. Here\u2019s what I need to turn our conversation into firm numbers.\n\n'
+      +'The most helpful thing by far is a quick walkthrough video. Just your phone, walking through the place, talking as you go \u2014 nothing polished needed. Open the closets, show me the garage and any storage unit, and don\u2019t forget outdoor or patio furniture (that\u2019s the one people always miss). At the end, walk the route from your door out to where a truck could park \u2014 that tells me more about the day than almost anything else.\n\n'
+      +'If something\u2019s awkward or fragile, or you\u2019re not sure whether it\u2019s coming with you, just say so on camera.\n\n'
+      +'Then a few details. I\u2019ve filled in what I caught on our call \u2014 just fix anything I got wrong:\n\n'
+      +fromBlock+'\n\n'+toBlock+'\n\n'+moveBlock+'\n\n'
+      +sendLine+' I\u2019ll review it and get straight back to you.\n\n'
+      +'Any questions at all, just hit reply.\n\n'+SIGN;
+  }else{
+    body='Hi '+first+',\n\n'
+      +'Great speaking with you earlier. To get you accurate numbers rather than a rough guess, I need two things:\n\n\n'
+      +'1 \u2014 A WALKTHROUGH VIDEO\n\n'
+      +'Just record on your phone as you walk through the place, narrating as you go. Please don\u2019t skip:\n\n'
+      +'  \u2022 Every room, and inside the closets\n'
+      +'  \u2022 Garage, basement, attic, any separate storage unit\n'
+      +'  \u2022 Outdoor and patio furniture\n'
+      +'  \u2022 The route from your door to where our truck can park\n\n'
+      +'If something\u2019s unusual \u2014 a piece that won\u2019t fit through a doorway, something fragile, anything you\u2019re unsure about \u2014 just say it out loud as you film. That\u2019s far more useful to me than a written list.\n\n\n'
+      +'2 \u2014 THE DETAILS BELOW\n\n'
+      +'I\u2019ve filled in what I picked up from our call. Correct anything I\u2019ve got wrong and fill in the blanks.\n\n'
+      +fromBlock+'\n\n'+toBlock+'\n\n'+moveBlock+'\n\n\n'
+      +sendLine+'\n\n'
+      +'Once I have it, I\u2019ll review everything and come back to you with numbers.\n\n'
+      +'Any trouble with the video or questions at all, just reply here.\n\n'+SIGN;
+  }
+  const bodyEl=document.getElementById('ir-body');
+  if(bodyEl)bodyEl.value=body;
+
+  // Show which fields we managed to pre-fill, so it is obvious what the customer still owes us.
+  const filled=[['from',l.from],['access (from)',l.accessLoad],['parking (from)',l.parkingLoad],
+                ['to',l.to],['access (to)',l.accessUnload],['parking (to)',l.parkingUnload],
+                ['size',sizeVal],['packing',l.packing],['date',l.date]]
+    .filter(function(x){return (x[1]==null?'':String(x[1])).trim();}).map(function(x){return x[0];});
+  const note=document.getElementById('ir-prefill-note');
+  if(note){
+    note.style.display='block';
+    note.textContent=filled.length?('Pre-filled from the lead: '+filled.join(', ')+'.'):'Nothing on the lead yet to pre-fill \u2014 all fields left blank for the customer.';
+  }
+}
+function openInfoRequestEmail(leadId){
+  currentInfoRequestLeadId=leadId;
+  const l=db.leads.find(x=>x.id===leadId);
+  if(!l)return;
+  const toEl=document.getElementById('ir-to');
+  if(toEl)toEl.value=l.email||'';
+  const subjEl=document.getElementById('ir-subject');
+  if(subjEl)subjEl.value='Next step for your move \u2014 a few details + a quick video';
+  const toneEl=document.getElementById('ir-tone');
+  if(toneEl)toneEl.checked=false;
+  buildInfoRequestBody();
+  openModal('info-request');
+}
+function copyInfoRequest(){
+  const el=document.getElementById('ir-body');
+  if(!el)return;
+  navigator.clipboard.writeText(el.value).then(function(){showToast('\u2713 Email copied');},function(){showToast('Could not copy \u2014 select the text and copy manually');});
+}
+
 function openCallSummaryEmail(leadId){
   currentCallSummaryLeadId=leadId;
   const l=db.leads.find(x=>x.id===leadId);
