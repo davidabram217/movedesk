@@ -35,9 +35,16 @@ check('View modal: "Send confirmation" appears only for non-draft booked jobs',
 check('openBooking: detects existing draft',
   /_existingDraft=\(db\.bookedJobs\|\|\[\]\)\.find\(j=>j\.leadId===leadId&&j\._draft\)/.test(indexHtml)
 );
-check('openBooking: restores draft date and time',
-  /draftSetIfHasValue\('bj-date',_existingDraft\.date\)/.test(indexHtml) &&
+// CHANGED 2026-08-19: the draft must NOT restore the date any more. The lead's move date is
+// the single source of truth for bj-date — an abandoned draft (created by any keystroke in
+// the form, never cleaned up) used to silently overwrite it with a weeks-old value, which
+// could confirm the customer for the wrong day. Time is still restored from the draft.
+check('openBooking: restores draft time',
   /draftSetIfHasValue\('bj-time',_existingDraft\.time\)/.test(indexHtml)
+);
+check('openBooking: does NOT restore draft date (lead date is authoritative)',
+  !/draftSetIfHasValue\('bj-date'/.test(indexHtml) &&
+  /document\.getElementById\('bj-date'\)\.value=_bjLeadDate\(l\);/.test(indexHtml)
 );
 check('openBooking: restores draft email-note and office-notes',
   /draftSetIfHasValue\('bj-email-note',_existingDraft\.emailNote\)/.test(indexHtml) &&
