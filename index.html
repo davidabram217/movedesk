@@ -5482,9 +5482,11 @@ function nextStepAction(action){
     if(l){l.status='Estimate scheduled';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
     setTimeout(()=>openQuoteBuilder(currentNextStepLeadId),200);
   } else if(action==='inforequest'){
-    // Same shape as the summary branch: mark the lead as awaiting info, then open the email.
+    // Only nudge a brand-new lead to 'Need to follow up'. Anything further along keeps the
+    // status it already has — requesting info is not a pipeline transition, and overwriting
+    // a later stage here previously let checkAcceptedQuotes() bump the lead to 'Quote accepted'.
     const l=db.leads.find(x=>x.id===currentNextStepLeadId);
-    if(l){l.status='Need to follow up';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
+    if(l&&l.status==='New'){l.status='Need to follow up';l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();renderLeads();}
     nextStepSubModal=true;
     setTimeout(()=>openInfoRequestEmail(currentNextStepLeadId),200);
   } else if(action==='summary'){
@@ -6780,8 +6782,12 @@ async function sendInfoRequest(){
       viaGmail:result==='gmail'
     });
     l.infoRequestSentAt=sentDate;
-    l.status='Need to follow up';
-    l.statusUpdatedAt=sentDate;
+    // DELIBERATELY does not touch l.status (fixed 2026-08-19). Asking a customer for more
+    // information is not a pipeline transition — it can happen at almost any pre-quote point
+    // — and forcing a status here caused real damage: it OVERWROTE whatever stage the lead
+    // was genuinely at, and on a lead with an accepted quote `checkAcceptedQuotes()` then
+    // bumped the downgraded status straight to 'Quote accepted' on its next pass.
+    // `infoRequestSentAt` records that the email went out; the status stays the user's call.
     l._localEditedAt=nowIso;
     saveDB();
     if(typeof renderLeads==='function')renderLeads();
@@ -7796,6 +7802,15 @@ function _bjApplyDroppedDays(j){
   } else { delete j.bookedQuotedMin;delete j.bookedQuotedMax; }
 }
 
+// Returns the lead's move date in the form <input type="date"> accepts, or '' when there
+// isn't a usable one. 'TBD' and any non-yyyy-mm-dd value count as "no date": the input would
+// reject them anyway, and silently blanking is how a stale draft date used to sneak in.
+function _bjLeadDate(l){
+  const d=(l&&l.date!=null)?String(l.date).trim():'';
+  if(!d||d.toUpperCase()==='TBD')return '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';
+}
+
 function bjAutoSave(){
   const targetId=editingBookedJobId||currentBookingLeadId;
   if(!targetId)return;
@@ -7910,7 +7925,11 @@ function openBooking(leadId){
   document.getElementById('bj-time').value='8:30–9:30am';
   document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   {const uc=document.getElementById('bj-unload-crew');if(uc)uc.checked=false;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display='none';const ucs=document.getElementById('bj-unload-crew-size');if(ucs)ucs.selectedIndex=0;['bj-unload-rate','bj-unload-hrs-min','bj-unload-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
-  document.getElementById('bj-date').value=l.date||'';
+  // The lead's move date is AUTHORITATIVE for the booking form (2026-08-19).
+  // `bj-date` is <input type="date">, which silently blanks any value that isn't
+  // yyyy-mm-dd — so a lead marked "Date TBD" (stored as the literal string 'TBD')
+  // is treated as no date rather than being handed to the input to reject.
+  document.getElementById('bj-date').value=_bjLeadDate(l);
   // Multi-day: when a multi-day QUOTE governs this lead, the existing read-only banner handles it,
   // so the manual toggle is hidden. Otherwise the owner may flip it on to book a multi-day job
   // directly. Reset to off each open; a direct multi-day draft is restored further below.
@@ -8094,7 +8113,14 @@ function openBooking(leadId){
       if(val===undefined||val===null||val==='')return;
       el.value=val;
     };
-    draftSetIfHasValue('bj-date',_existingDraft.date);
+    // DATE: deliberately NOT restored from the draft (2026-08-19). The lead's move date is
+    // the single source of truth for this field. Drafts are created by ANY keystroke in this
+    // form (the modal body autosaves on input/change) and are never cleaned up, so an
+    // abandoned draft could carry a weeks-old date and silently overwrite the lead's — the
+    // customer then gets a confirmation for the wrong day. Falling back to the draft when the
+    // lead has no date would reintroduce exactly that for TBD and dateless leads, so the
+    // field simply stays empty and `Confirmed date *` forces a real one before booking.
+    // Every OTHER draft field below is still restored as before.
     draftSetIfHasValue('bj-time',_existingDraft.time);
     if(_existingDraft.movers){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=_existingDraft.movers;}
     draftSetIfHasValue('bj-rate-regular',_existingDraft.rateRegular);
