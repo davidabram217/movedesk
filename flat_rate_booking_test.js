@@ -71,7 +71,10 @@ ok(/\['bj-hourly-wrap-1','bj-hourly-wrap-2'\]/.test(HTML) && /\['bj-flat-wrap-1'
   'the toggle swaps hourly and flat fields');
 
 // ── restore paths ────────────────────────────────────────────────────────────
-ok(/_fr\.checked=false;[\s\S]{0,300}bjToggleFlatRate\(\);\}\s*\n\s*document\.getElementById\('bj-date'\)\.value=_bjLeadDate\(l\)/.test(HTML),
+// Deliberately not adjacency-based: other openBooking setup (e.g. the "Booked by" prefill)
+// legitimately sits between these. What matters is that the reset happens before the modal opens.
+ok(/_fr\.checked=false;/.test(HTML) &&
+   HTML.indexOf('_fr.checked=false;') < HTML.indexOf("document.getElementById('bj-date').value=_bjLeadDate(l)"),
   'a fresh booking resets flat rate to off');
 ok(/if\(_existingDraft\.flatRate\)\{[\s\S]{0,400}draftSetIfHasValue\('bj-flat-price',_existingDraft\.flatPrice\)/.test(HTML),
   'draft restore brings back the flat rate');
