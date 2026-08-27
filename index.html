@@ -8649,16 +8649,37 @@ function buildDayCalUrl(j,day,dayNum){
   lines.push('');
 
   // ── Rate ──
+  // A DIRECTLY booked multi-day job has no quote, so j.quoteFees is empty and the fee loop below
+  // finds nothing. Before 2026-08-19 only the hourly rate reached the calendar: flat-rate days,
+  // hour minimums and the per-day fuel/materials fees captured by the booking form were all
+  // dropped. These mirror what the single-day builder already prints.
   const rate=Number(day.rate||0);
   const cashBase=Number(j.rateCash)||0;
   const day1Rate=j.quoteDays&&j.quoteDays[0]?Number(j.quoteDays[0].rate||rate):rate;
   const dayCash=cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)*100)/100:0;
   const crew=Number(day.crew||0);
-  if(rate){
+  if(day.flatRate){
+    const flatPrice=Number(day.flatPrice)||0;
+    const flatCash=Number(day.flatPriceCash)||0;
+    if(flatPrice){
+      lines.push((day.flatDescription||'Move services')+': $'+fmt(flatPrice)+' flat rate'+(flatCash?' ($'+fmt(flatCash)+' If Paid Cash)':''));
+      if(crew)lines.push(crew+' movers');
+      lines.push('');
+    }
+  } else if(rate){
     const cashStr=dayCash?' ($'+fmt(dayCash)+' If Paid Cash)':'';
     lines.push(crew+' men @ $'+fmt(rate)+' Per Hour'+cashStr);
+    if(day.hrsMin)lines.push(day.hrsMin+' hour minimum');
+    if(day.hrsMax)lines.push('Estimated '+day.hrsMin+'\u2013'+day.hrsMax+' hours');
     lines.push('');
   }
+  // Per-day fees typed on the booking form. Day 1 falls back to the job-level fields, which is
+  // where the single-day form writes them.
+  const _dayFuel=Number(day.feeFuel||0)||(dayNum===1?Number(j.feeFuel||0):0);
+  const _dayMat=Number(day.feeMaterials||0)||(dayNum===1?Number(j.feeMaterials||0):0);
+  if(_dayMat)lines.push('$'+fmt(_dayMat)+' Material Fee');
+  if(_dayFuel)lines.push('$'+fmt(_dayFuel)+' Fuel Fee');
+  if(_dayMat||_dayFuel)lines.push('');
 
   // ── Fees for this day ──
   const allFees=(j.quoteFees||[]).filter(f=>f.included&&(f.amount||f.hrsMin||f.hrsMax));
@@ -8682,6 +8703,9 @@ function buildDayCalUrl(j,day,dayNum){
   if(isPackDay){
     if(packFee&&packFee.type==='range'){lines.push('$'+(packFee.hrsMin||'?')+' \u2013 $'+(packFee.hrsMax||'?')+' '+(packFee.label||'Packing Materials'));}
     else if(packFee&&packFee.amount){lines.push('$'+fmt(packFee.amount)+' '+(packFee.label||'Packing Materials'));}
+    // packFee comes from j.quoteFees, which is empty on a directly booked job — fall back to the
+    // booking form's packing-materials range, exactly as the single-day builder does.
+    else if(j.packMatMin||j.packMatMax){lines.push('Packing Materials: $'+(j.packMatMin||'?')+' \u2013 $'+(j.packMatMax||'?'));}
     else if(j.packing&&j.packing!=='No \u2014 just moving'){lines.push('Packing Materials Used - TBD');}
   }
   lines.push('');
