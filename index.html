@@ -6086,8 +6086,14 @@ function buildMoveDetailsBlock(l,bj){
       const dayCash=(!isDay1&&Number(day.rateCash))?Number(day.rateCash):(cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0);
       const crew=isDay1?(Number(bj?.movers)||Number(day.crew)||Number(bjDay.crew)||0)
                        :(Number(day.crew)||Number(bjDay.crew)||0);
-      const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||''}];
-      const unloads=(day.unloads&&day.unloads.length)?day.unloads:[{address:day.to||bjDay.to||''}];
+      // Address resolution (2026-08-19). Order: the day's own loads/unloads (quote-driven days) →
+      // the day's from/to typed on the booking form → the JOB's main From/To. That last fallback is
+      // what was missing: a multi-day job booked DIRECTLY has no quote, its quoteDays carry no
+      // addresses, so every day resolved to nothing and printed "Load trucks only" even though the
+      // addresses were sitting on the booked job all along. "Load trucks only" is now reserved for
+      // a day with genuinely no destination anywhere.
+      const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||bj?.from||''}];
+      const unloads=(day.unloads&&day.unloads.length)?day.unloads:[{address:day.to||bjDay.to||bj?.to||''}];
       const hasUnloads=unloads.some(function(u){return u.address;});
       const dayDate=isDay1?(bj?.date||day.date||''):day.date;
       const dayArrivalLine=isDay1&&bj?.time
@@ -6305,8 +6311,14 @@ function openConfirmEmail(leadId,bookedJob){
       const dayCash=(!isDay1&&Number(day.rateCash))?Number(day.rateCash):(cashBase&&day1Rate?Math.round(cashBase*(rate/day1Rate)):0);
       const crew=isDay1?(Number(bj?.movers)||Number(day.crew)||Number(bjDay.crew)||0)
                        :(Number(day.crew)||Number(bjDay.crew)||0);
-      const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||''}];
-      const unloads=(day.unloads&&day.unloads.length)?day.unloads:[{address:day.to||bjDay.to||''}];
+      // Address resolution (2026-08-19). Order: the day's own loads/unloads (quote-driven days) →
+      // the day's from/to typed on the booking form → the JOB's main From/To. That last fallback is
+      // what was missing: a multi-day job booked DIRECTLY has no quote, its quoteDays carry no
+      // addresses, so every day resolved to nothing and printed "Load trucks only" even though the
+      // addresses were sitting on the booked job all along. "Load trucks only" is now reserved for
+      // a day with genuinely no destination anywhere.
+      const loads=(day.loads&&day.loads.length)?day.loads:[{address:day.from||bjDay.from||bj?.from||''}];
+      const unloads=(day.unloads&&day.unloads.length)?day.unloads:[{address:day.to||bjDay.to||bj?.to||''}];
       const hasUnloads=unloads.some(function(u){return u.address;});
       // Day 1 date/time overridden by booking form
       const dayDate=isDay1?(bj?.date||day.date||''):day.date;
@@ -7608,7 +7620,12 @@ let _bjAutoSaveTimer=null;
 // no special-casing. This is purely additive: when the toggle is OFF, none of this runs and the
 // single-day booking path is untouched.
 let _bjDays=[];
-function _bjBlankDay(){return {date:'',crew:'3',rate:'',rateCash:'',flatRate:false,hrsMin:'',hrsMax:'',flatPrice:'',flatPriceCash:'',feeFuel:'',feeMaterials:'',arrivalWindow:''};}
+// `from`/`to` are per-day addresses (added 2026-08-19). Blank means "same as the job's main
+// From/To", which is the common case; storage jobs are why they can differ — day 1 house →
+// warehouse, day 2 warehouse → new house. Leaving a day blank is NOT the same as a load-only
+// day: the confirmation email falls back to the job addresses, and only says "Load trucks only"
+// when there is genuinely no destination anywhere.
+function _bjBlankDay(){return {date:'',crew:'3',rate:'',rateCash:'',flatRate:false,hrsMin:'',hrsMax:'',flatPrice:'',flatPriceCash:'',feeFuel:'',feeMaterials:'',arrivalWindow:'',from:'',to:''};}
 function toggleBjMultiDay(){
   const cb=document.getElementById('bj-multiday');const on=cb&&cb.checked;
   const sec=document.getElementById('bj-multiday-section');if(sec)sec.style.display=on?'block':'none';
@@ -7618,6 +7635,8 @@ function toggleBjMultiDay(){
     d0.crew=document.getElementById('bj-movers').value||'3';
     d0.rate=document.getElementById('bj-rate-regular').value||'';
     d0.rateCash=document.getElementById('bj-rate-cash').value||'';
+    d0.from=(document.getElementById('bj-from')||{}).value||'';
+    d0.to=(document.getElementById('bj-to')||{}).value||'';
     _bjDays=[d0];
   }
   renderBjDays();bjAutoSave();
@@ -7631,6 +7650,7 @@ function bjDayChanged(i){
   d.date=g('bjd-date-'+i);d.crew=g('bjd-crew-'+i);d.rate=g('bjd-rate-'+i);d.rateCash=g('bjd-ratecash-'+i);
   d.hrsMin=g('bjd-hmin-'+i);d.hrsMax=g('bjd-hmax-'+i);d.flatPrice=g('bjd-flat-price-'+i);d.flatPriceCash=g('bjd-flat-cash-'+i);
   d.arrivalWindow=g('bjd-arrival-'+i);d.feeFuel=g('bjd-fuel-'+i);d.feeMaterials=g('bjd-mat-'+i);
+  d.from=g('bjd-from-'+i);d.to=g('bjd-to-'+i);
   // Day 1 mirrors into the canonical single-day fields so date validation, autosave and the
   // booked-job summary all see the right values with no special-casing elsewhere.
   if(i===0){
@@ -7660,6 +7680,12 @@ function renderBjDays(){
       +'<div class="form-group"><label>Movers</label><select id="bjd-crew-'+i+'" onchange="bjDayChanged('+i+')">'+moverOpts.map(m=>'<option'+(String(d.crew)===String(m)?' selected':'')+'>'+m+'</option>').join('')+'</select></div>'
       +'<div class="form-group"><label>Arrival window</label><input type="text" id="bjd-arrival-'+i+'" value="'+_ea(d.arrivalWindow)+'" placeholder="e.g. 9–10am" onchange="bjDayChanged('+i+')"></div>'
       +'</div>'
+      // Per-day addresses. Blank = use the job's main From/To, which covers the usual case where
+      // every day runs the same route. Fill them in for storage-style jobs where day 2 differs.
+      +'<div class="form-grid form-grid-2">'
+      +'<div class="form-group"><label>From <span style="font-size:10px;color:var(--text3);font-weight:400">blank = job address</span></label><input type="text" id="bjd-from-'+i+'" value="'+_ea(d.from)+'" placeholder="same as job From" onchange="bjDayChanged('+i+')"></div>'
+      +'<div class="form-group"><label>To <span style="font-size:10px;color:var(--text3);font-weight:400">blank = job address</span></label><input type="text" id="bjd-to-'+i+'" value="'+_ea(d.to)+'" placeholder="same as job To" onchange="bjDayChanged('+i+')"></div>'
+      +'</div>'
       +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;margin:4px 0 8px"><input type="checkbox" id="bjd-flat-'+i+'" '+(flat?'checked':'')+' onchange="bjDayToggleFlat('+i+')" style="accent-color:var(--accent)"> Flat rate for this day</label>'
       +(flat
         ?'<div class="form-grid form-grid-2"><div class="form-group"><label>Flat price ($)</label><input type="number" id="bjd-flat-price-'+i+'" value="'+(d.flatPrice||'')+'" placeholder="e.g. 1200" onchange="bjDayChanged('+i+')"></div><div class="form-group"><label>Flat price cash ($)</label><input type="number" id="bjd-flat-cash-'+i+'" value="'+(d.flatPriceCash||'')+'" placeholder="optional" onchange="bjDayChanged('+i+')"></div></div>'
@@ -7676,7 +7702,7 @@ function _bjResetMultiDay(showToggle){
   const list=document.getElementById('bj-multiday-list');if(list)list.innerHTML='';
 }
 function _bjLoadMultiDay(days){
-  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||'',arrivalWindow:d.arrivalWindow||'',feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||''}));
+  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||'',arrivalWindow:d.arrivalWindow||'',feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||'',from:d.from||'',to:d.to||''}));
   if(!_bjDays.length)_bjDays=[_bjBlankDay()];
   const cb=document.getElementById('bj-multiday');if(cb)cb.checked=true;
   const wrap=document.getElementById('bj-multiday-wrap');if(wrap)wrap.style.display='block';
@@ -7692,7 +7718,8 @@ function _bjReadDays(){
       flatRate:flat,
       hrsMin:flat?'':(Number(d.hrsMin)||''),hrsMax:flat?'':(Number(d.hrsMax)||''),
       flatPrice:flat?(Number(d.flatPrice)||0):'',flatPriceCash:flat?(Number(d.flatPriceCash)||0):'',
-      arrivalWindow:d.arrivalWindow||'',feeFuel:Number(d.feeFuel)||'',feeMaterials:Number(d.feeMaterials)||''};
+      arrivalWindow:d.arrivalWindow||'',feeFuel:Number(d.feeFuel)||'',feeMaterials:Number(d.feeMaterials)||'',
+      from:(d.from||'').trim(),to:(d.to||'').trim()};
   });
 }
 // Apply the multi-day rows onto a booked-job record when the toggle is on. No-op otherwise, so the
