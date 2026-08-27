@@ -2766,6 +2766,22 @@ async function deleteCalendarEvent(eventId){
   return result.success;
 }
 
+// ── Frozen-quote push guard ────────────────────────────────────────────────────────────────
+// A sent/accepted quote's contents are frozen by a DB constraint (23514, "MoveDesk lock").
+// _pushTable only marks a row clean on a CONFIRMED success, which is right for transient
+// failures — but this rejection is permanent, so the row stayed dirty and every single
+// saveDB() retried it forever, throwing 400s that buried real errors.
+// We record the ids the server has explicitly refused and stop re-offering them. Deliberately
+// NOT persisted: after a reload each is retried exactly once, so if a freeze is ever lifted
+// or a quote reissued, syncing resumes on its own with no stale state to clear.
+const _frozenQuoteIds={};
+function _noteFrozenQuoteRejection(text){
+  if(!text||text.indexOf('MoveDesk lock')===-1)return;
+  const re=/\(id=([^)]+)\)/g;let m,found=[];
+  while((m=re.exec(text))!==null){ if(!_frozenQuoteIds[m[1]]){_frozenQuoteIds[m[1]]=1;found.push(m[1]);} }
+  if(found.length)console.info('Frozen quote(s) '+found.join(', ')+' — contents are locked server-side; will not be re-pushed this session. Issue a new quote to change them.');
+}
+
 async function sbFetch(path,method,body){
   try{
     const res=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
@@ -2773,7 +2789,7 @@ async function sbFetch(path,method,body){
       headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':method==='POST'?'resolution=merge-duplicates':''},
       body:body?JSON.stringify(body):undefined
     });
-    if(!res.ok){const t=await res.text();console.warn('Supabase error:',res.status,t);return null;}
+    if(!res.ok){const t=await res.text();console.warn('Supabase error:',res.status,t);_noteFrozenQuoteRejection(t);return null;}
     const text=await res.text();return text?JSON.parse(text):null;
   }catch(e){return null;}
 }
@@ -3650,6 +3666,8 @@ async function syncToSupabase(){
     const completedRows=db.completedJobs.map(j=>({id:j.id,data:j}));
     // Never push a draft over a quote the cloud already has as sent/accepted.
     const quoteRows=(db.quotes||[]).filter(function(q){
+      // Server has permanently refused this one (contents frozen) — retrying only produces 400s.
+      if(_frozenQuoteIds[q.id])return false;
       if(_wouldDowngradeQuote(q)){
         console.warn('Blocked upload of a stale',q.status,'over cloud',_cloudQuoteStatus[q.id],'for quote',q.id,
           '\u2014 the customer link keeps the sent version. It will be pulled back down on the next refresh.');
@@ -3938,6 +3956,7 @@ async function refreshFromSupabase(){
       const _seen={},_rows=[];
       _quotesNeedingRepush.forEach(function(qid){
         if(_seen[qid])return; _seen[qid]=1;
+        if(_frozenQuoteIds[qid])return;   // server has frozen this row; re-pushing cannot succeed
         const q=(db.quotes||[]).find(function(x){return x.id===qid;});
         if(!q||!(q.status==='sent'||q.status==='accepted'))return;
         // SAFETY: never push a collapsed single/blank copy up. If the version we hold locally is
@@ -3949,7 +3968,7 @@ async function refreshFromSupabase(){
         }
         _rows.push({id:q.id,data:q});
       });
-      if(_rows.length){ try{ await sbFetch('quotes','POST',_rows); console.log('Cloud self-heal: re-pushed '+_rows.length+' sent/accepted quote(s) the cloud had stale — customer link now matches your version.'); }catch(_e){ console.warn('Quote self-heal re-push failed:',_e); } }
+      if(_rows.length){ try{ const _r=await sbFetch('quotes','POST',_rows); if(_r!==null){ console.log('Cloud self-heal: re-pushed '+_rows.length+' sent/accepted quote(s) the cloud had stale — customer link now matches your version.'); } else { console.warn('Cloud self-heal: re-push of '+_rows.length+' quote(s) was REJECTED — the cloud copy is still stale. If the quote is frozen, issue a new quote instead.'); } }catch(_e){ console.warn('Quote self-heal re-push failed:',_e); } }
     }
     // ─── LEGACY NOTES MIGRATION ────────────────────────────────────────────────
     // Same migration as runs in loadDB. Catches the case where a freshly-synced lead from the
@@ -16626,6 +16645,11 @@ const SPREADSHEET_TRAINING=[{"id":"3f923bf1-1545-47b1-acb0-88b01ef3676f","date":
 {"id":"8987d0eb-39ef-4aa5-9d41-9ac8cd7a2960","date":"2026-03-23","name":"Caroline Fawley","moveType":"Move","size":"3 Bedroom","sqft":1874,"estimatedVaults":5,"actualVaults":null,"accessLoad":"Flat","accessUnload":"Flat","packHoursMin":null,"packHoursMax":null,"packHoursActual":null,"packMen":null,"packRate":null,"quotedHoursMin":7,"quotedHoursMax":8,"actualHours":4.5,"moveMen":3,"actualRate":225,"quotedMin":2750,"quotedMax":3125,"actualTotal":1214,"feeMaterials":25,"feePackMaterials":51,"feeFuel":85,"feeParkingPermit":0,"feeCOI":0,"feeInsurance":0,"feeDump":0,"feeDamage":0,"feeYelp":0,"fromZip":"94901","toZip":"94901","crew":"Ciaran","estimator":"John","source":"Juli Lipprie","notes":"they was also a small drop of along the way to the unload.  It was a big place but only certain items were going","fromSpreadsheet":true,"savedAt":"2026-03-31T22:18:06.870862"}];
 const QUOTING_RULES=[
   {
+    "category": "Trucks",
+    "title": "Two trucks at 8+ vaults",
+    "body": "8 vaults or more does not fit in one truck \u2014 the job runs two. Fuel/tolls is charged PER TRUCK, so the fuel line doubles at 8+ vaults. The AI quote applies this automatically."
+  },
+  {
     "category": "Pricing",
     "title": "Credit card fee",
     "body": "We add a 3.5% credit card fee that is NOT included in estimates sent out. Add 3.5% on top when the customer pays by card."
@@ -17703,6 +17727,15 @@ function zipMiles(z1,z2){
   return Math.round(straight*factor*10)/10;
 }
 
+// Trucks needed for a given vault count. 8 vaults or more does not fit one truck, so the job
+// runs two — which doubles the fuel/tolls leg (warehouse → load → unload → warehouse is driven
+// twice). Fuel is charged per truck; the labour rate already scales with crew size separately.
+const VAULTS_PER_TRUCK_THRESHOLD=8;
+function trucksForVaults(vaults){
+  const v=Number(vaults)||0;
+  return v>=VAULTS_PER_TRUCK_THRESHOLD?2:1;
+}
+
 function estimateFuelAndTime(loadZip,unloadZip,men,rate){
   if(!loadZip||!unloadZip)return{fuel:65,driveHours:0,totalMiles:null,note:'Estimated (no zip provided)'};
 
@@ -18498,7 +18531,10 @@ function generateAIQuote(isRecalc){
 
   // Zip-based fuel estimate overrides data average if zips provided
   const fuelCalc=estimateFuelAndTime(inputs.loadZip,inputs.unloadZip,men,inputs.rate);
-  const fuelEstimate=inputs.loadZip&&inputs.unloadZip?fuelCalc.fuel:avgFuel;
+  // 8+ vaults needs a second truck, and fuel is charged per truck.
+  const _trucks=trucksForVaults(inputs.vaults);
+  const _fuelPerTruck=inputs.loadZip&&inputs.unloadZip?fuelCalc.fuel:avgFuel;
+  const fuelEstimate=_fuelPerTruck*_trucks;
   const extraDriveHours=fuelCalc.driveHours||0;
 
   // Add drive time to hours for non-SF jobs
@@ -18559,6 +18595,7 @@ function generateAIQuote(isRecalc){
         <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Fuel / tolls charge</div>
         <div style="font-size:16px;font-weight:600">$${fuelEstimate}</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${inputs.loadZip&&inputs.unloadZip?fuelCalc.note:'Based on avg of similar jobs'}</div>
+        ${_trucks>1?`<div style="margin-top:5px;padding-top:5px;border-top:1px solid var(--border2);font-size:10.5px;color:#b7860b;font-weight:600">🚛 2 trucks (${inputs.vaults} vaults) — $${_fuelPerTruck} × 2</div>`:''}
         ${fuelCalc.totalMiles?`<div style="font-size:10.5px;color:var(--text3);margin-top:4px;padding-top:4px;border-top:1px solid var(--border2)">
           <div>Charged: ${fuelCalc.chargedMiles}mi × $2 = <strong>$${fuelEstimate}</strong></div>
           <div style="margin-top:2px">Actual cost: ~$${fuelCalc.actualFuelLow}–$${fuelCalc.actualFuelHigh} <span style="color:var(--text3);font-size:10px">(${fuelCalc.totalMiles}mi full trip ÷ 8mpg @ $5–8/gal)</span></div>
