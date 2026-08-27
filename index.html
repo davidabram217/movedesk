@@ -1247,8 +1247,11 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Rates & fees</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
-        <div class="form-group bj-md-dup"><label>Hourly rate (regular $)</label><input type="number" id="bj-rate-regular" placeholder="e.g. 225"></div>
-        <div class="form-group bj-md-dup"><label>Hourly rate (cash $)</label><input type="number" id="bj-rate-cash" placeholder="e.g. 210"></div>
+        <div class="form-group bj-md-dup" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:12.5px"><input type="checkbox" id="bj-flat-rate" onchange="bjToggleFlatRate()" style="width:15px;height:15px;cursor:pointer;margin:0">Flat rate (not hourly) <span style="font-size:11px;color:var(--text3);font-weight:400">— for a job priced as one agreed figure</span></label></div>
+        <div class="form-group bj-md-dup" id="bj-hourly-wrap-1"><label>Hourly rate (regular $)</label><input type="number" id="bj-rate-regular" placeholder="e.g. 225"></div>
+        <div class="form-group bj-md-dup" id="bj-hourly-wrap-2"><label>Hourly rate (cash $)</label><input type="number" id="bj-rate-cash" placeholder="e.g. 210"></div>
+        <div class="form-group bj-md-dup" id="bj-flat-wrap-1" style="display:none"><label>Flat price ($)</label><input type="number" id="bj-flat-price" placeholder="e.g. 1200"></div>
+        <div class="form-group bj-md-dup" id="bj-flat-wrap-2" style="display:none"><label>Flat price if cash ($)</label><input type="number" id="bj-flat-price-cash" placeholder="e.g. 1100"></div>
         <div class="form-group bj-md-dup"><label>Material fee ($)</label><input type="number" id="bj-fee-materials" placeholder="e.g. 50"></div>
         <div class="form-group bj-md-dup"><label>Fuel fee ($)</label><input type="number" id="bj-fee-fuel" placeholder="e.g. 80"></div>
         <div class="form-group"><label>Packing materials min ($)</label><input type="number" id="bj-pack-mat-min" placeholder="e.g. 50"></div>
@@ -6153,6 +6156,11 @@ function buildMoveDetailsBlock(l,bj){
     if(q.totalMin||q.totalMax)s+='\nTotal estimate: $'+Number(q.totalMin||0).toLocaleString()+' – $'+Number(q.totalMax||0).toLocaleString()+' (all days combined)';
   } else if(q&&q.days&&q.days.length){
     var d=q.days[0];
+    // A directly booked single-day job has no quote day to carry a flat rate, so take it from the
+    // booking form. Only applies when the box is ticked AND a price is set; otherwise d is untouched.
+    if(bj&&bj.flatRate&&Number(bj.flatPrice)){
+      d=Object.assign({},d||{},{flatRate:true,flatPrice:bj.flatPrice,flatPriceCash:bj.flatPriceCash});
+    }
     var bjDay=bj&&bj.quoteDays&&bj.quoteDays[0]||{};
     // Booked-job values win over quote values (matches confirmation email behavior)
     var rate=Number(bj?.rateRegular)||Number(d.rate)||Number(bjDay.rate)||0;
@@ -6395,6 +6403,11 @@ function openConfirmEmail(leadId,bookedJob){
     if(q.totalMin||q.totalMax)moveDetailsSection+='\nTotal estimate: $'+Number(q.totalMin||0).toLocaleString()+' – $'+Number(q.totalMax||0).toLocaleString()+' (all days combined)';
   } else if(q&&q.days&&q.days.length){
     var d=q.days[0];
+    // A directly booked single-day job has no quote day to carry a flat rate, so take it from the
+    // booking form. Only applies when the box is ticked AND a price is set; otherwise d is untouched.
+    if(bj&&bj.flatRate&&Number(bj.flatPrice)){
+      d=Object.assign({},d||{},{flatRate:true,flatPrice:bj.flatPrice,flatPriceCash:bj.flatPriceCash});
+    }
     var bjDay=bj&&bj.quoteDays&&bj.quoteDays[0]||{};
     // Booked-job values take precedence over quote — the booking represents the final
     // agreed-upon details, which may differ from the original quote (e.g. crew adjusted
@@ -7641,6 +7654,18 @@ function toggleBjMultiDay(){
   }
   renderBjDays();bjAutoSave();
 }
+// Flat-rate single-day booking (added 2026-08-19). Everything downstream already understood
+// flatRate/flatPrice/flatPriceCash — the confirmation email, both calendar builders and the
+// multi-day day rows all had the code path. The single-day booking form simply had no field
+// for it, which is why a phone/email booking priced as one figure had to be faked as an hourly
+// rate. Purely additive: unticked, every existing path behaves exactly as before.
+function bjToggleFlatRate(){
+  const on=!!(document.getElementById('bj-flat-rate')||{}).checked;
+  ['bj-hourly-wrap-1','bj-hourly-wrap-2'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display=on?'none':'';});
+  ['bj-flat-wrap-1','bj-flat-wrap-2'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display=on?'':'none';});
+  if(typeof bjAutoSave==='function')bjAutoSave();
+}
+
 function addBjDay(){_bjDays.push(_bjBlankDay());renderBjDays();bjAutoSave();}
 function removeBjDay(i){if(_bjDays.length<=1)return;_bjDays.splice(i,1);renderBjDays();bjAutoSave();}
 function bjDayToggleFlat(i){const el=document.getElementById('bjd-flat-'+i);if(_bjDays[i])_bjDays[i].flatRate=!!(el&&el.checked);renderBjDays();bjAutoSave();}
@@ -7910,8 +7935,13 @@ function bjWriteFields(j){
   j.date=document.getElementById('bj-date').value;
   j.time=document.getElementById('bj-time').value;
   j.movers=document.getElementById('bj-movers').value;
-  j.rateRegular=document.getElementById('bj-rate-regular').value;
-  j.rateCash=document.getElementById('bj-rate-cash').value;
+  j.flatRate=!!(document.getElementById('bj-flat-rate')||{}).checked;
+  j.flatPrice=j.flatRate?(document.getElementById('bj-flat-price')||{}).value||'':'';
+  j.flatPriceCash=j.flatRate?(document.getElementById('bj-flat-price-cash')||{}).value||'':'';
+  // On a flat-rate job there is no hourly rate. Left blank rather than invented, so the AI
+  // training corpus and the staff $/hr figures are not fed a made-up number.
+  j.rateRegular=j.flatRate?'':document.getElementById('bj-rate-regular').value;
+  j.rateCash=j.flatRate?'':document.getElementById('bj-rate-cash').value;
   j.feeMaterials=document.getElementById('bj-fee-materials').value;
   j.packMatMin=document.getElementById('bj-pack-mat-min')?.value||'';
   j.packMatMax=document.getElementById('bj-pack-mat-max')?.value||'';
@@ -7995,6 +8025,11 @@ function openBooking(leadId){
   // `bj-date` is <input type="date">, which silently blanks any value that isn't
   // yyyy-mm-dd — so a lead marked "Date TBD" (stored as the literal string 'TBD')
   // is treated as no date rather than being handed to the input to reject.
+  // Flat rate defaults OFF for a fresh booking; restored below if a draft or job says otherwise.
+  {const _fr=document.getElementById('bj-flat-rate');if(_fr)_fr.checked=false;
+   const _fp=document.getElementById('bj-flat-price');if(_fp)_fp.value='';
+   const _fc=document.getElementById('bj-flat-price-cash');if(_fc)_fc.value='';
+   if(typeof bjToggleFlatRate==='function')bjToggleFlatRate();}
   document.getElementById('bj-date').value=_bjLeadDate(l);
   // Multi-day: when a multi-day QUOTE governs this lead, the existing read-only banner handles it,
   // so the manual toggle is hidden. Otherwise the owner may flip it on to book a multi-day job
@@ -8189,6 +8224,12 @@ function openBooking(leadId){
     // Every OTHER draft field below is still restored as before.
     draftSetIfHasValue('bj-time',_existingDraft.time);
     if(_existingDraft.movers){const mEl=document.getElementById('bj-movers');if(mEl)mEl.value=_existingDraft.movers;}
+    if(_existingDraft.flatRate){
+      const _fr=document.getElementById('bj-flat-rate');if(_fr)_fr.checked=true;
+      if(typeof bjToggleFlatRate==='function')bjToggleFlatRate();
+      draftSetIfHasValue('bj-flat-price',_existingDraft.flatPrice);
+      draftSetIfHasValue('bj-flat-price-cash',_existingDraft.flatPriceCash);
+    }
     draftSetIfHasValue('bj-rate-regular',_existingDraft.rateRegular);
     draftSetIfHasValue('bj-rate-cash',_existingDraft.rateCash);
     draftSetIfHasValue('bj-fee-materials',_existingDraft.feeMaterials);
@@ -8380,8 +8421,8 @@ function buildJobCalUrl(j){
         costLines.push(`Day${i+1} ${crewDesc} @ $${rate.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})} Per Hour${cashStr}`);
       });
       if(costLines.length)lines.push('Cost: '+costLines.join('\n      '));
-    } else if(j.quoteDays&&j.quoteDays[0]&&j.quoteDays[0].flatRate){
-      const day=j.quoteDays[0];
+    } else if((j.quoteDays&&j.quoteDays[0]&&j.quoteDays[0].flatRate)||(j.flatRate&&Number(j.flatPrice))){
+      const day=(j.flatRate&&Number(j.flatPrice))?j:(j.quoteDays&&j.quoteDays[0])||{};
       const flatPrice=Number(day.flatPrice)||0;
       const flatCash=Number(day.flatPriceCash)||0;
       if(flatPrice){
@@ -9369,6 +9410,10 @@ function editBookedJob(jobId){
   if(!j)return;
   editingBookedJobId=jobId;
   document.getElementById('book-job-summary').innerHTML=`<strong>${j.name}</strong> · Editing booked job`;
+  {const _fr=document.getElementById('bj-flat-rate');if(_fr)_fr.checked=!!j.flatRate;
+   const _fp=document.getElementById('bj-flat-price');if(_fp)_fp.value=j.flatPrice||'';
+   const _fc=document.getElementById('bj-flat-price-cash');if(_fc)_fc.value=j.flatPriceCash||'';
+   if(typeof bjToggleFlatRate==='function')bjToggleFlatRate();}
   document.getElementById('bj-date').value=j.date||'';
   document.getElementById('bj-time').value=j.time||'';
   document.getElementById('bj-movers').value=j.movers||'3';
