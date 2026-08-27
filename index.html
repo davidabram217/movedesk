@@ -1161,6 +1161,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Estimate date</label><input type="date" id="se-date"><label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:400;cursor:pointer"><input type="checkbox" id="se-date-tbd" onchange="seToggleDateTBD()" style="width:15px;height:15px;cursor:pointer">Date TBD (not decided yet)</label></div>
         <div class="form-group"><label>Quoted amount ($)</label><input type="number" id="se-quote" placeholder="0.00"></div>
         <div class="form-group"><label>Sent by</label><input type="text" id="se-sent-by" placeholder="e.g. John" list="se-sent-by-list"><datalist id="se-sent-by-list"><option value="John"><option value="Dave"></datalist></div>
+        <div class="form-group" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:12.5px"><input type="checkbox" id="se-keep-status" style="width:15px;height:15px;cursor:pointer;margin:0">Sent outside the app — just record it, don’t change the status <span style="font-size:11px;color:var(--text3);font-weight:400">(for backfilling an estimate that already went out)</span></label></div>
         <!-- se-notes is HIDDEN — same reason as sche-notes. Office notes is the only notes field
              that ever surfaces. Customer-facing content typed manually at email send time. -->
         <textarea id="se-notes" style="display:none"></textarea>
@@ -7229,14 +7230,21 @@ function confirmDidNotBook(){
 }
 
 let currentEstimateLeadId=null;
-function openSendEstimate(leadId){currentEstimateLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('estimate-lead-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;document.getElementById('se-type').value=l.estimateType||'';document.getElementById('se-date').value=new Date().toISOString().split('T')[0];{const _seTb=document.getElementById('se-date-tbd');if(_seTb){_seTb.checked=(l.estimateDate==='TBD');seToggleDateTBD();}}document.getElementById('se-quote').value=l.estimateQuote||'';document.getElementById('se-notes').value=l.estimateNotes||'';populateStaffSelect('se-sent-by',l.estimateSentBy||'');openModal('send-estimate');}
+function openSendEstimate(leadId){currentEstimateLeadId=leadId;const l=db.leads.find(x=>x.id===leadId);if(!l)return;document.getElementById('estimate-lead-summary').innerHTML=`<strong>${l.name}</strong> · ${l.size||'Size TBD'} · ${fmtDate(l.date)}<br><span style="color:var(--text3)">${l.from||'—'} → ${l.to||'—'}</span>`;document.getElementById('se-type').value=l.estimateType||'';document.getElementById('se-date').value=new Date().toISOString().split('T')[0];{const _seTb=document.getElementById('se-date-tbd');if(_seTb){_seTb.checked=(l.estimateDate==='TBD');seToggleDateTBD();}}document.getElementById('se-quote').value=l.estimateQuote||'';document.getElementById('se-notes').value=l.estimateNotes||'';populateStaffSelect('se-sent-by',l.estimateSentBy||'');{const _ks=document.getElementById('se-keep-status');if(_ks)_ks.checked=false;}openModal('send-estimate');}
 function confirmEstimate(){
   const type=document.getElementById('se-type').value;
   const sentBy=document.getElementById('se-sent-by').value.trim();
   if(!type){showToast('Please select an estimate type.');return;}
   if(!sentBy){showToast('Please fill in who sent the estimate.');return;}
   const l=db.leads.find(x=>x.id===currentEstimateLeadId);if(!l)return;
-  l.estimateType=type;l.estimateDate=(document.getElementById('se-date-tbd')&&document.getElementById('se-date-tbd').checked)?'TBD':document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=sentBy;l.status='Estimate sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast('✓ Estimate logged — '+type+' for '+l.name);renderLeads();
+  l.estimateType=type;l.estimateDate=(document.getElementById('se-date-tbd')&&document.getElementById('se-date-tbd').checked)?'TBD':document.getElementById('se-date').value;l.estimateQuote=document.getElementById('se-quote').value;l.estimateNotes=document.getElementById('se-notes').value;l.estimateSentBy=sentBy;
+  // "Sent outside the app" backfills the estimate record WITHOUT touching status. Without this,
+  // logging an estimate that already went out would overwrite the lead's real stage — e.g. flip
+  // a 'Did not book' lead to 'Estimate sent'. That gap is why estimates sent by phone or personal
+  // email never got recorded, which is what left analytics guessing at who sent them.
+  const _keepStatus=!!(document.getElementById('se-keep-status')&&document.getElementById('se-keep-status').checked);
+  if(!_keepStatus){l.status='Estimate sent';l.statusUpdatedAt=new Date().toISOString().split('T')[0];}
+  nextStepSubModal=false;saveDB();closeModal('send-estimate');showToast(_keepStatus?('✓ Estimate recorded — status left as '+l.status):('✓ Estimate logged — '+type+' for '+l.name));renderLeads();
 }
 
 // ── SCHEDULE ESTIMATE ──
@@ -7280,7 +7288,13 @@ async function confirmScheduleEstimate(){
   l.estimateOfficeNotes=_scheOn;
   if(_scheOn)l.officeNotes=_scheOn; // sync to master
   l.estimateSetupBy=setupBy;
-  if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
+  // REMOVED 2026-08-19: this used to copy estimateSetupBy into estimateSentBy. Scheduling an
+  // estimate appointment and SENDING an estimate are different actions, often by different
+  // people — John books the on-site visit, Dave sends the quote. The copy made analytics credit
+  // (and debit) the scheduler for work they did not do; four leads were misattributed, three of
+  // them wins. estimateSentBy is now written ONLY by confirmSendEstimate, alongside estimateDate
+  // and estimateType, so the field means exactly one thing: an estimate was genuinely sent, by
+  // this person. estimateSetupBy still records who arranged the appointment.
   // Don't mark as scheduled yet — wait for checklist confirmation
   saveDB();
   closeModal('schedule-estimate');
@@ -7392,7 +7406,13 @@ function finishScheduleEstimate(){
       // Reset calendar added flag so they re-add for the new date
       l.estimateCalendarAdded=false;
     }
-    if(l.estimateSetupBy&&!l.estimateSentBy)l.estimateSentBy=l.estimateSetupBy;
+    // REMOVED 2026-08-19: this used to copy estimateSetupBy into estimateSentBy. Scheduling an
+  // estimate appointment and SENDING an estimate are different actions, often by different
+  // people — John books the on-site visit, Dave sends the quote. The copy made analytics credit
+  // (and debit) the scheduler for work they did not do; four leads were misattributed, three of
+  // them wins. estimateSentBy is now written ONLY by confirmSendEstimate, alongside estimateDate
+  // and estimateType, so the field means exactly one thing: an estimate was genuinely sent, by
+  // this person. estimateSetupBy still records who arranged the appointment.
     saveDB();renderLeads();
   }
   nextStepSubModal=false;
@@ -11562,7 +11582,12 @@ function getEstimateEvents(){
     // Skip if only a summary was sent — no price discussed
     if(!hasRoughQuote&&!hasFormalEstimate)return;
     // Resolve sent-by name
-    const rawName=(l.estimateSentBy||linkedQ?.sentBy||l.roughQuoteSentBy||l.takenBy||'').trim();
+    // ATTRIBUTION ORDER (changed 2026-08-19): a linked quote's sentBy comes FIRST. It is a hard
+    // record that a send actually happened and who did it, whereas estimateSentBy is a manual
+    // field that historically got populated by the scheduler. When the two disagree the quote is
+    // the better evidence — Salik Syed showed "Estimate sent by John" at the top of the lead while
+    // the quote right below it read "by Dave", and analytics believed the wrong one.
+    const rawName=(linkedQ?.sentBy||l.estimateSentBy||l.roughQuoteSentBy||l.takenBy||'').trim();
     const name=_sNorm(rawName);
     if(!name)return;
     // Resolve estimate type — map rough quote to correct label

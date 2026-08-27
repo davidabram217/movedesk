@@ -100,9 +100,28 @@ check('finishScheduleEstimate flips status to Estimate scheduled',
   /function finishScheduleEstimate\(\)[\s\S]{0,300}l\.status='Estimate scheduled'/.test(indexHtml)
 );
 
-// A9: estimateSentBy fallback to estimateSetupBy
-check('estimateSentBy falls back to estimateSetupBy if not already set',
-  /if\(l\.estimateSetupBy&&!l\.estimateSentBy\)l\.estimateSentBy=l\.estimateSetupBy/.test(indexHtml)
+// A9: (REVERSED 2026-08-19) scheduling must NOT write estimateSentBy.
+// The old fallback copied estimateSetupBy into estimateSentBy. Scheduling the appointment and
+// SENDING the estimate are different actions, often by different people (John books the on-site
+// visit, Dave sends the quote), so the copy made analytics credit and debit the wrong person.
+// Four leads were misattributed, three of them wins.
+check('scheduling does NOT copy estimateSetupBy into estimateSentBy',
+  !/if\(l\.estimateSetupBy&&!l\.estimateSentBy\)l\.estimateSentBy=l\.estimateSetupBy/.test(indexHtml)
+);
+check('estimateSentBy is still written when an estimate is genuinely SENT',
+  /l\.estimateSentBy=sentBy;/.test(indexHtml)
+);
+check('estimateSetupBy is still recorded by scheduling',
+  /l\.estimateSetupBy=setupBy;/.test(indexHtml)
+);
+check('attribution prefers the linked quote sentBy over estimateSentBy',
+  /const rawName=\(linkedQ\?\.sentBy\|\|l\.estimateSentBy\|\|l\.roughQuoteSentBy\|\|l\.takenBy\|\|''\)\.trim\(\)/.test(indexHtml)
+);
+check('confirmSendEstimate can record a send without changing status',
+  /const _keepStatus=[\s\S]{0,200}if\(!_keepStatus\)\{l\.status='Estimate sent'/.test(indexHtml)
+);
+check('the keep-status checkbox exists and resets on open',
+  /id="se-keep-status"/.test(indexHtml) && /_ks\.checked=false/.test(indexHtml)
 );
 
 // A10: Reschedule detection — if already scheduled, calendar flag resets
@@ -131,7 +150,7 @@ function scheduleEstimate(lead, doEmail, doCal) {
   // Step 1: confirmScheduleEstimate runs
   lead.estimateType = lead.estimateType || 'Onsite';
   lead.estimateScheduledDate = lead.estimateScheduledDate || '2026-06-20';
-  if (lead.estimateSetupBy && !lead.estimateSentBy) lead.estimateSentBy = lead.estimateSetupBy;
+  // (scheduling no longer writes estimateSentBy — see A9)
   events.push('confirmed');
 
   if (doEmail) {
@@ -201,11 +220,12 @@ function scheduleEstimate(lead, doEmail, doCal) {
   check('Neither checked: status flips immediately', lead.status === 'Estimate scheduled');
 }
 
-// B5: setupBy → sentBy fallback
+// B5: (REVERSED) scheduling leaves estimateSentBy alone
 {
   const lead = { id: 'L5', name: 'Eve', estimateSetupBy: 'John', status: 'New' };
   scheduleEstimate(lead, false, false);
-  check('estimateSentBy auto-populated from estimateSetupBy when missing', lead.estimateSentBy === 'John');
+  check('estimateSentBy NOT populated by scheduling', lead.estimateSentBy === undefined);
+  check('estimateSetupBy still recorded by scheduling', lead.estimateSetupBy === 'John');
 }
 
 // B6: sentBy preserved if already set
@@ -221,7 +241,7 @@ function scheduleEstimate(lead, doEmail, doCal) {
   // Run only the first part of the flow (confirm only, don't finish email/cal)
   lead.estimateType = 'Onsite';
   lead.estimateScheduledDate = '2026-06-20';
-  if (lead.estimateSetupBy && !lead.estimateSentBy) lead.estimateSentBy = lead.estimateSetupBy;
+  // (scheduling no longer writes estimateSentBy — see A9)
   // User opens email modal but closes browser tab — no doneEstimateEmail call
   check('If email step not completed, status does NOT flip to Estimate scheduled', lead.status === 'New');
   check('Lead still has the estimateType + date saved (data preserved)', lead.estimateType === 'Onsite' && lead.estimateScheduledDate === '2026-06-20');
