@@ -257,15 +257,6 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="card-body" id="staff-performance"></div>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Jobs booked with no estimate</div>
-            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Booked straight from a call or email — credited to whoever closed it</div>
-          </div>
-        </div>
-        <div class="card-body" id="direct-bookings"></div>
-      </div>
       
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
@@ -12029,7 +12020,17 @@ function openEstimateBreakdownDrilldown(name,key,which){
     const isBooked=['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status);
     const isLost=l.status==='Did not book';
     records.push({
-      kind:'lead',id:l.id,name:l.name,date:l.roughQuoteDate||l.estimateDate||l.createdAt,
+      // DATE (2026-08-19): a job booked on a call has no roughQuoteDate, estimateDate OR
+      // createdAt, so this rendered "—" for most rows in the "Booked on call" drill-down. The
+      // move date lives on the booked/completed job, which is the date actually worth seeing here.
+      kind:'lead',id:l.id,name:l.name,
+      date:l.roughQuoteDate||l.estimateDate||(function(){
+        const _b=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
+        if(_b&&_b.date)return _b.date;
+        const _c=(db.completedJobs||[]).find(c=>c.leadId===l.id);
+        if(_c&&_c.date)return _c.date;
+        return l.date||l.createdAt;
+      })(),
       status:l.status,isBooked,isLost,
       amount:l.roughQuoteMin?(l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?'$'+l.roughQuoteMin.toLocaleString()+'–$'+l.roughQuoteMax.toLocaleString():'$'+l.roughQuoteMin.toLocaleString()):'',
     });
@@ -12432,51 +12433,6 @@ function renderAnalytics(){
         }).join('')}
       </tbody>
     </table>`:`<div class="empty-state"><div class="empty-title">No staff data yet</div><div class="empty-sub">Assign team members when logging leads and estimates to see performance here</div></div>`;
-
-  // ── DIRECT BOOKINGS (booked with no estimate) ──
-  // A job booked straight off a phone call or email never reaches the staff table above: both
-  // gates there require a price to have been recorded (`if(!hasRoughQuote&&!hasFormalEstimate)
-  // return;`), so it is dropped before a name is even looked for. It counts in revenue but earns
-  // nobody any credit. Reported separately rather than folded into Jobs Booked, so Close rate
-  // (booked / estimates sent) keeps its meaning and cannot exceed 100%.
-  {
-    const _directByName={};
-    let _directUnattributed=0;
-    db.leads.filter(l=>['Booked','Completed'].includes(l.status)).forEach(function(l){
-      const hasRough=!!(l.roughQuoteDate||l.roughQuoteMin);
-      const hasFormal=!!(l.estimateType||(db.quotes||[]).some(q=>q.leadId===l.id)||l.estimateSentBy);
-      if(hasRough||hasFormal)return;              // it went through the estimate pipeline
-      const bj=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
-      const name=_sNorm(l.bookedBy||(bj&&bj.bookedBy)||l.takenBy||'');
-      if(!name){_directUnattributed++;return;}
-      if(!_directByName[name])_directByName[name]={count:0,revenue:0};
-      _directByName[name].count++;
-      const cj=(db.completedJobs||[]).find(c=>c.leadId===l.id);
-      _directByName[name].revenue+=Number(cj&&cj.paid)||0;
-    });
-    const _directEntries=Object.entries(_directByName).sort((a,b)=>b[1].count-a[1].count);
-    const _directEl=document.getElementById('direct-bookings');
-    if(_directEl){
-      _directEl.innerHTML=(_directEntries.length||_directUnattributed)?`
-        <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">
-          Jobs booked straight from a call or email with no estimate or quote. Counted separately so <strong>Close rate</strong> above stays estimates-only.
-        </div>
-        ${_directEntries.length?`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
-          <thead><tr>
-            <th style="text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Booked by</th>
-            <th style="text-align:right;padding:8px 12px;border-bottom:1px solid var(--border);font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Jobs</th>
-            <th style="text-align:right;padding:8px 12px;border-bottom:1px solid var(--border);font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Revenue</th>
-          </tr></thead>
-          <tbody>${_directEntries.map(function(e){return`<tr>
-            <td style="padding:10px 12px;border-bottom:1px solid var(--border);font-weight:600">${e[0]}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-weight:700;color:var(--accent)">${e[1].count}</td>
-            <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-weight:600">${fmtMoney(e[1].revenue)}</td>
-          </tr>`;}).join('')}</tbody>
-        </table>`:''}
-        ${_directUnattributed?`<div style="margin-top:10px;font-size:11.5px;color:var(--amber);font-weight:500">\u26a0 ${_directUnattributed} direct booking${_directUnattributed===1?'':'s'} with no \u201cBooked by\u201d set \u2014 open the job and fill it in to credit someone.</div>`:''}
-      `:`<div class="empty-state"><div class="empty-title">No direct bookings</div><div class="empty-sub">Jobs booked without an estimate will appear here</div></div>`;
-    }
-  }
 
   // ── ZIP CODE ANALYSIS ──
   const zipYear=document.getElementById('analytics-year')?.value||new Date().getFullYear().toString();
@@ -12965,7 +12921,13 @@ function renderAnalytics(){
   // Per-person how-booked breakdown
   const personPaths={};
   bookedLeads.forEach(l=>{
-    const name=_sNorm(l.estimateSentBy||l.takenBy||l.roughQuoteSentBy||'');
+    // ATTRIBUTION (2026-08-19): bookedBy comes FIRST. For a job booked on a call with no
+    // estimate, estimateSentBy is empty and this fell through to takenBy — whoever answered the
+    // phone — so the person who actually closed the job got no credit. bookedBy is set on the
+    // booking form and mirrored onto the lead; the booked job is the fallback for older records
+    // saved before the lead mirror existed.
+    const _bj=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
+    const name=_sNorm(l.bookedBy||(_bj&&_bj.bookedBy)||l.estimateSentBy||l.takenBy||l.roughQuoteSentBy||'');
     if(!name||!staffFilter.has(name))return;
     if(!personPaths[name])personPaths[name]={};
     const path=getBookingPath(l);

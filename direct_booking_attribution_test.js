@@ -101,8 +101,13 @@ const DB = {
 
 // ── wiring ───────────────────────────────────────────────────────────────────
 ok(/id="bj-booked-by"/.test(HTML), 'Booked by field on the booking form');
-ok(/id="direct-bookings"/.test(HTML), 'analytics card container exists');
-ok(/Jobs booked with no estimate/.test(HTML), 'the card is titled clearly');
+// The separate card was REMOVED 2026-08-19 — it duplicated the app's existing per-person
+// "How jobs get booked" panel and reported different numbers, which is worse than nothing.
+// bookedBy now feeds that existing panel instead.
+ok(!/id="direct-bookings"/.test(HTML), 'the duplicate card is gone');
+ok(/const name=_sNorm\(l\.bookedBy\|\|\(_bj&&_bj\.bookedBy\)\|\|l\.estimateSentBy\|\|l\.takenBy\|\|l\.roughQuoteSentBy\|\|''\)/.test(HTML),
+  'bookedBy is FIRST in the how-booked attribution');
+ok(/Booked on call — no estimate/.test(HTML), 'the existing booking-path category still exists');
 eq((HTML.match(/j\.bookedBy=\(document\.getElementById\('bj-booked-by'\)\|\|\{\}\)\.value\|\|'';/g) || []).length, 2,
   'BOTH write paths persist bookedBy (bjWriteFields and confirmBooking)');
 ok(/_l\.bookedBy=j\.bookedBy;/.test(HTML),
@@ -111,9 +116,12 @@ ok(/_bb\.value=l\.bookedBy\|\|\(_q&&_q\.sentBy\)\|\|l\.estimateSentBy\|\|l\.take
   'a fresh booking pre-fills from the quote/estimate sender so it is not retyped');
 ok(/draftSetIfHasValue\('bj-booked-by',_existingDraft\.bookedBy\)/.test(HTML), 'draft restore brings it back');
 ok(/_bb\.value=j\.bookedBy\|\|'';/.test(HTML), 'editBookedJob restores it \u2014 this is how it gets set retroactively');
-ok(/if\(hasRough\|\|hasFormal\)return;/.test(HTML), 'estimate-pipeline leads are excluded from the direct section');
-ok(/direct booking\$\{_directUnattributed===1\?'':'s'\} with no/.test(HTML),
-  'unattributed direct bookings are surfaced rather than hidden');
+// Dates: a job booked on a call has no roughQuoteDate/estimateDate/createdAt, so the
+// drill-down showed "—"; it now falls back to the booked/completed job's own date.
+ok(/const _b=\(db\.bookedJobs\|\|\[\]\)\.find\(b=>b\.leadId===l\.id&&!b\._draft\);\s*\n\s*if\(_b&&_b\.date\)return _b\.date;/.test(HTML),
+  'drill-down falls back to the booked job date');
+ok(/const _c=\(db\.completedJobs\|\|\[\]\)\.find\(c=>c\.leadId===l\.id\);\s*\n\s*if\(_c&&_c\.date\)return _c\.date;/.test(HTML),
+  'drill-down falls back to the completed job date');
 
 // Close rate must remain estimates-only.
 ok(/const rate=d\.sent\?Math\.round\(uniqueBooked\/d\.sent\*100\):0;/.test(HTML),
