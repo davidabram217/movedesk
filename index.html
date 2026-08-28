@@ -1188,7 +1188,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="modal-body" oninput="bjAutoSave()" onchange="bjAutoSave()">
       <div id="book-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div>
 
-      <div style="margin-bottom:14px"><button type="button" class="btn btn-primary" onclick="openPasteToBooking()" style="width:100%;font-size:13.5px;font-weight:700;padding:12px 12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)">📋 Paste booking details from an email or text →</button></div>
+      <div id="bj-paste-row" style="margin-bottom:14px"><button type="button" class="btn btn-primary" onclick="openPasteToBooking()" style="width:100%;font-size:13.5px;font-weight:700;padding:12px 12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)">📋 Paste booking details from an email or text →</button></div>
 
       <div id="bj-multiday-wrap" style="display:none;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);margin-bottom:12px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;margin-bottom:0">
@@ -1304,7 +1304,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
       </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-secondary" onclick="editingBookedJobId=null;document.querySelector('#modal-book-job .modal-title').textContent='Book this job';document.querySelector('#modal-book-job .btn-primary').textContent='Confirm booking';closeModal('book-job')">Cancel</button><button class="btn btn-primary" onclick="confirmBooking()">Confirm booking</button></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="editingBookedJobId=null;document.querySelector('#modal-book-job .modal-title').textContent='Book this job';document.getElementById('bj-submit-btn').textContent='Confirm booking';closeModal('book-job')">Cancel</button><button class="btn btn-primary" id="bj-submit-btn" onclick="confirmBooking()">Confirm booking</button></div>
   </div>
 </div>
 
@@ -8048,6 +8048,7 @@ function openBooking(leadId){
    const _fp=document.getElementById('bj-flat-price');if(_fp)_fp.value='';
    const _fc=document.getElementById('bj-flat-price-cash');if(_fc)_fc.value='';
    if(typeof bjToggleFlatRate==='function')bjToggleFlatRate();}
+  {const _pr=document.getElementById('bj-paste-row');if(_pr)_pr.style.display='';}
   {const _bb=document.getElementById('bj-booked-by');
    if(_bb){const _q=(db.quotes||[]).filter(x=>x.leadId===l.id&&x.sentBy).pop();
      _bb.value=l.bookedBy||(_q&&_q.sentBy)||l.estimateSentBy||l.takenBy||'';}}
@@ -8519,7 +8520,7 @@ function confirmBooking(){
     currentBookedJobId=j.id;
     editingBookedJobId=null;
     const titleEl=document.querySelector('#modal-book-job .modal-title');
-    const btnEl=document.querySelector('#modal-book-job .btn-primary');
+    const btnEl=document.getElementById('bj-submit-btn');
     if(titleEl)titleEl.textContent='Book job';
     if(btnEl)btnEl.textContent='Confirm booking';
     saveDB();closeModal('book-job');
@@ -9462,9 +9463,14 @@ function editBookedJob(jobId){
   if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=_bjLeadOn?.officeNotes||j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';
   {const uc=document.getElementById('bj-unload-crew');if(uc){uc.checked=!!j.unloadCrew;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display=j.unloadCrew?'block':'none';}if(j.unloadCrewSize){const el=document.getElementById('bj-unload-crew-size');if(el)el.value=j.unloadCrewSize;}if(document.getElementById('bj-unload-rate'))document.getElementById('bj-unload-rate').value=j.unloadRate||'';if(document.getElementById('bj-unload-hrs-min'))document.getElementById('bj-unload-hrs-min').value=j.unloadHrsMin||'';if(document.getElementById('bj-unload-hrs-max'))document.getElementById('bj-unload-hrs-max').value=j.unloadHrsMax||'';}
   const titleEl=document.querySelector('#modal-book-job .modal-title');
-  const btnEl=document.querySelector('#modal-book-job .btn-primary');
+  const btnEl=document.getElementById('bj-submit-btn');
   if(titleEl)titleEl.textContent='Edit booked job';
   if(btnEl)btnEl.textContent='Save changes';
+  // Pasting booking details over a job that is ALREADY booked makes no sense, so hide the paste
+  // row while editing. It is also what made the earlier bug so confusing: the paste button is the
+  // FIRST .btn-primary in this modal, so the old `#modal-book-job .btn-primary` selector renamed
+  // IT to "Save changes" while the real footer button still read "Confirm booking".
+  {const _pr=document.getElementById('bj-paste-row');if(_pr)_pr.style.display='none';}
   // Multi-day editor: show + load this job's days if it's multi-day; otherwise reset (toggle still
   // available so a single-day job could be converted).
   window._bjIsMultiDay=false;_bjKeptDays=[];window._bjQuoteDaysFull=[];window._bjQuoteForScope=null;
