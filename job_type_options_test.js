@@ -57,8 +57,9 @@ IDS.forEach(id=>{
   check(id+' exists',!!o);
   if(o)check(id+' offers exactly the canonical list, in order',JSON.stringify(o)===JSON.stringify(CANON));
 });
-check('canonical list has all 9 types',CANON.length===9);
-['Pack and move to storage','Load pod / truck only','Warehouse labor'].forEach(t=>
+// 10 since 2026-08-19 — "Unload pod / truck only" added alongside the Load variant.
+check('canonical list has all 10 types',CANON.length===10);
+['Pack and move to storage','Load pod / truck only','Unload pod / truck only','Warehouse labor'].forEach(t=>
   check('canonical list includes "'+t+'"',CANON.includes(t)));
 check('no dropdown still offers the legacy "Move & Pack"',!IDS.some(id=>(optionsOf(id)||[]).includes('Move & Pack')));
 check('no dropdown still offers the legacy "Storage In"',!IDS.some(id=>(optionsOf(id)||[]).includes('Storage In')));
@@ -80,7 +81,11 @@ check('no dropdown still offers the legacy "Storage Out"',!IDS.some(id=>(options
 });
 
 // ── 3. Every canonical type normalizes to a UNIQUE key (no accidental collisions) ──
-check('all 9 canonical types have distinct keys',new Set(CANON.map(norm)).size===9);
+check('all 10 canonical types have distinct keys',new Set(CANON.map(norm)).size===10);
+// norm() strips punctuation, so Load/Unload must stay distinguishable or historic pod jobs
+// would be silently recategorised.
+check('"Load pod / truck only" does not collide with "Unload pod / truck only"',
+  norm('Load pod / truck only')!==norm('Unload pod / truck only'));
 check('"Move" does not collide with "Move to storage"',norm('Move')!==norm('Move to storage'));
 check('"Pack and move" does not collide with "Pack and move to storage"',
   norm('Pack and move')!==norm('Pack and move to storage'));

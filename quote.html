@@ -121,7 +121,7 @@ footer a{color:var(--text2);text-decoration:none}
         <div class="field"><label>Square footage</label><input id="q-sqft" type="number" placeholder="e.g. 800"></div>
         <div class="field"><label>Type of move</label>
           <select id="q-movetype">
-            <option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Warehouse labor</option>
+            <option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option>
           </select>
         </div>
         <div class="field"><label>Packing needed?</label>
@@ -185,7 +185,7 @@ footer a{color:var(--text2);text-decoration:none}
         <div class="field full"><label>Additional notes</label><textarea id="q-notes" placeholder="Anything heavy or unusual? Piano, gym equipment, special handling, timing constraints…"></textarea></div>
         <div class="field full" id="f-source"><label>How did you hear about us?<span class="req">*</span></label>
           <select id="q-source" onchange="toggleSourceOther()">
-            <option value="">Select…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Realtor</option><option>Repeat customer</option><option>Social media</option><option>Other</option>
+            <option value="">Select…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Realtor</option><option>Stager</option><option>Repeat customer</option><option>Social media</option><option>Other</option>
           </select>
         </div>
         <div class="field full" id="q-source-other-group" style="display:none"><label id="q-source-other-label">Please specify</label><input id="q-source-other" type="text"></div>
@@ -290,9 +290,11 @@ function toggleSourceOther(){
   var val=v('q-source');
   var grp=document.getElementById('q-source-other-group');
   var lbl=document.getElementById('q-source-other-label');
-  var show=val==='Other'||val==='Referral'||val==='Google'||val==='ChatGPT';
+  var show=val==='Other'||val==='Referral'||val==='Google'||val==='ChatGPT'||val==='Realtor'||val==='Stager';
   grp.style.display=show?'flex':'none';
   if(val==='Referral')lbl.textContent='Who referred you?';
+  else if(val==='Realtor')lbl.textContent='Which realtor?';
+  else if(val==='Stager')lbl.textContent='Which stager?';
   else if(val==='Google'||val==='ChatGPT')lbl.textContent='What did you search for?';
   else lbl.textContent='Please specify';
 }
