@@ -11732,6 +11732,30 @@ function getEstimateEvents(){
     const pending=!booked&&!lost;
     events.push({name,estimateType,rate,booked,lost,pending,leadId:l.id,leadStatus:l.status,quoteStatus:linkedQ?.status||''});
   });
+  // ── Jobs booked with NO estimate and no quote ──────────────────────────────────────────────
+  // These fail both gates above (no rough quote, no formal estimate), so they never reached the
+  // rate chart — yet a rate WAS quoted, verbally, on the call. It is stored as rateRegular on the
+  // booked job and preserved as quotedRate on the completed job. They are pushed as a distinct
+  // `direct:true` event and deliberately NOT marked booked/lost/pending, so they can never move
+  // the sent/accepted percentages — a phone booking has no "sent then accepted" moment and
+  // counting it as an acceptance would make every rate look like a 100% close.
+  // ALWAYS the REGULAR rate, never the cash rate: if a customer is quoted $195/hr or $180 cash,
+  // $195 is the rate that won the job regardless of how they later paid.
+  db.leads.forEach(l=>{
+    if(!['Booked','Completed'].includes(l.status))return;
+    if(l.roughQuoteDate||l.roughQuoteMin||l.roughQuote)return;
+    if(l.estimateType||l.estimateSentBy)return;
+    if((db.quotes||[]).some(q=>q.leadId===l.id))return;
+    const _bj=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
+    const _cj=(db.completedJobs||[]).find(c=>c.leadId===l.id);
+    // Flat-rate jobs store no hourly rate, so they are correctly skipped by the !rate guard.
+    const _rate=Math.round(Number(_bj&&_bj.rateRegular)||Number(_cj&&_cj.quotedRate)||0);
+    if(!_rate)return;
+    const _name=_sNorm(l.bookedBy||(_bj&&_bj.bookedBy)||l.takenBy||'');
+    events.push({name:_name,estimateType:'Booked on call',rate:_rate,
+      booked:false,lost:false,pending:false,direct:true,
+      leadId:l.id,leadStatus:l.status,quoteStatus:''});
+  });
   // Also scan completed jobs for rough quotes that were backfilled there (no matching lead, or
   // the rough quote lives on the completed job itself rather than the lead).
   (db.completedJobs||[]).forEach(cj=>{
@@ -13209,7 +13233,11 @@ function renderActivityPatterns(){
   _rv.forEach(e=>{
     if(!e.rate)return;
     const bucket='$'+e.rate+'/hr';
-    if(!_rg[bucket])_rg[bucket]={sent:0,accepted:0,rate:e.rate};
+    if(!_rg[bucket])_rg[bucket]={sent:0,accepted:0,direct:0,rate:e.rate};
+    // Direct bookings are counted in their OWN column and never touch sent/accepted — a phone
+    // booking has no "sent then accepted" moment, so folding it in would make the acceptance
+    // percentage meaningless (every direct booking would read as a 100% close).
+    if(e.direct){_rg[bucket].direct++;return;}
     _rg[bucket].sent++;
     if(e.booked)_rg[bucket].accepted++;
   });
@@ -13221,16 +13249,21 @@ function renderActivityPatterns(){
         <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Quoted</th>
         <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Accepted</th>
         <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Rate</th>
+        <th style="text-align:right;padding:7px 10px;border-bottom:2px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500" title="Booked straight from a call at this rate — no estimate sent, so not part of the acceptance rate">Booked on call</th>
         <th style="padding:7px 10px;border-bottom:2px solid var(--border);min-width:120px"></th>
       </tr></thead>
       <tbody>${_rgEntries.map(([bucket,d])=>{
         const pct=d.sent>0?Math.round(d.accepted/d.sent*100):0;
         const color=pct>=70?'var(--accent)':pct>=50?'var(--amber)':'var(--error)';
+        // A rate seen ONLY on phone bookings has no acceptance rate to report — show a dash
+        // rather than a 0% that would read as "nobody accepts this rate".
+        const _noSent=d.sent===0;
         return`<tr>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${bucket}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${d.sent}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${color}">${d.accepted}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${color}">${pct}%</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${_noSent?'\u2014':d.sent}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${_noSent?'var(--text3)':color}">${_noSent?'\u2014':d.accepted}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${_noSent?'var(--text3)':color}">${_noSent?'\u2014':pct+'%'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${d.direct?'var(--text)':'var(--text3)'}">${d.direct||'\u2014'}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border)">
             <div style="background:var(--surface2);border-radius:3px;height:8px">
               <div style="height:100%;border-radius:3px;background:${color};width:${pct}%;transition:width .5s"></div>
