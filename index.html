@@ -11548,7 +11548,7 @@ function openUpdatePayment(jobId){
       <div><div style="font-size:10.5px;color:var(--text3)">Still owing</div><div style="font-weight:600;color:var(--amber)">${fmtMoney(owed)}</div></div>
     </div>`;
   document.getElementById('up-notes').value='';
-  document.getElementById('up-method').selectedIndex=0;
+  {const _m=document.getElementById('up-method');if(_m){_m.value=j.payment||'Cash';if(!_m.value)_m.selectedIndex=0;}}
   // Default to recording a payment when money is owed; to correcting when it is not, since the only
   // reason to open this on a settled job is to undo a mistake.
   setUpdatePaymentMode(owed>0?'add':'fix');
@@ -11567,7 +11567,13 @@ function setUpdatePaymentMode(mode){
   if(on){on.style.background='var(--accent)';on.style.color='#fff';}
   if(off){off.style.background='var(--surface2)';off.style.color='var(--text2)';}
   document.getElementById('up-amount-label').textContent=isFix?'Total paid should be ($) *':'Amount received ($) *';
-  document.getElementById('up-method-wrap').style.display=isFix?'none':'';
+  // Shown in BOTH modes (2026-08-19). It used to be hidden in fix mode, which meant a payment
+  // logged with the wrong method could not be corrected here at all — the one screen whose whole
+  // purpose is correcting a payment.
+  document.getElementById('up-method-wrap').style.display='';
+  {const _mw=document.getElementById('up-method-wrap');
+   const _ml=_mw&&_mw.querySelector?_mw.querySelector('label'):null;
+   if(_ml)_ml.textContent=isFix?'Payment method — correct it here':'Payment method';}
   document.getElementById('up-balance-label').textContent=isFix?'Balance after correction':'Remaining after payment';
   document.getElementById('up-save-btn').textContent=isFix?'Save correction':'Save payment';
   document.getElementById('up-notes').placeholder=isFix?'e.g. marked paid in full by mistake':'e.g. paid remaining balance via e-transfer';
@@ -11615,18 +11621,27 @@ function confirmUpdatePayment(){
     if(raw===''||isNaN(entered)||entered<0){showToast('Enter what the total paid should be (0 or more).');return;}
     if(entered>total){showToast(`That is more than the ${fmtMoney(total)} charged. Edit the job total first if the job was worth more.`);return;}
     const prev=Number(j.paid)||0;
-    if(entered===prev){showToast('That is already the amount on record.');return;}
+    const _method=document.getElementById('up-method').value;
+    const _methodChanged=_method&&_method!==(j.payment||'');
+    // A method-only correction is legitimate — the amount can be right while the method is wrong —
+    // so only bail out when NEITHER has changed.
+    if(entered===prev&&!_methodChanged){showToast('That is already what is on record.');return;}
     // No audit row is written. A correction means the office recorded the wrong number, so it just
     // sets the right one — same as editing "Amount paid" in the Edit Completed Job form. Corrections
     // must NEVER be written into paymentHistory: every payment reader (customer receipts, the
     // analytics payment-method chart) treats those rows as real money.
     j.paid=entered;
+    if(_methodChanged)j.payment=_method;
     remaining=Math.max(0,total-j.paid);
     j.owing=remaining;
     j.paymentState=remaining<=0?'paid':'owing';
+    j._localEditedAt=new Date().toISOString();
     saveDB();
     closeModal('update-payment');
-    showToast(remaining>0?`✓ Corrected — ${j.name} now owes ${fmtMoney(remaining)}`:`✓ Corrected — ${j.name} paid in full`);
+    const _msg=(entered!==prev)
+      ?(remaining>0?`✓ Corrected — ${j.name} now owes ${fmtMoney(remaining)}`:`✓ Corrected — ${j.name} paid in full`)
+      :`✓ Payment method corrected to ${_method}`;
+    showToast(_msg);
   } else {
     // Record a payment received (unchanged behaviour: add-only, clamped to the total).
     if(!entered||entered<=0){showToast('Please enter an amount received.');return;}
