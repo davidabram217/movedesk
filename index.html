@@ -13065,8 +13065,25 @@ function _packBucket(v){
   if(_PACK_FULL.includes(t))return 'fullPack';
   return 'other';   // kitchen only, fragiles, partial — deliberately excluded from both tables
 }
+// Sizes that cannot inform a quote. "Other" is a catch-all with no shared meaning, and David
+// asked for both of these out. "Unknown size" is deliberately KEPT — it is not a category anyone
+// chose, it is jobs where size was never recorded, and hiding it would hide how much data is
+// going uncaptured.
+const _SIZE_EXCLUDE=['other','storage unit'];
+// A SINGLE-DAY job cannot run longer than this. One completed job on record reads 60.75 hours
+// with 3 movers — a mistyped 6.75 — and on its own it dragged the 2-bedroom average from about
+// 7 hours to 18, placing it above the 3-bedroom row. Rather than let one keystroke poison a
+// benchmark, implausible single-day totals are excluded and COUNTED, so the exclusion is visible
+// rather than silent. Multi-day jobs legitimately exceed this and are not capped.
+const _MAX_SINGLE_DAY_HOURS=24;
+function _vaultKey(v){
+  const n=Number(v)||0;
+  if(n<=0)return null;
+  const r=Math.round(n);
+  return (r<=1?'1 vault':r+' vaults');
+}
 function computeJobTimeBySize(){
-  const out={moveOnly:{},fullPack:{}};
+  const out={moveOnly:{},fullPack:{},vaultMoveOnly:{},vaultFullPack:{},skipped:0};
   (db.completedJobs||[]).forEach(j=>{
     const bucket=_packBucket(j.packing);
     if(bucket==='other')return;
@@ -13077,21 +13094,38 @@ function computeJobTimeBySize(){
     // A full-pack job with no pack hours recorded would understate the total, so it is skipped
     // rather than quietly averaged in as if packing took no time.
     if(bucket==='fullPack'&&ph<=0)return;
+    if(!j.multiDay&&total>_MAX_SINGLE_DAY_HOURS){out.skipped++;return;}
     const men=Number(j.moveMen)||0;
     const packMen=Number(j.packMen)||men;
     const manHours=(mh*men)+(ph*packMen);
+    const rec={total,mh,ph,men,manHours,value:Number(j.total)||0};
     const k=_sizeKey(j.size);
-    if(!out[bucket][k])out[bucket][k]=[];
-    out[bucket][k].push({total,mh,ph,men,manHours,value:Number(j.total)||0});
+    if(!_SIZE_EXCLUDE.includes(String(k).toLowerCase())){
+      if(!out[bucket][k])out[bucket][k]=[];
+      out[bucket][k].push(rec);
+    }
+    // Vault tables are independent of size: vaults measure actual volume, whereas "2 bedroom" is
+    // a proxy that varies enormously. A job with no vault count recorded simply does not appear.
+    const vk=_vaultKey(j.vaults);
+    if(vk){
+      const vb=bucket==='fullPack'?'vaultFullPack':'vaultMoveOnly';
+      if(!out[vb][vk])out[vb][vk]=[];
+      out[vb][vk].push(rec);
+    }
   });
   return out;
 }
-function _jobTimeTable(bySize,emptyMsg){
-  const keys=Object.keys(bySize).sort((a,b)=>bySize[b].length-bySize[a].length);
+function _jobTimeTable(bySize,emptyMsg,colLabel){
+  const _isVault=colLabel==='Vaults';
+  // Vault rows read as a scale, so sort them numerically; size rows sort by sample size so the
+  // best-evidenced categories come first.
+  const keys=Object.keys(bySize).sort(_isVault
+    ?(a,b)=>parseFloat(a)-parseFloat(b)
+    :(a,b)=>bySize[b].length-bySize[a].length);
   if(!keys.length)return `<div style="font-size:12px;color:var(--text3);padding:8px 0">${emptyMsg}</div>`;
   return `<table style="width:100%;border-collapse:collapse;margin-top:6px">
     <thead><tr>
-      <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Size</th>
+      <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">${colLabel||'Size'}</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg total hrs</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Range</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg crew</th>
@@ -13163,11 +13197,16 @@ function renderPerDayInsights(){
     const _jt=computeJobTimeBySize();
     html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 moving only</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed jobs with no packing. Total hours on site, start to finish.</div>`;
-    html+=_jobTimeTable(_jt.moveOnly,'No completed move-only jobs with recorded hours yet.');
+    html+=_jobTimeTable(_jt.moveOnly,'No completed move-only jobs with recorded hours yet.','Size');
+    html+=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">By vault count \u2014 actual volume moved, rather than bedrooms</div>`;
+    html+=_jobTimeTable(_jt.vaultMoveOnly,'No move-only jobs with a vault count recorded yet.','Vaults');
     html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 full pack &amp; move</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed full-pack jobs. Total hours = packing + moving combined.</div>`;
-    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.');
-    html+=`<div style="font-size:10.5px;color:var(--text3);margin-top:6px">Partial packs (kitchen only, fragiles, part pack) are excluded from both tables \u2014 they sit between the two and would blur the comparison.</div>`;
+    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.','Size');
+    html+=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">By vault count \u2014 actual volume moved, rather than bedrooms</div>`;
+    html+=_jobTimeTable(_jt.vaultFullPack,'No full-pack jobs with a vault count recorded yet.','Vaults');
+    html+=`<div style="font-size:10.5px;color:var(--text3);margin-top:6px">Partial packs (kitchen only, fragiles, part pack) are excluded \u2014 they sit between the two and would blur the comparison. \u201cOther\u201d and \u201cStorage unit\u201d sizes are excluded too. Vault tables cover only jobs with a vault count recorded.</div>`;
+    if(_jt.skipped)html+=`<div style="font-size:10.5px;color:var(--amber);margin-top:4px">\u26a0 ${_jt.skipped} single-day job${_jt.skipped===1?'':'s'} excluded for implausible hours (over ${_MAX_SINGLE_DAY_HOURS}h in one day) \u2014 almost always a typo. Worth correcting on the completed job so it counts.</div>`;
   }
 
   // Multi-day whole-job section
