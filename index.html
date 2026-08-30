@@ -12078,7 +12078,15 @@ function openEstimateBreakdownDrilldown(name,key,which){
     const cj=db.completedJobs.find(x=>x.id===cjid);
     if(!cj)return;
     records.push({
-      kind:'completed',id:cj.id,name:cj.name,date:cj.roughQuoteDate||cj.date,
+      // Last-resort date fallbacks (2026-08-19). cj.date is the actual job date and already falls
+      // back to the booked job's date at completion time, so a blank here means neither was ever
+      // set — usually an older record completed before the date field was filled in. Reach for the
+      // originating lead's date rather than printing a bare dash.
+      kind:'completed',id:cj.id,name:cj.name,
+      date:cj.roughQuoteDate||cj.date||(function(){
+        const _l=db.leads.find(x=>x.id===cj.leadId);
+        return (_l&&(_l.date||_l.estimateDate||_l.createdAt))||'';
+      })(),
       status:'Completed',isBooked:true,isLost:false,
       amount:cj.roughQuoteMin?(cj.roughQuoteMax&&cj.roughQuoteMax!==cj.roughQuoteMin?'$'+cj.roughQuoteMin.toLocaleString()+'–$'+cj.roughQuoteMax.toLocaleString():'$'+cj.roughQuoteMin.toLocaleString()):'',
     });
@@ -13041,6 +13049,73 @@ function computeMultiDayJobInsights(){
   });
   return{n:jobs.length,bySize:bySize};
 }
+// ── Total job time by size, split by packing scope ──────────────────────────
+// The per-activity table above answers "how long does PACKING take on a 2-bed" — it splits a
+// job into its moving and packing halves. This answers a different question: how long does the
+// WHOLE job take, for a move-only job versus a full pack-and-move. They are not the same
+// number, and quoting off the wrong one is how a full pack gets under-quoted.
+//
+// Total hours = move hours + pack hours. Man-hours (hours x crew) is shown alongside because
+// hours alone is misleading: 8 hours with 2 movers and 8 hours with 4 are very different jobs.
+const _PACK_MOVE_ONLY=['no \u2014 just moving','no - just moving','no','none','just moving',''];
+const _PACK_FULL=['full pack','full pack and move','pack and move'];
+function _packBucket(v){
+  const t=String(v==null?'':v).toLowerCase().replace(/\s+/g,' ').trim();
+  if(_PACK_MOVE_ONLY.includes(t))return 'moveOnly';
+  if(_PACK_FULL.includes(t))return 'fullPack';
+  return 'other';   // kitchen only, fragiles, partial — deliberately excluded from both tables
+}
+function computeJobTimeBySize(){
+  const out={moveOnly:{},fullPack:{}};
+  (db.completedJobs||[]).forEach(j=>{
+    const bucket=_packBucket(j.packing);
+    if(bucket==='other')return;
+    const mh=Number(j.hours)||0;
+    const ph=Number(j.packHoursActual)||0;
+    const total=mh+ph;
+    if(total<=0)return;
+    // A full-pack job with no pack hours recorded would understate the total, so it is skipped
+    // rather than quietly averaged in as if packing took no time.
+    if(bucket==='fullPack'&&ph<=0)return;
+    const men=Number(j.moveMen)||0;
+    const packMen=Number(j.packMen)||men;
+    const manHours=(mh*men)+(ph*packMen);
+    const k=_sizeKey(j.size);
+    if(!out[bucket][k])out[bucket][k]=[];
+    out[bucket][k].push({total,mh,ph,men,manHours,value:Number(j.total)||0});
+  });
+  return out;
+}
+function _jobTimeTable(bySize,emptyMsg){
+  const keys=Object.keys(bySize).sort((a,b)=>bySize[b].length-bySize[a].length);
+  if(!keys.length)return `<div style="font-size:12px;color:var(--text3);padding:8px 0">${emptyMsg}</div>`;
+  return `<table style="width:100%;border-collapse:collapse;margin-top:6px">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Size</th>
+      <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg total hrs</th>
+      <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Range</th>
+      <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg crew</th>
+      <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Man-hrs</th>
+      <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Jobs</th>
+    </tr></thead>
+    <tbody>${keys.map(k=>{
+      const rows=bySize[k];
+      const totals=rows.map(r=>r.total);
+      const avg=_round5(_avg(totals));
+      const lo=Math.min.apply(null,totals), hi=Math.max.apply(null,totals);
+      const crew=_avg(rows.map(r=>r.men));
+      const mh=Math.round(_avg(rows.map(r=>r.manHours)));
+      const thin=rows.length<3;
+      return `<tr>
+        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);font-weight:600">${k}</td>
+        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-weight:700">${avg}</td>
+        <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);font-family:'DM Mono',monospace">${_round5(lo)}\u2013${_round5(hi)}</td>
+        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${crew?crew.toFixed(1):'\u2014'}</td>
+        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${mh||'\u2014'}</td>
+        <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:${thin?'var(--amber)':'var(--text3)'}" title="${thin?'Only a few jobs \u2014 treat as indicative':''}">${rows.length}${thin?' \u26a0':''}</td>
+      </tr>`;}).join('')}</tbody></table>`;
+}
+
 function renderPerDayInsights(){
   const host=document.getElementById('perday-insights-chart');
   if(!host)return;
@@ -13082,6 +13157,19 @@ function renderPerDayInsights(){
       </div>`;
     });
   }
+  // Whole-job time by size, split by packing scope. Placed before the multi-day section because
+  // it is the figure used most often when quoting.
+  {
+    const _jt=computeJobTimeBySize();
+    html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 moving only</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed jobs with no packing. Total hours on site, start to finish.</div>`;
+    html+=_jobTimeTable(_jt.moveOnly,'No completed move-only jobs with recorded hours yet.');
+    html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 full pack &amp; move</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed full-pack jobs. Total hours = packing + moving combined.</div>`;
+    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.');
+    html+=`<div style="font-size:10.5px;color:var(--text3);margin-top:6px">Partial packs (kitchen only, fragiles, part pack) are excluded from both tables \u2014 they sit between the two and would blur the comparison.</div>`;
+  }
+
   // Multi-day whole-job section
   if(md.n>0){
     const sizes=Object.keys(md.bySize).sort();
