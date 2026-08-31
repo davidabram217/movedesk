@@ -1488,7 +1488,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="cjmd-yelp" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="cjmd-damage" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="cjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
+          <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type" onchange="autoFillInsuranceFeeMd()"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         </div>
       </div>
@@ -1934,7 +1934,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="ecjmd-yelp" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="ecjmd-damage" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
-          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
+          <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type" onchange="autoFillInsuranceFeeEcjmd()"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         </div>
       </div>
@@ -9567,21 +9567,36 @@ function confirmCancelJob(){
 }
 
 let currentCompleteJobId=null;
-function autoFillInsuranceFee(){
-  const type=document.getElementById('cj-insurance-type')?.value||'';
-  const feeMap={
-    'Option 1 — Actual Cash Value ($150)':150,
-    'Option 2 — Full Value Protection, No Deductible ($300)':300,
-    'Option 2 — Full Value Protection, $250 Deductible ($100)':100,
-    'Option 2 — Full Value Protection, $500 Deductible ($50)':50,
-    'Option 3 — Basic Liability (included)':0,
-    'Did not get an answer':0
-  };
-  if(type&&feeMap[type]!==undefined){
-    document.getElementById('cj-insurance').value=feeMap[type]||'';
-    calcTotal();
-  }
+// One fee map, shared by every completion form. The three insurance dropdowns (single-day,
+// multi-day, edit-multi-day) offer identical option text, so they can all resolve through this.
+const _INSURANCE_FEE_MAP={
+  'Option 1 — Actual Cash Value ($150)':150,
+  'Option 2 — Full Value Protection, No Deductible ($300)':300,
+  'Option 2 — Full Value Protection, $250 Deductible ($100)':100,
+  'Option 2 — Full Value Protection, $500 Deductible ($50)':50,
+  'Option 3 — Basic Liability (included)':0,
+  'Did not get an answer':0
+};
+// Fills the fee box from the chosen insurance option and recalculates.
+// `typeId`/`feeId` are passed so multi-day can reuse it — previously only the single-day form
+// had an onchange handler, so on a multi-day job the fee had to be typed in by hand or the
+// total came out short.
+function _autoFillInsurance(typeId,feeId,recalc){
+  const type=document.getElementById(typeId)?.value||'';
+  if(!type||_INSURANCE_FEE_MAP[type]===undefined)return;
+  const feeEl=document.getElementById(feeId);
+  if(!feeEl)return;
+  // Never overwrite a hand-typed figure that does not match ANY option's fee — an override like
+  // a negotiated premium is deliberate and must survive changing the dropdown.
+  const cur=String(feeEl.value==null?'':feeEl.value).trim();
+  const knownFees=Object.values(_INSURANCE_FEE_MAP).map(String);
+  if(cur!==''&&cur!=='0'&&knownFees.indexOf(cur)===-1)return;
+  feeEl.value=_INSURANCE_FEE_MAP[type]||'';
+  if(typeof recalc==='function')recalc();
 }
+function autoFillInsuranceFee(){_autoFillInsurance('cj-insurance-type','cj-insurance',typeof calcTotal==='function'?calcTotal:null);}
+function autoFillInsuranceFeeMd(){_autoFillInsurance('cjmd-insurance-type','cjmd-insurance',typeof calcMultiDayTotal==='function'?calcMultiDayTotal:null);}
+function autoFillInsuranceFeeEcjmd(){_autoFillInsurance('ecjmd-insurance-type','ecjmd-insurance',typeof calcEditMultiDayTotal==='function'?calcEditMultiDayTotal:null);}
 // ── "Do not exceed" price cap ───────────────────────────────────────────────
 // A capped job is one where the work genuinely came to (say) $3,000 but the customer was
 // quoted a not-to-exceed price of $2,800, so $2,800 is what they were charged.
