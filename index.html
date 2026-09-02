@@ -4974,7 +4974,22 @@ function fmtDate(d){if(!d)return'—';if(d==='TBD')return'TBD';const dt=new Date
 // Like fmtDate but includes the weekday — used specifically in the confirmation email so the
 // customer sees "Thursday, Jun 4, 2026" rather than just "Jun 4, 2026". Not used anywhere else
 // in the app — the standard fmtDate is preferred for compact UI displays (lead cards, lists, etc.).
-function fmtDateWithDay(d){if(!d)return'—';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});}
+function fmtDateWithDay(d){
+  if(!d)return'—';
+  if(d==='TBD')return'TBD';
+  // Guard added 2026-08-19. fmtDate has always handled 'TBD' and unparseable values; this one
+  // did not, so any day carrying a non-ISO date printed the literal string "Invalid Date" into
+  // a CUSTOMER-FACING confirmation email — reported on day 3 of a 3-day booking. Accept a
+  // yyyy-mm-dd value, fall back to whatever was stored rather than "Invalid Date", so a human
+  // can still read it and spot the problem.
+  const dt=new Date(String(d)+'T12:00:00');
+  if(isNaN(dt.getTime())){
+    const alt=new Date(String(d));
+    if(!isNaN(alt.getTime()))return alt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+    return String(d);
+  }
+  return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
+}
 function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 // Resolves the best-available "what was quoted" data for a completed job.
 // Priority: formal quote (db.quotes) → rough quote on the linked lead → rough quote saved
