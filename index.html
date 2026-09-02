@@ -6135,9 +6135,14 @@ function buildMoveDetailsBlock(l,bj){
         const flatCash=Number(day.flatPriceCash)||0;
         if(flatPrice)s+='\n'+(day.flatDescription||'Move services')+': $'+_fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+_fmtRate(flatCash)+' If Paid Cash)':'');
       } else if(rate){
-        s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(dayCash?' ($'+_fmtRate(dayCash)+' If Paid Cash)':'');
-        if(day.hrsMin)s+='\n'+day.hrsMin+' hour minimum';
-      }
+        // HOURS REMOVED from the customer confirmation email (2026-08-19, David). An hour minimum or
+      // an estimated hours range on a confirmation reads as a commitment and invites a dispute when
+      // the real job runs longer. The RATE line stays — the customer still sees crew size and $/hr —
+      // and the dollar-range fee lines (which reuse the hrsMin/hrsMax field names for MONEY, not
+      // hours) are untouched. hrsMin/hrsMax remain stored on the job and still drive quotes and
+      // analytics; only this email stops printing them.
+      s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(dayCash?' ($'+_fmtRate(dayCash)+' If Paid Cash)':'');
+        }
       // Day-specific fees. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMD=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
       const bjMatFeeMD=isDay1?(Number(bj?.feeMaterials)||0):(Number(day.feeMaterials)||0);
@@ -6204,7 +6209,6 @@ function buildMoveDetailsBlock(l,bj){
       if(flatPrice)s+='\n'+(d.flatDescription||'Move services')+': $'+_fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+_fmtRate(flatCash)+' If Paid Cash)':'');
     } else if(rate){
       s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(cashRate?' ($'+_fmtRate(cashRate)+' If Paid Cash)':'');
-      if(d.hrsMin)s+='\n'+d.hrsMin+' hour minimum';
     }
     // Fee precedence: booking fuel/materials win over quote's matching fee lines
     var bjFuelFeeS=Number(bj?.feeFuel)||0;
@@ -6252,12 +6256,11 @@ function buildMoveDetailsBlock(l,bj){
       s+='\n'+_crew+' @ $'+_fmtRate(bj.rateRegular)+' Per Hour'+(bj.rateCash?' ($'+_fmtRate(bj.rateCash)+' If Paid Cash)':'');
       if(_hasUnload){
         const _un=(bj.unloadCrewSize||bj.crewUnload||bj.movers||'?')+' Movers – Unload';
-        s+='\n'+_un+' @ $'+_fmtRate(bj.unloadRate)+' Per Hour'+((bj.unloadHrsMin||bj.unloadHrsMax)?' · '+(bj.unloadHrsMin||'?')+'–'+(bj.unloadHrsMax||'?')+' hrs':'');
+        s+='\n'+_un+' @ $'+_fmtRate(bj.unloadRate)+' Per Hour';
       }
     }
     // Hour minimum from quoteDays if present
     const qd0=bj&&bj.quoteDays&&bj.quoteDays[0];
-    if(qd0&&qd0.hrsMin)s+='\n'+qd0.hrsMin+' hour minimum';
     if(bj?.feeFuel)s+='\n$'+_fmtRate(bj.feeFuel)+' Fuel Fee';
     if(bj?.feeMaterials)s+='\n$'+_fmtRate(bj.feeMaterials)+' Material Fee';
     if((l?.packing||bj?.packing)&&(l?.packing||bj?.packing)!=='No — just moving')s+='\nPacking Materials Used - TBD';
@@ -6372,8 +6375,7 @@ function openConfirmEmail(leadId,bookedJob){
         }
       } else if(rate){
         moveDetailsSection+='\n'+crew+' Movers @ $'+fmtRate(rate)+' Per Hour'+(dayCash?' ($'+fmtRate(dayCash)+' If Paid Cash)':'');
-        if(day.hrsMin)moveDetailsSection+='\n'+day.hrsMin+' hour minimum';
-      }
+        }
       // Fees for this day. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMulti=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
       const bjMatFeeMulti=isDay1?(Number(bj?.feeMaterials)||0):(Number(day.feeMaterials)||0);
