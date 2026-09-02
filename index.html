@@ -1711,13 +1711,14 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         ✓ Review and edit the email below before sending
       </div>
       <div class="form-grid" style="gap:12px">
+        <div id="ce-draft-notice" style="display:none;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;margin-bottom:12px;background:var(--amber-light);border:1px solid #f0d080;border-radius:var(--radius);font-size:12px"><span id="ce-draft-notice-text" style="color:var(--text2)"></span><button type="button" class="btn btn-secondary btn-sm" onclick="ceStartFresh()" style="white-space:nowrap">Start fresh</button></div>
         <div class="form-group">
           <label>To</label>
-          <input type="email" id="ce-to" placeholder="customer@email.com">
+          <input type="email" id="ce-to" placeholder="customer@email.com" oninput="autoSaveConfirmEmail()">
         </div>
         <div class="form-group">
           <label>Subject</label>
-          <input type="text" id="ce-subject">
+          <input type="text" id="ce-subject" oninput="autoSaveConfirmEmail()">
         </div>
         <div class="form-group">
           <label>Message</label>
@@ -6570,7 +6571,11 @@ function openConfirmEmail(leadId,bookedJob){
   document.getElementById('ce-subject').value=subject;
   document.getElementById('ce-body').value=body;
   // Only load draft if it was saved recently (don't use old cached bodies)
-  if(l?._confirmEmailDraft&&l._confirmEmailDraft.savedAt&&l._confirmEmailDraft.savedAt>new Date(Date.now()-3600000).toISOString()){
+  // Draft window widened from 1 HOUR to 7 days (2026-08-19, David). The clock was never what
+  // protected against stale drafts — the sourceFingerprint below does that, and does it properly.
+  // An hour just meant that typing an email, being pulled away, and coming back after lunch lost
+  // everything.
+  if(l?._confirmEmailDraft&&l._confirmEmailDraft.savedAt&&l._confirmEmailDraft.savedAt>new Date(Date.now()-7*24*3600000).toISOString()){
     // Always restore "to" — if the user manually typed/corrected the recipient, that should persist.
     document.getElementById('ce-to').value=l._confirmEmailDraft.to||lEmail;
     // FIX (2026-05-28): only restore body+subject if the auto-generated source data hasn't
@@ -6586,15 +6591,27 @@ function openConfirmEmail(leadId,bookedJob){
       feeFuel:bj.feeFuel||'',feeMaterials:bj.feeMaterials||''
     }:null;
     const _fingerprintMatches=_saved&&_current&&JSON.stringify(_saved)===JSON.stringify(_current);
-    // If we have NO saved fingerprint (old draft from before this fix shipped), be conservative
-    // and rebuild fresh — the date might be stale, and the user can re-type any customizations.
-    const _restoreBody=_saved?_fingerprintMatches:false;
+    // When there is NO booked job, both fingerprints are null. That is not a stale draft — it is a
+    // job with no source data that could go stale — yet the old rule discarded the body every
+    // single time, which is why typing an email for an unbooked lead always started from scratch.
+    // Restore it in that case. (2026-08-19)
+    const _noSourceEitherSide=!_saved&&!_current;
+    // A saved fingerprint with no current bj still rebuilds: the job HAS source data, we just
+    // cannot compare, so being conservative is right.
+    const _restoreBody=_noSourceEitherSide?true:(_saved?_fingerprintMatches:false);
     if(_restoreBody){
       document.getElementById('ce-subject').value=l._confirmEmailDraft.subject||subject;
       document.getElementById('ce-body').value=l._confirmEmailDraft.body||body;
     }
     // Otherwise: keep the freshly-built subject and body already in the textareas above.
+    // Restoring silently is confusing — you cannot tell whether you are looking at your own words
+    // or a rebuild. Say so, and offer a one-click way back to a clean copy.
+    _setConfirmDraftNotice(_restoreBody?l._confirmEmailDraft.savedAt:null);
+  } else {
+    _setConfirmDraftNotice(null);
   }
+  // Stash the freshly-built versions so "Start fresh" can restore them without reopening.
+  window._ceFreshSubject=subject;window._ceFreshBody=body;
   openModal('confirm-email');
 }
 
@@ -9028,6 +9045,35 @@ function resetJobCal(jobId){
   saveDB();
   renderBookingChecklist();
   showToast('↩ Calendar reset — add again');
+}
+
+// Shows/hides the "continuing an earlier draft" banner. Called on every open so it cannot
+// linger from a previous lead.
+function _setConfirmDraftNotice(savedAt){
+  const box=document.getElementById('ce-draft-notice');
+  const txt=document.getElementById('ce-draft-notice-text');
+  if(!box)return;
+  if(!savedAt){box.style.display='none';return;}
+  let when='';
+  try{
+    const d=new Date(savedAt);
+    const mins=Math.round((Date.now()-d.getTime())/60000);
+    when=mins<1?'just now':mins<60?(mins+' min ago'):
+         mins<1440?(Math.round(mins/60)+' hr ago'):(Math.round(mins/1440)+' day'+(Math.round(mins/1440)===1?'':'s')+' ago');
+  }catch(e){}
+  if(txt)txt.textContent='\u270e Continuing a draft you started'+(when?' '+when:'')+'.';
+  box.style.display='flex';
+}
+// Discards the saved draft and puts the freshly-built email back. Deliberately does NOT touch
+// the "to" field — a hand-corrected recipient should survive, same rule the restore path uses.
+function ceStartFresh(){
+  const l=db.leads.find(x=>x.id===currentConfirmEmailLeadId);
+  if(l){delete l._confirmEmailDraft;delete l._confirmEmailParsed;saveDB();}
+  const sEl=document.getElementById('ce-subject'),bEl=document.getElementById('ce-body');
+  if(sEl&&typeof window._ceFreshSubject==='string')sEl.value=window._ceFreshSubject;
+  if(bEl&&typeof window._ceFreshBody==='string')bEl.value=window._ceFreshBody;
+  _setConfirmDraftNotice(null);
+  showToast('Started a fresh email');
 }
 
 function autoSaveConfirmEmail(){
