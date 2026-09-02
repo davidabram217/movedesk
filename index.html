@@ -6148,7 +6148,7 @@ function buildMoveDetailsBlock(l,bj){
       const bjMatFeeMD=isDay1?(Number(bj?.feeMaterials)||0):(Number(day.feeMaterials)||0);
       let _fuelShownMD=false,_matShownMD=false;
       (q.fees||[]).filter(function(f){
-        if(!f.included||(f.amount===0&&!f.hrsMin&&!f.hrsMax))return false;
+        if(!f.included||!String(f.label||f.name||'').trim())return false;
         var lbl=(f.label||f.name||'').toLowerCase();
         if(lbl.includes('packing material'))return false;
         var mentionsDay=q.days.some(function(_,j){return lbl.includes('day '+(j+1))||lbl.includes('day'+(j+1));});
@@ -6213,7 +6213,13 @@ function buildMoveDetailsBlock(l,bj){
     // Fee precedence: booking fuel/materials win over quote's matching fee lines
     var bjFuelFeeS=Number(bj?.feeFuel)||0;
     var bjMatFeeS=Number(bj?.feeMaterials)||0;
-    (q.fees||[]).filter(function(f){return f.included&&(f.amount||f.hrsMin||f.hrsMax);}).forEach(function(f){
+    // LINE ITEMS: ticked + LABELLED qualifies, even at $0 (2026-08-19, David). The old test
+    // required a non-zero amount, so deliberately free items — "Storage — first month free",
+    // "Shuttle included" — were silently dropped from the confirmation email despite being
+    // ticked. A blank row added by the + button and never filled in still has no label, so it
+    // stays out rather than printing a bare "$0". Applied to BOTH email builders and to both
+    // the single-day and multi-day fee loops — four places, since each filter exists twice.
+    (q.fees||[]).filter(function(f){return f.included&&String(f.label||f.name||'').trim();}).forEach(function(f){
       var lbl=f.label||f.name||'';
       var lblLower=lbl.toLowerCase();
       if(bjFuelFeeS&&lblLower.indexOf('fuel')>=0){s+='\n$'+_fmtRate(bjFuelFeeS)+' '+lbl;return;}
@@ -6381,7 +6387,7 @@ function openConfirmEmail(leadId,bookedJob){
       const bjMatFeeMulti=isDay1?(Number(bj?.feeMaterials)||0):(Number(day.feeMaterials)||0);
       let _fuelShownMulti=false,_matShownMulti=false;
       (q.fees||[]).filter(function(f){
-        if(!f.included||(f.amount===0&&!f.hrsMin&&!f.hrsMax))return false;
+        if(!f.included||!String(f.label||f.name||'').trim())return false;
         var lbl=(f.label||f.name||'').toLowerCase();
         if(lbl.includes('packing material'))return false;
         var mentionsDay=q.days.some(function(_,j){return lbl.includes('day '+(j+1))||lbl.includes('day'+(j+1));});
@@ -6465,7 +6471,7 @@ function openConfirmEmail(leadId,bookedJob){
     // (e.g. packing materials, custom fees) pass through unchanged.
     var bjFuelFee=Number(bj?.feeFuel)||0;
     var bjMatFee=Number(bj?.feeMaterials)||0;
-    (q.fees||[]).filter(function(f){return f.included&&(f.amount||f.hrsMin||f.hrsMax);}).forEach(function(f){
+    (q.fees||[]).filter(function(f){return f.included&&String(f.label||f.name||'').trim();}).forEach(function(f){
       var lbl=f.label||f.name||'';
       var lblLower=lbl.toLowerCase();
       // If booking has a fuel fee value AND this fee is the fuel line, use booking value
@@ -8756,7 +8762,8 @@ function buildDayCalUrl(j,day,dayNum){
   if(_dayMat||_dayFuel)lines.push('');
 
   // ── Fees for this day ──
-  const allFees=(j.quoteFees||[]).filter(f=>f.included&&(f.amount||f.hrsMin||f.hrsMax));
+  // Same rule as the confirmation email: ticked + labelled qualifies, $0 included, blank rows out.
+  const allFees=(j.quoteFees||[]).filter(f=>f.included&&String(f.label||f.name||'').trim());
   allFees.forEach(f=>{
     const lbl=(f.label||f.name||'');
     const lblL=lbl.toLowerCase();
