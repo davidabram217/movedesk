@@ -12904,7 +12904,13 @@ function renderAnalytics(){
     if(e.completedJobId)_ep[e.name][e.estimateType].completedJobIds.push(e.completedJobId);
   });
   const _epNames=Object.keys(_ep).sort();
-  const _allEt=_etTypes.filter(t=>_ev.some(e=>e.estimateType===t));
+  // "Success by estimate type" excludes the summary / rough-quote path (2026-08-19, David) — the
+  // business does not work that way any more, an unseen quote is sent instead, so those rows are
+  // historical noise on a chart used to judge current performance. Scoped to THIS chart only:
+  // "Estimate close rates" and the per-person close-rate cards still show every type, so the
+  // historical record is intact and nothing is deleted from the data.
+  const _ET_EXCLUDE_FROM_SUCCESS=['Summary + rough quote'];
+  const _allEt=_etTypes.filter(t=>!_ET_EXCLUDE_FROM_SUCCESS.includes(t)&&_ev.some(e=>e.estimateType===t));
   // Stash this so the drill-down modal can re-resolve names → leads
   window._estimateTypeBreakdown=_ep;
   document.getElementById('estimate-type-chart').innerHTML=_epNames.length?_epNames.map(name=>{
@@ -12923,7 +12929,10 @@ function renderAnalytics(){
         <td style="padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${col}">${pct}%</td>
       </tr>`;
     }).join('');
-    const tot=Object.values(types).reduce((s,d)=>({sent:s.sent+d.sent,accepted:s.accepted+d.accepted,dnb:s.dnb+d.dnb}),{sent:0,accepted:0,dnb:0});
+    // Total must sum the SAME types the rows show. Object.values(types) would include the excluded
+    // summary/rough-quote entries, so the per-person total would not match its own columns.
+    const tot=_allEt.filter(t=>types[t]).map(t=>types[t])
+      .reduce((s,d)=>({sent:s.sent+d.sent,accepted:s.accepted+d.accepted,dnb:s.dnb+d.dnb}),{sent:0,accepted:0,dnb:0});
     const totPct=tot.sent>0?Math.round(tot.accepted/tot.sent*100):0;
     const totCol=totPct>=70?'var(--accent)':totPct>=50?'var(--amber)':'var(--error)';
     return`<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px">
