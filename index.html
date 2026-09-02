@@ -3181,6 +3181,14 @@ const SOURCE_ALIASES={
   'stager':'Stager','stagers':'Stager','home stager':'Stager','staging':'Stager',
   'home staging':'Stager','stager referral':'Stager','staging company':'Stager'
 };
+// Groups free-typed source details (referrer names, building names) so alternate spellings of one
+// person do not split into separate rows. Case and spacing ONLY — deliberately no nickname or
+// misspelling matching, which would risk merging two genuinely different people.
+function _normSourceDetail(v){
+  const t=String(v==null?'':v).trim().replace(/\s+/g,' ');
+  if(!t)return '';
+  return t.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+}
 function canonSource(s){
   const raw=(s==null?'':String(s)).trim();
   if(!raw)return '';
@@ -12250,8 +12258,12 @@ function renderAnalytics(){
       sources[_cs]=(sources[_cs]||0)+1;
       if(l.sourceDetail){
         if(!sourceDetails[_cs])sourceDetails[_cs]={};
-        const key=l.sourceDetail.trim();
-        sourceDetails[_cs][key]=(sourceDetails[_cs][key]||0)+1;
+        // Normalise the detail the same way the SOURCE above is canonicalised (2026-08-19).
+        // Previously `.trim()` only, so "jessica Branson", "jessica branson" and "Jessica Branson"
+        // counted as three separate referrers with 1 lead each rather than one person with 3 —
+        // which is exactly the number you want when deciding who to thank.
+        const key=_normSourceDetail(l.sourceDetail);
+        if(key)sourceDetails[_cs][key]=(sourceDetails[_cs][key]||0)+1;
       }
     }
   });
