@@ -13258,7 +13258,8 @@ function computeJobTimeBySize(){
     const men=Number(j.moveMen)||0;
     const packMen=Number(j.packMen)||men;
     const manHours=(mh*men)+(ph*packMen);
-    const rec={total,mh,ph,men,manHours,value:Number(j.total)||0};
+    const rec={total,mh,ph,men,packMen,manHours,value:Number(j.total)||0,
+      id:j.id,name:j.name||'(no name)',date:j.date||'',multiDay:!!j.multiDay};
     const k=_sizeKey(j.size);
     if(!_SIZE_EXCLUDE.includes(String(k).toLowerCase())){
       if(!out[bucket][k])out[bucket][k]=[];
@@ -13275,7 +13276,43 @@ function computeJobTimeBySize(){
   });
   return out;
 }
-function _jobTimeTable(bySize,emptyMsg,colLabel,showSplit){
+// Every bucket rendered is stashed here so a row can be opened to show exactly which jobs it
+// averaged. Being able to check the inputs matters more than the average itself — the 60-hour
+// Deborah record and the nine excluded "Full" jobs were both invisible until someone looked.
+let _jobTimeBuckets={};
+function openJobTimeDrilldown(key){
+  const b=_jobTimeBuckets[key];
+  if(!b){showToast('No data for that row');return;}
+  const rows=b.rows.slice().sort((a,c)=>c.total-a.total);
+  const t=document.getElementById('ebd-title');
+  const sub=document.getElementById('ebd-subtitle');
+  const body=document.getElementById('ebd-body');
+  if(t)t.textContent=b.label;
+  if(sub)sub.textContent=rows.length+' job'+(rows.length===1?'':'s')+' averaged in this row';
+  const num=n=>Number(n)?(Math.round(Number(n)*10)/10):'\u2014';
+  if(body)body.innerHTML=`
+    <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Every job counted in this row. If something looks wrong, open the completed job and correct it — the averages follow the data.</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr>
+        <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Customer</th>
+        <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Date</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Total</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Pack</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Move</th>
+        <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Crew</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border)">${r.name}${r.multiDay?' <span style="font-size:10px;color:var(--text3)">multi-day</span>':''}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text3);font-size:11.5px">${r.date?fmtDate(r.date):'\u2014'}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-weight:700">${num(r.total)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${num(r.ph)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${num(r.mh)}</td>
+        <td style="padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;color:var(--text3)">${r.packMen&&r.packMen!==r.men?num(r.packMen)+'/'+num(r.men):num(r.men)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  openModal('estimate-breakdown');
+}
+function _jobTimeTable(bySize,emptyMsg,colLabel,showSplit,tableKey){
   // showSplit adds PACK and MOVE columns — only meaningful on the full-pack tables, where the
   // useful question is "how long is the pack itself", not just the combined figure.
   const _isVault=colLabel==='Vaults';
@@ -13285,13 +13322,15 @@ function _jobTimeTable(bySize,emptyMsg,colLabel,showSplit){
     ?(a,b)=>parseFloat(a)-parseFloat(b)
     :(a,b)=>bySize[b].length-bySize[a].length);
   if(!keys.length)return `<div style="font-size:12px;color:var(--text3);padding:8px 0">${emptyMsg}</div>`;
+  const _tk=tableKey||colLabel||'t';
+  keys.forEach(k=>{_jobTimeBuckets[_tk+'||'+k]={rows:bySize[k],label:k,table:_tk};});
   return `<table style="width:100%;border-collapse:collapse;margin-top:6px">
     <thead><tr>
       <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">${colLabel||'Size'}</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg total hrs</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Range</th>
-      ${showSplit?`<th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Pack hrs</th><th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Move hrs</th>`:''}
-      <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg crew</th>
+      ${showSplit?`<th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Pack hrs</th><th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Pack crew</th><th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Move hrs</th><th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Move crew</th>`:''}
+      ${showSplit?'':`<th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg crew</th>`}
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Man-hrs</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Jobs</th>
     </tr></thead>
@@ -13310,13 +13349,19 @@ function _jobTimeTable(bySize,emptyMsg,colLabel,showSplit){
       const _packAvg=_round5(_avg(_packs)), _moveAvg=_round5(_avg(_moves));
       const _packLo=_round5(Math.min.apply(null,_packs)), _packHi=_round5(Math.max.apply(null,_packs));
       const _moveLo=_round5(Math.min.apply(null,_moves)), _moveHi=_round5(Math.max.apply(null,_moves));
+      // Crew averaged only over jobs that actually recorded one, so a blank does not pull the
+      // average toward zero. Pack crew falls back to the move crew (same crew packed and moved).
+      const _avgOf=arr=>{const v=arr.filter(n=>Number(n)>0);return v.length?Math.round(_avg(v)*10)/10:0;};
+      const _packCrew=_avgOf(rows.map(r=>r.packMen||r.men));
+      const _moveCrew=_avgOf(rows.map(r=>r.men));
       const _cell=(a,lo,hi)=>`<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${a}${lo!==hi?`<div style="font-size:10.5px;color:var(--text3);font-weight:400">${lo}\u2013${hi}</div>`:''}</td>`;
-      return `<tr>
-        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);font-weight:600">${k}</td>
+      const _esc=String(_tk+'||'+k).replace(/'/g,"\\'");
+      return `<tr style="cursor:pointer" onclick="openJobTimeDrilldown('${_esc}')" title="Click to see the jobs behind this row">
+        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);font-weight:600">${k} <span style="color:var(--text3);font-size:10.5px">\u25b8</span></td>
         <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-weight:700">${avg}</td>
         <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);font-family:'DM Mono',monospace">${_round5(lo)}\u2013${_round5(hi)}</td>
-        ${showSplit?_cell(_packAvg,_packLo,_packHi)+_cell(_moveAvg,_moveLo,_moveHi):''}
-        <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${crew?crew.toFixed(1):'\u2014'}</td>
+        ${showSplit?_cell(_packAvg,_packLo,_packHi)+`<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${_packCrew||'\u2014'}</td>`+_cell(_moveAvg,_moveLo,_moveHi)+`<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${_moveCrew||'\u2014'}</td>`:''}
+        ${showSplit?'':`<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${crew?crew.toFixed(1):'\u2014'}</td>`}
         <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${mh||'\u2014'}</td>
         <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:${thin?'var(--amber)':'var(--text3)'}" title="${thin?'Only a few jobs \u2014 treat as indicative':''}">${rows.length}${thin?' \u26a0':''}</td>
       </tr>`;}).join('')}</tbody></table>`;
@@ -13366,17 +13411,18 @@ function renderPerDayInsights(){
   // Whole-job time by size, split by packing scope. Placed before the multi-day section because
   // it is the figure used most often when quoting.
   {
+    _jobTimeBuckets={};
     const _jt=computeJobTimeBySize();
     html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 moving only</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed jobs with no packing. Total hours on site, start to finish.</div>`;
-    html+=_jobTimeTable(_jt.moveOnly,'No completed move-only jobs with recorded hours yet.','Size');
+    html+=_jobTimeTable(_jt.moveOnly,'No completed move-only jobs with recorded hours yet.','Size',false,'Move only · by size');
     html+=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">By vault count \u2014 actual volume moved, rather than bedrooms</div>`;
-    html+=_jobTimeTable(_jt.vaultMoveOnly,'No move-only jobs with a vault count recorded yet.','Vaults');
+    html+=_jobTimeTable(_jt.vaultMoveOnly,'No move-only jobs with a vault count recorded yet.','Vaults',false,'Move only · by vaults');
     html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 full pack &amp; move</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed full-pack jobs. Total hours = packing + moving combined. Pack and Move columns show the average with the spread beneath — on a multi-day job the pack figure is the TOTAL across its days, not one day’s length.</div>`;
-    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.','Size',true);
+    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.','Size',true,'Full pack · by size');
     html+=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">By vault count \u2014 actual volume moved, rather than bedrooms</div>`;
-    html+=_jobTimeTable(_jt.vaultFullPack,'No full-pack jobs with a vault count recorded yet.','Vaults',true);
+    html+=_jobTimeTable(_jt.vaultFullPack,'No full-pack jobs with a vault count recorded yet.','Vaults',true,'Full pack · by vaults');
     html+=`<div style="font-size:10.5px;color:var(--text3);margin-top:6px">Partial packs (kitchen only, fragiles, part pack) are excluded \u2014 they sit between the two and would blur the comparison. \u201cOther\u201d and \u201cStorage unit\u201d sizes are excluded too. Vault tables cover only jobs with a vault count recorded.</div>`;
     if(_jt.skipped)html+=`<div style="font-size:10.5px;color:var(--amber);margin-top:4px">\u26a0 ${_jt.skipped} single-day job${_jt.skipped===1?'':'s'} excluded for implausible hours (over ${_MAX_SINGLE_DAY_HOURS}h in one day) \u2014 almost always a typo. Worth correcting on the completed job so it counts.</div>`;
   }
