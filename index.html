@@ -13208,7 +13208,11 @@ function computeMultiDayJobInsights(){
 // Total hours = move hours + pack hours. Man-hours (hours x crew) is shown alongside because
 // hours alone is misleading: 8 hours with 2 movers and 8 hours with 4 are very different jobs.
 const _PACK_MOVE_ONLY=['no \u2014 just moving','no - just moving','no','none','just moving',''];
-const _PACK_FULL=['full pack','full pack and move','pack and move'];
+// The DROPDOWN shows "Full pack" / "No — just moving", but what is actually STORED on completed
+// jobs is the short form: 71 records read "No" and 9 read "Full". The original lists matched
+// neither of those for the full-pack case, so all 9 full-pack jobs were excluded and the table
+// reported "no completed full-pack jobs". Both long and short forms are accepted now.
+const _PACK_FULL=['full','full pack','full pack and move','pack and move','yes'];
 function _packBucket(v){
   const t=String(v==null?'':v).toLowerCase().replace(/\s+/g,' ').trim();
   if(_PACK_MOVE_ONLY.includes(t))return 'moveOnly';
@@ -13238,7 +13242,13 @@ function computeJobTimeBySize(){
     const bucket=_packBucket(j.packing);
     if(bucket==='other')return;
     const mh=Number(j.hours)||0;
-    const ph=Number(j.packHoursActual)||0;
+    // Multi-day completions store hours PER DAY (days[].moveHours / days[].packHours) and leave the
+    // flat packHoursActual undefined, so a multi-day full pack looked like a full pack with zero
+    // pack hours and was skipped. Sum the days when the flat field is absent.
+    let ph=Number(j.packHoursActual)||0;
+    if(!ph&&Array.isArray(j.days)&&j.days.length){
+      ph=j.days.reduce((a,d)=>a+(Number(d.packHours)||0),0);
+    }
     const total=mh+ph;
     if(total<=0)return;
     // A full-pack job with no pack hours recorded would understate the total, so it is skipped
