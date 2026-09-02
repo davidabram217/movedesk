@@ -6081,7 +6081,17 @@ function acceptQuote(leadId){const l=db.leads.find(x=>x.id===leadId);if(!l)retur
 // Also mark the linked quote as accepted
 const q=(db.quotes||[]).find(qt=>qt.leadId===leadId&&qt.status==='sent')||(db.quotes||[]).find(qt=>qt.leadId===leadId);
 if(q){q.status='accepted';q.acceptedAt=new Date().toISOString().split('T')[0];}
-saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();setTimeout(()=>openConfirmEmail(leadId),300);}
+saveDB();closeModal('view');showToast('✓ Quote accepted — '+l.name);renderLeads();
+// Route to the BOOKING form, not straight to the confirmation email (2026-08-19, David).
+// Jumping to the email skipped the booking step entirely: no bookedJob record, so no confirmed
+// date / arrival window / crew / rates, nothing on the calendar, no "Booked by" captured, and
+// the lead stayed on 'Quote accepted' with the view modal still offering "Complete booking".
+// The result was a confirmation sent for a job the app did not consider booked. This also makes
+// the two acceptance routes behave identically — a customer accepting via their link already
+// lands on 'Quote accepted' and is then booked through this same form. The booking flow ends by
+// offering the confirmation email, so no step is lost; the email is BETTER for it, since with a
+// booked job present it uses the confirmed figures rather than falling back to the quote.
+setTimeout(()=>openBooking(leadId),300);}
 
 let currentConfirmEmailLeadId=null;
 // Builds the "Here are the details as I understand them" block — the same block that goes
