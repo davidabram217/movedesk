@@ -13275,7 +13275,9 @@ function computeJobTimeBySize(){
   });
   return out;
 }
-function _jobTimeTable(bySize,emptyMsg,colLabel){
+function _jobTimeTable(bySize,emptyMsg,colLabel,showSplit){
+  // showSplit adds PACK and MOVE columns — only meaningful on the full-pack tables, where the
+  // useful question is "how long is the pack itself", not just the combined figure.
   const _isVault=colLabel==='Vaults';
   // Vault rows read as a scale, so sort them numerically; size rows sort by sample size so the
   // best-evidenced categories come first.
@@ -13288,6 +13290,7 @@ function _jobTimeTable(bySize,emptyMsg,colLabel){
       <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">${colLabel||'Size'}</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg total hrs</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Range</th>
+      ${showSplit?`<th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Pack hrs</th><th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Move hrs</th>`:''}
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Avg crew</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Man-hrs</th>
       <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text3);font-weight:500">Jobs</th>
@@ -13300,10 +13303,19 @@ function _jobTimeTable(bySize,emptyMsg,colLabel){
       const crew=_avg(rows.map(r=>r.men));
       const mh=Math.round(_avg(rows.map(r=>r.manHours)));
       const thin=rows.length<3;
+      // Pack / move split. Averages come from the SAME jobs the row is built from, so they add up
+      // to the total; the small range under each shows the spread, which is what tells you whether
+      // "6 hours" is reliable or is averaging a 3 and a 9.
+      const _packs=rows.map(r=>r.ph), _moves=rows.map(r=>r.mh);
+      const _packAvg=_round5(_avg(_packs)), _moveAvg=_round5(_avg(_moves));
+      const _packLo=_round5(Math.min.apply(null,_packs)), _packHi=_round5(Math.max.apply(null,_packs));
+      const _moveLo=_round5(Math.min.apply(null,_moves)), _moveHi=_round5(Math.max.apply(null,_moves));
+      const _cell=(a,lo,hi)=>`<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${a}${lo!==hi?`<div style="font-size:10.5px;color:var(--text3);font-weight:400">${lo}\u2013${hi}</div>`:''}</td>`;
       return `<tr>
         <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);font-weight:600">${k}</td>
         <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace;font-weight:700">${avg}</td>
         <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3);font-family:'DM Mono',monospace">${_round5(lo)}\u2013${_round5(hi)}</td>
+        ${showSplit?_cell(_packAvg,_packLo,_packHi)+_cell(_moveAvg,_moveLo,_moveHi):''}
         <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${crew?crew.toFixed(1):'\u2014'}</td>
         <td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${mh||'\u2014'}</td>
         <td style="padding:7px 10px;font-size:11.5px;border-bottom:1px solid var(--border);text-align:right;color:${thin?'var(--amber)':'var(--text3)'}" title="${thin?'Only a few jobs \u2014 treat as indicative':''}">${rows.length}${thin?' \u26a0':''}</td>
@@ -13361,10 +13373,10 @@ function renderPerDayInsights(){
     html+=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">By vault count \u2014 actual volume moved, rather than bedrooms</div>`;
     html+=_jobTimeTable(_jt.vaultMoveOnly,'No move-only jobs with a vault count recorded yet.','Vaults');
     html+=`<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 2px">Total job time by size \u2014 full pack &amp; move</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed full-pack jobs. Total hours = packing + moving combined.</div>`;
-    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.','Size');
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Completed full-pack jobs. Total hours = packing + moving combined. Pack and Move columns show the average with the spread beneath — on a multi-day job the pack figure is the TOTAL across its days, not one day’s length.</div>`;
+    html+=_jobTimeTable(_jt.fullPack,'No completed full-pack jobs with recorded pack hours yet.','Size',true);
     html+=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">By vault count \u2014 actual volume moved, rather than bedrooms</div>`;
-    html+=_jobTimeTable(_jt.vaultFullPack,'No full-pack jobs with a vault count recorded yet.','Vaults');
+    html+=_jobTimeTable(_jt.vaultFullPack,'No full-pack jobs with a vault count recorded yet.','Vaults',true);
     html+=`<div style="font-size:10.5px;color:var(--text3);margin-top:6px">Partial packs (kitchen only, fragiles, part pack) are excluded \u2014 they sit between the two and would blur the comparison. \u201cOther\u201d and \u201cStorage unit\u201d sizes are excluded too. Vault tables cover only jobs with a vault count recorded.</div>`;
     if(_jt.skipped)html+=`<div style="font-size:10.5px;color:var(--amber);margin-top:4px">\u26a0 ${_jt.skipped} single-day job${_jt.skipped===1?'':'s'} excluded for implausible hours (over ${_MAX_SINGLE_DAY_HOURS}h in one day) \u2014 almost always a typo. Worth correcting on the completed job so it counts.</div>`;
   }
