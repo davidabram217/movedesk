@@ -13241,13 +13241,20 @@ function computeJobTimeBySize(){
   (db.completedJobs||[]).forEach(j=>{
     const bucket=_packBucket(j.packing);
     if(bucket==='other')return;
-    const mh=Number(j.hours)||0;
-    // Multi-day completions store hours PER DAY (days[].moveHours / days[].packHours) and leave the
-    // flat packHoursActual undefined, so a multi-day full pack looked like a full pack with zero
-    // pack hours and was skipped. Sum the days when the flat field is absent.
-    let ph=Number(j.packHoursActual)||0;
-    if(!ph&&Array.isArray(j.days)&&j.days.length){
-      ph=j.days.reduce((a,d)=>a+(Number(d.packHours)||0),0);
+    // HOURS. Multi-day completions are the tricky case: they store per-day actuals in days[]
+    // AND populate the legacy flat `hours` field with move+pack ALREADY COMBINED. Reading the
+    // flat field as "move hours" and then adding pack hours therefore counted packing TWICE —
+    // Jon Noronha showed move 13.8 / pack 5.3 / total 19.1 when the truth was move 8.5, pack
+    // 5.25, total 13.75. For a multi-day job the days are the only reliable source, so read
+    // them directly and never touch the flat field.
+    let mh,ph;
+    const _days=Array.isArray(j.days)?j.days:[];
+    if(_days.length){
+      mh=_days.reduce((a,d)=>a+(Number(d.moveHours)||0),0);
+      ph=_days.reduce((a,d)=>a+(Number(d.packHours)||0),0);
+    }else{
+      mh=Number(j.hours)||0;
+      ph=Number(j.packHoursActual)||0;
     }
     const total=mh+ph;
     if(total<=0)return;
@@ -13255,8 +13262,17 @@ function computeJobTimeBySize(){
     // rather than quietly averaged in as if packing took no time.
     if(bucket==='fullPack'&&ph<=0)return;
     if(!j.multiDay&&total>_MAX_SINGLE_DAY_HOURS){out.skipped++;return;}
-    const men=Number(j.moveMen)||0;
-    const packMen=Number(j.packMen)||men;
+    // Crew, same reasoning: on a multi-day job take the crew from the days that actually did that
+    // work — the largest move crew across days that moved, the largest pack crew across days that
+    // packed — rather than the flat fields, which hold only one day's figures.
+    let men,packMen;
+    if(_days.length){
+      men=_days.reduce((a,d)=>(Number(d.moveHours)>0?Math.max(a,Number(d.movers)||0):a),0)||Number(j.moveMen)||0;
+      packMen=_days.reduce((a,d)=>(Number(d.packHours)>0?Math.max(a,Number(d.packers)||0):a),0)||Number(j.packMen)||men;
+    }else{
+      men=Number(j.moveMen)||0;
+      packMen=Number(j.packMen)||men;
+    }
     const manHours=(mh*men)+(ph*packMen);
     const rec={total,mh,ph,men,packMen,manHours,value:Number(j.total)||0,
       id:j.id,name:j.name||'(no name)',date:j.date||'',multiDay:!!j.multiDay};
