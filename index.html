@@ -11759,7 +11759,17 @@ function getEstimateEvents(){
     // field that historically got populated by the scheduler. When the two disagree the quote is
     // the better evidence — Salik Syed showed "Estimate sent by John" at the top of the lead while
     // the quote right below it read "by Dave", and analytics believed the wrong one.
-    const rawName=(linkedQ?.sentBy||l.estimateSentBy||l.roughQuoteSentBy||l.takenBy||'').trim();
+    // Extended 2026-08-19. An estimate that books ON THE CALL — a FaceTime, Onsite or Video where
+    // the customer says yes and no quote is ever sent — has no linkedQ.sentBy, and since scheduling
+    // stopped writing estimateSentBy earlier today it had no name at ALL, so `if(!name)return`
+    // dropped it from analytics entirely. It used to be credited only by accident, via the
+    // estimateSetupBy→estimateSentBy copy that was removed. These are real successful estimates and
+    // must be counted. Order: a genuine SEND still wins, then who booked it, then who ran the
+    // estimate, then who scheduled it, then who answered the phone.
+    // bookedBy is mirrored onto the lead when a job is booked, but jobs saved before that mirror
+    // existed carry it only on the booked-job record, so check there too.
+    const _bjFor=(db.bookedJobs||[]).find(b=>b.leadId===l.id&&!b._draft);
+    const rawName=(linkedQ?.sentBy||l.estimateSentBy||l.bookedBy||(_bjFor&&_bjFor.bookedBy)||l.estimateDoneBy||l.estimateSetupBy||l.roughQuoteSentBy||l.takenBy||'').trim();
     const name=_sNorm(rawName);
     if(!name)return;
     // Resolve estimate type — map rough quote to correct label
