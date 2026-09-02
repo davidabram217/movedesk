@@ -1194,9 +1194,19 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       </div>
 
       <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:14px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius)">
-        <label for="bj-booked-by" style="margin:0;font-size:12.5px;font-weight:600;white-space:nowrap">Booked by</label>
+        <label for="bj-booked-by" style="margin:0;font-size:12.5px;font-weight:600;white-space:nowrap">Booked by *</label>
         <input type="text" id="bj-booked-by" placeholder="who closed this job" list="bj-booked-by-list" style="flex:1;margin:0">
         <datalist id="bj-booked-by-list"><option value="John"><option value="Dave"></datalist>
+        <label for="bj-booked-how" style="margin:0 0 0 6px;font-size:12.5px;font-weight:600;white-space:nowrap">How *</label>
+        <select id="bj-booked-how" style="flex:1;margin:0">
+          <option value="">Select…</option>
+          <option>FaceTime estimate</option>
+          <option>Onsite estimate</option>
+          <option>Video estimate</option>
+          <option>Quote sent</option>
+          <option>Booked on call — no estimate</option>
+          <option>Repeat customer</option>
+        </select>
       </div>
 
       <div id="bj-md-sched-hdr" style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Schedule & crew</div>
@@ -7707,6 +7717,15 @@ function toggleBjMultiDay(){
 // multi-day day rows all had the code path. The single-day booking form simply had no field
 // for it, which is why a phone/email booking priced as one figure had to be faked as an hourly
 // rate. Purely additive: unticked, every existing path behaves exactly as before.
+// Maps the booking form's "How" answer onto the estimate type analytics groups by. Only the
+// three estimate routes map; "Quote sent", "Booked on call" and "Repeat customer" deliberately
+// map to nothing, because they are not estimates and must not inflate estimate close rates.
+const _BOOKED_HOW_TO_ESTIMATE_TYPE={
+  'FaceTime estimate':'FaceTime',
+  'Onsite estimate':'Onsite',
+  'Video estimate':'Video'
+};
+
 function bjToggleFlatRate(){
   const on=!!(document.getElementById('bj-flat-rate')||{}).checked;
   ['bj-hourly-wrap-1','bj-hourly-wrap-2'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display=on?'none':'';});
@@ -7999,7 +8018,18 @@ function bjWriteFields(j){
   j.quote=document.getElementById('bj-quote').value;
   j.deposit=document.getElementById('bj-deposit').value;
   j.bookedBy=(document.getElementById('bj-booked-by')||{}).value||'';
-  {const _l=db.leads.find(x=>x.id===j.leadId);if(_l&&j.bookedBy){_l.bookedBy=j.bookedBy;_l._localEditedAt=new Date().toISOString();}}
+  j.bookedHow=(document.getElementById('bj-booked-how')||{}).value||'';
+  {const _l=db.leads.find(x=>x.id===j.leadId);
+   if(_l&&j.bookedBy){_l.bookedBy=j.bookedBy;_l._localEditedAt=new Date().toISOString();}
+   if(_l&&j.bookedHow){
+     _l.bookedHow=j.bookedHow;
+     // When the job was won off an estimate, record the estimate TYPE on the lead so it counts
+     // in "Success by estimate type". Only fills a blank — never overwrites a type already set
+     // by the scheduling flow, which is the authoritative source when it exists.
+     const _et=_BOOKED_HOW_TO_ESTIMATE_TYPE[j.bookedHow];
+     if(_et&&!_l.estimateType)_l.estimateType=_et;
+     _l._localEditedAt=new Date().toISOString();
+   }}
   j.insuranceType=document.getElementById('bj-insurance-type').value;
   j.volume=document.getElementById('bj-volume').value;
   j.scope=document.getElementById('bj-scope').value;
@@ -8084,6 +8114,14 @@ function openBooking(leadId){
   {const _bb=document.getElementById('bj-booked-by');
    if(_bb){const _q=(db.quotes||[]).filter(x=>x.leadId===l.id&&x.sentBy).pop();
      _bb.value=l.bookedBy||(_q&&_q.sentBy)||l.estimateSentBy||l.takenBy||'';}}
+  {const _bh=document.getElementById('bj-booked-how');
+   if(_bh){
+     // Pre-select the obvious answer where one exists: an estimate type already on the lead, or
+     // a quote that has been sent. Otherwise leave blank so it must be answered deliberately.
+     const _q=(db.quotes||[]).filter(x=>x.leadId===l.id&&(x.status==='sent'||x.status==='accepted')).pop();
+     const _fromEt={'FaceTime':'FaceTime estimate','Onsite':'Onsite estimate','Video':'Video estimate'}[l.estimateType||''];
+     _bh.value=l.bookedHow||_fromEt||(_q?'Quote sent':'');
+   }}
   document.getElementById('bj-date').value=_bjLeadDate(l);
   // Multi-day: when a multi-day QUOTE governs this lead, the existing read-only banner handles it,
   // so the manual toggle is hidden. Otherwise the owner may flip it on to book a multi-day job
@@ -8293,6 +8331,7 @@ function openBooking(leadId){
     draftSetIfHasValue('bj-quote',_existingDraft.quote);
     draftSetIfHasValue('bj-deposit',_existingDraft.deposit);
     draftSetIfHasValue('bj-booked-by',_existingDraft.bookedBy);
+    draftSetIfHasValue('bj-booked-how',_existingDraft.bookedHow);
     draftSetIfHasValue('bj-volume',_existingDraft.volume);
     draftSetIfHasValue('bj-scope',_existingDraft.scope);
     draftSetIfHasValue('bj-crew-notes',_existingDraft.crewNotes);
@@ -8519,6 +8558,25 @@ function buildJobCalUrl(j){
 function confirmBooking(){
   const date=document.getElementById('bj-date').value;
   if(!date){showToast('Please select a date.');return;}
+  // A job cannot be booked without recording WHO booked it and HOW (2026-08-19, David).
+  // Without these two the job is invisible to staff analytics: with no quote and no estimate
+  // there is nothing else to attribute it to, so the attribution chain resolves to nothing and
+  // the lead is dropped entirely. Enforced here — the single commit point for both new bookings
+  // and edits — rather than in the UI, so it cannot be bypassed by any other route in.
+  const _bbEl=document.getElementById('bj-booked-by');
+  const _bhEl=document.getElementById('bj-booked-how');
+  const _bb=(_bbEl&&_bbEl.value||'').trim();
+  const _bh=(_bhEl&&_bhEl.value||'').trim();
+  if(!_bb){
+    showToast('Please fill in \u201cBooked by\u201d \u2014 top of the form.');
+    if(_bbEl){_bbEl.focus();_bbEl.scrollIntoView({block:'center'});}
+    return;
+  }
+  if(!_bh){
+    showToast('Please choose \u201cHow\u201d the job was booked \u2014 top of the form.');
+    if(_bhEl){_bhEl.focus();_bhEl.scrollIntoView({block:'center'});}
+    return;
+  }
 
   // EDIT MODE — update existing job
   if(editingBookedJobId){
@@ -8537,7 +8595,18 @@ function confirmBooking(){
     j.quote=document.getElementById('bj-quote').value;
     j.deposit=document.getElementById('bj-deposit').value;
   j.bookedBy=(document.getElementById('bj-booked-by')||{}).value||'';
-  {const _l=db.leads.find(x=>x.id===j.leadId);if(_l&&j.bookedBy){_l.bookedBy=j.bookedBy;_l._localEditedAt=new Date().toISOString();}}
+  j.bookedHow=(document.getElementById('bj-booked-how')||{}).value||'';
+  {const _l=db.leads.find(x=>x.id===j.leadId);
+   if(_l&&j.bookedBy){_l.bookedBy=j.bookedBy;_l._localEditedAt=new Date().toISOString();}
+   if(_l&&j.bookedHow){
+     _l.bookedHow=j.bookedHow;
+     // When the job was won off an estimate, record the estimate TYPE on the lead so it counts
+     // in "Success by estimate type". Only fills a blank — never overwrites a type already set
+     // by the scheduling flow, which is the authoritative source when it exists.
+     const _et=_BOOKED_HOW_TO_ESTIMATE_TYPE[j.bookedHow];
+     if(_et&&!_l.estimateType)_l.estimateType=_et;
+     _l._localEditedAt=new Date().toISOString();
+   }}
     j.insuranceType=document.getElementById('bj-insurance-type').value;
     j.volume=document.getElementById('bj-volume').value;
     j.scope=document.getElementById('bj-scope').value;
@@ -9473,6 +9542,7 @@ function editBookedJob(jobId){
    const _fc=document.getElementById('bj-flat-price-cash');if(_fc)_fc.value=j.flatPriceCash||'';
    if(typeof bjToggleFlatRate==='function')bjToggleFlatRate();}
   {const _bb=document.getElementById('bj-booked-by');if(_bb)_bb.value=j.bookedBy||'';}
+  {const _bh=document.getElementById('bj-booked-how');if(_bh)_bh.value=j.bookedHow||'';}
   document.getElementById('bj-date').value=j.date||'';
   document.getElementById('bj-time').value=j.time||'';
   document.getElementById('bj-movers').value=j.movers||'3';
