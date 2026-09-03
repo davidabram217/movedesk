@@ -6422,6 +6422,11 @@ function openConfirmEmail(leadId,bookedJob){
         }
       } else if(rate){
         moveDetailsSection+='\n'+crew+' Movers @ $'+fmtRate(rate)+' Per Hour'+(dayCash?' ($'+fmtRate(dayCash)+' If Paid Cash)':'');
+        // Hour minimum sits directly under the rate on EVERY branch (2026-08-19). It was first
+        // added to only one of the three, so a job that priced through a different branch —
+        // which is most of them — showed a rate with no minimum beneath it.
+
+        moveDetailsSection+='\n'+(Number(day&&day.hrsMin)||Number(bj&&bj.hrsMin)||2)+' Hour Minimum';
         }
       // Fees for this day. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMulti=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
@@ -6508,10 +6513,11 @@ function openConfirmEmail(leadId,bookedJob){
         moveDetailsSection+='\n'+(d.flatDescription||'Move services')+': $'+Number(flatPrice).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' flat rate'+(flatCash?' ($'+Number(flatCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
       }
     } else if(rate){moveDetailsSection+='\n'+crew+' Movers @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
-    // Hour MINIMUM reinstated 2026-08-19: David confirmed he only wanted the estimated hours
-    // RANGE gone. This is a firm billing term and belongs on the confirmation. Falls back to
-    // the house 2-hour minimum when the job carries none.
-    moveDetailsSection+='\n'+(Number(d&&d.hrsMin)||Number(bj&&bj.hrsMin)||2)+' Hour Minimum';if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
+        // Hour minimum sits directly under the rate on EVERY branch (2026-08-19). It was first
+        // added to only one of the three, so a job that priced through a different branch —
+        // which is most of them — showed a rate with no minimum beneath it.
+
+        moveDetailsSection+='\n'+(Number(d&&d.hrsMin)||Number(bj&&bj.hrsMin)||2)+' Hour Minimum';if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
     // Fees: booking-form fuel/materials override the matching quote fees. Other quote fees
     // (e.g. packing materials, custom fees) pass through unchanged.
     var bjFuelFee=Number(bj?.feeFuel)||0;
@@ -6548,7 +6554,12 @@ function openConfirmEmail(leadId,bookedJob){
     var moveDate=fmtDateWithDay(bj?.date||l?.date||'');
     moveDetailsSection='\nWhen: '+moveDate+(bj?.time?', arriving '+bj.time:', arriving between 8:30–9:30am');
     moveDetailsSection+='\nFrom:\n'+fmtLoadLocations(l||bj)+'\n\nTo:\n'+fmtUnloadLocations(l||bj);
-    if(bj?.rateRegular){moveDetailsSection+='\n'+(bj.movers||'?')+' Movers @ $'+Number(bj.rateRegular).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(bj.rateCash?' ($'+Number(bj.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');}
+    if(bj?.rateRegular){moveDetailsSection+='\n'+(bj.movers||'?')+' Movers @ $'+Number(bj.rateRegular).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(bj.rateCash?' ($'+Number(bj.rateCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
+        // Hour minimum sits directly under the rate on EVERY branch (2026-08-19). It was first
+        // added to only one of the three, so a job that priced through a different branch —
+        // which is most of them — showed a rate with no minimum beneath it.
+
+        moveDetailsSection+='\n'+(Number(bj&&bj.hrsMin)||2)+' Hour Minimum';}
     if(bj?.feeFuel)moveDetailsSection+='\n$'+Number(bj.feeFuel).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Fuel Fee';
     if(bj?.feeMaterials)moveDetailsSection+='\n$'+Number(bj.feeMaterials).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Material Fee';
     moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
