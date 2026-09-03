@@ -1299,6 +1299,9 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         <div class="form-group"><label>Do not exceed price ($)</label><input type="number" id="bj-do-not-exceed" placeholder="e.g. 5755"></div>
         <!-- bj-email-note HIDDEN — customer-facing notes are typed manually in confirmation email modal at send time -->
         <textarea id="bj-email-note" style="display:none" oninput="if(editingBookedJobId)liveAutosaveNotes('booked',editingBookedJobId,{emailNote:this.value})"></textarea>
+        <div class="form-group full"><label>⚠ Top alerts <span style="font-size:10.5px;color:var(--text3);font-weight:400">one per line — printed IN CAPS at the very top of the crew sheet</span></label><textarea id="bj-job-alerts" rows="2" placeholder="must use small truck" style="min-height:44px"></textarea></div>
+        <div class="form-group full"><label>🧰 Bring <span style="font-size:10.5px;color:var(--text3);font-weight:400">comma separated — equipment the crew must not leave without</span></label><input type="text" id="bj-bring-list" placeholder="cones, wheel blocks, masonite, straps"></div>
+        <div class="form-group full"><label>💲 Billing alerts <span style="font-size:10.5px;color:var(--text3);font-weight:400">one per line — printed IN CAPS under the fees</span></label><textarea id="bj-billing-alerts" rows="2" placeholder="do not charge dump fee for bed &amp; box spring" style="min-height:44px"></textarea></div>
         <div class="form-group full" style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
           <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">🔒 Office notes <span style="font-size:10px;font-weight:400;color:var(--text3)">— internal only, never shared with the customer, appears at top of calendar entry</span></label>
           <textarea id="bj-office-notes" placeholder="Internal notes — pricing flags, crew instructions, special considerations, anything not for the customer…" style="min-height:80px;width:100%" oninput="if(editingBookedJobId)liveAutosaveNotes('booked',editingBookedJobId,{officeNotes:this.value})"></textarea>
@@ -8050,6 +8053,9 @@ function bjWriteFields(j){
   j.deposit=document.getElementById('bj-deposit').value;
   j.bookedBy=(document.getElementById('bj-booked-by')||{}).value||'';
   j.bookedHow=(document.getElementById('bj-booked-how')||{}).value||'';
+  j.jobAlerts=(document.getElementById('bj-job-alerts')||{}).value||'';
+  j.bringList=(document.getElementById('bj-bring-list')||{}).value||'';
+  j.billingAlerts=(document.getElementById('bj-billing-alerts')||{}).value||'';
   {const _l=db.leads.find(x=>x.id===j.leadId);
    if(_l&&j.bookedBy){_l.bookedBy=j.bookedBy;_l._localEditedAt=new Date().toISOString();}
    if(_l&&j.bookedHow){
@@ -8145,6 +8151,7 @@ function openBooking(leadId){
   {const _bb=document.getElementById('bj-booked-by');
    if(_bb){const _q=(db.quotes||[]).filter(x=>x.leadId===l.id&&x.sentBy).pop();
      _bb.value=l.bookedBy||(_q&&_q.sentBy)||l.estimateSentBy||l.takenBy||'';}}
+  ['bj-job-alerts','bj-bring-list','bj-billing-alerts'].forEach(function(id){const el=document.getElementById(id);if(el)el.value='';});
   {const _bh=document.getElementById('bj-booked-how');
    if(_bh){
      // Pre-select the obvious answer where one exists: an estimate type already on the lead, or
@@ -8363,6 +8370,9 @@ function openBooking(leadId){
     draftSetIfHasValue('bj-deposit',_existingDraft.deposit);
     draftSetIfHasValue('bj-booked-by',_existingDraft.bookedBy);
     draftSetIfHasValue('bj-booked-how',_existingDraft.bookedHow);
+    draftSetIfHasValue('bj-job-alerts',_existingDraft.jobAlerts);
+    draftSetIfHasValue('bj-bring-list',_existingDraft.bringList);
+    draftSetIfHasValue('bj-billing-alerts',_existingDraft.billingAlerts);
     draftSetIfHasValue('bj-volume',_existingDraft.volume);
     draftSetIfHasValue('bj-scope',_existingDraft.scope);
     draftSetIfHasValue('bj-crew-notes',_existingDraft.crewNotes);
@@ -8391,6 +8401,206 @@ function openBooking(leadId){
   }
   openModal('book-job');
 }
+// ── Crew cover sheet ────────────────────────────────────────────────────────────────────────
+// House format (2026-08-19): TOP ALERTS → CUSTOMER + INSURANCE → SCOPE → BRING → LOAD →
+// UNLOAD → WHEN → RATES & FEES → BILLING ALERTS. The point is that the crew always knows where
+// to look, so the order is fixed and NOTHING is repeated between sections — parking and access
+// appear once, in their own load/unload block, and never again in prose.
+// CAPS are reserved for headings and the two alert blocks. If everything shouts, nothing does.
+// Money prints WITHOUT cents ($50, not $50.00) per house style.
+function _csMoney(n){const x=Number(n)||0;return '$'+x.toLocaleString('en-US',{maximumFractionDigits:0});}
+function _csLines(v){return String(v==null?'':v).split(/[\n,]/).map(x=>x.trim()).filter(Boolean);}
+function _csDate(d){
+  if(!d)return 'TBD';
+  const dt=new Date(String(d)+'T12:00:00');
+  if(isNaN(dt.getTime()))return String(d);
+  return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+}
+function buildCrewCoverSheet(j,l){
+  const L=[];const n=v=>String(v==null?'':v).trim();
+  const put=v=>L.push(v==null?'':String(v));
+  const gap=()=>{if(L.length&&L[L.length-1]!=='')L.push('');};
+
+  // 1. Anything that ruins the job if missed.
+  _csLines(j.jobAlerts).forEach(a=>put(a.toUpperCase()));
+  if(_csLines(j.jobAlerts).length)gap();
+
+  // 2. Customer + insurance choice, always near the top.
+  put('CUSTOMER: '+(n(j.name)||'\u2014'));
+  if(n(j.phone))put('PHONE: '+n(j.phone));
+  if(n(j.email))put('EMAIL: '+n(j.email));
+  if(n(j.insuranceType))put('INSURANCE CHOICE: '+n(j.insuranceType));
+  const _src=n(j.source)||n(l&&l.source);
+  const _sd=n(j.sourceDetail)||n(l&&l.sourceDetail);
+  if(_src)put('SOURCE: '+_src+(_sd?' \u2014 '+_sd:''));
+  gap();
+
+  // 3. Scope. Size / vaults / packing stated ONCE here, then the description.
+  const facts=[];
+  if(n(j.size))facts.push(n(j.size));
+  if(Number(j.vaults))facts.push(j.vaults+' vault'+(Number(j.vaults)===1?'':'s'));
+  if(n(j.packing))facts.push(/^no/i.test(n(j.packing))?'No packing':n(j.packing));
+  put('SCOPE OF PROJECT');
+  if(facts.length)put(facts.join(' \u00b7 '));
+  // Office notes ARE the scope description — in normal text, not shouted at the top as before.
+  const _notes=n(l&&l.officeNotes)||n(j.officeNotes);
+  if(_notes)put(_notes);
+  gap();
+
+  // 4. Equipment the crew must not leave without.
+  const bring=_csLines(j.bringList);
+  if(bring.length){put('BRING: '+bring.join(' / ').toUpperCase());gap();}
+
+  // 5/6. Pickup conditions, then delivery conditions — never mixed.
+  put('LOAD');
+  put('FROM: '+(n(j.from)||'TBD'));
+  if(n(j.parkingLoad))put('PARKING: '+n(j.parkingLoad));
+  if(n(j.accessLoad))put('ACCESS: '+n(j.accessLoad));
+  (j.extraLoads||[]).forEach((x,i)=>{put('PICKUP '+(i+2)+': '+n(x.address));
+    if(n(x.parking))put('  PARKING: '+n(x.parking));if(n(x.access))put('  ACCESS: '+n(x.access));});
+  gap();
+  put('UNLOAD');
+  put('TO: '+(n(j.to)||'TBD'));
+  if(n(j.parkingUnload))put('PARKING: '+n(j.parkingUnload));
+  if(n(j.accessUnload))put('ACCESS: '+n(j.accessUnload));
+  (j.extraUnloads||[]).forEach((x,i)=>{put('DROP '+(i+2)+': '+n(x.address));
+    if(n(x.parking))put('  PARKING: '+n(x.parking));if(n(x.access))put('  ACCESS: '+n(x.access));});
+  gap();
+
+  put('WHEN: '+_csDate(j.date));
+  if(n(j.time))put('ARRIVAL: '+n(j.time));
+  gap();
+
+  // 7. Billing together, near the bottom. Crew split shown here rather than in its own block,
+  // but only when load and unload actually differ — that difference matters on the day.
+  put('RATES & FEES');
+  const _crew=(j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
+    ?((j.crewLoad||j.movers||'?')+' men loading / '+(j.crewUnload||j.movers||'?')+' unloading')
+    :((j.movers||'?')+' men');
+  if(j.flatRate&&Number(j.flatPrice)){
+    put('Move services: '+_csMoney(j.flatPrice)+' flat rate'+(Number(j.flatPriceCash)?' ('+_csMoney(j.flatPriceCash)+' if paid cash)':''));
+    put(_crew);
+  }else if(Number(j.rateRegular)){
+    put(_crew+' @ '+_csMoney(j.rateRegular)+' per hour'+(Number(j.rateCash)?' ('+_csMoney(j.rateCash)+' if paid cash)':''));
+    if(Number(j.hrsMin))put(j.hrsMin+' hour minimum');
+  }
+  if(Number(j.feeMaterials))put(_csMoney(j.feeMaterials)+' Material Fee');
+  if(Number(j.feeFuel))put(_csMoney(j.feeFuel)+' Fuel Fee');
+  if(Number(j.feeCoi))put(_csMoney(j.feeCoi)+' COI Fee');
+  if(Number(j.packMatMin)||Number(j.packMatMax))put('Packing Materials: '+_csMoney(j.packMatMin||0)+' \u2013 '+_csMoney(j.packMatMax||0));
+  (j.quoteFees||[]).forEach(f=>{
+    if(!f||!f.included)return;
+    const lbl=String(f.label||'').trim();
+    if(!lbl||/fuel|material/i.test(lbl))return;   // already emitted above, do not repeat
+    put((Number(f.amount)?_csMoney(f.amount)+' ':'')+lbl);
+  });
+  put('Return drive time back to warehouse at completion (30-minute minimum)');
+  if(Number(j.doNotExceed))put('DO NOT EXCEED: '+_csMoney(j.doNotExceed)+' + 3.5% card fee (no fee for check)');
+
+  const bill=_csLines(j.billingAlerts);
+  if(bill.length){gap();bill.forEach(b=>put(b.toUpperCase()));}
+  if(n(j.bookedBy)){gap();put(n(j.bookedBy));}
+  return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+// Per-day cover sheet for a multi-day job. Same fixed order and same rules as the single-day
+// sheet, with three differences that follow from each day being its OWN sheet the crew reads on
+// a different morning:
+//   • the header names the day and its purpose (Day 2 of 3 — Moving);
+//   • alerts / bring / billing DO repeat on every day — that is not repetition within a sheet,
+//     and a crew reading Day 3 must still be told to bring the piano board;
+//   • addresses, crew, rate and fees come from the DAY, falling back to the job.
+function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
+  const L=[];const n=v=>String(v==null?'':v).trim();
+  const put=v=>L.push(v==null?'':String(v));
+  const gap=()=>{if(L.length&&L[L.length-1]!=='')L.push('');};
+  const D=day||{};
+
+  _csLines(j.jobAlerts).forEach(a=>put(a.toUpperCase()));
+  if(_csLines(j.jobAlerts).length)gap();
+
+  put('DAY '+dayNum+' OF '+totalDays+(n(D.dayLabel)?' \u2014 '+n(D.dayLabel).toUpperCase():''));
+  gap();
+
+  put('CUSTOMER: '+(n(j.name)||'\u2014'));
+  if(n(j.phone))put('PHONE: '+n(j.phone));
+  if(n(j.email))put('EMAIL: '+n(j.email));
+  if(n(j.insuranceType))put('INSURANCE CHOICE: '+n(j.insuranceType));
+  gap();
+
+  const facts=[];
+  if(n(j.size))facts.push(n(j.size));
+  if(Number(j.vaults))facts.push(j.vaults+' vault'+(Number(j.vaults)===1?'':'s'));
+  if(n(j.packing))facts.push(/^no/i.test(n(j.packing))?'No packing':n(j.packing));
+  put('SCOPE OF PROJECT');
+  if(facts.length)put(facts.join(' \u00b7 '));
+  const _notes=n(l&&l.officeNotes)||n(j.officeNotes);
+  if(_notes)put(_notes);
+  gap();
+
+  const bring=_csLines(j.bringList);
+  if(bring.length){put('BRING: '+bring.join(' / ').toUpperCase());gap();}
+
+  // Addresses: the day's own loads/unloads first, then its from/to, then the job's.
+  const _loads=(D.loads&&D.loads.length)?D.loads:[{address:n(D.from)||n(j.from),parking:n(D.fromParking),access:n(D.fromAccess)||n(D.fromFloor)}];
+  // An EXPLICITLY empty day.to means this day has no delivery — a packing day, or a load-only
+  // day before an overnight. Only fall back to the job's address when the day carries no `to`
+  // key at all (a directly-booked day that simply inherits the job route).
+  const _dayHasToKey=Object.prototype.hasOwnProperty.call(D,'to');
+  const _toAddr=_dayHasToKey?n(D.to):(n(D.to)||n(j.to));
+  const _unloads=(D.unloads&&D.unloads.length)?D.unloads:[{address:_toAddr,parking:n(D.toParking),access:n(D.toAccess)||n(D.toFloor)}];
+  put('LOAD');
+  _loads.forEach((x,i)=>{
+    put((i===0?'FROM: ':'PICKUP '+(i+1)+': ')+(n(x.address)||'TBD'));
+    if(n(x.parking))put('PARKING: '+n(x.parking));
+    if(n(x.access))put('ACCESS: '+n(x.access));
+  });
+  if(!n(_loads[0]&&_loads[0].parking)&&n(j.parkingLoad))put('PARKING: '+n(j.parkingLoad));
+  if(!n(_loads[0]&&_loads[0].access)&&n(j.accessLoad))put('ACCESS: '+n(j.accessLoad));
+  gap();
+  const _hasDrop=_unloads.some(u=>n(u.address));
+  put('UNLOAD');
+  if(!_hasDrop){
+    put('LOAD TRUCKS ONLY \u2014 NO DELIVERY THIS DAY');
+  }else{
+    _unloads.forEach((x,i)=>{
+      put((i===0?'TO: ':'DROP '+(i+1)+': ')+(n(x.address)||'TBD'));
+      if(n(x.parking))put('PARKING: '+n(x.parking));
+      if(n(x.access))put('ACCESS: '+n(x.access));
+    });
+    if(!n(_unloads[0]&&_unloads[0].parking)&&n(j.parkingUnload))put('PARKING: '+n(j.parkingUnload));
+    if(!n(_unloads[0]&&_unloads[0].access)&&n(j.accessUnload))put('ACCESS: '+n(j.accessUnload));
+  }
+  gap();
+
+  put('WHEN: '+_csDate(D.date||j.date));
+  const _arr=n(D.arrivalWindow)||[n(D.arrivalStart),n(D.arrivalEnd)].filter(Boolean).join('\u2013')||n(j.time);
+  if(_arr)put('ARRIVAL: '+_arr);
+  gap();
+
+  put('RATES & FEES');
+  const crew=(D.crew||j.movers||'?');
+  if(D.flatRate&&Number(D.flatPrice)){
+    put((n(D.flatDescription)||'Move services')+': '+_csMoney(D.flatPrice)+' flat rate'+(Number(D.flatPriceCash)?' ('+_csMoney(D.flatPriceCash)+' if paid cash)':''));
+    put(crew+' men');
+  }else if(Number(D.rate)){
+    put(crew+' men @ '+_csMoney(D.rate)+' per hour'+(Number(D.rateCash)?' ('+_csMoney(D.rateCash)+' if paid cash)':''));
+    if(Number(D.hrsMin))put(D.hrsMin+' hour minimum');
+  }
+  // Day 1 falls back to the job-level fees; later days must NOT, or the same fee is charged daily.
+  const _fuel=Number(D.feeFuel)||(dayNum===1?Number(j.feeFuel)||0:0);
+  const _mat=Number(D.feeMaterials)||(dayNum===1?Number(j.feeMaterials)||0:0);
+  if(_mat)put(_csMoney(_mat)+' Material Fee');
+  if(_fuel)put(_csMoney(_fuel)+' Fuel Fee');
+  put('Return drive time back to warehouse at completion (30-minute minimum)');
+  if(dayNum===totalDays&&Number(j.doNotExceed))put('DO NOT EXCEED (WHOLE JOB): '+_csMoney(j.doNotExceed)+' + 3.5% card fee (no fee for check)');
+
+  const bill=_csLines(j.billingAlerts);
+  if(bill.length){gap();bill.forEach(b=>put(b.toUpperCase()));}
+  if(n(j.bookedBy)){gap();put(n(j.bookedBy));}
+  return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
 function buildJobCalUrl(j){
   const dateStr=j.date||'';const d=dateStr.replace(/-/g,'');
   let startHour='0830',endHour='1730';
@@ -8582,7 +8792,24 @@ function buildJobCalUrl(j){
   // ───────────────────────────────────────────────────────────
   lines.push('*Customer responsible for any parking tickets');
 
-  const desc=lines.filter(l=>l!==undefined).join('\n');
+  // COVER SHEET (2026-08-19). The old description opened by dumping the whole office-notes blob
+  // in capitals and then repeated parking/access/packing in several places — the two things the
+  // crew format explicitly forbids. It is replaced by the fixed-order sheet.
+  // Invariant #24 is preserved: `_moveBlock` is the text the customer ACTUALLY received (or a
+  // rebuild of it) and may contain hand-typed extras that exist in no structured field, so it is
+  // appended under its own heading rather than dropped. It is NOT merged into RATES & FEES,
+  // because a half-merge is exactly how a hand-typed billing line goes missing.
+  let desc;
+  try{
+    const _lead=(db.leads||[]).find(x=>x.id===j.leadId)||null;
+    desc=buildCrewCoverSheet(j,_lead);
+    if(_moveBlock&&String(_moveBlock).trim()){
+      desc+='\n\n\u2014 AS SENT TO CUSTOMER \u2014\n'+String(_moveBlock).trim();
+    }
+  }catch(e){
+    // Never let a formatting fault cost someone their calendar entry.
+    desc=lines.filter(l=>l!==undefined).join('\n');
+  }
   const base='https://calendar.google.com/calendar/render';
   return`${base}?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${d}T${startHour}00/${d}T${endHour}00&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(j.from||'')}`;
 }
@@ -8627,6 +8854,9 @@ function confirmBooking(){
     j.deposit=document.getElementById('bj-deposit').value;
   j.bookedBy=(document.getElementById('bj-booked-by')||{}).value||'';
   j.bookedHow=(document.getElementById('bj-booked-how')||{}).value||'';
+  j.jobAlerts=(document.getElementById('bj-job-alerts')||{}).value||'';
+  j.bringList=(document.getElementById('bj-bring-list')||{}).value||'';
+  j.billingAlerts=(document.getElementById('bj-billing-alerts')||{}).value||'';
   {const _l=db.leads.find(x=>x.id===j.leadId);
    if(_l&&j.bookedBy){_l.bookedBy=j.bookedBy;_l._localEditedAt=new Date().toISOString();}
    if(_l&&j.bookedHow){
@@ -8926,7 +9156,15 @@ function buildDayCalUrl(j,day,dayNum){
     }
   }
 
-  const desc=lines.filter(l=>l!==undefined&&l!==null).join('\n').replace(/\n{3,}/g,'\n\n');
+  // Cover sheet for this day (2026-08-19), replacing the old per-day layout. Falls back to the
+  // previous description if anything throws — a formatting fault must never cost a calendar entry.
+  let desc;
+  try{
+    const _lead=(db.leads||[]).find(x=>x.id===j.leadId)||null;
+    desc=buildCrewCoverSheetDay(j,day,dayNum,totalDays||((j.quoteDays||[]).length||1),_lead);
+  }catch(e){
+    desc=lines.filter(l=>l!==undefined&&l!==null).join('\n').replace(/\n{3,}/g,'\n\n');
+  }
   const loc=encodeURIComponent(firstLoad.address||'');
   return`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(calTitle)}&dates=${d}T${startHour}00/${d}T${endHour}00&details=${encodeURIComponent(desc)}&location=${loc}`;
 }
@@ -9624,6 +9862,9 @@ function editBookedJob(jobId){
    if(typeof bjToggleFlatRate==='function')bjToggleFlatRate();}
   {const _bb=document.getElementById('bj-booked-by');if(_bb)_bb.value=j.bookedBy||'';}
   {const _bh=document.getElementById('bj-booked-how');if(_bh)_bh.value=j.bookedHow||'';}
+  {const _a=document.getElementById('bj-job-alerts');if(_a)_a.value=j.jobAlerts||'';
+   const _b=document.getElementById('bj-bring-list');if(_b)_b.value=j.bringList||'';
+   const _c=document.getElementById('bj-billing-alerts');if(_c)_c.value=j.billingAlerts||'';}
   document.getElementById('bj-date').value=j.date||'';
   document.getElementById('bj-time').value=j.time||'';
   document.getElementById('bj-movers').value=j.movers||'3';
