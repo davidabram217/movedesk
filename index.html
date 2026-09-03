@@ -1707,7 +1707,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       <button class="modal-close" onclick="closeModal('confirm-email')">✕</button>
     </div>
     <div class="modal-body">
-      <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:12.5px;color:var(--accent);font-weight:500">
+<div id="ce-client-card" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+        <div id="ce-client-name" style="font-size:14px;font-weight:700;margin-bottom:2px"></div>
+        <div id="ce-client-contact" style="font-size:12.5px;color:var(--text2);font-family:'DM Mono',monospace"></div>
+        <div id="ce-client-notes-wrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border2)">
+          <div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">🔒 Office notes — internal only, not in the email</div>
+          <div id="ce-client-notes" style="font-size:12.5px;color:var(--text);white-space:pre-wrap;line-height:1.5"></div>
+        </div>
+      </div>
+            <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:12.5px;color:var(--accent);font-weight:500">
         ✓ Review and edit the email below before sending
       </div>
       <div class="form-grid" style="gap:12px">
@@ -6610,6 +6618,12 @@ function openConfirmEmail(leadId,bookedJob){
   } else {
     _setConfirmDraftNotice(null);
   }
+  // Client reference panel (2026-08-19, David). Name / phone / email / office notes shown at the
+  // top of the modal so everything needed to check the email is on screen, without hunting back
+  // through the lead. OFFICE NOTES ARE DISPLAY-ONLY HERE and are deliberately NOT written into the
+  // email body — they are internal (job description, gate codes, "difficult customer") and the
+  // whole app treats them as never customer-facing. The label says so on screen.
+  _fillConfirmClientCard(l,bj);
   // Stash the freshly-built versions so "Start fresh" can restore them without reopening.
   window._ceFreshSubject=subject;window._ceFreshBody=body;
   openModal('confirm-email');
@@ -9049,6 +9063,27 @@ function resetJobCal(jobId){
 
 // Shows/hides the "continuing an earlier draft" banner. Called on every open so it cannot
 // linger from a previous lead.
+function _fillConfirmClientCard(l,bj){
+  const card=document.getElementById('ce-client-card');
+  if(!card)return;
+  const src=l||bj||null;
+  if(!src){card.style.display='none';return;}
+  const name=(src.name||'').trim();
+  const phone=(src.phone||bj&&bj.phone||'').trim();
+  const email=(src.email||bj&&bj.email||'').trim();
+  // Office notes live on the LEAD as the single source of truth (invariant #18); fall back to the
+  // booked job only when there is no lead, e.g. a job opened directly from Booked Jobs.
+  const notes=((l&&l.officeNotes)||(bj&&bj.officeNotes)||'').trim();
+  const nEl=document.getElementById('ce-client-name');
+  const cEl=document.getElementById('ce-client-contact');
+  const wrap=document.getElementById('ce-client-notes-wrap');
+  const nt=document.getElementById('ce-client-notes');
+  if(nEl)nEl.textContent=name||'(no name on record)';
+  if(cEl)cEl.textContent=[phone||'no phone',email||'no email'].join('  \u00b7  ');
+  if(wrap)wrap.style.display=notes?'block':'none';
+  if(nt)nt.textContent=notes;
+  card.style.display='block';
+}
 function _setConfirmDraftNotice(savedAt){
   const box=document.getElementById('ce-draft-notice');
   const txt=document.getElementById('ce-draft-notice-text');
