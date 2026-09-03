@@ -6612,7 +6612,7 @@ function openConfirmEmail(leadId,bookedJob){
     const _restoreBody=_noSourceEitherSide?true:(_saved?_fingerprintMatches:false);
     if(_restoreBody){
       document.getElementById('ce-subject').value=l._confirmEmailDraft.subject||subject;
-      document.getElementById('ce-body').value=l._confirmEmailDraft.body||body;
+      document.getElementById('ce-body').value=_stripHourLines(l._confirmEmailDraft.body)||body;
     }
     // Otherwise: keep the freshly-built subject and body already in the textareas above.
     // Restoring silently is confusing — you cannot tell whether you are looking at your own words
@@ -6693,7 +6693,10 @@ function sendConfirmationEmail(){
   }
   if(_resolvedId&&!window._currentDayId){
     currentBookedJobId=_resolvedId;
-    window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(db.bookedJobs.find(x=>x.id===_resolvedId));
+    // Always REBUILD (2026-08-19): a cached URL was built before the job's latest edits — top
+  // alerts, bring list and billing alerts entered on the booking form never reached the calendar
+  // because the stale URL won. buildJobCalUrl is a pure function of the job, so rebuilding is free.
+  window._bookingCalUrl=buildJobCalUrl(db.bookedJobs.find(x=>x.id===_resolvedId));
     setTimeout(()=>{renderLeads();openModal('booking-next');renderBookingChecklist();},300);
   } else if(_resolvedId&&window._currentDayId&&_dayMatch){
     const job=db.bookedJobs.find(x=>x.id===_resolvedId);
@@ -8804,7 +8807,7 @@ function buildJobCalUrl(j){
     const _lead=(db.leads||[]).find(x=>x.id===j.leadId)||null;
     desc=buildCrewCoverSheet(j,_lead);
     if(_moveBlock&&String(_moveBlock).trim()){
-      desc+='\n\n\u2014 AS SENT TO CUSTOMER \u2014\n'+String(_moveBlock).trim();
+      desc+='\n\n\u2014 AS SENT TO CUSTOMER \u2014\n'+_stripHourLines(String(_moveBlock).trim());
     }
   }catch(e){
     // Never let a formatting fault cost someone their calendar entry.
@@ -9005,7 +9008,7 @@ function openChecklistForJob(jobId){
 function openBookingChecklist(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
   if(!j){showToast('⚠ DEBUG: job not found, id='+currentBookedJobId);return;}
-  window._bookingCalUrl=window._bookingCalUrl||buildJobCalUrl(j);
+  window._bookingCalUrl=buildJobCalUrl(j);
   document.getElementById('booking-next-name').textContent=j.name+' · '+fmtDate(j.date);
   renderBookingChecklist();
   setTimeout(function(){openModal('booking-next');},50);
@@ -9199,7 +9202,7 @@ function renderBookingChecklist(){
     });
   } else {
     const calDone=j.calendarAdded;
-    const url=window._bookingCalUrl||buildJobCalUrl(j);
+    const url=buildJobCalUrl(j);
     calRows=`
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${calDone?'var(--accent)':'var(--border2)'};background:${calDone?'var(--accent-light)':'var(--surface)'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -9321,6 +9324,22 @@ function _fillConfirmClientCard(l,bj){
   if(wrap)wrap.style.display=notes?'block':'none';
   if(nt)nt.textContent=notes;
   card.style.display='block';
+}
+// Strips hour-minimum / estimated-hours lines out of STORED text (2026-08-19). Removing them
+// from the builders only affected NEWLY BUILT bodies — a restored draft, or a `_sentDetailsBlock`
+// captured from an earlier send, still carried "2 hour minimum" and "Estimated 6–8 hours" and
+// showed them to the customer again. Deliberately line-based and anchored: it only drops a line
+// that IS an hours line, so the "$150 – $300 Packing Materials" fee ranges (which reuse the same
+// hrsMin/hrsMax fields for money) are untouched.
+function _stripHourLines(txt){
+  if(!txt)return txt;
+  return String(txt).split('\n').filter(function(line){
+    const t=line.trim();
+    if(/^\d+(\.\d+)?\s*hour\s*minimum\b/i.test(t))return false;
+    if(/^estimated\s+\d/i.test(t)&&/hours?\b/i.test(t))return false;
+    if(/^est\.?\s+\d[\d.\u2013\-\s]*hours?\b/i.test(t))return false;
+    return true;
+  }).join('\n');
 }
 function _setConfirmDraftNotice(savedAt){
   const box=document.getElementById('ce-draft-notice');
