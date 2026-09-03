@@ -6312,7 +6312,8 @@ function buildMoveDetailsBlock(l,bj){
     if((l?.packing||bj?.packing)&&(l?.packing||bj?.packing)!=='No — just moving')s+='\nPacking Materials Used - TBD';
     s+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
     const _hasStorage=(l?.storage===true||l?.storage==='yes'||bj?.storage===true||bj?.storage==='yes');
-    if(_hasStorage)s+='\nStorage costs $200 per month';
+    // Storage costs now stated on EVERY confirmation at $120 per 5x7x8 space (2026-08-19,
+    // David), so this conditional $200 line is superseded and removed to avoid two prices.
     const _packing=l?.packing||bj?.packing||'';
     if(_packing&&_packing!=='No'&&_packing!=='No — just moving')s+='\n*'+_packing+' packing included';
   }
@@ -6506,7 +6507,11 @@ function openConfirmEmail(leadId,bookedJob){
       if(flatPrice){
         moveDetailsSection+='\n'+(d.flatDescription||'Move services')+': $'+Number(flatPrice).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' flat rate'+(flatCash?' ($'+Number(flatCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
       }
-    } else if(rate){moveDetailsSection+='\n'+crew+' Movers @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
+    } else if(rate){moveDetailsSection+='\n'+crew+' Movers @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
+    // Hour MINIMUM reinstated 2026-08-19: David confirmed he only wanted the estimated hours
+    // RANGE gone. This is a firm billing term and belongs on the confirmation. Falls back to
+    // the house 2-hour minimum when the job carries none.
+    moveDetailsSection+='\n'+(Number(d&&d.hrsMin)||Number(bj&&bj.hrsMin)||2)+' Hour Minimum';if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
     // Fees: booking-form fuel/materials override the matching quote fees. Other quote fees
     // (e.g. packing materials, custom fees) pass through unchanged.
     var bjFuelFee=Number(bj?.feeFuel)||0;
@@ -6573,10 +6578,29 @@ function openConfirmEmail(leadId,bookedJob){
         return parts.slice(0,-1).join(', ')+' & '+parts[parts.length-1]+', '+yr;
       })()
     :'Move Confirmation — '+fmtDateWithDay(bj?.date||l?.date||'');
-  var body='Hey '+firstName+',\n\nQuick email confirming things for your upcoming move.\n\nBe sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\nPlease be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\nStorage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\nHere are the details as I understand them:'
+  var // CONFIRMATION EMAIL BODY — rebuilt to David's template (2026-08-19).
+    // The static wording is fixed and appears on EVERY confirmation; only `moveDetailsSection`
+    // (the When/From/To block, crew, rate, fees) varies by job. Order and wording follow the
+    // template he supplied verbatim, including the three lines that are always shown regardless
+    // of the job: Storage Costs, the parking-ticket note, and "No Small Packing Required".
+    body='Hey '+firstName+',\n\n'
+    +'Quick email confirming things for your upcoming move.\n\n'
+    +'Be sure to review your insurance options located in the PDF attached below and let us know what option you decide.\n\n'
+    +'Please be sure and point out any high value items to myself before the move and to our crew when they arrive. We want to be sure such items are discussed and given the extra care they may require.\n\n'
+    +'Storage for any belongings you may not have space for, can be brought back to our secure local warehouse if need be.\n\n'
+    +'Here are the details as I understand them:'
     +moveDetailsSection
-    +'\n\n*No small packing needed\n'+(lPacking&&lPacking!=='No'?'*'+lPacking+' packing included\n':'')
-    +'\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.\n\nIf utilizing the Cash Discount you will need to have the full amount on hand as we cannot offer the discount if splitting the bill or using an alternate payment method. Try having more than enough cash handy as we would have to charge for time to get more.\n\nIf you have any questions feel free to reply to this email or you can always call the shop at (415) 822-8547.\n\nA $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move.\n\nPlease review the important documents linked below before your move'+(lStorage?' (including the Storage Guidelines)':'')+'.\n\nPlease let us know your insurance option choice prior to your move.\n\nWe look forward to seeing you soon.\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
+    // Always-on closing lines from the template. Storage Costs is stated on every email per
+    // David — it is a standing price, not a per-job charge, so it is not conditional on
+    // this job involving storage.
+    +'\nStorage Costs: $120.00 per month for each 5x7x8 space used'
+    +'\n(3.5% CC Fee Applies/10% Yearly Annual Increase)'
+    +'\n*Customer responsible for any parking tickets should they be incurred'
+    +'\n*No Small Packing Required'
+    +'\n\nWe accept cash, check or credit card (NO AMEX) with a 3.5% additional charge for credit card payments.'
+    +'\n\nIf utilizing the Cash Discount you will need to have the full amount on hand as we can\u2019t offer the discount if splitting the bill or using an alternate payment method. Try having more than enough cash handy as we would have to charge for time to get more.'
+    +'\n\nIf you have any questions feel free to reply to this email or you can always call the shop at (415) 822-8547.. A $400.00 deposit will be charged if you cancel or reschedule with less than 7 days notice from the date of move. I have also attached a PDF that goes over some Moving Basics and Insurance Options. Please take the time to review and let us know what option you choose prior to your move. We look forward to seeing you soon.'
+    +'\n\nSincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
 
   document.getElementById('ce-to').value=lEmail;
   document.getElementById('ce-subject').value=subject;
@@ -9335,7 +9359,9 @@ function _stripHourLines(txt){
   if(!txt)return txt;
   return String(txt).split('\n').filter(function(line){
     const t=line.trim();
-    if(/^\d+(\.\d+)?\s*hour\s*minimum\b/i.test(t))return false;
+    // The hour MINIMUM is kept (2026-08-19): it is a firm billing term David wants on the
+    // confirmation. Only the estimated hours RANGE is stripped from stored text.
+    // if(/^\d+(\.\d+)?\s*hour\s*minimum\b/i.test(t))return false;
     if(/^estimated\s+\d/i.test(t)&&/hours?\b/i.test(t))return false;
     if(/^est\.?\s+\d[\d.\u2013\-\s]*hours?\b/i.test(t))return false;
     return true;
