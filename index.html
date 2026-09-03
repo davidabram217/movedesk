@@ -12138,6 +12138,11 @@ let staffFilter=_getStaffFilter();
 // SHARED ANALYTICS DATA — single source of truth
 // Every estimate/quote chart uses getEstimateEvents()
 // ══════════════════════════════════════════════════════════
+// Estimate types excluded from ALL performance analytics (2026-08-19). Declared beside the
+// event builder so every consumer filters identically — three charts previously each had to
+// remember, and the per-person card's TOTAL forgot, so its header disagreed with its rows.
+const _ET_EXCLUDED_GLOBAL=['Summary + rough quote'];
+function _etCounts(e){return !!e&&_ET_EXCLUDED_GLOBAL.indexOf(e.estimateType)===-1;}
 function getEstimateEvents(){
   // Returns array of {name, estimateType, status, rate, leadStatus, quoteStatus}
   // Only includes leads where a PRICE was given — rough quote, formal estimate, or quote sent
@@ -12668,8 +12673,14 @@ function renderAnalytics(){
   }).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
   // ── Estimate close rates bar chart ──
   const _ec2={'FaceTime':'#6c3483','Video':'#1a5276','Onsite':'#b7860b','Summary + rough quote':'#2d6a4f','Unseen':'#888'};
-  const _etTypes=['FaceTime','Video','Onsite','Summary + rough quote','Unseen'];
-  const _ev2=getEstimateEvents();
+  // "Summary + rough quote" is excluded from ALL estimate-type analytics (2026-08-19, David).
+  // The business does not work that way any more — an unseen quote is sent instead — so those
+  // rows are historical noise on charts used to judge current performance, and they drag every
+  // close rate down (9 estimates, 0 booked, on Dave alone). The events still EXIST and nothing is
+  // deleted; they are simply not counted here. "How jobs get booked" is untouched — that panel
+  // answers a different question and its rough-quote paths are still real history.
+  const _etTypes=['FaceTime','Video','Onsite','Unseen'];
+  const _ev2=getEstimateEvents().filter(_etCounts);
   const _ed2=_etTypes.map(t=>{
     const rows=_ev2.filter(e=>e.estimateType===t);
     return{type:t,tot:rows.length,cl:rows.filter(e=>e.booked).length,rate:rows.length?Math.round(rows.filter(e=>e.booked).length/rows.length*100):0};
@@ -12876,7 +12887,7 @@ function renderAnalytics(){
     </div>`:`<div class="empty-state"><div class="empty-title">No payment data yet</div></div>`;
 
     // Staff performance — built from getEstimateEvents()
-  const _spEv=getEstimateEvents();
+  const _spEv=getEstimateEvents().filter(_etCounts);
   const _spd={};
   _spEv.forEach(e=>{
     if(!e.name)return;
@@ -13257,7 +13268,7 @@ function renderAnalytics(){
 
   
   // ── Quote/estimate analytics — all use getEstimateEvents() ──
-  const _ev=getEstimateEvents();
+  const _ev=getEstimateEvents().filter(_etCounts);
 
   // 1. Quote acceptance rate
   const _evSent=_ev.length;
@@ -13333,8 +13344,8 @@ function renderAnalytics(){
   // historical noise on a chart used to judge current performance. Scoped to THIS chart only:
   // "Estimate close rates" and the per-person close-rate cards still show every type, so the
   // historical record is intact and nothing is deleted from the data.
-  const _ET_EXCLUDE_FROM_SUCCESS=['Summary + rough quote'];
-  const _allEt=_etTypes.filter(t=>!_ET_EXCLUDE_FROM_SUCCESS.includes(t)&&_ev.some(e=>e.estimateType===t));
+  // _etTypes no longer contains the summary type at all, so no extra filter is needed here.
+  const _allEt=_etTypes.filter(t=>_ev.some(e=>e.estimateType===t));
   // Stash this so the drill-down modal can re-resolve names → leads
   window._estimateTypeBreakdown=_ep;
   document.getElementById('estimate-type-chart').innerHTML=_epNames.length?_epNames.map(name=>{
@@ -13911,7 +13922,7 @@ function renderActivityPatterns(){
   renderIncomeCard('analytics-income-body',_incomeTabAnalytics);
 
   // ── Hourly rate success ──
-  const _rv=getEstimateEvents();
+  const _rv=getEstimateEvents().filter(_etCounts);
   const _rg={};
   _rv.forEach(e=>{
     if(!e.rate)return;
