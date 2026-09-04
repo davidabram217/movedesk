@@ -168,7 +168,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           <select onchange="filterLeadsSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Stager</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
           <select onchange="filterLeadsEst(this.value)"><option value="">All estimate types</option><option>FaceTime</option><option>Video</option><option>Onsite</option><option>Summary + rough quote</option><option>Unseen</option></select>
         </div>
-        <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Move date</th><th>Size</th><th>Source</th><th>Estimate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="leads-tbody"></tbody></table></div></div></div>
+        <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Move date</th><th title="When this lead first arrived">Came in</th><th>Size</th><th>Source</th><th>Estimate</th><th>Status</th><th>Actions</th></tr></thead><tbody id="leads-tbody"></tbody></table></div></div></div>
       </div>
       <div id="leads-archived" style="display:none">
         <div class="filter-bar">
@@ -5855,7 +5855,7 @@ function renderLeadsTable(){
     if(aCreated!==bCreated)return bCreated.localeCompare(aCreated);
     return (b.id||'').localeCompare(a.id||'');
   });
-  if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td><td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
+  if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td>${leadAgeCell(l.createdAt)}<td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
 }
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
 function filterLeadsSource(v){leadFilter.source=v;renderLeadsTable();}
@@ -5918,8 +5918,48 @@ function reactivateLead(id){
   showToast('↩ '+l.name+' reactivated — resumed at "'+l.status+'"');
 }
 
+// Formats when a lead arrived. Legacy records store a DATE ONLY (web-form leads before
+// 2026-08-19 had their time stripped on import), so the time is shown only when one exists
+// rather than inventing midnight.
+// Age of a lead, for the "Came in" column. A leads list is a QUEUE, so the colour matters as
+// much as the words — the eye should land on what is going stale. Counted from ARRIVAL per
+// David (not last contact), and under an hour it shows minutes, because for a lead that just
+// landed the difference between 8 minutes and 5 hours is the whole game.
+function fmtLeadAge(v){
+  if(!v)return{text:'\u2014',tone:'muted'};
+  const raw=String(v);
+  const then=new Date(raw.length<=10?raw+'T12:00:00':raw);
+  if(isNaN(then.getTime()))return{text:'\u2014',tone:'muted'};
+  const mins=Math.floor((Date.now()-then.getTime())/60000);
+  if(mins<1)return{text:'just now',tone:'fresh'};
+  if(mins<60)return{text:mins+'m ago',tone:'fresh'};
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return{text:'Today',tone:'fresh'};
+  const days=Math.floor(hrs/24);
+  if(days===1)return{text:'Yesterday',tone:'ok'};
+  if(days<7)return{text:days+' days ago',tone:'ok'};
+  if(days<14)return{text:'1 week ago',tone:'warn'};
+  if(days<31)return{text:Math.floor(days/7)+' weeks ago',tone:'warn'};
+  const mo=Math.floor(days/30);
+  return{text:mo+' month'+(mo===1?'':'s')+' ago',tone:'stale'};
+}
+function leadAgeCell(v){
+  const a=fmtLeadAge(v);
+  const col={fresh:'var(--accent)',ok:'var(--text2)',warn:'var(--amber)',stale:'var(--error)',muted:'var(--text3)'}[a.tone];
+  const w={fresh:'600',ok:'400',warn:'600',stale:'700',muted:'400'}[a.tone];
+  return '<td style="color:'+col+';font-weight:'+w+';white-space:nowrap">'+a.text+'</td>';
+}
+function fmtLeadArrived(v){
+  if(!v)return '';
+  const raw=String(v);
+  const d=new Date(raw.length<=10?raw+'T12:00:00':raw);
+  if(isNaN(d.getTime()))return '';
+  const day=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  if(raw.length<=10)return day;
+  return day+' at '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
 function viewLead(id){try{const l=db.leads.find(x=>x.id===id);if(!l)return;document.getElementById('view-modal-title').textContent=l.name;
-document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}</span>`:'';
+document.getElementById('view-modal-status').innerHTML=l.status?statusBadge(l.status)+`<span style="font-size:11px;color:var(--text3);margin-left:6px">${fmtDate(l.date)?'Move date: '+fmtDate(l.date):''}${fmtLeadArrived(l.createdAt)?'<span style="margin-left:8px">\u00b7 Lead in: '+fmtLeadArrived(l.createdAt)+'</span>':''}</span>`:'';
 const isPending=l.status==='Estimate sent'||l.status==='Summary + rough quote';
 const isAccepted=l.status==='Quote accepted'||l.status==='Confirmation sent';
 // Find associated quote — strict precedence so multi-quote leads always show the right one:
@@ -14212,7 +14252,11 @@ async function importPendingLeads(){
         takenBy:'',
         estimateType:'',estimateDate:'',estimateQuote:'',estimateNotes:'',
         status:'New',
-        createdAt:(d.submittedAt||new Date().toISOString()).split('T')[0],
+        // Keep the FULL timestamp (2026-08-19). This used to `.split('T')[0]` and throw the time
+          // away, even though the web form sends `submittedAt` with the time in it — so web leads
+          // recorded only the day while manually-added ones (saveLead) kept the minute. Knowing a
+          // lead landed at 11pm on a Sunday is exactly the kind of thing worth knowing.
+          createdAt:(d.submittedAt||new Date().toISOString()),
         fromQuoteForm:true,
         repeatCustomer:isRepeat||false
       };
