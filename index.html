@@ -6818,6 +6818,7 @@ function saveEstimateSent(id){
   if(quote)l.estimateQuote=quote;
   if(doneBy)l.estimateDoneBy=doneBy;
   if(sentBy)l.estimateSentBy=sentBy;
+  markLeadContacted(l,(l.estimateDate&&l.estimateDate!=='TBD')?l.estimateDate:null);
   saveDB();
   showToast(`✓ Estimate sent — ${type}${sentBy?' by '+sentBy:''}`);
   closeModal('view');
@@ -6883,7 +6884,22 @@ function handleStatusClick(id,status){
   updateLeadStatus(id,status);
 }
 
-function updateLeadStatus(id,status){const l=db.leads.find(x=>x.id===id);if(l){l.status=status;l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();showToast('Status: '+status);closeModal('view');renderLeads();}}
+// Records the FIRST time a lead was actually worked — set once, never overwritten (2026-08-19).
+// Needed because `statusUpdatedAt` is rewritten by all 23 status writes with no history kept, so
+// on a lead now sitting at "Did not book" it holds the date it was marked LOST, not the date it
+// was first contacted — which would systematically overstate response times.
+// Moving a lead off "New" IS contact: per David, marking someone "Need to follow up" means they
+// have been spoken to. Full ISO timestamp so response time is measurable in hours, not just days.
+const _NOT_YET_CONTACTED=['New','','Did not book'];
+function markLeadContacted(l,whenIso){
+  if(!l)return;
+  if(l.firstContactedAt)return;                       // set once
+  l.firstContactedAt=whenIso||new Date().toISOString();
+  l._localEditedAt=new Date().toISOString();
+}
+function updateLeadStatus(id,status){const l=db.leads.find(x=>x.id===id);if(l){
+  if(!_NOT_YET_CONTACTED.includes(status))markLeadContacted(l);
+  l.status=status;l.statusUpdatedAt=new Date().toISOString().split('T')[0];saveDB();showToast('Status: '+status);closeModal('view');renderLeads();}}
 
 let currentCallSummaryLeadId=null;
 // ── Info request + walkthrough video email ──────────────────────────────────
@@ -7008,6 +7024,7 @@ async function sendInfoRequest(){
       viaGmail:result==='gmail'
     });
     l.infoRequestSentAt=sentDate;
+    markLeadContacted(l);
     // DELIBERATELY does not touch l.status (fixed 2026-08-19). Asking a customer for more
     // information is not a pipeline transition — it can happen at almost any pre-quote point
     // — and forcing a status here caused real damage: it OVERWROTE whatever stage the lead
@@ -7205,6 +7222,7 @@ function markSummarySent(){
     if(!l.summaryLog)l.summaryLog=[];
     l.summaryLog.push({date:sentDate,to:sentTo,subject:sentSubject,body:sentBody,withRoughQuote:includeRQ,rqMin,rqMax});
     l.summarySentAt=sentDate;
+    markLeadContacted(l);
     l.summaryEmailTo=sentTo;
     l.summaryEmailBody=sentBody;
     l.summaryEmailSubject=sentSubject;
@@ -7494,6 +7512,7 @@ async function confirmScheduleEstimate(){
   l.estimateOfficeNotes=_scheOn;
   if(_scheOn)l.officeNotes=_scheOn; // sync to master
   l.estimateSetupBy=setupBy;
+  markLeadContacted(l);
   // REMOVED 2026-08-19: this used to copy estimateSetupBy into estimateSentBy. Scheduling an
   // estimate appointment and SENDING an estimate are different actions, often by different
   // people — John books the on-site visit, Dave sends the quote. The copy made analytics credit
