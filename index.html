@@ -98,6 +98,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     <div class="nav-item" onclick="showPage('aiquote')"><span>🤖</span> AI Quote Builder</div>
     <div class="nav-item" onclick="showPage('packcalc')"><span>📦</span> Pack Materials Calc</div>
     <div class="nav-item" onclick="showPage('fleet');renderFleet()"><span>🚚</span> Fleet</div>
+    <div class="nav-item" onclick="showPage('hotels');renderHotels()"><span>🏨</span> Truck-Friendly Hotels</div>
   </div>
   <div class="sidebar-footer">v1.0 · You & John</div>
 </nav>
@@ -797,6 +798,42 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="page" id="page-hotels">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div>
+          <div class="card-title">🏨 Truck-friendly hotels</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Places we have stayed that can take the truck. Type a destination to see the nearest ones.</div>
+        </div></div>
+        <div class="card-body">
+          <div class="form-grid form-grid-2" style="gap:10px;align-items:end">
+            <div class="form-group" style="margin:0"><label>Find hotels near…</label><input type="text" id="hotel-search" placeholder="Sacramento, CA" oninput="hotelSearchChanged()"></div>
+            <div class="form-group" style="margin:0"><label>Within</label><select id="hotel-radius" onchange="renderHotels()"><option value="25">25 miles</option><option value="50" selected>50 miles</option><option value="100">100 miles</option><option value="0">Show all</option></select></div>
+          </div>
+          <div id="hotel-search-note" style="font-size:11.5px;color:var(--text3);margin-top:8px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div><div class="card-title">Add a hotel</div></div></div>
+        <div class="card-body">
+          <div class="form-grid form-grid-2" style="gap:10px">
+            <div class="form-group"><label>Hotel name *</label><input type="text" id="ht-name" placeholder="Best Western Sacramento"></div>
+            <div class="form-group"><label>Address *</label><input type="text" id="ht-address" placeholder="123 Main St, Sacramento CA" onblur="hotelAddressResolved()"></div>
+            <div class="form-group"><label>Truck parking — what to expect *</label><input type="text" id="ht-parking" placeholder="Back lot fits 26ft, enter from the rear"></div>
+            <div class="form-group"><label>Biggest truck that fits</label><select id="ht-truck"><option value="">—</option><option>Cargo van</option><option>15 ft</option><option>17 ft</option><option>20 ft</option><option>24 ft</option><option>26 ft</option><option>Semi / trailer</option></select></div>
+            <div class="form-group"><label>Rough nightly rate ($)</label><input type="number" id="ht-rate" placeholder="140"></div>
+            <div class="form-group"><label>Phone</label><input type="text" id="ht-phone" placeholder="(916) 555-0142"></div>
+            <div class="form-group" style="grid-column:span 2"><label>Notes</label><input type="text" id="ht-notes" placeholder="Call ahead — ask for the rear entrance. Breakfast from 6am."></div>
+            <div class="form-group" style="grid-column:span 2"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:12.5px"><input type="checkbox" id="ht-avoid" style="width:auto;margin:0"> Would not stay again</label></div>
+          </div>
+          <button class="btn btn-primary" onclick="saveHotel()">Save hotel</button>
+          <button class="btn btn-secondary" onclick="clearHotelForm()">Clear</button>
+        </div>
+      </div>
+
+      <div class="card"><div class="card-body" id="hotels-list" style="padding:0"></div></div>
     </div>
 
     <div class="page" id="page-fleet">
@@ -2694,7 +2731,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 <div id="toast"></div>
 
 <script>
-let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
+let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],hotels:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
 // ── SUPABASE CONFIG ──
 const SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
@@ -2981,6 +3018,11 @@ async function loadDB(){
     else{db.weeklyPayroll={};payrollRows.forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});}
     db.cashTransactions=_cloudOrLocal(transactions,_LD.cashTransactions);
     // ai_training — load if table exists, otherwise keep whatever's in localStorage
+    // hotels — the truck-parking list is only useful if it is shared, so pull it the same way.
+    try{
+      const hotelRows=await sbFetch('hotels?select=id,data&order=created_at.desc');
+      if(Array.isArray(hotelRows))db.hotels=hotelRows.map(r=>({...r.data,id:r.id}));
+    }catch(e){ console.warn('hotels load skipped (table may not exist yet):',e); }
     try{
       const aiRows=await sbFetch('ai_training?select=id,data&order=created_at.desc');
       if(Array.isArray(aiRows))db.aiTraining=aiRows.map(r=>({...r.data,id:r.id}));
@@ -3653,6 +3695,7 @@ document.addEventListener('change',_globalAutoSave);
 // confirmed success, so a failed upload is retried next time rather than silently dropped.
 const _syncCache={};
 let _aiTrainingMissing=false;
+let _hotelsTableMissing=false;
 // ── Write-side protection for sent quotes ──────────────────────────────────────────────────
 // The read-side guard in mergeTable stops a cloud DRAFT from overwriting a local SENT quote, but
 // nothing stopped this device from UPLOADING a stale draft on top of a sent/accepted cloud quote
@@ -3746,6 +3789,13 @@ async function syncToSupabase(){
     if(aiRows.length&&!_aiTrainingMissing){
       const _aiOp=_pushTable('ai_training',aiRows);
       if(_aiOp)ops.push(_aiOp.then(res=>{if(res===null)_aiTrainingMissing=true;}).catch(()=>{_aiTrainingMissing=true;}));
+    }
+    // hotels — shared truck-parking list, same guarded pattern as ai_training so a missing
+    // table degrades to local-only instead of breaking every other sync.
+    const hotelRows=(db.hotels||[]).map(h=>({id:h.id,data:h}));
+    if(hotelRows.length&&!_hotelsTableMissing){
+      const _hOp=_pushTable('hotels',hotelRows);
+      if(_hOp)ops.push(_hOp.then(res=>{if(res===null)_hotelsTableMissing=true;}).catch(()=>{_hotelsTableMissing=true;}));
     }
     await Promise.all(ops);
     _lastSyncAt=Date.now();
@@ -4819,6 +4869,128 @@ const _VEHICLE_FIELDS={
 };
 function _vehTitle(v){ if(v.name)return v.name; if(v.type==='forklift')return 'Forklift'+(v.year?' ('+v.year+')':''); return [v.year,v.make,v.model].filter(Boolean).join(' ')||_VEHICLE_TYPES[v.type]||'Vehicle'; }
 function _vehRepairTotal(v){ return (v.repairs||[]).reduce(function(a,r){return a+(Number(r.cost)||0);},0); }
+// ── Truck-friendly hotels ───────────────────────────────────────────────────────────────────
+// A shared list of places we have stayed that can actually take the truck, searchable by how
+// close they are to where the job is. The address autocomplete gives us lat/lng for free, which
+// is what makes proximity possible without paying for a directions API on every keystroke.
+// Distance is STRAIGHT LINE — fine for "is this near the drop", occasionally optimistic where a
+// river or freeway is in the way.
+let _hotelPlaceCoords=null;   // set by the autocomplete when a place is chosen
+function _hotelDistanceMiles(a,b){
+  if(!a||!b||a.lat==null||b.lat==null)return null;
+  const R=3958.8, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+  const s1=Math.sin(dLat/2), s2=Math.sin(dLng/2);
+  const h=s1*s1+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*s2*s2;
+  return Math.round(2*R*Math.asin(Math.sqrt(h))*10)/10;
+}
+function clearHotelForm(){
+  ['ht-name','ht-address','ht-parking','ht-rate','ht-phone','ht-notes'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const t=document.getElementById('ht-truck');if(t)t.selectedIndex=0;
+  const a=document.getElementById('ht-avoid');if(a)a.checked=false;
+  _hotelPlaceCoords=null;
+}
+function saveHotel(){
+  const g=id=>((document.getElementById(id)||{}).value||'').trim();
+  const name=g('ht-name'), address=g('ht-address'), parking=g('ht-parking');
+  if(!name){showToast('Hotel name is needed.');return;}
+  if(!address){showToast('Address is needed — it is what makes the distance search work.');return;}
+  if(!parking){showToast('Add a line about the truck parking — that is the whole point of the list.');return;}
+  if(!db.hotels)db.hotels=[];
+  db.hotels.push({
+    id:uid(), name, address, parking,
+    truck:g('ht-truck'), rate:g('ht-rate'), phone:g('ht-phone'), notes:g('ht-notes'),
+    avoid:!!(document.getElementById('ht-avoid')||{}).checked,
+    // Coordinates come from the Places autocomplete. Saved without them the hotel still lists,
+    // it just cannot be distance-sorted — flagged in the row rather than silently dropped.
+    lat:_hotelPlaceCoords?_hotelPlaceCoords.lat:null,
+    lng:_hotelPlaceCoords?_hotelPlaceCoords.lng:null,
+    addedBy:'', addedAt:new Date().toISOString(),
+    _localEditedAt:new Date().toISOString()
+  });
+  saveDB(); clearHotelForm(); renderHotels();
+  showToast('✓ '+name+' saved');
+}
+function deleteHotel(id){
+  if(!confirm('Remove this hotel from the list?'))return;
+  db.hotels=(db.hotels||[]).filter(h=>h.id!==id);
+  saveDB(); renderHotels(); showToast('Removed');
+}
+function renderHotels(){
+  const host=document.getElementById('hotels-list');
+  if(!host)return;
+  const list=(db.hotels||[]).slice();
+  const note=document.getElementById('hotel-search-note');
+  const radius=Number((document.getElementById('hotel-radius')||{}).value||0);
+  let origin=null, originLabel='';
+  if(_hotelSearchCoords){origin=_hotelSearchCoords;originLabel=((document.getElementById('hotel-search')||{}).value||'').trim();}
+  let rows=list.map(h=>Object.assign({},h,{_miles:origin?_hotelDistanceMiles(origin,{lat:h.lat,lng:h.lng}):null}));
+  if(origin){
+    rows.sort((a,b)=>(a._miles==null?1e9:a._miles)-(b._miles==null?1e9:b._miles));
+    if(radius>0)rows=rows.filter(r=>r._miles==null||r._miles<=radius);
+  }else{
+    rows.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  }
+  if(note){
+    note.textContent=origin
+      ?rows.length+' hotel'+(rows.length===1?'':'s')+(radius>0?' within '+radius+' miles of ':' near ')+originLabel
+      :(list.length?list.length+' saved. Type a destination above to sort by distance.':'');
+  }
+  if(!rows.length){
+    host.innerHTML='<div class="empty-state"><div class="empty-title">'+(list.length?'Nothing within that radius':'No hotels saved yet')+'</div><div class="empty-sub">'+(list.length?'Widen the radius or clear the search.':'Add the first one above — name, address and what the truck parking is like.')+'</div></div>';
+    return;
+  }
+  host.innerHTML='<div style="display:flex;flex-direction:column">'+rows.map(h=>`
+    <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start;${h.avoid?'opacity:.6':''}">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13.5px">${h.name}${h.avoid?' <span class="badge pill-red" style="font-size:10px">avoid</span>':''}${h.truck?' <span class="badge pill-green" style="font-size:10px">fits '+h.truck+'</span>':''}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">${h.address||''}</div>
+        <div style="font-size:12.5px;margin-top:6px"><strong>Parking:</strong> ${h.parking||'—'}</div>
+        ${h.notes?`<div style="font-size:12px;color:var(--text2);margin-top:3px">${h.notes}</div>`:''}
+        <div style="font-size:11.5px;color:var(--text3);margin-top:5px;font-family:'DM Mono',monospace">${[h.phone,h.rate?'~$'+h.rate+'/night':''].filter(Boolean).join('  ·  ')}</div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <div style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px">${h._miles!=null?h._miles+' mi':(h.lat==null?'<span style="font-size:10.5px;color:var(--amber);font-weight:500">no coords</span>':'')}</div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="window.open('https://maps.google.com/?q='+encodeURIComponent('${(h.address||'').replace(/'/g,"")}'),'_blank')">Map</button>
+        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteHotel('${h.id}')">✕</button>
+      </div>
+    </div>`).join('')+'</div>';
+}
+let _hotelSearchCoords=null;
+let _hotelGeoTimer=null;
+// Resolve typed address text to coordinates. Uses the Geocoder rather than hooking the address
+// autocomplete widget, because this app drives suggestions itself — geocoding whatever was typed
+// works the same whether the user picked a suggestion or pasted the address.
+function _hotelGeocode(text,cb){
+  if(!text||!window.google||!google.maps||!google.maps.Geocoder){cb(null);return;}
+  try{
+    new google.maps.Geocoder().geocode({address:text},function(res,status){
+      if(status==='OK'&&res&&res[0]&&res[0].geometry&&res[0].geometry.location){
+        cb({lat:res[0].geometry.location.lat(),lng:res[0].geometry.location.lng()});
+      }else cb(null);
+    });
+  }catch(e){cb(null);}
+}
+function hotelAddressResolved(){
+  const t=((document.getElementById('ht-address')||{}).value||'').trim();
+  if(!t){_hotelPlaceCoords=null;return;}
+  _hotelGeocode(t,function(c){
+    _hotelPlaceCoords=c;
+    const el=document.getElementById('ht-address');
+    if(el)el.style.borderColor=c?'':'var(--amber)';
+    if(!c)showToast('Could not pin that address — it will save, but without distance search.');
+  });
+}
+// Debounced so typing a destination does not fire a geocode per keystroke.
+function hotelSearchChanged(){
+  clearTimeout(_hotelGeoTimer);
+  const t=((document.getElementById('hotel-search')||{}).value||'').trim();
+  if(!t){_hotelSearchCoords=null;renderHotels();return;}
+  _hotelGeoTimer=setTimeout(function(){
+    _hotelGeocode(t,function(c){_hotelSearchCoords=c;renderHotels();});
+  },600);
+}
+
 function renderFleet(){
   const el=document.getElementById('fleet-content'); if(!el)return;
   const veh=db.vehicles||[];
