@@ -146,7 +146,7 @@ footer a{color:var(--text2);text-decoration:none}
           <select id="q-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select>
         </div>
         <div class="field"><label>Parking at load</label>
-          <select id="q-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select>
+          <select id="q-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select>
         </div>
         <div class="field full"><label>Load location notes</label><input id="q-from-notes" type="text" placeholder="Parking details, gate codes, access info…"></div>
       </div>
@@ -171,7 +171,7 @@ footer a{color:var(--text2);text-decoration:none}
           <select id="q-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select>
         </div>
         <div class="field"><label>Parking at unload</label>
-          <select id="q-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select>
+          <select id="q-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select>
         </div>
         <div class="field full"><label>Unload location notes</label><input id="q-to-notes" type="text" placeholder="Parking details, gate codes, access info…"></div>
       </div>
@@ -324,7 +324,7 @@ function makeLocBlock(id,badgeClass,badgeText){
     +'<div class="field"><label>Location type</label><select id="'+id+'-type"><option value="">Select…</option><option>House</option><option>Apartment</option><option>Condo</option><option>Office</option><option>Storage unit</option><option>Other</option></select></div>'
     +'<div class="field"><label>Floor #</label><input type="text" id="'+id+'-floor" placeholder="e.g. 2"></div>'
     +'<div class="field"><label>Access</label><select id="'+id+'-access"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>'
-    +'<div class="field"><label>Parking</label><select id="'+id+'-parking"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>'
+    +'<div class="field"><label>Parking</label><select id="'+id+'-parking"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>'
     +'<div class="field full"><label>Notes</label><input type="text" id="'+id+'-notes" placeholder="Parking details, gate codes…"></div>'
     +'</div>';
   setTimeout(function(){

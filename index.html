@@ -914,7 +914,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
           </div>
           <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor" placeholder="e.g. 2"></div>
           <div class="form-group"><label>Access at load</label><select id="nl-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-          <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+          <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
           <div class="form-group full"><label>Load location notes</label><input type="text" id="nl-from-notes" placeholder="Parking details, gate codes, access info…"></div>
         </div>
       </div>
@@ -941,7 +941,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
         </div>
         <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor" placeholder="e.g. 3"></div>
         <div class="form-group"><label>Access at unload</label><select id="nl-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-        <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+        <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
         <div class="form-group full"><label>Unload location notes</label><input type="text" id="nl-to-notes" placeholder="Parking details, gate codes, access info…"></div>
       </div>
       
@@ -19811,7 +19811,7 @@ function addLoadLocation(){
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-from-unit-extra-${id}" placeholder="e.g. Apt 4B"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor-extra-${id}" placeholder="e.g. 2"></div>
       <div class="form-group"><label>Access</label><select id="nl-access-load-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-      <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+      <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-from-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
   document.getElementById('nl-extra-loads').appendChild(div);
@@ -19844,7 +19844,7 @@ function addUnloadLocation(){
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-to-unit-extra-${id}" placeholder="e.g. Unit 2"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor-extra-${id}" placeholder="e.g. 3"></div>
       <div class="form-group"><label>Access</label><select id="nl-access-unload-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-      <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
+      <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-to-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
   document.getElementById('nl-extra-unloads').appendChild(div);
