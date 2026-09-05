@@ -4052,6 +4052,13 @@ async function refreshFromSupabase(){
       let _on_fixed=0;
       (db.quotes||[]).forEach(q=>{
         if(!q||!q.leadId)return;
+        // SKIP sent/accepted quotes (2026-08-19). Their contents are frozen by a DB constraint,
+        // so rewriting officeNotes here only marks the row dirty for a push the server will
+        // always reject — producing a 400 on every save, forever, and burying real errors. The
+        // set of stuck quotes grew from two to six over one session as more old quotes were
+        // touched. A frozen quote's notes cannot be corrected in place by design; the app's own
+        // error text says to issue a new quote instead.
+        if(q.status==='sent'||q.status==='accepted')return;
         const lead=_leadById[q.leadId];
         if(!lead)return;
         const desired=lead.officeNotes||'';
