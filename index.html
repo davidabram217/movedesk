@@ -6477,7 +6477,11 @@ function openConfirmEmail(leadId,bookedJob){
         // added to only one of the three, so a job that priced through a different branch —
         // which is most of them — showed a rate with no minimum beneath it.
 
-        moveDetailsSection+='\n'+(Number(day&&day.hrsMin)||Number(bj&&bj.hrsMin)||2)+' Hour Minimum';
+        // ALWAYS "2 Hour Minimum" (2026-08-19). Previously this printed `hrsMin`, but that field is the
+    // job's ESTIMATED hours range floor (4.5 on a job quoted 4.5–6), NOT the billing minimum — so a
+    // confirmation read "4.5 Hour Minimum", promising the customer a longer minimum than the house
+    // terms. The 2-hour minimum is a fixed company term, the same one buildQuotePlainText states.
+    moveDetailsSection+='\n2 Hour Minimum';
         }
       // Fees for this day. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMulti=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
@@ -6568,7 +6572,7 @@ function openConfirmEmail(leadId,bookedJob){
         // added to only one of the three, so a job that priced through a different branch —
         // which is most of them — showed a rate with no minimum beneath it.
 
-        moveDetailsSection+='\n'+(Number(d&&d.hrsMin)||Number(bj&&bj.hrsMin)||2)+' Hour Minimum';if(d.hrsMin)moveDetailsSection+='\n'+d.hrsMin+' hour minimum';}
+        moveDetailsSection+='\n2 Hour Minimum';}
     // Fees: booking-form fuel/materials override the matching quote fees. Other quote fees
     // (e.g. packing materials, custom fees) pass through unchanged.
     var bjFuelFee=Number(bj?.feeFuel)||0;
@@ -6610,7 +6614,7 @@ function openConfirmEmail(leadId,bookedJob){
         // added to only one of the three, so a job that priced through a different branch —
         // which is most of them — showed a rate with no minimum beneath it.
 
-        moveDetailsSection+='\n'+(Number(bj&&bj.hrsMin)||2)+' Hour Minimum';}
+        moveDetailsSection+='\n2 Hour Minimum';}
     if(bj?.feeFuel)moveDetailsSection+='\n$'+Number(bj.feeFuel).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Fuel Fee';
     if(bj?.feeMaterials)moveDetailsSection+='\n$'+Number(bj.feeMaterials).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Material Fee';
     moveDetailsSection+='\nReturn drive time back to warehouse at completion (30 Minute Minimum)';
