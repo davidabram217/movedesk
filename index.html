@@ -129,6 +129,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
     
     <div class="page active" id="page-dashboard">
       <div class="stats-grid" id="dash-stats"></div>
+      <div id="dash-review-due"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
           <div class="card-header"><div class="card-title">Recent leads</div><button class="btn btn-secondary btn-sm" onclick="showPage('leads')">View all</button></div>
@@ -1795,6 +1796,54 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 </div>
 
 
+<div class="modal-bg" id="modal-review-ask">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header"><div><div class="modal-title">⭐ Ask for a Google review?</div>
+      <div id="rv-ask-sub" style="margin-top:4px;font-size:12.5px;color:var(--text3)"></div></div></div>
+    <div class="modal-body">
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:14px">Only worth asking when the job went well — nothing is sent unless you choose to.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="reviewAskChoice('send')">
+          <div><div style="font-weight:600;font-size:13px">✉ Write the request now</div>
+          <div style="font-size:11.5px;color:rgba(255,255,255,.75);margin-top:2px">Opens an editable email you can personalise</div></div></button>
+        <button class="btn btn-secondary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="reviewAskChoice('snooze')">
+          <div><div style="font-weight:600;font-size:13px">⏰ Remind me in a week</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Appears on the dashboard when it is due</div></div></button>
+        <button class="btn btn-secondary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="reviewAskChoice('never')">
+          <div><div style="font-weight:600;font-size:13px">✕ Don’t ask this customer</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Nothing is sent and it will not come back</div></div></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-review-email">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header"><div class="modal-title">⭐ Review request</div>
+      <button class="modal-close" onclick="closeModal('review-email')">✕</button></div>
+    <div class="modal-body">
+      <div id="rv-job-card" style="display:none;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+        <div id="rv-job-name" style="font-size:14px;font-weight:700;margin-bottom:2px"></div>
+        <div id="rv-job-route" style="font-size:12.5px;color:var(--text2);margin-bottom:6px"></div>
+        <div id="rv-job-facts" style="font-size:12px;color:var(--text3);font-family:'DM Mono',monospace"></div>
+        <div id="rv-job-notes" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);font-size:12px;color:var(--text2);white-space:pre-wrap"></div>
+      </div>
+      <div class="form-grid form-grid-2" style="gap:10px;margin-bottom:12px">
+        <div class="form-group"><label>To</label><input type="email" id="rv-to" placeholder="customer@email.com"></div>
+        <div class="form-group"><label>Subject</label><input type="text" id="rv-subject"></div>
+      </div>
+      <div class="form-group"><label>Message — edit freely to make it personal</label>
+        <textarea id="rv-body" style="min-height:230px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.7;resize:vertical"></textarea></div>
+      <div style="font-size:11.5px;color:var(--text3)">Sending marks this job as asked, so it will not prompt again.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('review-email')">Cancel</button>
+      <button class="btn btn-secondary" onclick="copyReviewText()">📋 Copy for text</button>
+      <button class="btn btn-primary" onclick="sendReviewRequest()">✉ Send email</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-info-request">
   <div class="modal" style="max-width:620px">
     <div class="modal-header"><div class="modal-title">🎥 Request info + walkthrough video</div><button class="modal-close" onclick="cancelSubModal('info-request')">✕</button></div>
@@ -2770,7 +2819,7 @@ async function sendEmail(to,cc,subject,body,htmlBody){
       reply_to:OFFICE_EMAIL,
       subject:subject,
       message:body,
-      html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>')
+      html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+_linkifyEmailBody(body)+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>')
     };
     await emailjs.send(EJS_SERVICE,template,params);
     // Also CC office if requested
@@ -2782,7 +2831,7 @@ async function sendEmail(to,cc,subject,body,htmlBody){
         reply_to:OFFICE_EMAIL,
         subject:'[CC] '+subject,
         message:body,
-        html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>')
+        html_content:htmlBody||('<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+_linkifyEmailBody(body)+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>')
       });
     }
     return true;
@@ -2809,7 +2858,7 @@ async function sendInternalEmail(subject,body){
       reply_to:OFFICE_EMAIL,
       subject:subject,
       message:body,
-      html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+body+'</pre>'
+      html_content:'<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">'+_linkifyEmailBody(body)+'</pre>'
     });
     return true;
   }catch(e){
@@ -5907,6 +5956,43 @@ function setIncomeTabAnalytics(period,btn){
   renderIncomeCard('analytics-income-body',period);
 }
 
+// Surfaces review asks whose "remind me in a week" has come due. Kept on the dashboard rather
+// than as a notification so it is visible without nagging — it simply is not there when nothing
+// is due, and each row can be actioned or dismissed in place.
+function renderReviewDue(){
+  const host=document.getElementById('dash-review-due');
+  if(!host)return;
+  const due=(typeof dueReviewReminders==='function')?dueReviewReminders():[];
+  if(!due.length){host.innerHTML='';return;}
+  host.innerHTML=`<div class="card" style="margin-bottom:16px;border-left:3px solid var(--amber)">
+    <div class="card-header"><div><div class="card-title">⭐ Review requests due</div>
+      <div style="font-size:11.5px;color:var(--text3);margin-top:2px">You asked to be reminded about ${due.length} job${due.length===1?'':'s'}</div></div></div>
+    <div class="card-body" style="padding:0">${due.map(j=>`
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${j.name}</div>
+          <div style="font-size:11.5px;color:var(--text3)">completed ${j.date?fmtDate(j.date):'\u2014'}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openReviewEmail('${j.id}')">Write it</button>
+        <button class="btn btn-secondary btn-sm" onclick="snoozeReviewAgain('${j.id}')">Another week</button>
+        <button class="btn btn-secondary btn-sm" onclick="dismissReview('${j.id}')">✕</button>
+      </div>`).join('')}</div></div>`;
+}
+function snoozeReviewAgain(id){
+  const j=(db.completedJobs||[]).find(x=>x.id===id);
+  if(!j)return;
+  j.reviewRemindAt=new Date(Date.now()+7*86400000).toISOString();
+  j._localEditedAt=new Date().toISOString();saveDB();renderReviewDue();
+  showToast('⏰ Reminder moved on a week');
+}
+function dismissReview(id){
+  const j=(db.completedJobs||[]).find(x=>x.id===id);
+  if(!j)return;
+  j.reviewStatus='declined';delete j.reviewRemindAt;
+  j._localEditedAt=new Date().toISOString();saveDB();renderReviewDue();
+  showToast('Dismissed');
+}
+
 function renderDashboard(){
   // Mark quotes for Did not book leads as declined (backfill)
   if(db.quotes&&db.leads){
@@ -6043,6 +6129,7 @@ function renderDashboard(){
   const upt=document.getElementById('dash-upcoming').querySelector('tbody');const up=[...db.bookedJobs].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(0,5);upt.innerHTML=up.length?up.map(j=>`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${j.crew||'—'}</td></tr>`).join(''):`<tr><td colspan="3"><div class="empty-state" style="padding:20px"><div class="empty-title">No upcoming jobs</div></div></td></tr>`;
   const ot=document.getElementById('dash-outstanding').querySelector('tbody');ot.innerHTML=out.length?out.map(j=>{const o=(Number(j.total)||0)-(Number(j.paid)||0);return`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${fmtMoney(j.total)}</td><td>${fmtMoney(j.paid)}</td><td class="owe-badge">${fmtMoney(o)}</td></tr>`;}).join(''):`<tr><td colspan="5"><div class="empty-state" style="padding:20px"><div class="empty-icon">✓</div><div class="empty-title">All balances clear</div></div></td></tr>`;
   renderIncomeCard('dash-income-body',_incomeTabDash);
+  try{renderReviewDue();}catch(_){}
 }
 let leadFilter={text:'',source:'',est:''};
 function renderLeads(){const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=db.leads.filter(l=>l.status==='Did not book').length;renderPipeline();renderLeadsTable();}
@@ -7982,6 +8069,26 @@ function fallbackCopy(text){
 
 function copyCalEntry(){const ta=document.getElementById('cal-entry-text');if(!ta)return;copyToClipboard(ta.value);}
 
+// Turns plain-text URLs into real links for the HTML version of an email (2026-08-19).
+// The compose box is a plain textarea and every HTML builder wraps that text in <pre>, so a
+// pasted URL arrived as dead text the customer had to copy by hand. Escapes first (the body is
+// user-typed and is being placed into HTML), then converts. A URL introduced by "clicking here"
+// phrasing is rendered as the PHRASE, so "Leave us a Google review by clicking here" becomes the
+// clickable text and the raw g.page address never appears in the customer's inbox.
+function _linkifyEmailBody(text){
+  const esc=String(text==null?'':text)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const phrase=/([A-Za-z][^\n]*?\bclick(?:ing)?\s+here\b)[^\S\n]*(?:\u2192|-&gt;|:)?[^\S\n]*(https?:\/\/[^\s<]+)/gi;
+  let out=esc.replace(phrase,function(_m,label,url){
+    return '<a href="'+url+'" style="color:#2d6a4f;font-weight:600">'+label.trim()+'</a>';
+  });
+  // Any remaining bare URL still becomes clickable, showing the address itself.
+  out=out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g,function(m,pre,url){
+    return pre+'<a href="'+url+'" style="color:#2d6a4f">'+url+'</a>';
+  });
+  return out;
+}
+
 async function openInGmail(toId,subjectId,bodyId){
   const to=document.getElementById(toId)?.value||'';
   const subject=document.getElementById(subjectId)?.value||'';
@@ -7990,7 +8097,7 @@ async function openInGmail(toId,subjectId,bodyId){
   showToast('Sending email...');
   try{
     await loadEmailJS();
-    const htmlContent='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style="border:none;border-top:1px solid #e0dbd0;margin:20px 0"><p style="font-size:12px;color:#888;text-align:center"><a href="https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco" style="color:#d32323;font-weight:600;text-decoration:none">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>';
+    const htmlContent='<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+_linkifyEmailBody(body)+'</pre><hr style="border:none;border-top:1px solid #e0dbd0;margin:20px 0"><p style="font-size:12px;color:#888;text-align:center"><a href="https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco" style="color:#d32323;font-weight:600;text-decoration:none">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>';
     await emailjs.send(EJS_SERVICE,EJS_QUOTE_TEMPLATE,{to_email:to,to_name:to,from_name:'CareMore Moving and Storage',reply_to:OFFICE_EMAIL,subject:subject,message:body,html_content:htmlContent});
     await emailjs.send(EJS_SERVICE,EJS_NOTIFY_TEMPLATE,{to_email:OFFICE_EMAIL,to_name:'CareMore Moving and Storage',from_name:'CareMore Moving and Storage',reply_to:OFFICE_EMAIL,subject:'[Copy] '+subject,message:body,html_content:htmlContent});
     showToast('✓ Email sent to '+to);
@@ -9799,7 +9906,7 @@ async function sendConfirmEmailViaEJS(){
       reply_to:OFFICE_EMAIL,
       subject:subject,
       message:body,
-      html_content:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+body+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><div style=\"font-family:Arial,sans-serif;font-size:13px;color:#444;margin-bottom:16px\"><strong>Important documents:</strong></div><div style=\"display:flex;flex-direction:column;gap:10px;margin-bottom:20px\"><a href=\"https://davidabram217.github.io/movedesk/insurance-2026.pdf\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Insurance Options Form 2026 — Please review and let us know your choice before your move</a><a href=\"https://davidabram217.github.io/movedesk/move-confirmation-2026.pdf\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Move Confirmation Letter 2026</a>'+(lStorage?'<a href=\"https://davidabram217.github.io/movedesk/storage-guidelines-2026.pdf\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Storage Guidelines 2026</a>':'')+'</div><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>'
+      html_content:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px 20px"><pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap;line-height:1.7">'+_linkifyEmailBody(body)+'</pre><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><div style=\"font-family:Arial,sans-serif;font-size:13px;color:#444;margin-bottom:16px\"><strong>Important documents:</strong></div><div style=\"display:flex;flex-direction:column;gap:10px;margin-bottom:20px\"><a href=\"https://davidabram217.github.io/movedesk/insurance-2026.pdf\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Insurance Options Form 2026 — Please review and let us know your choice before your move</a><a href=\"https://davidabram217.github.io/movedesk/move-confirmation-2026.pdf\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Move Confirmation Letter 2026</a>'+(lStorage?'<a href=\"https://davidabram217.github.io/movedesk/storage-guidelines-2026.pdf\" style=\"display:block;background:#f0f7f2;border:1px solid #a8d5b5;border-radius:6px;padding:10px 14px;text-decoration:none;color:#2d5a3d;font-family:Arial,sans-serif;font-size:13px;font-weight:600\">&#128196; Storage Guidelines 2026</a>':'')+'</div><hr style=\"border:none;border-top:1px solid #e0dbd0;margin:20px 0\"><p style=\"font-size:12px;color:#888;text-align:center\"><a href=\"https://www.yelp.com/biz/caremore-movers-and-storage-san-francisco\" style=\"color:#d32323;font-weight:600;text-decoration:none\">Check out our Yelp reviews<br>&#11088;&#11088;&#11088;&#11088;&#11088;</a></p></div>'
     });
     console.log('sendConfirmEmailViaEJS: success',result);
     showToast('✓ Confirmation email sent to '+to);
@@ -11710,7 +11817,162 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
   }catch(_){}
   sbDelete('booked_jobs',_completedBookedJobId);
-  if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead){lead.status='Completed';lead.statusUpdatedAt=new Date().toISOString().split('T')[0];lead._statusChangedAt=new Date().toISOString();}}saveDB();closeModal('complete-job');showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
+  if(j){const lead=db.leads.find(l=>l.id===j.leadId);if(lead){lead.status='Completed';lead.statusUpdatedAt=new Date().toISOString().split('T')[0];lead._statusChangedAt=new Date().toISOString();}}saveDB();closeModal('complete-job');
+  // Offer the review ask once the job is saved. Prompted, never automatic — David does not want
+  // every customer asked, since not every job goes well.
+  setTimeout(()=>{try{openReviewAsk(completed.id);}catch(_){}} ,400);
+  showToast(useForAI?(paymentState==='owing'?`✓ Complete & saved for AI — ${completed.name} owes $${owing}`:`✓ Complete & saved for AI — ${completed.name}`):(paymentState==='owing'?`✓ Complete — ${completed.name} has a balance of $${owing}`:`✓ Job complete & paid — ${completed.name}`));renderBooked();if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();}
+
+// ── Google review requests ──────────────────────────────────────────────────────────────────
+// Prompted after a job completes, never sent automatically — not every job goes well, and an
+// automatic ask on a bad one costs more than the review is worth. Three choices: write it now,
+// remind me in a week, or never for this customer. Every send is editable first.
+let _reviewJobId=null;
+const REVIEW_LINK='https://g.page/r/CcIKgYqM6luAEAE/review';
+// Locality for the opening line. We do NOT store neighbourhoods, so rather than invent one this
+// uses what is actually on the record: the two CITIES when they differ, otherwise the two STREET
+// names, otherwise nothing at all. An accurate "from Jones Street to Palou Avenue" beats a
+// guessed neighbourhood, and an omitted phrase beats a wrong one.
+function _reviewLocality(j){
+  const parts=a=>String(a||'').split(',').map(x=>x.trim()).filter(Boolean);
+  const city=a=>{const p=parts(a);return p.length>=2?p[p.length-2].replace(/\s+[A-Z]{2}$/,'').trim():'';};
+  const street=a=>{const p=parts(a);if(!p.length)return '';return p[0].replace(/^#?\d+[A-Za-z]?\s+/,'').trim();};
+  const cf=city(j.from), ct=city(j.to);
+  if(cf&&ct&&cf.toLowerCase()!==ct.toLowerCase())return ' from '+cf+' to '+ct;
+  const sf=street(j.from), st=street(j.to);
+  if(sf&&st&&sf.toLowerCase()!==st.toLowerCase())return ' from '+sf+' to '+st;
+  if(ct)return ' in '+ct;
+  return '';
+}
+function _reviewDefaultBody(j){
+  const n=v=>String(v==null?'':v).trim();
+  const first=n(j&&j.name).split(/\s+/)[0]||'there';
+  const where=_reviewLocality(j||{});
+  const when=j&&j.date?' on '+fmtDate(j.date):'';
+  const lead=n(j&&j.crew);
+  // The crew-lead sentence is dropped entirely when no leader is recorded — better a shorter
+  // email than one naming "the crew" in a sentence built around a person.
+  const crewLine=lead
+    ? lead+' and the crew said it was a pleasure working with you.\n\n'
+    : 'The crew said it was a pleasure working with you.\n\n';
+  const sender=n(j&&j.bookedBy)||'Johnathan Hall';
+  return 'Hi '+first+',\n\n'
+    +'Thank you for trusting us with your move'+where+when+'. '+crewLine
+    +'We\u2019re a family-owned SF business, and reviews are genuinely how people find us. '
+    +'If you have a minute, we\u2019d be grateful if you\u2019d share how it went:\n\n'
+    // Written as a phrase + URL: _linkifyEmailBody turns the "clicking here" wording into the
+    // anchor text in the HTML version, so the customer sees a clean link rather than a g.page
+    // address. The URL stays visible in the COMPOSE box so it can be checked or changed.
+    +'Leave us a Google review by clicking here → '+REVIEW_LINK+'\n\n'
+    +'It takes about 30 seconds and makes a real difference for a small local company.\n\n'
+    +'And if anything about the move fell short, please reply to this email first — '
+    +'we\u2019d much rather hear it directly and make it right.\n\n'
+    +'Thanks again,\n'+sender+'\nCareMore Moving & Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970';
+}
+
+function openReviewAsk(completedJobId){
+  const j=(db.completedJobs||[]).find(x=>x.id===completedJobId);
+  if(!j)return;
+  _reviewJobId=completedJobId;
+  const sub=document.getElementById('rv-ask-sub');
+  if(sub)sub.textContent=j.name+(j.date?' · '+fmtDate(j.date):'');
+  openModal('review-ask');
+}
+function reviewAskChoice(choice){
+  const j=(db.completedJobs||[]).find(x=>x.id===_reviewJobId);
+  if(!j){closeModal('review-ask');return;}
+  if(choice==='never'){
+    j.reviewStatus='declined';j.reviewDecidedAt=new Date().toISOString();
+    j._localEditedAt=new Date().toISOString();saveDB();closeModal('review-ask');
+    showToast('Won\u2019t ask '+(j.name||'this customer'));return;
+  }
+  if(choice==='snooze'){
+    j.reviewStatus='snoozed';
+    j.reviewRemindAt=new Date(Date.now()+7*86400000).toISOString();
+    j.reviewDecidedAt=new Date().toISOString();
+    j._localEditedAt=new Date().toISOString();saveDB();closeModal('review-ask');
+    if(typeof renderDashboard==='function')renderDashboard();
+    showToast('⏰ Reminder set for '+fmtDate(j.reviewRemindAt.split('T')[0]));return;
+  }
+  closeModal('review-ask');
+  setTimeout(()=>openReviewEmail(_reviewJobId),200);
+}
+function openReviewEmail(completedJobId){
+  const j=(db.completedJobs||[]).find(x=>x.id===completedJobId);
+  if(!j){showToast('Job not found');return;}
+  _reviewJobId=completedJobId;
+  const to=document.getElementById('rv-to');
+  if(to)to.value=j.email||'';
+  const sub=document.getElementById('rv-subject');
+  if(sub)sub.value='Thanks from CareMore Moving';
+  const body=document.getElementById('rv-body');
+  // Reuse a saved draft so an edit survives closing the window; otherwise build the default.
+  if(body)body.value=j.reviewDraft||_reviewDefaultBody(j);
+  // Reference panel. A review ask may go out a WEEK after the job, by which point "Winona
+  // Gibson" alone is not enough to remember who this was — so the route, size, crew, hours and
+  // value sit on screen while writing. Display only: none of it goes into the customer's email.
+  _fillReviewJobCard(j);
+  openModal('review-email');
+}
+function _fillReviewJobCard(j){
+  const card=document.getElementById('rv-job-card');
+  if(!card||!j){if(card)card.style.display='none';return;}
+  const n=v=>String(v==null?'':v).trim();
+  const nm=document.getElementById('rv-job-name');
+  const rt=document.getElementById('rv-job-route');
+  const ft=document.getElementById('rv-job-facts');
+  const nt=document.getElementById('rv-job-notes');
+  if(nm)nm.textContent=n(j.name)||'(no name)';
+  if(rt)rt.textContent=(n(j.from)||'\u2014')+'  \u2192  '+(n(j.to)||'\u2014');
+  // Facts worth having in front of you: when, how big, who ran it, how long, what it came to.
+  const days=Array.isArray(j.days)?j.days:[];
+  const mh=days.length?days.reduce((a,d)=>a+(Number(d.moveHours)||0),0):(Number(j.hours)||0);
+  const ph=days.length?days.reduce((a,d)=>a+(Number(d.packHours)||0),0):(Number(j.packHoursActual)||0);
+  const bits=[];
+  if(j.date)bits.push(fmtDate(j.date));
+  if(n(j.size))bits.push(n(j.size));
+  if(Number(j.vaults))bits.push(j.vaults+' vaults');
+  if(n(j.packing)&&!/^no/i.test(n(j.packing)))bits.push(n(j.packing));
+  if(mh||ph)bits.push(((mh+ph)+'h').replace('.0h','h')+(ph?' ('+ph+'h pack)':''));
+  if(Number(j.moveMen))bits.push(j.moveMen+' crew');
+  if(n(j.crew))bits.push('led by '+n(j.crew));
+  if(Number(j.total))bits.push(fmtMoney(j.total));
+  if(ft)ft.textContent=bits.join('  \u00b7  ');
+  // Office notes are internal — shown here as a memory aid only, never written into the email.
+  const notes=n(j.officeNotes)||n((db.leads||[]).find(l=>l.id===j.leadId)?.officeNotes);
+  if(nt){nt.textContent=notes;nt.style.display=notes?'block':'none';}
+  card.style.display='block';
+}
+function copyReviewText(){
+  const el=document.getElementById('rv-body');
+  if(!el)return;
+  navigator.clipboard.writeText(el.value).then(
+    ()=>showToast('✓ Copied — paste into a text message'),
+    ()=>showToast('Could not copy — select the text and copy manually'));
+}
+async function sendReviewRequest(){
+  const j=(db.completedJobs||[]).find(x=>x.id===_reviewJobId);
+  const toEl=document.getElementById('rv-to');
+  if(!toEl||!toEl.value.trim()){showToast('Please enter a recipient email address');return;}
+  const result=await openInGmail('rv-to','rv-subject','rv-body');
+  if(!result)return;
+  if(j){
+    j.reviewStatus='sent';
+    j.reviewSentAt=new Date().toISOString();
+    j.reviewSentTo=toEl.value.trim();
+    delete j.reviewRemindAt;delete j.reviewDraft;
+    j._localEditedAt=new Date().toISOString();
+    saveDB();
+    if(typeof renderDashboard==='function')renderDashboard();
+  }
+  closeModal('review-email');
+  if(result==='gmail')showToast('Gmail opened — finish sending there');
+}
+// Jobs whose reminder has come due, for the dashboard.
+function dueReviewReminders(){
+  const now=Date.now();
+  return (db.completedJobs||[]).filter(j=>j.reviewStatus==='snoozed'&&j.reviewRemindAt&&new Date(j.reviewRemindAt).getTime()<=now);
+}
 
 function saveJobForAI(completedJobId){
   const j=db.completedJobs.find(x=>x.id===completedJobId);
