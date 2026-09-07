@@ -2906,6 +2906,25 @@ function _setCloudOffline(off){
   }else if(bar){bar.remove();}
 }
 
+// Hydrate the LOCAL-ONLY collections synchronously at startup, before loadDB's awaits.
+// Why this matters: loadDB restores vehicles from localStorage only AFTER four awaits. During
+// that window db.vehicles is empty, and saveDB() serialises the WHOLE db — so any save firing
+// mid-load (a render, an autosave, a sync) wrote a db with no vehicles and destroyed them
+// permanently. That is the most likely explanation for a fleet entered on this machine being
+// absent from every snapshot since. Reading them in here closes the window entirely: they are
+// present from the first line of script execution, so there is no moment where a save can omit
+// them. The later restore inside loadDB is now a no-op in practice but is harmless.
+(function _hydrateLocalOnly(){
+  try{
+    const raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');
+    if(!raw)return;
+    const ld=JSON.parse(raw);
+    if(Array.isArray(ld.vehicles)&&ld.vehicles.length)db.vehicles=ld.vehicles;
+    if(Array.isArray(ld.hotels)&&ld.hotels.length)db.hotels=ld.hotels;
+    if(Array.isArray(ld.aiTraining)&&ld.aiTraining.length)db.aiTraining=ld.aiTraining;
+  }catch(_){}
+})();
+
 async function loadDB(){
   try{
     // Load all tables in parallel
@@ -3029,11 +3048,17 @@ async function loadDB(){
     window._vehiclesFromCloud=_vehiclesFromCloud;
     try{
       const hotelRows=await sbFetch('hotels?select=id,data&order=created_at.desc');
-      if(Array.isArray(hotelRows))db.hotels=hotelRows.map(r=>({...r.data,id:r.id}));
+      // Same rule as ai_training below: an empty cloud table must not wipe a local list.
+      if(Array.isArray(hotelRows)&&hotelRows.length)db.hotels=hotelRows.map(r=>({...r.data,id:r.id}));
     }catch(e){ console.warn('hotels load skipped (table may not exist yet):',e); }
     try{
       const aiRows=await sbFetch('ai_training?select=id,data&order=created_at.desc');
-      if(Array.isArray(aiRows))db.aiTraining=aiRows.map(r=>({...r.data,id:r.id}));
+      // Only adopt the cloud copy when it actually HAS rows (2026-08-19). An empty table returns
+      // [], which is still an array — so the moment the ai_training table was created, the first
+      // refresh overwrote every locally-held training record with nothing, and saveDB then wrote
+      // that emptiness to localStorage. An empty cloud table means "not populated yet", never
+      // "the user has no records"; the push on the next sync will seed it from local.
+      if(Array.isArray(aiRows)&&aiRows.length)db.aiTraining=aiRows.map(r=>({...r.data,id:r.id}));
     }catch(e){
       console.warn('ai_training load skipped (table may not exist yet):',e);
       // preserve whatever localStorage had
