@@ -3190,7 +3190,13 @@ async function loadDB(){
       const ln=typeof l.notes==='string'?l.notes:'';
       const lon=typeof l.officeNotes==='string'?l.officeNotes:'';
       // Push officeNotes to QUOTES (new — Tim Satron-style drift fix)
+      // Skip sent/accepted quotes — their contents are frozen server-side, so rewriting
+      // officeNotes here only marks the row dirty for a push that is rejected forever.
+      // This is the SECOND copy of this self-heal; the one in refreshFromSupabase was fixed
+      // earlier today and this one, running on every page LOAD, kept re-dirtying the same
+      // quotes — which is why the 400s never stopped.
       (db.quotes||[]).filter(q=>q.leadId===l.id).forEach(q=>{
+        if(q.status==='sent'||q.status==='accepted')return;
         if(q.officeNotes!==lon){q.officeNotes=lon;_notesReconciled++;}
       });
       (db.bookedJobs||[]).filter(bj=>bj.leadId===l.id).forEach(bj=>{
