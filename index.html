@@ -2731,7 +2731,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 <div id="toast"></div>
 
 <script>
-let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],hotels:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
+let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],hotels:[],vehicles:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
 // ── SUPABASE CONFIG ──
 const SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
@@ -3019,6 +3019,14 @@ async function loadDB(){
     db.cashTransactions=_cloudOrLocal(transactions,_LD.cashTransactions);
     // ai_training — load if table exists, otherwise keep whatever's in localStorage
     // hotels — the truck-parking list is only useful if it is shared, so pull it the same way.
+    // vehicles: prefer the cloud copy; the localStorage restore below only fills in when the
+    // cloud has nothing, so a machine that has never synced still keeps whatever it has locally.
+    let _vehiclesFromCloud=false;
+    try{
+      const vRows=await sbFetch('vehicles?select=id,data&order=created_at.desc');
+      if(Array.isArray(vRows)&&vRows.length){db.vehicles=vRows.map(r=>({...r.data,id:r.id}));_vehiclesFromCloud=true;}
+    }catch(e){ console.warn('vehicles load skipped (table may not exist yet):',e); }
+    window._vehiclesFromCloud=_vehiclesFromCloud;
     try{
       const hotelRows=await sbFetch('hotels?select=id,data&order=created_at.desc');
       if(Array.isArray(hotelRows))db.hotels=hotelRows.map(r=>({...r.data,id:r.id}));
@@ -3034,7 +3042,7 @@ async function loadDB(){
     // Vehicles (Fleet) are local-only for now (no cloud table yet). The cloud load above rebuilds
     // db from Supabase tables and does NOT include vehicles, so restore them from localStorage here
     // — otherwise they'd vanish on every reload.
-    try{const _raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');if(_raw){const _ld=JSON.parse(_raw);if(Array.isArray(_ld.vehicles))db.vehicles=_ld.vehicles;}}catch(_){}
+    try{if(!window._vehiclesFromCloud){const _raw=localStorage.getItem('movedesk_db')||localStorage.getItem('movedesk-db');if(_raw){const _ld=JSON.parse(_raw);if(Array.isArray(_ld.vehicles))db.vehicles=_ld.vehicles;}}}catch(_){}
     // Customers are rebuilt from leads/jobs on startup - not stored in Supabase
     db.customers=[];
     // Settings
@@ -3696,6 +3704,7 @@ document.addEventListener('change',_globalAutoSave);
 const _syncCache={};
 let _aiTrainingMissing=false;
 let _hotelsTableMissing=false;
+let _vehiclesTableMissing=false;
 // ── Write-side protection for sent quotes ──────────────────────────────────────────────────
 // The read-side guard in mergeTable stops a cloud DRAFT from overwriting a local SENT quote, but
 // nothing stopped this device from UPLOADING a stale draft on top of a sent/accepted cloud quote
@@ -3792,6 +3801,14 @@ async function syncToSupabase(){
     }
     // hotels — shared truck-parking list, same guarded pattern as ai_training so a missing
     // table degrades to local-only instead of breaking every other sync.
+    // vehicles — was LOCAL-ONLY until 2026-08-19 and consequently lost. The code even carried a
+    // comment saying it had to be restored from localStorage "otherwise they'd vanish on every
+    // reload", which is exactly what eventually happened. Same guarded pattern as hotels.
+    const vehicleRows=(db.vehicles||[]).map(v=>({id:v.id,data:v}));
+    if(vehicleRows.length&&!_vehiclesTableMissing){
+      const _vOp=_pushTable('vehicles',vehicleRows);
+      if(_vOp)ops.push(_vOp.then(res=>{if(res===null)_vehiclesTableMissing=true;}).catch(()=>{_vehiclesTableMissing=true;}));
+    }
     const hotelRows=(db.hotels||[]).map(h=>({id:h.id,data:h}));
     if(hotelRows.length&&!_hotelsTableMissing){
       const _hOp=_pushTable('hotels',hotelRows);
