@@ -3837,6 +3837,33 @@ function _pushTable(table,rows,key){
   });
 }
 
+// Removes cloud rows that no longer exist locally, for the small self-contained tables.
+// The push UPSERTS but never deletes, so a row removed locally stayed in the cloud and returned
+// on the next pull — which silently undid a prune of 44 AI-training records and would do the
+// same to a deleted hotel or vehicle.
+// Guarded hard: nothing happens when the table is missing, and nothing happens when the local
+// list is EMPTY — an empty local list far more likely means "not loaded yet" than "the user
+// deleted everything", and acting on it would wipe the table.
+async function _reconcileDeletes(table,localArr,tableMissing){
+  try{
+    if(tableMissing)return;
+    const local=Array.isArray(localArr)?localArr:[];
+    if(!local.length)return;
+    const cloud=await sbFetch(table+'?select=id');
+    if(!Array.isArray(cloud)||!cloud.length)return;
+    const keep=new Set(local.map(r=>r&&r.id).filter(Boolean));
+    const stale=cloud.filter(r=>r&&r.id&&!keep.has(r.id));
+    // A sweep that would remove most of the table signals something wrong — a half-loaded local
+    // list, an id-format change — rather than a genuine bulk delete. Refuse and say so.
+    if(stale.length>cloud.length*0.5){
+      console.warn('Delete reconciliation skipped for '+table+': would remove '+stale.length+' of '+cloud.length+' rows.');
+      return;
+    }
+    for(const r of stale)await sbFetch(table+'?id=eq.'+r.id,'DELETE');
+    if(stale.length)console.log('Removed '+stale.length+' deleted '+table+' row(s) from the cloud');
+  }catch(e){console.warn('Delete reconciliation failed for '+table+':',e);}
+}
+
 async function syncToSupabase(){
   // Never push while offline: db may have been loaded from the local copy only, and uploading it
   // could overwrite good cloud rows (or wipe tables that failed to read).
@@ -3897,6 +3924,15 @@ async function syncToSupabase(){
       if(_hOp)ops.push(_hOp.then(res=>{if(res===null)_hotelsTableMissing=true;}).catch(()=>{_hotelsTableMissing=true;}));
     }
     await Promise.all(ops);
+    // DELETE RECONCILIATION (2026-08-19). The push UPSERTS but never deletes, so a row removed
+    // locally stayed in the cloud and came straight back on the next pull — which silently undid
+    // a prune of 44 AI-training records and would do the same to a deleted hotel or vehicle.
+    // Only these three tables are reconciled: leads/jobs/quotes are deleted through their own
+    // explicit sbDelete paths and have tombstone protection, so sweeping them here could destroy
+    // a record that merely had not loaded yet.
+    await _reconcileDeletes('ai_training',db.aiTraining,_aiTrainingMissing);
+    await _reconcileDeletes('hotels',db.hotels,_hotelsTableMissing);
+    await _reconcileDeletes('vehicles',db.vehicles,_vehiclesTableMissing);
     _lastSyncAt=Date.now();
   }catch(e){console.error('Supabase sync error:',e);}
 }
