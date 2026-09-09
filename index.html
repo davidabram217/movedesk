@@ -163,7 +163,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">Outstanding balances</div></div>
-        <div class="card-body" style="padding:0"><div class="table-wrap"><table id="dash-outstanding"><thead><tr><th>Name</th><th>Job date</th><th>Total</th><th>Paid</th><th>Owing</th></tr></thead><tbody></tbody></table></div></div>
+        <div class="card-body" style="padding:0"><div class="table-wrap"><table id="dash-outstanding"><thead><tr><th>Name</th><th>Job date</th><th>Total</th><th>Paid</th><th>Owing</th><th title="When the invoice was last emailed">Invoiced</th></tr></thead><tbody></tbody></table></div></div>
       </div>
     </div>
 
@@ -6031,6 +6031,19 @@ function dismissReview(id){
   showToast('Dismissed');
 }
 
+// "Have we invoiced this one, and when?" — the question that could not be answered before,
+// because sending an invoice recorded nothing at all. Shows the age of the LAST send, amber once
+// it has been a week with no payment, and counts repeat sends, since chasing a balance usually
+// means more than one.
+function invoiceStatusCell(j){
+  if(!j||!j.invoiceSentAt)return '<span style="color:var(--error);font-weight:600;font-size:11.5px">not sent</span>';
+  const days=Math.floor((Date.now()-new Date(j.invoiceSentAt).getTime())/86400000);
+  const when=days<=0?'today':days===1?'yesterday':days+'d ago';
+  const n=Number(j.invoiceSentCount)||1;
+  const col=days>=7?'var(--amber)':'var(--text2)';
+  return '<span style="color:'+col+';font-size:11.5px">'+when+(n>1?' \u00b7 '+n+'\u00d7':'')+'</span>';
+}
+
 function renderDashboard(){
   // Mark quotes for Did not book leads as declined (backfill)
   if(db.quotes&&db.leads){
@@ -6165,7 +6178,7 @@ function renderDashboard(){
 
   const rlt=document.getElementById('dash-recent-leads').querySelector('tbody');const rl=[...db.leads].sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||'')).slice(0,5);rlt.innerHTML=rl.length?rl.map(l=>`<tr><td class="td-name">${l.name}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td class="td-mono">${fmtDate(l.createdAt)}</td><td>${statusBadge(l.status)}</td></tr>`).join(''):`<tr><td colspan="4"><div class="empty-state" style="padding:20px"><div class="empty-title">No leads yet</div></div></td></tr>`;
   const upt=document.getElementById('dash-upcoming').querySelector('tbody');const up=[...db.bookedJobs].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(0,5);upt.innerHTML=up.length?up.map(j=>`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${j.crew||'—'}</td></tr>`).join(''):`<tr><td colspan="3"><div class="empty-state" style="padding:20px"><div class="empty-title">No upcoming jobs</div></div></td></tr>`;
-  const ot=document.getElementById('dash-outstanding').querySelector('tbody');ot.innerHTML=out.length?out.map(j=>{const o=(Number(j.total)||0)-(Number(j.paid)||0);return`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${fmtMoney(j.total)}</td><td>${fmtMoney(j.paid)}</td><td class="owe-badge">${fmtMoney(o)}</td></tr>`;}).join(''):`<tr><td colspan="5"><div class="empty-state" style="padding:20px"><div class="empty-icon">✓</div><div class="empty-title">All balances clear</div></div></td></tr>`;
+  const ot=document.getElementById('dash-outstanding').querySelector('tbody');ot.innerHTML=out.length?out.map(j=>{const o=(Number(j.total)||0)-(Number(j.paid)||0);return`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${fmtMoney(j.total)}</td><td>${fmtMoney(j.paid)}</td><td class="owe-badge">${fmtMoney(o)}</td><td style="white-space:nowrap">${invoiceStatusCell(j)}</td></tr>`;}).join(''):`<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-icon">✓</div><div class="empty-title">All balances clear</div></div></td></tr>`;
   renderIncomeCard('dash-income-body',_incomeTabDash);
   try{renderReviewDue();}catch(_){}
 }
@@ -18196,6 +18209,19 @@ async function sendReceiptInvoice(){
   const htmlBody=_intro+_receiptHtml;
   closeModal('receipt-invoice');
   const sent=await sendEmail(to,OFFICE_EMAIL,subject,body,htmlBody);
+  // Record the send on the job (2026-08-19). Nothing was stored at all, so there was no way to
+  // tell who had been invoiced — which matters most on exactly the jobs that carry a balance.
+  // A log is kept rather than a single timestamp: chasing payment usually means sending more
+  // than once, and "sent 3 times, last on the 14th" is the useful fact.
+  {const _now=new Date().toISOString();
+   const _kind=isInvoice?'invoice':'receipt';
+   if(!j.docLog)j.docLog=[];
+   j.docLog.push({kind:_kind,at:_now,to:to,method:sent?'email':'gmail'});
+   if(isInvoice){j.invoiceSentAt=_now;j.invoiceSentCount=(Number(j.invoiceSentCount)||0)+1;}
+   else{j.receiptSentAt=_now;}
+   j._localEditedAt=_now;
+   saveDB();
+   if(typeof renderCompleted==='function')renderCompleted();}
   showToast(sent?'✓ '+(isInvoice?'Invoice':'Receipt')+' sent to '+j.name+' (office CC\u2019d)':'✉ Gmail opened — customer in To, office in CC');
 }
 
