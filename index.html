@@ -1950,6 +1950,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job info</div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="form-group"><label>Actual date <span style="font-size:11px;color:var(--text3);font-weight:400">— date the job was done</span></label><input type="date" id="ecj-date"></div>
         <div class="form-group"><label>Crew leader</label><input type="text" id="ecj-crew" placeholder="e.g. John" list="ecj-crew-list"><datalist id="ecj-crew-list"><option value="John"><option value="Dave"></datalist></div>
         <div class="form-group"><label>Source of job</label><select id="ecj-source"><option value="">Select…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Stager</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select></div>
         <div class="form-group"><label>Move hours <span style="font-size:11px;color:var(--text3);font-weight:400">— movers only</span></label><input type="number" id="ecj-hours" placeholder="0.0" step="0.5"></div>
@@ -2029,6 +2030,7 @@ Respecting locks is the only thing that keeps known-good behavior stable.
            Used for AI quote training so the AI knows the home context, not just hours. -->
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— used for AI quote training</span></div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
+        <div class="form-group"><label>Job start date <span style="font-size:11px;color:var(--text3);font-weight:400">— day 1 of the job</span></label><input type="date" id="ecjmd-date"></div>
         <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="ecjmd-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
@@ -11215,7 +11217,7 @@ function openEditCompleteMultiDay(jobId){
   const _exAccEl=document.getElementById('ecjmd-exclude-accuracy');if(_exAccEl)_exAccEl.checked=!!j.excludeFromAccuracy;
   // Job Context — prefill from cj (already auto-filled at completion time from booked job/lead)
   const _setVal=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
-  _setVal('ecjmd-size',j.size);_setVal('ecjmd-sqft',j.sqft);
+  _setVal('ecjmd-date',j.date);_setVal('ecjmd-size',j.size);_setVal('ecjmd-sqft',j.sqft);
   // Completed jobs recorded before 2026-07-15 hold the LEGACY wording ("Storage In" etc).
   // Resolve to the canonical label or the <select> silently blanks. See _canonMoveTypeLabel.
   _setVal('ecjmd-movetype',_canonMoveTypeLabel(j.moveType));
@@ -11416,6 +11418,7 @@ function saveEditedCompletedJobMultiDay(){
   const feeYelp=Number(document.getElementById('ecjmd-yelp').value)||0;
   const feeDamage=Number(document.getElementById('ecjmd-damage').value)||0;
   // Job Context — form values win (user may have corrected them on edit)
+  {const _d=document.getElementById('ecjmd-date');if(_d&&_d.value)j.date=_d.value;}
   const ctxSize=document.getElementById('ecjmd-size')?.value||j.size||'';
   const ctxSqft=document.getElementById('ecjmd-sqft')?.value||j.sqft||'';
   const ctxMoveType=document.getElementById('ecjmd-movetype')?.value||j.moveType||'';
@@ -12429,6 +12432,10 @@ function openEditCompletedJob(jobId){
   if(j.multiDay){return openEditCompleteMultiDay(jobId);}
   document.getElementById('edit-completed-summary').innerHTML=`<strong>${j.name}</strong> · ${fmtDate(j.date)} · ${j.from||'—'} → ${j.to||'—'}`;
   // Crew input
+  // Actual date is editable here (2026-08-19). It was only on the COMPLETE form, so once a job
+  // was closed out the date could not be corrected — and it drives the calendar, analytics
+  // date ranges and every by-month figure.
+  {const _d=document.getElementById('ecj-date');if(_d)_d.value=j.date||'';}
   const crewSel=document.getElementById('ecj-crew');
   if(crewSel)crewSel.value=j.crew||'';
   // Source
@@ -12482,6 +12489,7 @@ function saveEditedCompletedJob(){
   const paid=Number(document.getElementById('ecj-paid').value)||0;
   const hrs=Number(document.getElementById('ecj-hours').value)||0;
   const labour=Number(document.getElementById('ecj-labour').value)||0;
+  {const _d=document.getElementById('ecj-date');if(_d&&_d.value)j.date=_d.value;}
   j.crew=document.getElementById('ecj-crew').value;
   j.source=document.getElementById('ecj-source').value;
   j.hours=document.getElementById('ecj-hours').value;
