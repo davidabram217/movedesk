@@ -6035,10 +6035,16 @@ function dismissReview(id){
 // because sending an invoice recorded nothing at all. Shows the age of the LAST send, amber once
 // it has been a week with no payment, and counts repeat sends, since chasing a balance usually
 // means more than one.
+// Shared by the dashboard column and the job view, so the two can never word it differently.
+function _invoiceAgo(iso){
+  if(!iso)return '';
+  const d=Math.floor((Date.now()-new Date(iso).getTime())/86400000);
+  return d<=0?'today':d===1?'yesterday':d+'d ago';
+}
 function invoiceStatusCell(j){
   if(!j||!j.invoiceSentAt)return '<span style="color:var(--error);font-weight:600;font-size:11.5px">not sent</span>';
   const days=Math.floor((Date.now()-new Date(j.invoiceSentAt).getTime())/86400000);
-  const when=days<=0?'today':days===1?'yesterday':days+'d ago';
+  const when=_invoiceAgo(j.invoiceSentAt);
   const n=Number(j.invoiceSentCount)||1;
   const col=days>=7?'var(--amber)':'var(--text2)';
   return '<span style="color:'+col+';font-size:11.5px">'+when+(n>1?' \u00b7 '+n+'\u00d7':'')+'</span>';
@@ -12468,7 +12474,7 @@ const _rqBlock=(_rqOnLead||_rqOnJob)
       <span>No rough quote on file yet</span>
       <button class="btn btn-secondary btn-sm" onclick="openCompletedJobRoughQuote('${j.id}')" title="Backfill a rough quote that was sent before tracking it here — counts in analytics">+ Add rough quote</button>
     </div>`;
-document.getElementById('view-modal-footer').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">${_rqBlock}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button>${_realQuoteId?`<button class="btn btn-secondary" onclick="closeModal('view');previewQuoteFromList('${_realQuoteId}')">📋 View quote</button>`:''}<button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button><button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${!aiRec?`<button class="btn btn-secondary" style="color:var(--accent);border-color:var(--accent)" onclick="saveJobForAI('${j.id}')">🤖 Save for AI</button>`:''}<button class="btn" style="${owed>0?'background:var(--amber-light);color:var(--amber);border-color:#f0d080':''}" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 ${owed>0?'Update payment':'Correct payment'}</button></div></div>`;openModal('view');}
+document.getElementById('view-modal-footer').innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;width:100%">${_rqBlock}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="closeModal('view')">Close</button><button class="btn btn-secondary" onclick="closeModal('view');openEditCompletedJob('${j.id}')">✏ Edit</button>${_realQuoteId?`<button class="btn btn-secondary" onclick="closeModal('view');previewQuoteFromList('${_realQuoteId}')">📋 View quote</button>`:''}<button class="btn btn-secondary" onclick="closeModal('view');openReceiptInvoice('${j.id}')">${owed>0?'📄 Send invoice':'📄 Send receipt'}</button>${j.invoiceSentAt?`<span style="font-size:11px;align-self:center;margin-left:2px;color:${(Date.now()-new Date(j.invoiceSentAt).getTime())/86400000>=7?'var(--amber)':'var(--text3)'}">sent ${_invoiceAgo(j.invoiceSentAt)}${(Number(j.invoiceSentCount)||1)>1?' \u00b7 '+j.invoiceSentCount+'\u00d7':''}</span>`:''}<button class="btn btn-secondary" onclick="closeModal('view');openCustomerFromJob('${j.id}')">👤 Customer profile</button>${!aiRec?`<button class="btn btn-secondary" style="color:var(--accent);border-color:var(--accent)" onclick="saveJobForAI('${j.id}')">🤖 Save for AI</button>`:''}<button class="btn" style="${owed>0?'background:var(--amber-light);color:var(--amber);border-color:#f0d080':''}" onclick="closeModal('view');openUpdatePayment('${j.id}')">💰 ${owed>0?'Update payment':'Correct payment'}</button></div></div>`;openModal('view');}
 
 let currentEditCompletedJobId=null;
 
