@@ -5345,7 +5345,16 @@ function fmtDateWithDay(d){
   }
   return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',year:'numeric'});
 }
-function fmtMoney(n){if(!n&&n!==0)return'—';return'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
+function fmtMoney(n){
+  if(!n&&n!==0)return'\u2014';
+  const v=Number(n);
+  // Cents are shown ONLY when there are cents (2026-08-19). Rounding to whole dollars made a
+  // real 28c balance display as "$0" while the row was still flagged as owing — which read as a
+  // bug. Showing .00 on every figure would clutter every analytics number instead, so: an exact
+  // dollar prints clean, anything else prints both cent digits (never "$3,240.5").
+  const cents=Math.abs(v*100-Math.round(v*100))<1e-9?Math.round(v*100)%100!==0:true;
+  return '$'+v.toLocaleString('en-US',{minimumFractionDigits:cents?2:0,maximumFractionDigits:cents?2:0});
+}
 // Resolves the best-available "what was quoted" data for a completed job.
 // Priority: formal quote (db.quotes) → rough quote on the linked lead → rough quote saved
 // directly on the completed job itself (backfill). Returns a uniform object the AI training
