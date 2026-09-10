@@ -10643,7 +10643,10 @@ function calcTotal(){
   }
   document.getElementById('cj-total').value=total;
   _syncActualTotal('cj',total,_cap.capAdj);
-  document.getElementById('cj-total-display').textContent='$'+total.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+  // Through fmtMoney so the running total shows cents when it has them (2026-08-19). It was
+  // rounding to whole dollars, so a total of 1982.28 displayed as $1,982 on the form and then
+  // as $1,982.28 on the invoice — the same number reading differently in two places.
+  document.getElementById('cj-total-display').textContent=fmtMoney(total);
   const labour=Number(document.getElementById('cj-labour').value)||0;
   const hours=Number(document.getElementById('cj-hours').value)||0;
   const rateEl=document.getElementById('cj-rate-display');
@@ -20374,7 +20377,7 @@ function renderAIQuote(){
       <td style="padding:8px 14px;border-bottom:1px solid var(--border)">${j.moveMen||j.packMen||'—'}</td>
       <td style="padding:8px 14px;border-bottom:1px solid var(--border)">${j.quotedHoursMin&&j.quotedHoursMax?j.quotedHoursMin+'–'+j.quotedHoursMax:'—'}</td>
       <td style="padding:8px 14px;border-bottom:1px solid var(--border);font-weight:${j.actualHours&&j.quotedHoursMax&&j.actualHours>j.quotedHoursMax?'600':'400'};color:${j.actualHours&&j.quotedHoursMax&&j.actualHours>j.quotedHoursMax?'var(--amber)':'inherit'}">${j.actualHours||'—'}</td>
-      <td style="padding:8px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${j.actualTotal?'$'+j.actualTotal.toLocaleString():'—'}</td>
+      <td style="padding:8px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${j.actualTotal?fmtMoney(j.actualTotal):'—'}</td>
       <td style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:11px">${j.fromSpreadsheet?'📊 Spreadsheet':'✓ Completed job'}</td>
     </tr>`).join(''):'<tr><td colspan="9"><div class="empty-state">No training data yet</div></td></tr>';
 }
