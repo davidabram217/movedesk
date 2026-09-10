@@ -17987,8 +17987,28 @@ function buildReceiptInvoiceHTML(j){
     rows+=`<tr><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px${color?';color:'+color:''}">${label}</td><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500${color?';color:'+color:''}">${color==='#c0392b'?'-':''}${fmtMoney(amount)}</td></tr>`;
   };
 
-  // Multi-day: itemise each day
-  if(j.multiDay&&j.extraDays&&j.extraDays.length){
+  // Multi-day itemisation from days[] (2026-08-19). The branch below requires `extraDays`, which
+  // a BOOKED multi-day job has — but a COMPLETED one stores its actuals in `days[]` instead, so
+  // the itemisation never fired and the invoice printed a single flat "Labour — 21 hrs" line
+  // with no indication of which day, how many crew, or how the hours split. On a multi-day job
+  // that is the most-queried line on the whole invoice.
+  if(j.multiDay&&Array.isArray(j.days)&&j.days.length){
+    j.days.forEach(function(d,i){
+      const mh=Number(d.moveHours)||0, ph=Number(d.packHours)||0;
+      const men=Number(d.movers)||0,   pk=Number(d.packers)||0;
+      const rate=Number(d.rate)||Number(j.hourlyRateCharged)||0;
+      const label='Day '+(i+1)+(d.date?' \u2014 '+fmtDate(d.date):'')
+        +(d.dayLabel?' \u00b7 '+d.dayLabel:'');
+      // Move and pack are separate lines when both happened — they are different crews at
+      // different rates, and merging them is what makes an invoice look wrong to a customer.
+      const parts=[];
+      if(mh)parts.push(men?(men+' movers \u00d7 '+mh+' hrs'):(mh+' hrs'));
+      if(ph)parts.push((pk||men)?((pk||men)+' packers \u00d7 '+ph+' hrs'):(ph+' hrs'));
+      const detail=parts.join('<br>')+(rate?'<br>@ $'+rate+'/hr':'');
+      const amount=Number(d.labour)||((mh+ph)*rate*1)||0;
+      rows+=`<tr><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px">${label}<br><span style="font-size:11.5px;color:#888">${detail}</span></td><td style="padding:10px 8px;border-bottom:1px solid #eee;font-size:13.5px;text-align:right;font-weight:500">${amount?fmtMoney(amount):''}</td></tr>`;
+    });
+  } else if(j.multiDay&&j.extraDays&&j.extraDays.length){
     // Day 1 — main job
     const d1label=`Day 1 — ${fmtDate(j.date)}${j.crew?' · '+j.crew:''}${j.movers?' · '+j.movers+' movers':''}`;
     if(j.hours&&j.hourlyRateCharged){
