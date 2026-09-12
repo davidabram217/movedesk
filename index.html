@@ -17181,7 +17181,33 @@ async function openQuoteGmail(){
   },200);
 }
 
+// A quote cannot be sent without recording WHO sent it and WHAT KIND of estimate it was
+// (2026-08-19, David). `sendQuote` writes both onto the lead — `estimateSentBy` and
+// `estimateType` — so sending with them blank produced exactly the attribution gaps that took
+// five separate console corrections to clean up (Cindy Mercer, Salik Syed, Gregg McGillis,
+// Andrew Daniel, Toni Prencipe). Enforced at BOTH send paths rather than in the UI, so no route
+// in can bypass it. Returns true when it is safe to proceed.
+function _quoteSendFieldsOk(){
+  const sb=document.getElementById('qb-sent-by');
+  const et=document.getElementById('qb-estimate-type');
+  const sbv=(sb&&sb.value||'').trim();
+  const etv=(et&&et.value||'').trim();
+  if(!sbv){
+    showToast('Please fill in \u201cSent by\u201d before sending the quote.');
+    if(sb){try{sb.focus();sb.scrollIntoView({block:'center'});}catch(_){}}
+    return false;
+  }
+  // "Select…" is the placeholder and must not count as an answer.
+  if(!etv||/^select/i.test(etv)){
+    showToast('Please choose the estimate type before sending the quote.');
+    if(et){try{et.focus();et.scrollIntoView({block:'center'});}catch(_){}}
+    return false;
+  }
+  return true;
+}
+
 async function sendQuoteEmail(){
+  if(!_quoteSendFieldsOk())return;
   const to=document.getElementById('qe-to').value.trim();
   const subject=document.getElementById('qe-subject').value.trim();
   const body=document.getElementById('qe-body').value.trim();
@@ -17343,6 +17369,7 @@ function confirmQuoteSent(didSend){
 }
 
 async function sendQuote(){
+  if(!_quoteSendFieldsOk())return;
   const q=saveQuote('sent');
   if(q){q.sentAt=new Date().toISOString().split('T')[0];saveDB();}
   const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
