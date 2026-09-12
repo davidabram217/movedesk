@@ -118,6 +118,14 @@ footer a{color:var(--text2);text-decoration:none}
             <option value="No">No — just moving</option><option value="Partial">Partial packing</option><option value="Full">Full packing service</option>
           </select>
         </div>
+        <div class="field full"><label>Anything you'd like us to haul away?</label>
+          <select id="q-haulaway" onchange="toggleHaulAway()"><option value="">No, nothing</option><option value="yes">Yes — I have items to get rid of</option><option value="maybe">Not sure yet — please ask me</option></select>
+          <div class="hint">Old furniture, mattresses, boxes, junk — we can take it to the dump for you and quote it with the move.</div>
+        </div>
+        <div class="field full" id="f-haulaway" style="display:none"><label>What would you like taken away?</label>
+          <input id="q-haulaway-items" type="text" placeholder="e.g. old sofa, mattress and box spring, garage clutter">
+        </div>
+
       </div>
     </div>
 
@@ -232,6 +240,13 @@ function v(id){var el=document.getElementById(id);return el?(el.value||'').trim(
 
 function toggleSizeOther(){document.getElementById('q-size-other-group').style.display=v('q-size')==='Other'?'flex':'none';}
 
+function toggleHaulAway(){
+  const sel=document.getElementById('q-haulaway');
+  const box=document.getElementById('f-haulaway');
+  if(!sel||!box)return;
+  // Ask WHAT only once they have said yes or maybe — an empty box on a "no" is noise.
+  box.style.display=(sel.value==='yes'||sel.value==='maybe')?'':'none';
+}
 function toggleStorage(){
   var val=document.getElementById('q-storage').value;
   var toField=document.getElementById('q-to');
@@ -388,6 +403,12 @@ function collectData(){
     size:v('q-size'),sizeOther:v('q-size-other'),sqft:v('q-sqft'),
     moveType:v('q-movetype'),packing:v('q-packing'),
     storage:document.getElementById('q-storage').value==='yes',
+    // Haul-away (2026-08-19). Asked here because this is the moment the customer is mentally
+    // walking their home deciding what moves and what does not — by the confirmation stage they
+    // have already arranged something else. "maybe" is the valuable answer: it opens a
+    // conversation that would otherwise never happen.
+    haulAway:document.getElementById('q-haulaway')?document.getElementById('q-haulaway').value:'',
+    haulAwayItems:v('q-haulaway-items'),
     from:v('q-from'),fromZip:v('q-from-zip'),fromUnit:v('q-from-unit'),
     fromType:v('q-from-type'),fromFloor:v('q-from-floor'),
     accessLoad:v('q-access-load'),parkingLoad:v('q-parking-load'),
