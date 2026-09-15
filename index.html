@@ -3011,10 +3011,25 @@ async function loadDB(){
     // Cloud tombstones are AUTHORITATIVE and cross-device: absorb them before anything else so a
     // record deleted on another machine cannot be resurrected from this machine's local copy.
     _absorbCloudTombstones(cloudLeads,cloudById,localById,tombstones);
-    // Drop tombstones older than 30 days
+    // Drop tombstones older than 30 days — but ONLY once the cloud row has actually gone.
+    // (2026-08-19) `deleteLead` fires sbDelete and never checks the result, so a request that
+    // failed — offline, a transient error — left the cloud row in place while the local record
+    // vanished. The tombstone masked that for 30 days; the moment it expired the surviving cloud
+    // row was resurrected, which is exactly how five test leads deleted in May reappeared in
+    // September. A tombstone whose row is STILL in the cloud is doing necessary work, so it is
+    // kept and the delete is retried instead.
     const _now=Date.now();
     Object.keys(tombstones).forEach(tid=>{
-      if(_now-new Date(tombstones[tid]).getTime()>30*24*60*60*1000)delete tombstones[tid];
+      const _aged=_now-new Date(tombstones[tid]).getTime()>30*24*60*60*1000;
+      if(!_aged)return;
+      if(cloudById.has(tid)){
+        // Still there with real data: either the original soft delete never landed, or another
+        // device that still held the lead locally pushed it back up and overwrote the marker.
+        // Re-assert the deletion and KEEP the tombstone until the cloud actually reflects it.
+        try{_sbSoftDelete('leads',tid);}catch(_){}
+        return;
+      }
+      delete tombstones[tid];
     });
     try{localStorage.setItem('movedesk_lead_tombstones',JSON.stringify(tombstones));}catch(_){}
     // For each tombstoned ID still present in cloud as a LIVE row, re-assert the tombstone.
