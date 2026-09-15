@@ -7097,10 +7097,18 @@ function openConfirmEmail(leadId,bookedJob){
     // nothing important has changed, but prevents stale drafts from overriding fresh details
     // when (for example) the move date was just changed in the booking form.
     const _saved=l._confirmEmailDraft.sourceFingerprint;
-    const _current=bj?{
-      date:bj.date||'',time:bj.time||'',from:bj.from||'',to:bj.to||'',
-      movers:bj.movers||'',rateRegular:bj.rateRegular||'',rateCash:bj.rateCash||'',
-      feeFuel:bj.feeFuel||'',feeMaterials:bj.feeMaterials||''
+    // Fingerprint the BOOKED JOB when there is one, otherwise the LEAD (2026-08-19).
+    // Why the lead fallback matters: a confirmation is often written BEFORE the job is booked —
+    // booking happens after the email is sent — so `bj` is null and this was null too. This
+    // morning's change restored the draft whenever both sides were null, which fixed losing typed
+    // work but left nothing able to INVALIDATE that draft: a customer confirming her real unload
+    // address changed `lead.to`, yet the stale body was restored verbatim and still said "Point
+    // Richmond". The email reads its addresses from the LEAD, so the lead is what must be watched.
+    const _fpSrc=bj||l||null;
+    const _current=_fpSrc?{
+      date:_fpSrc.date||'',time:_fpSrc.time||'',from:_fpSrc.from||'',to:_fpSrc.to||'',
+      movers:_fpSrc.movers||'',rateRegular:_fpSrc.rateRegular||'',rateCash:_fpSrc.rateCash||'',
+      feeFuel:_fpSrc.feeFuel||'',feeMaterials:_fpSrc.feeMaterials||''
     }:null;
     const _fingerprintMatches=_saved&&_current&&JSON.stringify(_saved)===JSON.stringify(_current);
     // When there is NO booked job, both fingerprints are null. That is not a stale draft — it is a
@@ -9921,11 +9929,15 @@ function autoSaveConfirmEmail(){
   // when the underlying job hasn't changed, but rebuilds when it has (e.g. user changed the
   // move date in the booking form after saving an earlier email draft).
   const _bj=(db.bookedJobs||[]).find(b=>b.leadId===currentConfirmEmailLeadId);
-  const _fingerprint=_bj?{
-    date:_bj.date||'',time:_bj.time||'',from:_bj.from||'',to:_bj.to||'',
-    movers:_bj.movers||'',rateRegular:_bj.rateRegular||'',rateCash:_bj.rateCash||'',
-    feeFuel:_bj.feeFuel||'',feeMaterials:_bj.feeMaterials||''
-  }:null;
+  const _l=(db.leads||[]).find(x=>x.id===currentConfirmEmailLeadId)||null;
+  const // Must mirror the fingerprint built in openConfirmEmail EXACTLY, including the lead fallback —
+  // a draft saved against one source and compared against another can never match, and the body
+  // would be silently rebuilt every time.
+  _fingerprint=(_bj||_l)?(function(_src){return{
+    date:_src.date||'',time:_src.time||'',from:_src.from||'',to:_src.to||'',
+    movers:_src.movers||'',rateRegular:_src.rateRegular||'',rateCash:_src.rateCash||'',
+    feeFuel:_src.feeFuel||'',feeMaterials:_src.feeMaterials||''
+  };})(_bj||_l):null;
   l._confirmEmailDraft={
     to:document.getElementById('ce-to')?.value||'',
     subject:document.getElementById('ce-subject')?.value||'',

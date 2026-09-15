@@ -376,24 +376,41 @@ check('autoSaveConfirmEmail captures sourceFingerprint',
   /sourceFingerprint:_fingerprint/.test(indexHtml)
 );
 check('Fingerprint includes date',
-  /_fingerprint=_bj\?[\s\S]{0,200}date:_bj\.date/.test(indexHtml)
+  /_src\.date\|\|''/.test(indexHtml)
 );
 check('Fingerprint includes time',
-  /_fingerprint=_bj\?[\s\S]{0,300}time:_bj\.time/.test(indexHtml)
+  /_src\.time\|\|''/.test(indexHtml)
 );
+// CHANGED 2026-08-19: the fingerprint is built from the booked job when there is one and
+// otherwise from the LEAD, because a confirmation is written BEFORE the job is booked — so
+// with a bj-only fingerprint nothing could invalidate a draft on an unbooked lead, and a
+// corrected unload address was silently ignored. Both sides (build + save) must mirror.
 check('Fingerprint includes addresses',
-  /_fingerprint=_bj\?[\s\S]{0,400}from:_bj\.from[\s\S]{0,50}to:_bj\.to/.test(indexHtml)
+  /_src\.from\|\|''/.test(indexHtml) && /_src\.to\|\|''/.test(indexHtml)
+);
+check('Fingerprint falls back to the lead when there is no booked job',
+  /const _fpSrc=bj\|\|l\|\|null;/.test(indexHtml) &&
+  /_fingerprint=\(_bj\|\|_l\)\?/.test(indexHtml)
 );
 check('Fingerprint includes crew and rates',
-  /_fingerprint=_bj\?[\s\S]{0,500}movers:_bj\.movers[\s\S]{0,200}rateRegular:_bj\.rateRegular/.test(indexHtml)
+  /_src\.movers\|\|''/.test(indexHtml) &&
+  /_src\.rateRegular\|\|''/.test(indexHtml) &&
+  /_src\.rateCash\|\|''/.test(indexHtml)
 );
 
 // G3: openConfirmEmail compares fingerprint before restoring body
 check('openConfirmEmail computes _fingerprintMatches',
   /const _fingerprintMatches=_saved&&_current&&JSON\.stringify\(_saved\)===JSON\.stringify\(_current\)/.test(indexHtml)
 );
-check('openConfirmEmail rebuilds fresh body when no saved fingerprint (old drafts)',
-  /const _restoreBody=_saved\?_fingerprintMatches:false/.test(indexHtml)
+// CHANGED 2026-08-19: when BOTH fingerprints are null there is no booked job, so nothing can be
+// stale — the body is restored. The old rule discarded it every time, which is why drafting an
+// email for an unbooked lead always started from scratch. A SAVED fingerprint with no current bj
+// still rebuilds, since the job has source data that cannot be compared.
+check('openConfirmEmail rebuilds when a saved fingerprint cannot be matched',
+  /const _restoreBody=_noSourceEitherSide\?true:\(_saved\?_fingerprintMatches:false\)/.test(indexHtml)
+);
+check('openConfirmEmail restores the body when there is no booked job either side',
+  /const _noSourceEitherSide=!_saved&&!_current;/.test(indexHtml)
 );
 check('openConfirmEmail always restores "to" field regardless of fingerprint',
   /Always restore "to"[\s\S]{0,200}_confirmEmailDraft\.to\|\|lEmail/.test(indexHtml)
