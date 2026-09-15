@@ -5155,22 +5155,57 @@ async function generateAgentReply(){
 }
 // Deterministic fallback. Deliberately identical in substance to the AI version so a reader
 // cannot tell which produced it — it just cannot answer their specific questions.
+// Deterministic fallback, used when the edge function is absent or down.
+// IMPORTANT (2026-08-19): an earlier version always asked for a walkthrough video. That was wrong
+// on a detailed enquiry — one real example listed the floor, the stairs, the lift, the parking,
+// 472 cu ft, 1,188 lbs and 54 items, and still got "we cannot price this without seeing it",
+// which reads as though nobody opened the email. The whole point of asking for video is to learn
+// volume and access; when the sender has already supplied both, asking again is insulting rather
+// than careful. So the reply now BRANCHES on what the enquiry actually contains.
+function _agentDetailLevel(txt){
+  const t=String(txt||'').toLowerCase();
+  const hasVolume=/\b\d{2,}\s*(cu\.?\s?ft|cubic|items?|pieces?|boxes|containers)\b/.test(t)
+    ||/\b\d{3,}\s*(lbs|lb|pounds)\b/.test(t);
+  const hasAccess=/(walk\s?-?up|flight|stairs|elevator|lift|no elevator|ground floor|loading dock|curbside|parking lot|driveway|street park)/.test(t);
+  return {hasVolume,hasAccess,detailed:hasVolume&&hasAccess};
+}
 function _agentReplyTemplate(email){
   // Their name is far more reliably in the SIGN-OFF than the greeting — the greeting is
   // addressed to CareMore. Try "Thanks,\nLouis" and similar first, then fall back.
   const txt=String(email||'');
   const sign=/(?:thanks|regards|best|cheers|sincerely)[,!]?\s*\n+\s*([A-Z][a-zA-Z'-]+)/i.exec(txt);
   const first=(sign&&sign[1])||'there';
-  return 'Hi '+first+',\n\n'
-    +'Thanks for the detail \u2014 that is more to work with than we usually get.\n\n'
-    +'Short answer: yes, we can handle it. We are a family-owned San Francisco company, we pack, move and store in our own warehouse, and we are licensed (CAL-T 0190970) and insured.\n\n'
-    +'What I can tell you now:\n\n'
-    +'\u2022 Storage is $120.00 per month per 5x7x8 container, one month minimum, billed monthly thereafter (3.5% card fee; 10% annual increase).\n'
-    +'\u2022 Packing and moving are charged hourly with a 2 hour minimum, plus materials. Mirrors, screens, artwork, mattresses and rugs are wrapped or boxed as standard, and furniture disassembly is included in the crew time.\n'
-    +'\u2022 Return drive time back to our warehouse is charged at completion (30 minute minimum).\n\n'
-    +'What I would rather not do is put a firm number on it from a list alone. Volume and access \u2014 stairs, lift, parking, how far the carry is \u2014 are what set the price, and guessing them is how people end up with a quote that changes on the day. We would rather be right than fast.\n\n'
-    +'Five minutes on FaceTime, or a walkthrough video taken on a phone, and we can send a firm written estimate the same day.\n\n'
-    +'If you can share a good phone number and a time that suits, we will call.\n\n'
+  const lvl=_agentDetailLevel(txt);
+
+  const intro='Hi '+first+',\n\n'
+    +(lvl.detailed
+      ? 'Thanks \u2014 that is the most complete enquiry we have had in a while, and it makes this easy to price properly.\n\n'
+      : 'Thanks for the detail \u2014 that is more to work with than we usually get.\n\n')
+    +'Short answer: yes, we can handle it. We are a family-owned San Francisco company, we pack, move and store in our own warehouse, and we are licensed (CAL-T 0190970) and insured.\n\n';
+
+  const facts='What I can tell you now:\n\n'
+    +'\u2022 Crews are charged hourly with a 2 hour minimum, plus a materials fee. The hourly rate depends on crew size and the date, so I will confirm it with the written estimate.\n'
+    +'\u2022 Specialist boxes and protection \u2014 TV cartons, mirror cartons, mattress bags, rug bags \u2014 are part of the materials fee rather than a separate surcharge.\n'
+    +'\u2022 Stairs and long carries are not charged as an extra. They show up in the time the job takes, which is why an accurate hours estimate matters more than a stair fee.\n'
+    +'\u2022 Furniture disassembly and reassembly are included in the crew time.\n'
+    +'\u2022 Return drive time back to our warehouse is charged at completion (30 minute minimum).\n'
+    +'\u2022 Payment is cash, check or card (no AMEX). Cards carry a 3.5% surcharge; there is a cash rate.\n'
+    +'\u2022 A $400.00 deposit applies only if the move is cancelled or rescheduled inside 7 days of the date.\n'
+    +(/storage|store/i.test(txt)
+      ? '\u2022 Storage, if you need it, is $120.00 per month per 5x7x8 container, one month minimum (3.5% card fee; 10% annual increase).\n'
+      : '')
+    +'\n';
+
+  // Detailed enquiry: they have done the work, so answer and offer a SHORT confirming call.
+  // Thin enquiry: explain why a firm number needs eyes on it.
+  const close=lvl.detailed
+    ? 'On the numbers themselves \u2014 I would rather send you something you can hold us to than a figure I have guessed. Everything I need is in what you have sent bar one or two details (how far the carry is at each end, and whether anything needs disassembly), so a short call is enough to settle it. No walkthrough video needed.\n\n'
+      +'If you send a good phone number and a time that suits, I will call and have the written estimate over the same day.\n\n'
+    : 'What I would rather not do is put a firm number on it from a list alone. Volume and access \u2014 stairs, lift, parking, how far the carry is \u2014 are what set the price, and guessing them is how people end up with a quote that changes on the day. We would rather be right than fast.\n\n'
+      +'Five minutes on FaceTime, or a walkthrough video taken on a phone, and we can send a firm written estimate the same day.\n\n'
+      +'If you can share a good phone number and a time that suits, we will call.\n\n';
+
+  return intro+facts+close
     +'Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970';
 }
 function copyAgentReply(){
