@@ -103,6 +103,7 @@ input[type=number]{-moz-appearance:textfield}
     <div class="nav-item" onclick="showPage('packcalc')"><span>📦</span> Pack Materials Calc</div>
     <div class="nav-item" onclick="showPage('fleet');renderFleet()"><span>🚚</span> Fleet</div>
     <div class="nav-item" onclick="showPage('hotels');renderHotels()"><span>🏨</span> Truck-Friendly Hotels</div>
+    <div class="nav-item" onclick="showPage('agentreply')"><span>🤖</span> Agent Enquiry Reply</div>
   </div>
   <div class="sidebar-footer">v1.0 · You & John</div>
 </nav>
@@ -801,6 +802,33 @@ input[type=number]{-moz-appearance:textfield}
             <div class="card-header"><div class="card-title">💡 Suggested quote range</div></div>
             <div class="card-body" id="pc-suggestion"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-agentreply">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header"><div>
+          <div class="card-title">🤖 Agent enquiry reply</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Paste a quote request written by an AI assistant. Drafts a reply that answers what it can, explains why a firm number needs five minutes, and asks for a phone number.</div>
+        </div></div>
+        <div class="card-body">
+          <div class="form-group"><label>Their email</label>
+            <textarea id="ar-email" style="min-height:190px;font-size:12.5px;line-height:1.6" placeholder="Paste the whole enquiry here…"></textarea></div>
+          <div class="form-group"><label>Anything to add? <span style="font-size:10.5px;color:var(--text3);font-weight:400">optional — availability, a price you want mentioned, something to flag</span></label>
+            <input type="text" id="ar-notes" placeholder="e.g. we are open that Monday; mention we can hold storage open-ended"></div>
+          <button class="btn btn-primary" onclick="generateAgentReply()" id="ar-btn">✨ Draft a reply</button>
+          <span id="ar-status" style="margin-left:10px;font-size:12px;color:var(--text3)"></span>
+        </div>
+      </div>
+
+      <div class="card" id="ar-out-card" style="display:none">
+        <div class="card-header"><div><div class="card-title">Draft</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Read it before sending. Add anything job-specific they asked about.</div></div></div>
+        <div class="card-body">
+          <textarea id="ar-reply" style="min-height:340px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.7"></textarea>
+          <button class="btn btn-primary" onclick="copyAgentReply()">📋 Copy</button>
+          <button class="btn btn-secondary" onclick="generateAgentReply()">↻ Try again</button>
         </div>
       </div>
     </div>
@@ -1861,6 +1889,9 @@ input[type=number]{-moz-appearance:textfield}
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:13px"><input type="checkbox" id="ir-tone" onchange="buildInfoRequestBody()" style="width:auto;margin:0"> Warmer, more conversational wording</label>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:13px"><input type="checkbox" id="ir-agent" onchange="buildInfoRequestBody()" style="width:auto;margin:0"> 🤖 Reply to an AI agent enquiry <span style="font-weight:400;color:var(--text3);font-size:11.5px">— answers the standard questions, then asks for a call</span></label>
       </div>
       <div id="ir-prefill-note" style="display:none;font-size:11.5px;color:var(--text3);margin-bottom:10px"></div>
       <div class="form-group">
@@ -5082,6 +5113,74 @@ function deleteHotel(id){
   db.hotels=(db.hotels||[]).filter(h=>h.id!==id);
   saveDB(); renderHotels(); showToast('Removed');
 }
+// ── Agent enquiry reply ─────────────────────────────────────────────────────────────────────
+// Quote requests written by AI assistants arrive detailed but missing the two things that set
+// the price: volume and access. Refusing to quote reads as a non-answer and gets filtered out
+// when the assistant compares vendors; quoting blind wins that comparison but is often wrong.
+// So the draft answers everything answerable, says plainly why a firm number needs five minutes,
+// and asks for a phone number LAST — the end of the message is what gets surfaced to the person.
+async function generateAgentReply(){
+  const emailEl=document.getElementById('ar-email');
+  const email=(emailEl&&emailEl.value||'').trim();
+  if(!email){showToast('Paste the enquiry first.');if(emailEl)emailEl.focus();return;}
+  const notes=(document.getElementById('ar-notes')||{}).value||'';
+  const btn=document.getElementById('ar-btn');
+  const status=document.getElementById('ar-status');
+  if(btn){btn.disabled=true;btn.textContent='Drafting\u2026';}
+  if(status){status.textContent='Asking Claude\u2026';status.style.color='var(--text3)';}
+  let reply='';
+  try{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/agent-reply',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+      body:JSON.stringify({email,notes})
+    });
+    const data=await res.json();
+    if(!res.ok||!data.ok)throw new Error(data.error||('Edge function error '+res.status));
+    reply=data.reply||'';
+  }catch(e){
+    // Fall back to the fixed template so the page is useful before the edge function is deployed
+    // — and still useful if it is ever down. Says so plainly rather than pretending it is tailored.
+    console.warn('agent-reply function unavailable, using the standard template:',e);
+    reply=_agentReplyTemplate(email);
+    if(status){status.textContent='\u26a0 Standard template used \u2014 the AI drafter is not deployed yet.';status.style.color='var(--amber)';}
+  }
+  if(!reply.trim()){reply=_agentReplyTemplate(email);}
+  const out=document.getElementById('ar-reply');
+  if(out)out.value=reply;
+  const card=document.getElementById('ar-out-card');
+  if(card)card.style.display='';
+  if(btn){btn.disabled=false;btn.innerHTML='\u2728 Draft a reply';}
+  if(status&&status.style.color!=='var(--amber)')status.textContent='';
+}
+// Deterministic fallback. Deliberately identical in substance to the AI version so a reader
+// cannot tell which produced it — it just cannot answer their specific questions.
+function _agentReplyTemplate(email){
+  // Their name is far more reliably in the SIGN-OFF than the greeting — the greeting is
+  // addressed to CareMore. Try "Thanks,\nLouis" and similar first, then fall back.
+  const txt=String(email||'');
+  const sign=/(?:thanks|regards|best|cheers|sincerely)[,!]?\s*\n+\s*([A-Z][a-zA-Z'-]+)/i.exec(txt);
+  const first=(sign&&sign[1])||'there';
+  return 'Hi '+first+',\n\n'
+    +'Thanks for the detail \u2014 that is more to work with than we usually get.\n\n'
+    +'Short answer: yes, we can handle it. We are a family-owned San Francisco company, we pack, move and store in our own warehouse, and we are licensed (CAL-T 0190970) and insured.\n\n'
+    +'What I can tell you now:\n\n'
+    +'\u2022 Storage is $120.00 per month per 5x7x8 container, one month minimum, billed monthly thereafter (3.5% card fee; 10% annual increase).\n'
+    +'\u2022 Packing and moving are charged hourly with a 2 hour minimum, plus materials. Mirrors, screens, artwork, mattresses and rugs are wrapped or boxed as standard, and furniture disassembly is included in the crew time.\n'
+    +'\u2022 Return drive time back to our warehouse is charged at completion (30 minute minimum).\n\n'
+    +'What I would rather not do is put a firm number on it from a list alone. Volume and access \u2014 stairs, lift, parking, how far the carry is \u2014 are what set the price, and guessing them is how people end up with a quote that changes on the day. We would rather be right than fast.\n\n'
+    +'Five minutes on FaceTime, or a walkthrough video taken on a phone, and we can send a firm written estimate the same day.\n\n'
+    +'If you can share a good phone number and a time that suits, we will call.\n\n'
+    +'Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970';
+}
+function copyAgentReply(){
+  const el=document.getElementById('ar-reply');
+  if(!el)return;
+  navigator.clipboard.writeText(el.value).then(
+    ()=>showToast('\u2713 Copied \u2014 paste it into your Gmail reply'),
+    ()=>showToast('Could not copy \u2014 select the text and copy manually'));
+}
+
 function renderHotels(){
   const host=document.getElementById('hotels-list');
   if(!host)return;
@@ -7344,12 +7443,47 @@ function buildInfoRequestBody(){
   const l=db.leads.find(x=>x.id===currentInfoRequestLeadId);
   if(!l)return;
   const warm=!!(document.getElementById('ir-tone')&&document.getElementById('ir-tone').checked);
+  const agent=!!(document.getElementById('ir-agent')&&document.getElementById('ir-agent').checked);
   const first=(l.name||'').trim().split(/\s+/)[0]||'there';
   const sizeVal=[l.size,l.sqft?(l.sqft+' sq ft'):''].filter(Boolean).join(' \u00b7 ');
   // Reuse the exact sign-off block the confirmation and estimate emails already use, so
   // every email the customer receives is signed identically.
   const SIGN='Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nwww.caremoremoving.com';
   const bizPhone='(415) 822-8547';
+  // ── AI agent enquiry ─────────────────────────────────────────────────────────────
+  // These arrive from an assistant acting for a real customer, asking for a written quote off a
+  // list of items. Refusing to quote reads as a non-answer and gets filtered out when the agent
+  // compares replies; quoting blind wins the comparison but is often wrong. So: answer everything
+  // that CAN be answered precisely (published rates, what is included, the odd specific question),
+  // then make the video or call the route to a FIRM number rather than a precondition for talking.
+  // The ask goes LAST, because that is the part most likely to be passed to the person.
+  if(agent){
+    const line=[];
+    line.push('Hi '+first+',');line.push('');
+    line.push('Thanks for the details — that is more to work with than we usually get, which helps.');
+    line.push('');
+    line.push('Short answer: yes, we can handle it'+(l.date?', and '+fmtDate(l.date)+' is currently open':'')+'. We are a family-owned San Francisco company, we pack, move and store in our own warehouse, and we are fully licensed (CAL-T 0190970) and insured.');
+    line.push('');
+    line.push('What I can give you right now:');
+    line.push('');
+    line.push('• Storage is $120.00 per month per 5x7x8 container, one month minimum, billed monthly thereafter (3.5% card fee; 10% annual increase).');
+    line.push('• Packing and pickup run on an hourly rate with a 2 hour minimum, plus materials. Mirrors, screens, mattresses and rugs are boxed or wrapped as standard, and furniture disassembly is included in the crew time.');
+    line.push('• Redelivery is quoted separately once the destination is known, since it depends on the access there.');
+    line.push('• Return drive time to our warehouse is charged at completion (30 minute minimum).');
+    line.push('');
+    line.push('What I would rather not do is put a firm number on it from a list alone. The two things that move the price most are the exact volume and the access — stairs, elevator, parking and how far the walk is at each end. Those are usually the details still to be confirmed at this stage, and guessing them is how people end up with a quote that changes on the day. We would rather be right than fast.');
+    line.push('');
+    line.push('The quickest way to settle it is five minutes on FaceTime, or a walkthrough video taken on a phone — just walk each room slowly and talk through anything unusual. Either lets us count the real volume, see the access, and send a firm written estimate the same day.');
+    line.push('');
+    line.push('If you can share a good phone number and a time that suits, we will call. Or send the video whenever convenient and we will come straight back with the estimate.');
+    line.push('');
+    line.push(SIGN);
+    const bodyEl=document.getElementById('ir-body');
+    if(bodyEl)bodyEl.value=line.join('\n');
+    const note=document.getElementById('ir-prefill-note');
+    if(note){note.style.display='block';note.textContent='ℹ Agent reply — edit anything job-specific (their questions, dates, unusual items) before sending.';}
+    return;
+  }
   const ACCESS_HINT='Stairs/elevators/ground level etc';
   const PARK_HINT='driveway, street, loading dock, permit needed';
 
@@ -7423,6 +7557,8 @@ function openInfoRequestEmail(leadId){
   if(subjEl)subjEl.value='Next step for your move \u2014 a few details + a quick video';
   const toneEl=document.getElementById('ir-tone');
   if(toneEl)toneEl.checked=false;
+  const agentEl=document.getElementById('ir-agent');
+  if(agentEl)agentEl.checked=false;
   buildInfoRequestBody();
   openModal('info-request');
 }
@@ -8959,6 +9095,7 @@ function openBooking(leadId){
 // appear once, in their own load/unload block, and never again in prose.
 // CAPS are reserved for headings and the two alert blocks. If everything shouts, nothing does.
 // Money prints WITHOUT cents ($50, not $50.00) per house style.
+function _csMoney2(n){const x=Number(n)||0;return '$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function _csMoney(n){const x=Number(n)||0;return '$'+x.toLocaleString('en-US',{maximumFractionDigits:0});}
 function _csLines(v){return String(v==null?'':v).split(/[\n,]/).map(x=>x.trim()).filter(Boolean);}
 function _csDate(d){
@@ -8968,89 +9105,94 @@ function _csDate(d){
   return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 }
 function buildCrewCoverSheet(j,l){
+  // CareMore calendar entry — crew dispatch sheet, not a report. Follows David's master spec
+  // (2026-08-19): critical truck/equipment first, then insurance, customer, scope, special
+  // handling, LOAD/UNLOAD as slash shorthand, when/from/to, standard notes, money, sign-off.
+  // The crew should scan it in 15–20 seconds, so every section is omitted when empty rather
+  // than printing a heading with nothing under it.
   const L=[];const n=v=>String(v==null?'':v).trim();
   const put=v=>L.push(v==null?'':String(v));
   const gap=()=>{if(L.length&&L[L.length-1]!=='')L.push('');};
 
-  // 1. Anything that ruins the job if missed.
-  _csLines(j.jobAlerts).forEach(a=>put(a.toUpperCase()));
-  if(_csLines(j.jobAlerts).length)gap();
+  // 1. Must-not-miss. Related items combined onto one line with slashes, per the spec.
+  const alerts=_csLines(j.jobAlerts).map(a=>a.toUpperCase());
+  const bring=_csLines(j.bringList).map(b=>b.toUpperCase());
+  const top=alerts.concat(bring.map(b=>/^bring/i.test(b)?b:'BRING '+b));
+  if(top.length){put(top.join('/'));gap();}
 
-  // 2. Customer + insurance choice, always near the top.
-  put('CUSTOMER: '+(n(j.name)||'\u2014'));
-  if(n(j.phone))put('PHONE: '+n(j.phone));
-  if(n(j.email))put('EMAIL: '+n(j.email));
-  if(n(j.insuranceType))put('INSURANCE CHOICE: '+n(j.insuranceType));
+  // 2. Insurance, always near the top. Never invented — blank means TBD.
+  put('INSURANCE CHOICE: '+(n(j.insuranceType)||'TBD'));
+  gap();
+
+  // 3. Customer block: name (phone), email beneath, then how they found us.
   const _src=n(j.source)||n(l&&l.source);
   const _sd=n(j.sourceDetail)||n(l&&l.sourceDetail);
-  if(_src)put('SOURCE: '+_src+(_sd?' \u2014 '+_sd:''));
+  put(n(j.name)+(n(j.phone)?' '+n(j.phone):''));
+  if(n(j.email))put(n(j.email));
+  if(_src)put(_src+(_sd?' \u2014 '+_sd:''));
   gap();
 
-  // 3. Scope. Size / vaults / packing stated ONCE here, then the description.
-  const facts=[];
-  if(n(j.size))facts.push(n(j.size));
-  if(Number(j.vaults))facts.push(j.vaults+' vault'+(Number(j.vaults)===1?'':'s'));
-  if(n(j.packing))facts.push(/^no/i.test(n(j.packing))?'No packing':n(j.packing));
-  put('SCOPE OF PROJECT');
-  if(facts.length)put(facts.join(' \u00b7 '));
-  // Office notes ARE the scope description — in normal text, not shouted at the top as before.
-  const _notes=n(l&&l.officeNotes)||n(j.officeNotes);
-  if(_notes)put(_notes);
+  // 4. Scope in CareMore shorthand: "2 Bdrm/No Packing/Approximately (4–5) Vaults."
+  const bits=[];
+  if(n(j.size))bits.push(n(j.size).replace(/bedroom/i,'Bdrm').replace(/\s*bdrm/i,' Bdrm'));
+  if(n(j.packing))bits.push(/^no/i.test(n(j.packing))?'No Packing':n(j.packing));
+  if(Number(j.vaults))bits.push('Approximately ('+j.vaults+') Vaults');
+  if(bits.length)put(bits.join('/')+'.');
+  // Office notes carry the rest of the scope and any special handling.
+  const notes=n(l&&l.officeNotes)||n(j.officeNotes);
+  if(notes)put(notes);
   gap();
 
-  // 4. Equipment the crew must not leave without.
-  const bring=_csLines(j.bringList);
-  if(bring.length){put('BRING: '+bring.join(' / ').toUpperCase());gap();}
+  // 5/6. Access as slash shorthand on ONE line each — fast to scan, and stated only here.
+  const loadBits=[n(j.parkingLoad),n(j.accessLoad)].filter(Boolean);
+  const unloadBits=[n(j.parkingUnload),n(j.accessUnload)].filter(Boolean);
+  if(loadBits.length)put('LOAD: '+loadBits.join('/'));
+  if(unloadBits.length)put('UNLOAD: '+unloadBits.join('/'));
+  if(loadBits.length||unloadBits.length)gap();
 
-  // 5/6. Pickup conditions, then delivery conditions — never mixed.
-  put('LOAD');
-  put('FROM: '+(n(j.from)||'TBD'));
-  if(n(j.parkingLoad))put('PARKING: '+n(j.parkingLoad));
-  if(n(j.accessLoad))put('ACCESS: '+n(j.accessLoad));
-  (j.extraLoads||[]).forEach((x,i)=>{put('PICKUP '+(i+2)+': '+n(x.address));
-    if(n(x.parking))put('  PARKING: '+n(x.parking));if(n(x.access))put('  ACCESS: '+n(x.access));});
-  gap();
-  put('UNLOAD');
-  put('TO: '+(n(j.to)||'TBD'));
-  if(n(j.parkingUnload))put('PARKING: '+n(j.parkingUnload));
-  if(n(j.accessUnload))put('ACCESS: '+n(j.accessUnload));
-  (j.extraUnloads||[]).forEach((x,i)=>{put('DROP '+(i+2)+': '+n(x.address));
-    if(n(x.parking))put('  PARKING: '+n(x.parking));if(n(x.access))put('  ACCESS: '+n(x.access));});
+  put('When: '+_csDate(j.date)+(n(j.time)?', arriving between '+n(j.time):''));
+  put('From: '+(n(j.from)||'TBD'));
+  (j.extraLoads||[]).forEach((x,i)=>{if(n(x.address))put('Pickup '+(i+2)+': '+n(x.address));});
+  put('To: '+(n(j.to)||'TBD'));
+  (j.extraUnloads||[]).forEach((x,i)=>{if(n(x.address))put((i===(j.extraUnloads||[]).length-1?'Final Drop: ':'Drop '+(i+2)+': ')+n(x.address));});
   gap();
 
-  put('WHEN: '+_csDate(j.date));
-  if(n(j.time))put('ARRIVAL: '+n(j.time));
+  // 10. Standard notes — only the ones that apply.
+  put('Customer responsible for any parking tickets should they be incurred');
+  if(n(j.packing)&&/^no/i.test(n(j.packing)))put('No Small Packing Required');
   gap();
 
-  // 7. Billing together, near the bottom. Crew split shown here rather than in its own block,
-  // but only when load and unload actually differ — that difference matters on the day.
-  put('RATES & FEES');
-  const _crew=(j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
-    ?((j.crewLoad||j.movers||'?')+' men loading / '+(j.crewUnload||j.movers||'?')+' unloading')
-    :((j.movers||'?')+' men');
+  // 11. Money. Two decimals here, matching the spec's examples.
+  const crew=(j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
+    ?((j.crewLoad||j.movers||'?')+' Movers For Load/'+(j.crewUnload||j.movers||'?')+' For Unload')
+    :((j.movers||'?')+' Movers');
   if(j.flatRate&&Number(j.flatPrice)){
-    put('Move services: '+_csMoney(j.flatPrice)+' flat rate'+(Number(j.flatPriceCash)?' ('+_csMoney(j.flatPriceCash)+' if paid cash)':''));
-    put(_crew);
+    put('Move services: '+_csMoney2(j.flatPrice)+' flat rate'+(Number(j.flatPriceCash)?' ('+_csMoney2(j.flatPriceCash)+' If Paid Cash)':''));
+    put(crew);
   }else if(Number(j.rateRegular)){
-    put(_crew+' @ '+_csMoney(j.rateRegular)+' per hour'+(Number(j.rateCash)?' ('+_csMoney(j.rateCash)+' if paid cash)':''));
-    if(Number(j.hrsMin))put(j.hrsMin+' hour minimum');
+    put(crew+' @ '+_csMoney2(j.rateRegular)+' Per Hour'+(Number(j.rateCash)?' ('+_csMoney2(j.rateCash)+' If Paid Cash)':''));
+    put('2 Hour Minimum');
   }
-  if(Number(j.feeMaterials))put(_csMoney(j.feeMaterials)+' Material Fee');
-  if(Number(j.feeFuel))put(_csMoney(j.feeFuel)+' Fuel Fee');
-  if(Number(j.feeCoi))put(_csMoney(j.feeCoi)+' COI Fee');
-  if(Number(j.packMatMin)||Number(j.packMatMax))put('Packing Materials: '+_csMoney(j.packMatMin||0)+' \u2013 '+_csMoney(j.packMatMax||0));
+  if(Number(j.feeFuel))put(_csMoney2(j.feeFuel)+' Fuel Fee');
+  if(Number(j.feeMaterials))put(_csMoney2(j.feeMaterials)+' Standard Material Fee');
+  if(Number(j.packMatMin)||Number(j.packMatMax))put(_csMoney2(j.packMatMin||0)+'\u2013'+_csMoney2(j.packMatMax||0)+' Packing Materials');
+  else if(n(j.packing)&&!/^no/i.test(n(j.packing)))put('Packing Materials Used \u2013 TBD');
   (j.quoteFees||[]).forEach(f=>{
     if(!f||!f.included)return;
     const lbl=String(f.label||'').trim();
-    if(!lbl||/fuel|material/i.test(lbl))return;   // already emitted above, do not repeat
-    put((Number(f.amount)?_csMoney(f.amount)+' ':'')+lbl);
+    if(!lbl||/fuel|material/i.test(lbl))return;
+    put((Number(f.amount)?_csMoney2(f.amount)+' ':'')+lbl);
   });
-  put('Return drive time back to warehouse at completion (30-minute minimum)');
-  if(Number(j.doNotExceed))put('DO NOT EXCEED: '+_csMoney(j.doNotExceed)+' + 3.5% card fee (no fee for check)');
-
-  const bill=_csLines(j.billingAlerts);
-  if(bill.length){gap();bill.forEach(b=>put(b.toUpperCase()));}
-  if(n(j.bookedBy)){gap();put(n(j.bookedBy));}
+  put('Return drive time back to warehouse at completion of unload (30 Minute Minimum)');
+  if(Number(j.doNotExceed))put('DO NOT EXCEED: '+_csMoney2(j.doNotExceed));
+  if(j.storage||(l&&l.storage)){
+    gap();
+    put('Storage Costs: $120.00 per month per 5x7x8 container used');
+    put('(3.5% CC Fee Applies / 10% Yearly Annual Increase)');
+  }
+  _csLines(j.billingAlerts).forEach(b=>{gap();put(b.toUpperCase());});
+  gap();
+  put('Booked by '+(n(j.bookedBy)||'Dave'));
   return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
