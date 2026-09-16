@@ -16111,7 +16111,11 @@ function openQuoteBuilder(leadId){
   // Default values from lead — fresh new quote
   const rate=db.settings.rateBase||225;
   qbDays=[{id:uid(),date:l?l.date:'',from:l?l.from:'',fromUnit:l?l.fromUnit:'',fromFloor:l?l.fromFloor:'',fromAccess:l?l.accessLoad||'':'',fromParking:l?l.parkingLoad||'':'',fromType:l?l.fromType:'',to:l?l.to:'',toUnit:l?l.toUnit:'',toFloor:l?l.toFloor:'',toAccess:l?l.accessUnload||'':'',toParking:l?l.parkingUnload||'':'',toType:l?l.toType:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], crew:2,hrsMin:2,hrsMax:4,rate:rate,arrivalStart:'8:00 AM',arrivalEnd:'9:00 AM'}];
-  qbFees=[{id:uid(),label:'Fuel Fee',amount:75,included:true},{id:uid(),label:'Standard Material Fee',amount:40,included:true}];
+  // The materials fee is the line customers most often query, so it carries a description
+    // explaining what it actually buys. Stored on the fee so it is editable per quote.
+    qbFees=[{id:uid(),label:'Fuel Fee',amount:75,included:true},
+      {id:uid(),label:'Standard Material Fee',amount:40,included:true,
+       note:'Covers professional moving blankets, plastic wrap and tape to protect your furniture, as well as wardrobe boxes for hanging clothes'}];
   if(l&&l.packing&&l.packing!=='No — just moving')qbFees.push({id:uid(),label:'Packing Materials',amount:0,included:true});
   document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
   if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=l?.moveType||'';
@@ -16708,6 +16712,7 @@ function renderQbFees(){
         <input type="number" value="${f.hrsMax||''}" placeholder="Max" style="width:70px;font-size:13px" oninput="updateQbFee('${f.id}','hrsMax',this.value)">
       `:`<div style="display:flex;align-items:center;gap:3px"><span style="font-size:13px;color:var(--text3)">$</span><input type="number" value="${f.amount||''}" placeholder="0" style="width:80px;font-size:13px" oninput="updateQbFee('${f.id}','amount',this.value)"></div>`}
       <button class="btn btn-danger btn-sm" onclick="removeQuoteFee('${f.id}')">✕</button>
+      <input type="text" value="${escHtml(f.note||'')}" placeholder="Optional description shown under this line on the quote" style="flex:1 0 100%;font-size:11.5px;margin-top:2px" oninput="updateQbFee('${f.id}','note',this.value)">
     </div>`).join('');
 }
 
@@ -16947,7 +16952,7 @@ function renderQuoteHTML(q,lead){
   fees.forEach(f=>{
     const amt=f.type==='range'?`${fmt(f.hrsMin||0)} – ${fmt(f.hrsMax||0)}`:fmt(f.amount||0);
     html+=`<tr style="border-bottom:1px solid #f0ece4">
-      <td style="padding:11px 6px">${esc(f.label||'')}</td>
+      <td style="padding:11px 6px">${esc(f.label||'')}${f.note?`<div style="font-size:11.5px;color:#9e9b94;margin-top:3px;line-height:1.45">${esc(f.note)}</div>`:''}</td>
       <td style="padding:11px 6px;text-align:right;color:#9e9b94">--</td>
       <td style="padding:11px 6px;text-align:right;color:#9e9b94">--</td>
       <td style="padding:11px 6px;text-align:right;font-weight:600">${amt}</td>
