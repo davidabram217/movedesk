@@ -5170,43 +5170,89 @@ function _agentDetailLevel(txt){
   return {hasVolume,hasAccess,detailed:hasVolume&&hasAccess};
 }
 function _agentReplyTemplate(email){
-  // Their name is far more reliably in the SIGN-OFF than the greeting — the greeting is
-  // addressed to CareMore. Try "Thanks,\nLouis" and similar first, then fall back.
+  // David's house template for AI-agent enquiries (2026-08-19). Numbered sections mirror the way
+  // these emails are written, so each of their questions lands against an obvious answer.
+  // Placeholders in [BRACKETS] are the judgement calls — rate, crew size, hours — that must stay
+  // with a person. Everything the company knows for certain is filled in.
   const txt=String(email||'');
   const sign=/(?:thanks|regards|best|cheers|sincerely)[,!]?\s*\n+\s*([A-Z][a-zA-Z'-]+)/i.exec(txt);
   const first=(sign&&sign[1])||'there';
   const lvl=_agentDetailLevel(txt);
+  const stairs=/(walk\s?-?up|flight|stairs|no elevator|3rd floor|4th floor|top floor)/i.test(txt);
+  const longCarry=/(long carry|long walk|far from|down the block|hill)/i.test(txt);
+  const askedStorage=/\bstorage\b|\bstore\b/i.test(txt);
+  const L=[];
+  const put=v=>L.push(v==null?'':String(v));
 
-  const intro='Hi '+first+',\n\n'
-    +(lvl.detailed
-      ? 'Thanks \u2014 that is the most complete enquiry we have had in a while, and it makes this easy to price properly.\n\n'
-      : 'Thanks for the detail \u2014 that is more to work with than we usually get.\n\n')
-    +'Short answer: yes, we can handle it. We are a family-owned San Francisco company, we pack, move and store in our own warehouse, and we are licensed (CAL-T 0190970) and insured.\n\n';
+  put('Hi '+first+',');put('');
+  put('Thank you for the detailed inquiry. The information you provided gives us a very good picture of the move and allows us to answer most of your questions without guessing.');
+  put('');put('I\u2019ll go through everything below.');put('');
 
-  const facts='What I can tell you now:\n\n'
-    +'\u2022 Crews are charged hourly with a 2 hour minimum, plus a materials fee. The hourly rate depends on crew size and the date, so I will confirm it with the written estimate.\n'
-    +'\u2022 Specialist boxes and protection \u2014 TV cartons, mirror cartons, mattress bags, rug bags \u2014 are part of the materials fee rather than a separate surcharge.\n'
-    +'\u2022 Stairs and long carries are not charged as an extra. They show up in the time the job takes, which is why an accurate hours estimate matters more than a stair fee.\n'
-    +'\u2022 Furniture disassembly and reassembly are included in the crew time.\n'
-    +'\u2022 Return drive time back to our warehouse is charged at completion (30 minute minimum).\n'
-    +'\u2022 Payment is cash, check or card (no AMEX). Cards carry a 3.5% surcharge; there is a cash rate.\n'
-    +'\u2022 A $400.00 deposit applies only if the move is cancelled or rescheduled inside 7 days of the date.\n'
-    +(/storage|store/i.test(txt)
-      ? '\u2022 Storage, if you need it, is $120.00 per month per 5x7x8 container, one month minimum (3.5% card fee; 10% annual increase).\n'
-      : '')
-    +'\n';
+  put('1) CREW & HOURLY RATE');put('');
+  put('Based on the information provided, we would recommend a [3/4]-person crew and truck.');put('');
+  put('[3/4] Movers + Truck: $[RATE] per hour');
+  put('Cash Rate: $[CASH RATE] per hour');
+  put('2-hour minimum');put('');
+  // Only raise crew size when there is a real reason — otherwise it reads as an upsell.
+  if(stairs||longCarry){
+    put('One thing worth considering is crew size. With '
+      +(stairs&&longCarry?'the stairs and the longer carry':(stairs?'the stairs':'the longer carry'))
+      +', adding another mover may increase the hourly rate but can reduce the total number of hours. In some cases the larger crew ends up costing about the same or even less overall.');
+    put('');put('We\u2019re happy to discuss both options with you.');put('');
+  }
 
-  // Detailed enquiry: they have done the work, so answer and offer a SHORT confirming call.
-  // Thin enquiry: explain why a firm number needs eyes on it.
-  const close=lvl.detailed
-    ? 'On the numbers themselves \u2014 I would rather send you something you can hold us to than a figure I have guessed. Everything I need is in what you have sent bar one or two details (how far the carry is at each end, and whether anything needs disassembly), so a short call is enough to settle it. No walkthrough video needed.\n\n'
-      +'If you send a good phone number and a time that suits, I will call and have the written estimate over the same day.\n\n'
-    : 'What I would rather not do is put a firm number on it from a list alone. Volume and access \u2014 stairs, lift, parking, how far the carry is \u2014 are what set the price, and guessing them is how people end up with a quote that changes on the day. We would rather be right than fast.\n\n'
-      +'Five minutes on FaceTime, or a walkthrough video taken on a phone, and we can send a firm written estimate the same day.\n\n'
-      +'If you can share a good phone number and a time that suits, we will call.\n\n';
+  put('2) PACKING MATERIALS / SPECIAL ITEMS / STAIRS');put('');
+  put('[ANSWER THEIR SPECIFIC QUESTIONS HERE]');put('');
+  put('Our standard materials fee is $[MATERIAL FEE] and covers the materials we use to safely protect your furniture during the move, including TV cartons, mattress bags, mirror cartons, rug bags, moving pads and shrink wrap as applicable.');
+  put('');
+  put('There is no additional stair or long-carry surcharge. Those conditions can affect how long the move takes, but we do not add a separate fee simply because stairs or a longer carry are involved.');
+  put('');
+  put('[NOTES ON PIANO / PLANTS / ARTWORK / FRAGILE ITEMS IF THEY MENTIONED ANY]');put('');
 
-  return intro+facts+close
-    +'Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970';
+  put('3) ESTIMATED MOVE TIME');put('');
+  put('Based on the information provided, our current working estimate is:');put('');
+  put('\u2022 Load at [PICKUP]: approximately [X\u2013X] hours');
+  put('\u2022 Drive to [DESTINATION]: approximately [X] hours');
+  put('\u2022 Unload: approximately [X\u2013X] hours');
+  put('\u2022 Return drive time back to our warehouse at completion (30 minute minimum)');put('');
+  put('Estimated total: approximately [X\u2013X] hours.');put('');
+  put('This is an estimate based on the information we currently have. Access, walking distance, stairs, elevators, parking and the final amount being moved can all affect the actual time.');
+  put('');
+
+  put('4) ADDITIONAL FEES');put('');
+  put('In addition to the hourly labor rate:');put('');
+  put('\u2022 $[MATERIAL FEE] Materials Fee \u2014 covers standard furniture protection materials');
+  put('\u2022 $[FUEL FEE] Fuel Fee');
+  if(/toll|bridge/i.test(txt))put('\u2022 [BRIDGE TOLL \u2014 passed through at cost / included]');
+  if(/double drive|ddt/i.test(txt))put('\u2022 California Double Drive Time applies to the transit leg');
+  put('\u2022 Valuation / insurance options are set out in the PDF we send with the estimate');
+  put('');
+  put('We try to be very clear about these charges upfront so there are no unexpected fees on moving day.');
+  put('');
+
+  put('5) DEPOSIT / CANCELLATION / PAYMENT');put('');
+  put('No deposit is required to reserve the date. A $400.00 deposit is charged only if the move is cancelled or rescheduled with less than 7 days notice from the date of the move.');
+  put('');
+  put('Payment can be made by cash, check or credit card. Credit card payments are subject to a 3.5% processing fee, and we offer the discounted cash rate shown above.');
+  put('');
+  // Storage only when they raised it — an unasked-for price is noise.
+  if(askedStorage){
+    put('6) STORAGE');put('');
+    put('Storage is $120.00 per month per 5x7x8 container, with a one month minimum and billed monthly thereafter (3.5% card fee; 10% yearly annual increase). Everything is held in our own San Francisco warehouse, not a third party.');
+    put('');
+  }
+
+  put('NEXT STEP \u2014 LET\u2019S TALK');put('');
+  put(lvl.detailed
+    ? 'Based on the detail you\u2019ve already provided, we should be able to finalize most of this with a short phone call. A video walkthrough isn\u2019t necessary \u2014 you\u2019ve already done that work.'
+    : 'A short phone call, or a quick FaceTime or video walkthrough, will let us confirm the inventory and access so we can put firm numbers to all of the above.');
+  put('');
+  put('Please send us the best phone number to reach you and a good time to call, and we\u2019ll go over the move, answer any remaining questions and put together your final written estimate.');
+  put('');
+  put('We look forward to speaking with you and hopefully helping with your move.');
+  put('');
+  put('Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970');
+  return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 function copyAgentReply(){
   const el=document.getElementById('ar-reply');
