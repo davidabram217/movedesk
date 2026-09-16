@@ -5180,7 +5180,13 @@ function _agentReplyTemplate(email){
   const lvl=_agentDetailLevel(txt);
   const stairs=/(walk\s?-?up|flight|stairs|no elevator|3rd floor|4th floor|top floor)/i.test(txt);
   const longCarry=/(long carry|long walk|far from|down the block|hill)/i.test(txt);
-  const askedStorage=/\bstorage\b|\bstore\b/i.test(txt);
+  // Storage section only when they are actually ASKING about storage as a service (2026-08-19).
+  // The old test fired on the bare word anywhere, so an address containing "Storage", a mention
+  // of a self-storage unit they are moving OUT of, or "nothing needs storing" all triggered an
+  // unasked-for price. Requires storage to appear alongside a request or a question.
+  const askedStorage=/(need|want|require|looking for|interested in|do you (?:have|offer|provide)|can you (?:store|hold)|short[-\s]?term|long[-\s]?term|temporar\w+)[^.!?]{0,70}\bstorage\b/i.test(txt)
+    ||/\bstorage\b[^.!?]{0,60}(needed|required|option|quote|price|cost|rate|per month|monthly|how much|availab\w+)/i.test(txt)
+    ||/\b(store|hold)\b[^.!?]{0,50}\b(belongings|items|furniture|goods|everything|stuff)\b/i.test(txt);
   const L=[];
   const put=v=>L.push(v==null?'':String(v));
 
