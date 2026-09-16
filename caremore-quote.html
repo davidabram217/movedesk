@@ -502,6 +502,11 @@ function buildCustomerEmail(d){
   if(d.sqft)body+='Square footage: '+d.sqft+' sq ft\n';
   if(d.moveType)body+='Type of move: '+d.moveType+'\n';
   if(d.packing&&d.packing!=='No')body+='Packing needed: '+d.packing+'\n';
+  // Haul-away (2026-08-19). Confirms back to the customer that we noted it — which is the point
+  // of asking, and it is also what prompts them to remember the rest of what they want gone.
+  // Nothing prints when they answered no, so every other confirmation is unaffected.
+  if(d.haulAway==='yes')body+='Haul away: Yes'+(d.haulAwayItems?' — '+d.haulAwayItems:'')+'\n';
+  else if(d.haulAway==='maybe')body+='Haul away: You asked us to check with you\n';
   body+='\n📦 Moving from:\n'+fmtLoadLocations(d)+'\n';
   body+='\n🏠 Moving to:\n'+fmtUnloadLocations(d)+'\n';
   if(d.notes)body+='\nAdditional notes:\n'+d.notes+'\n';
@@ -509,7 +514,7 @@ function buildCustomerEmail(d){
   body+='Sincerely,\nThe CareMore Team\n\n';
   body+='CareMore Moving & Storage\n';
   body+='(415) 822-8547 · move@caremoremoving.com\n';
-  body+='www.caremoremoving.com';
+  body+='[www.caremoremoving.com](https://www.caremoremoving.com)';
   return body;
 }
 
