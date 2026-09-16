@@ -426,6 +426,11 @@ function buildSummary(d){
   if(d.sqft)out+='Square footage: '+d.sqft+'\n';
   if(d.moveType)out+='Type: '+d.moveType+'\n';
   if(d.packing&&d.packing!=='No')out+='Packing: '+d.packing+'\n';
+  // Haul-away (2026-08-19). The question was added to the form but the answer reached neither
+  // email — so the office never saw it and the customer got no acknowledgement that we had noted
+  // it. buildSummary is shared by both, so stating it here fixes both at once.
+  if(d.haulAway==='yes')out+='Haul away: YES'+(d.haulAwayItems?' — '+d.haulAwayItems:'')+'\n';
+  else if(d.haulAway==='maybe')out+='Haul away: NOT SURE — wants to be asked'+(d.haulAwayItems?' — '+d.haulAwayItems:'')+'\n';
   out+='\nPick-up:\n'+d.from+(d.fromZip?' '+d.fromZip:'')+(d.fromUnit?' #'+d.fromUnit:'')+'\n';
   if(d.fromType||d.fromFloor)out+=(d.fromType||'')+(d.fromFloor?' • Floor '+d.fromFloor:'')+'\n';
   if(d.accessLoad)out+='Access: '+d.accessLoad+'\n';
