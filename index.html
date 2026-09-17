@@ -15486,8 +15486,14 @@ function globalSearch(val){
     if(!l.name)return;
     const ln=(l.name||'').toLowerCase();
     const lp=(l.phone||'').replace(/\D/g,'');
-    const qClean=q.replace(/\D/g,'');
-    const matches=ln.includes(q)||lp.includes(qClean)||(l.phone||'').includes(q)||(l.email||'').toLowerCase().includes(q);
+    // Only treat the query as a phone number when it actually contains digits (2026-08-19).
+    // Previously a NAME search produced qClean='' and `phone.includes('')` is TRUE, so every
+    // record with a phone matched — searching "beniam" returned 275 results and the person being
+    // looked for was buried. A search that returns everything is indistinguishable from one that
+    // returns nothing.
+    const qDigits=q.replace(/\D/g,'');
+    const qClean=qDigits.length>=3?qDigits:null;
+    const matches=ln.includes(q)||(qClean&&lp.includes(qClean))||(qClean&&(l.phone||'').includes(q))||(l.email||'').toLowerCase().includes(q);
     if(!matches)return;
     // Skip if already found via customers with same phone
     if(lp&&matched.some(m=>(m.phone||'').replace(/\D/g,'')===lp))return;
@@ -15504,8 +15510,14 @@ function globalSearch(val){
     if(!j.name)return;
     const jn=(j.name||'').toLowerCase();
     const jp=(j.phone||'').replace(/\D/g,'');
-    const qClean=q.replace(/\D/g,'');
-    const matches=jn.includes(q)||jp.includes(qClean)||(j.phone||'').includes(q)||(j.email||'').toLowerCase().includes(q);
+    // Only treat the query as a phone number when it actually contains digits (2026-08-19).
+    // Previously a NAME search produced qClean='' and `phone.includes('')` is TRUE, so every
+    // record with a phone matched — searching "beniam" returned 275 results and the person being
+    // looked for was buried. A search that returns everything is indistinguishable from one that
+    // returns nothing.
+    const qDigits=q.replace(/\D/g,'');
+    const qClean=qDigits.length>=3?qDigits:null;
+    const matches=jn.includes(q)||(qClean&&jp.includes(qClean))||(qClean&&(j.phone||'').includes(q))||(j.email||'').toLowerCase().includes(q);
     if(!matches)return;
     if(jp&&matched.some(m=>(m.phone||'').replace(/\D/g,'')===jp))return;
     const key='bj:'+j.id;
