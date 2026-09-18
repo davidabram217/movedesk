@@ -18140,16 +18140,21 @@ function backfillCustomers(silent){
 
 function checkRepeatByPhone(val){
   if(!val||val.length<7)return;
+  // EXCLUDE THE LEAD BEING EDITED (2026-08-19). Every check below matched on phone number alone,
+  // so opening an existing lead to edit it found ITSELF and announced "Repeat Customer \u2014 already
+  // in system". Alarming, and it trains you to ignore a warning that is sometimes real.
+  const _selfId=(typeof editingLeadId!=='undefined'&&editingLeadId)?editingLeadId:null;
+  const _notSelf=function(x){return !_selfId||x.id!==_selfId;};
   const clean=val.replace(/\D/g,'');
   // Check customers first
-  const cust=db.customers.find(c=>c.phone&&c.phone.replace(/\D/g,'')===clean);
+  const cust=db.customers.find(c=>c.phone&&c.phone.replace(/\D/g,'')===clean&&_notSelf(c));
   if(cust){
     selectCustomerForLead(cust.id);
     showToast('👋 Repeat customer found — '+cust.name);
     return;
   }
   // Check if there's a Did not book lead with this phone
-  const dnbLead=(db.leads||[]).find(l=>l.status==='Did not book'&&l.phone&&l.phone.replace(/\D/g,'')===clean);
+  const dnbLead=(db.leads||[]).find(l=>l.status==='Did not book'&&l.phone&&l.phone.replace(/\D/g,'')===clean&&_notSelf(l));
   if(dnbLead){
     const nameEl=document.getElementById('nl-name');
     const emailEl=document.getElementById('nl-email');
@@ -18174,7 +18179,9 @@ function checkRepeatByPhone(val){
     return;
   }
   // Also check completed jobs by phone
-  const job=(db.completedJobs||[]).find(j=>j.phone&&j.phone.replace(/\D/g,'')===clean);
+  // A job belonging to THIS lead is not a repeat — it is the same job. Another job for the same
+  // person still warns, which is the case worth knowing about.
+  const job=(db.completedJobs||[]).find(j=>j.phone&&j.phone.replace(/\D/g,'')===clean&&(!_selfId||j.leadId!==_selfId));
   if(job){
     const nameEl=document.getElementById('nl-name');
     const emailEl=document.getElementById('nl-email');
@@ -18187,7 +18194,7 @@ function checkRepeatByPhone(val){
     return;
   }
   // Also check active booked jobs
-  const bookedJob=(db.bookedJobs||[]).find(j=>j.phone&&j.phone.replace(/\D/g,'')===clean);
+  const bookedJob=(db.bookedJobs||[]).find(j=>j.phone&&j.phone.replace(/\D/g,'')===clean&&(!_selfId||j.leadId!==_selfId))
   if(bookedJob){
     const nameEl=document.getElementById('nl-name');
     const emailEl=document.getElementById('nl-email');
@@ -18200,7 +18207,7 @@ function checkRepeatByPhone(val){
     return;
   }
   // Check active leads (any status except did not book)
-  const activeLead=(db.leads||[]).find(l=>l.status!=='Did not book'&&l.phone&&l.phone.replace(/\D/g,'')===clean);
+  const activeLead=(db.leads||[]).find(l=>l.status!=='Did not book'&&l.phone&&l.phone.replace(/\D/g,'')===clean&&_notSelf(l));
   if(activeLead){
     const nameEl=document.getElementById('nl-name');
     if(nameEl&&!nameEl.value)nameEl.value=activeLead.name||'';
