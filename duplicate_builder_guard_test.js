@@ -40,6 +40,11 @@ eq(count(/String\(f\.label\|\|f\.name\|\|''\)\.trim\(\)/g), 5,
     'no rate branch derives the minimum from hrsMin');
 }
 
+// ── completion: BOTH paths must offer the review ask ─────────────────────────
+// Hooked to single-day only at first, so multi-day jobs silently never prompted.
+eq(count(/try\{openReviewAsk\(/g), 2,
+  'review prompt fires from BOTH confirmComplete and confirmCompleteMultiDay');
+
 // ── office-notes self-heal: two copies ───────────────────────────────────────
 eq(count(/if\(q\.status==='sent'\|\|q\.status==='accepted'\)return;/g), 2,
   'frozen-quote guard present in BOTH office-notes self-heals (loadDB + refreshFromSupabase)');

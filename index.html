@@ -11509,6 +11509,10 @@ function confirmCompleteMultiDay(paymentState){
   try{if(typeof upsertCustomer==='function')upsertCustomer(cj);}catch(_){}
   saveDB();
   closeModal('complete-job-multiday');
+  // Offer the review ask on MULTI-DAY completion too (2026-08-19). It was hooked only to the
+  // single-day path, so a multi-day job never prompted — the same duplicate-path miss that has
+  // recurred through this session. Wrapped so a fault in the prompt cannot affect the completion.
+  setTimeout(()=>{try{openReviewAsk(cj.id);}catch(_){}} ,400);
   showToast('✓ Multi-day job completed — '+j.name);
   if(typeof renderBooked==='function')renderBooked();
   if(typeof renderCompleted==='function')renderCompleted();
