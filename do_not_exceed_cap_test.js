@@ -139,8 +139,13 @@ function load(env) {
 // ── wiring ───────────────────────────────────────────────────────────────────
 ok(/const _cap=_applyCap\('cj',subtotal\);\s*\n\s*subtotal=_cap\.subtotal;/.test(HTML),
   'calcTotal applies the cap to the subtotal');
-ok(HTML.indexOf("_applyCap('cj',subtotal)") < HTML.indexOf("const _ccFee=(_payment==='Credit card')"),
+// CHANGED 2026-08-19: the surcharge is now computed in a branch (split payment charges 3.5% on
+// the CARD PORTION only), so `const _ccFee=` no longer appears. The ORDER is what this asserts —
+// the cap must still be applied to the subtotal before any surcharge is calculated from it.
+ok(HTML.indexOf("_applyCap('cj',subtotal)") < HTML.indexOf("_ccFee=(_payment==='Credit card')"),
   'cap is applied BEFORE the credit-card surcharge (surcharge sits on top of the capped price)');
+ok(/_ccFee=Math\.round\(_card\*0\.035\*100\)\/100;/.test(HTML),
+  'split payment charges the surcharge on the card portion only, not the whole subtotal');
 ok(/_syncActualTotal\('cj',total,_cap\.capAdj\)/.test(HTML), 'calcTotal syncs the un-capped value');
 ok(/const _mdCap=_applyCap\('cjmd',grand\);/.test(HTML), 'calcMultiDayTotal applies the cap');
 ok(/_syncActualTotal\('cjmd',grandWithCc,_mdCap\.capAdj\)/.test(HTML), 'multi-day syncs the un-capped value');

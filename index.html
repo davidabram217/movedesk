@@ -1430,7 +1430,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>No. of packers</label><select id="cj-pack-movers"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
         <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cj-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         <div class="form-group"><label>Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff)</span></label><input type="number" id="cj-vaults" placeholder="e.g. 6" step="0.5"></div>
-        <div class="form-group"><label>Payment method</label><select id="cj-payment" onchange="calcTotal()"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Partially paid</option></select></div>
+        <div class="form-group"><label>Payment method</label><select id="cj-payment" onchange="calcTotal()"><option>Cash</option><option>Credit card</option><option>Debit card</option><option>E-transfer</option><option>Cheque</option><option>Split — cash + card</option><option>Partially paid</option></select></div>
       </div>
       <!-- "Add another day" button — for jobs that were booked as single-day but ran into
            a second day. Converts this completion to multi-day mode, carrying over what's
@@ -1483,8 +1483,13 @@ input[type=number]{-moz-appearance:textfield}
           <span style="color:var(--text2)">✓ Capped at the do-not-exceed price — discount applied</span>
           <span id="cj-cap-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
         </div>
+        <div id="cj-split-row" style="display:none;gap:10px;margin-bottom:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius)">
+          <div class="form-group" style="margin:0;flex:1"><label style="font-size:11px">Paid in cash ($)</label><input type="number" id="cj-paid-cash" placeholder="0.00" oninput="calcTotal()"></div>
+          <div class="form-group" style="margin:0;flex:1"><label style="font-size:11px">Paid by card ($)</label><input type="number" id="cj-paid-card" placeholder="0.00" oninput="calcTotal()"></div>
+          <div style="align-self:center;font-size:11.5px;color:var(--text3)" id="cj-split-note"></div>
+        </div>
         <div id="cj-cc-fee-row" style="display:none;align-items:center;justify-content:space-between;padding:6px 10px;margin-bottom:8px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">
-          <span style="color:var(--text2)">⚠ Credit card surcharge (3.5%)</span>
+          <span style="color:var(--text2)" id="cj-cc-fee-label">⚠ Credit card surcharge (3.5%)</span>
           <span id="cj-cc-fee-amount" style="font-weight:600;font-family:'DM Mono',monospace">$0</span>
         </div>
         <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
@@ -10900,7 +10905,28 @@ function calcTotal(){
   subtotal=_cap.subtotal;
   // Credit card surcharge — 3.5% of the subtotal added on top when payment method is CC
   const _payment=document.getElementById('cj-payment')?.value||'';
-  const _ccFee=(_payment==='Credit card')?Math.round(subtotal*0.035*100)/100:0;
+  // SPLIT PAYMENT (2026-08-19). When part is paid in cash and part by card, the 3.5% surcharge
+  // applies to the CARD PORTION ONLY — charging it on the whole total would overcharge the cash
+  // half, and skipping it would absorb a real cost.
+  const _isSplit=_payment==='Split \u2014 cash + card';
+  {const _sr=document.getElementById('cj-split-row');if(_sr)_sr.style.display=_isSplit?'flex':'none';}
+  let _ccFee=0;
+  if(_isSplit){
+    const _card=Number((document.getElementById('cj-paid-card')||{}).value)||0;
+    const _cash=Number((document.getElementById('cj-paid-cash')||{}).value)||0;
+    _ccFee=Math.round(_card*0.035*100)/100;
+    // Show what the two parts cover against the subtotal, so a mistyped figure is caught before
+    // saving rather than surfacing later as a phantom balance.
+    const _note=document.getElementById('cj-split-note');
+    if(_note){
+      const _cov=Math.round((_cash+_card)*100)/100;
+      const _diff=Math.round((subtotal-_cov)*100)/100;
+      _note.textContent=_cov?('covers '+fmtMoney(_cov)+(Math.abs(_diff)>=0.01?(_diff>0?' \u00b7 '+fmtMoney(_diff)+' short':' \u00b7 '+fmtMoney(-_diff)+' over'):' \u00b7 matches')):'';
+      _note.style.color=(_cov&&Math.abs(_diff)>=0.01)?'var(--amber)':'var(--text3)';
+    }
+  } else {
+    _ccFee=(_payment==='Credit card')?Math.round(subtotal*0.035*100)/100:0;
+  }
   const total=Math.round((subtotal+_ccFee)*100)/100;
   // Show or hide the CC-fee indicator above the totals
   const _ccRow=document.getElementById('cj-cc-fee-row');
@@ -12037,7 +12063,7 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
   const _capEl=document.getElementById('cj-cap');
   if(_capEl)_capEl.value=(j&&Number(j.doNotExceed)>0)?Number(j.doNotExceed):'';
   calcTotal();calcBalance();openModal('complete-job');}
-function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;let paid=document.getElementById('cj-paid').value;if((paid===''||paid==null)&&paymentState==='paid')paid=total;
+function confirmComplete(paymentState){const labour=document.getElementById('cj-labour').value;const total=document.getElementById('cj-total').value;if(!labour){showToast('Please enter a labour amount.');return;}const _paidCashAmt=Number((document.getElementById('cj-paid-cash')||{}).value)||0;const _paidCardAmt=Number((document.getElementById('cj-paid-card')||{}).value)||0;const crew=document.getElementById('cj-crew').value.trim();if(!crew){showToast('Please fill in the crew leader.');return;}const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);const hrs=Number(document.getElementById('cj-hours').value)||0;const rph=Number(labour)>0&&hrs>0?Math.round(Number(labour)/hrs):null;let paid=document.getElementById('cj-paid').value;if((paid===''||paid==null)&&paymentState==='paid')paid=total;
   const actualTotal=document.getElementById('cj-actual-total')?.value?Number(document.getElementById('cj-actual-total').value):null;const owing=Math.max(0,(Number(total)||0)-(Number(paid)||0));const useForAI=document.getElementById('cj-ai-training').checked;
   // Cap discount: if actualTotal (real job value) is greater than what we charged, that gap
   // is what we gave away to honor a do-not-exceed cap. Both totals are entered as the full
@@ -12090,7 +12116,14 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
     paidCashRate:_paidCash&&!!_cashRate,
-    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,miscCharges:_miscCharges,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,excludeFromAccuracy:(document.getElementById('cj-exclude-accuracy')?document.getElementById('cj-exclude-accuracy').checked:false),bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
+    feeLabour:labour,feeMaterials:document.getElementById('cj-materials').value,feePackMaterials:document.getElementById('cj-pack-materials')?.value||'',feeFuel:document.getElementById('cj-fuel').value,feeParkingPermit:document.getElementById('cj-parking-fee').value,feeCOI:document.getElementById('cj-coi').value,feeInsurance:document.getElementById('cj-insurance').value,insuranceType:document.getElementById('cj-insurance-type')?.value||'',feeDump:document.getElementById('cj-dump').value,feeDamage:document.getElementById('cj-damage').value,feeYelp:document.getElementById('cj-yelp').value,feeCC:_ccFee||0,
+    // Split payment recorded as two history rows, so the receipt and the payment log show what
+    // was taken by each method rather than one lump under a single heading.
+    paidCash:_paidCashAmt||0,paidCard:_paidCardAmt||0,
+    paymentHistory:(_paidCashAmt||_paidCardAmt)?[
+      ...(_paidCashAmt?[{amount:_paidCashAmt,method:'Cash',notes:'split payment',date:new Date().toISOString().split('T')[0]}]:[]),
+      ...(_paidCardAmt?[{amount:_paidCardAmt,method:'Credit card',notes:'split payment',date:new Date().toISOString().split('T')[0]}]:[])
+    ]:undefined,miscCharges:_miscCharges,notes:document.getElementById('cj-notes').value,usedForAI:useForAI,excludeFromAccuracy:(document.getElementById('cj-exclude-accuracy')?document.getElementById('cj-exclude-accuracy').checked:false),bookedFromRoughQuote:j?j.bookedFromRoughQuote||false:false,roughQuoteMin:j?j.roughQuoteMin||null:null,roughQuoteMax:j?j.roughQuoteMax||null:null,roughQuoteSentBy:j?j.roughQuoteSentBy||'':'',extraDays:j?j.extraDays||[]:[], multiDay:j?j.multiDay||false:false, completedAt:new Date().toISOString().split('T')[0]};
   if(useForAI){
     // Save training record pairing original quote with actual outcome
     if(!db.aiTraining)db.aiTraining=[];
