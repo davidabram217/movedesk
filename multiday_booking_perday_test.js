@@ -49,7 +49,14 @@ check('direct editor Day 1 mirrors fuel to bj-fee-fuel',/_ff=document\.getElemen
 check('direct editor Day 1 mirrors materials to bj-fee-materials',/_fm=document\.getElementById\('bj-fee-materials'\)/.test(s));
 check('direct editor Day 1 mirrors arrival to bj-time',/_ar=document\.getElementById\('bj-time'\)/.test(s));
 check('_bjReadDays emits arrivalWindow/feeFuel/feeMaterials',/arrivalWindow:d\.arrivalWindow\|\|'',feeFuel:Number\(d\.feeFuel\)\|\|'',feeMaterials:Number\(d\.feeMaterials\)\|\|''/.test(s));
-check('_bjLoadMultiDay restores arrivalWindow/feeFuel/feeMaterials',/arrivalWindow:d\.arrivalWindow\|\|'',feeFuel:d\.feeFuel\|\|'',feeMaterials:d\.feeMaterials\|\|''/.test(s));
+// CHANGED 2026-08-19: a QUOTE day stores the arrival time as separate arrivalStart/arrivalEnd,
+// while the booking row expects a single arrivalWindow — so booking a multi-day quote silently
+// dropped the arrival time for every day. The loader now falls back to joining the two.
+check('_bjLoadMultiDay restores arrivalWindow/feeFuel/feeMaterials',
+  /arrivalWindow:d\.arrivalWindow\|\|\(d\.arrivalStart\?/.test(s) &&
+  /feeFuel:d\.feeFuel\|\|'',feeMaterials:d\.feeMaterials\|\|''/.test(s));
+check('arrival time falls back to a quote day\'s start/end pair',
+  /d\.arrivalStart\+\(d\.arrivalEnd\?' \u2013 '\+d\.arrivalEnd:''\)/.test(s));
 check('email surfaces Day-1 fuel/materials for direct bookings (ungated)',/if\(!isDay1\|\|_isDirectMulti\)\{/.test(s));
 check('direct-multi flag set in the no-quote branch',/isMulti=true;_isDirectMulti=true;/.test(s));
 

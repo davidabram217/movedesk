@@ -85,7 +85,14 @@ check('fn: _bjApplyMultiDay no-ops when toggle off',/if\(!cb\|\|!cb\.checked\|\|
 check('autosave persists rows (bjWriteFields → _bjApplyMultiDay)',/function bjWriteFields[\s\S]*?_bjApplyMultiDay\(j\);[\s\S]*?\n}/.test(script));
 check('confirmBooking new mode applies rows',/multiDay:isMultiDayQuote,quoteDays:_quoteDaysSnap[\s\S]*?_bjApplyMultiDay\(job\);/.test(script));
 check('confirmBooking edit mode applies rows',/j\.officeNotes=document\.getElementById\('bj-office-notes'\)\?\.value\|\|'';\s*\n\s*_bjApplyMultiDay\(j\);/.test(script));
-check('openBooking resets multi-day UI (toggle hidden when quote-driven)',/_bjResetMultiDay\(!_isMultiDay\);/.test(script));
+// CHANGED 2026-08-19 (David): booking a job from a MULTI-DAY QUOTE now opens the form already in
+// multi-day mode with the quote's days loaded, and the toggle stays VISIBLE so the job can be
+// switched back to single-day if the plan changed. Previously the toggle was hidden and the days
+// were never loaded, so a two-day quote had to be re-entered by hand — which is how a booked job
+// ends up with no days while its quote has two.
+check('openBooking keeps the multi-day toggle available',/_bjResetMultiDay\(true\);/.test(script));
+check('a multi-day quote opens ticked with its days loaded',
+  /_isMultiDay&&_leadQuote&&_leadQuote\.days&&_leadQuote\.days\.length>1[\s\S]{0,400}_bjLoadMultiDay\(_leadQuote\.days\)/.test(script));
 check('openBooking restores a direct multi-day draft',/!_isMultiDay&&_existingDraft\.multiDay&&_existingDraft\.quoteDays&&_existingDraft\.quoteDays\.length>1[\s\S]*?_bjLoadMultiDay\(_existingDraft\.quoteDays\)/.test(script));
 check('editBookedJob loads multi-day editor',/if\(j\.multiDay&&j\.quoteDays&&j\.quoteDays\.length>1\)\{_bjLoadMultiDay\(j\.quoteDays\);\}/.test(script));
 

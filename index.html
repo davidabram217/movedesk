@@ -8687,7 +8687,7 @@ function _bjResetMultiDay(showToggle){
   const list=document.getElementById('bj-multiday-list');if(list)list.innerHTML='';
 }
 function _bjLoadMultiDay(days){
-  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||'',arrivalWindow:d.arrivalWindow||'',feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||'',from:d.from||'',to:d.to||''}));
+  _bjDays=(days||[]).map(d=>({date:d.date||'',crew:String(d.crew||d.crewLoad||'3'),rate:d.rate||'',rateCash:d.rateCash||'',flatRate:!!d.flatRate,hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',flatPrice:d.flatPrice||'',flatPriceCash:d.flatPriceCash||'',arrivalWindow:d.arrivalWindow||(d.arrivalStart?d.arrivalStart+(d.arrivalEnd?' – '+d.arrivalEnd:''):''),feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||'',from:d.from||'',to:d.to||''}));
   if(!_bjDays.length)_bjDays=[_bjBlankDay()];
   const cb=document.getElementById('bj-multiday');if(cb)cb.checked=true;
   const wrap=document.getElementById('bj-multiday-wrap');if(wrap)wrap.style.display='block';
@@ -9023,7 +9023,20 @@ function openBooking(leadId){
   // Multi-day: when a multi-day QUOTE governs this lead, the existing read-only banner handles it,
   // so the manual toggle is hidden. Otherwise the owner may flip it on to book a multi-day job
   // directly. Reset to off each open; a direct multi-day draft is restored further below.
-  _bjResetMultiDay(!_isMultiDay);
+  // MULTI-DAY QUOTE → OPEN IN MULTI-DAY MODE (2026-08-19, David). Previously the toggle was
+  // HIDDEN for a multi-day quote (`_bjResetMultiDay(!_isMultiDay)`) and the days were never
+  // loaded, so booking a two-day quote meant ticking multi-day by hand and re-entering each day
+  // — which is how a booked job ends up with no days at all while its quote has two.
+  // Now: the toggle stays VISIBLE so the job can be switched back to single-day if the plan
+  // changed, it opens ticked, and the quote's days are loaded ready to edit.
+  _bjResetMultiDay(true);
+  if(_isMultiDay&&_leadQuote&&_leadQuote.days&&_leadQuote.days.length>1){
+    const _cb=document.getElementById('bj-multiday');
+    if(_cb)_cb.checked=true;
+    const _sec=document.getElementById('bj-multiday-section');
+    if(_sec)_sec.style.display='block';
+    try{_bjLoadMultiDay(_leadQuote.days);}catch(_){}
+  }
   // Helper to set a field only if it's empty AND we have a value to set
   const setIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val===undefined||val===null||val==='')return;if(!el.value)el.value=val;};
   // Auto-populate from formal quote if one exists (most authoritative). Prefer the accepted
@@ -9672,9 +9685,14 @@ function buildJobCalUrl(j){
   try{
     const _lead=(db.leads||[]).find(x=>x.id===j.leadId)||null;
     desc=buildCrewCoverSheet(j,_lead);
-    if(_moveBlock&&String(_moveBlock).trim()){
-      desc+='\n\n\u2014 AS SENT TO CUSTOMER \u2014\n'+_stripHourLines(String(_moveBlock).trim());
-    }
+    // REMOVED 2026-08-19: the "— AS SENT TO CUSTOMER —" block appended the whole confirmation
+    // body underneath the sheet, repeating the schedule, addresses, access, parking, crew, rate
+    // and every fee a second time. It was added to preserve the rule that the calendar shows what
+    // the customer actually received, but on a real entry it doubled the length of the sheet and
+    // broke the one rule the crew format exists to enforce — say each thing once.
+    // CONSEQUENCE, accepted deliberately: anything hand-typed into the confirmation email and
+    // stored only in `_sentDetailsBlock` no longer reaches the crew. Such notes belong in OFFICE
+    // NOTES or BILLING ALERTS, both of which render on the sheet in their own sections.
   }catch(e){
     // Never let a formatting fault cost someone their calendar entry.
     desc=lines.filter(l=>l!==undefined).join('\n');
