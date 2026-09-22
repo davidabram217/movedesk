@@ -11258,6 +11258,12 @@ function _buildCjmdDayCard(dayIndex, prefill){
   const packHrs=Number(p.packHours)||0;
   const fuel=Number(p.fuel)||0;
   const mat=Number(p.materials)||0;
+  // Split out from a single "Materials" box (2026-08-19). The single-day form has always had
+  // both, and they are different charges: the standard material fee is pads, wrap and tape,
+  // while packing materials are boxes consumed on a pack day and vary hugely. Merging them
+  // made a multi-day job impossible to compare with a single-day one in the training data,
+  // and impossible to explain on an invoice.
+  const packMat=Number(p.packMaterials)||0;
   const park=Number(p.parking)||0;
   const defType=p.type||'Moving';
   const typeSelectHtml=_CJMD_DAY_TYPES.map(t=>`<option value="${t}"${t===defType?' selected':''}>${t}</option>`).join('');
@@ -11277,7 +11283,8 @@ function _buildCjmdDayCard(dayIndex, prefill){
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
       <div class="form-group"><label style="font-size:11px">Fuel ($)</label><input type="number" class="cjmd-day-fuel" data-day-index="${i}" placeholder="0" value="${fuel||''}" oninput="calcMultiDayTotal()"></div>
-      <div class="form-group"><label style="font-size:11px">Materials ($)</label><input type="number" class="cjmd-day-materials" data-day-index="${i}" placeholder="0" value="${mat||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Standard materials ($)</label><input type="number" class="cjmd-day-materials" data-day-index="${i}" placeholder="0" value="${mat||''}" oninput="calcMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Packing materials ($)</label><input type="number" class="cjmd-day-packmaterials" data-day-index="${i}" placeholder="0" value="${packMat||''}" oninput="calcMultiDayTotal()"></div>
       <div class="form-group"><label style="font-size:11px">Parking ($)</label><input type="number" class="cjmd-day-parking" data-day-index="${i}" placeholder="0" value="${park||''}" oninput="calcMultiDayTotal()"></div>
     </div>
     <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">Day ${i+1} subtotal: <span class="cjmd-day-subtotal" data-day-index="${i}" style="color:var(--text);font-weight:600">$0</span></div>
@@ -11315,7 +11322,7 @@ function cjmdRemoveDay(idx){
       packHours:Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0,
       packRate:Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0,
       fuel:Number(card.querySelector('.cjmd-day-fuel')?.value)||0,
-      materials:Number(card.querySelector('.cjmd-day-materials')?.value)||0,
+      materials:Number(card.querySelector('.cjmd-day-materials')?.value)||0,packMaterials:Number(card.querySelector('.cjmd-day-packmaterials')?.value)||0,
       parking:Number(card.querySelector('.cjmd-day-parking')?.value)||0
     });
   });
@@ -11368,11 +11375,11 @@ function calcMultiDayTotal(){
     const ph=Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0;
     const pr=Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0;
     const fuel=Number(card.querySelector('.cjmd-day-fuel')?.value)||0;
-    const mat=Number(card.querySelector('.cjmd-day-materials')?.value)||0;
+    const mat=Number(card.querySelector('.cjmd-day-materials')?.value)||0;const packMat=Number(card.querySelector('.cjmd-day-packmaterials')?.value)||0;
     const park=Number(card.querySelector('.cjmd-day-parking')?.value)||0;
     const movePay=_movePay;
     const packPay=ph*pr;
-    const subtotal=movePay+packPay+fuel+mat+park;
+    const subtotal=movePay+packPay+fuel+mat+packMat+park;
     const _mPayEl=card.querySelector('.cjmd-day-move-pay');if(_mPayEl)_mPayEl.textContent='$'+Math.round(movePay).toLocaleString('en-US');
     const _pPayEl=card.querySelector('.cjmd-day-pack-pay');if(_pPayEl)_pPayEl.textContent='$'+Math.round(packPay).toLocaleString('en-US');
     const _subEl=card.querySelector('.cjmd-day-subtotal');if(_subEl)_subEl.textContent='$'+Math.round(subtotal).toLocaleString('en-US');
@@ -11467,11 +11474,11 @@ function confirmCompleteMultiDay(paymentState){
     const packHours=Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0;
     const packRate=Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0;
     const fuel=Number(card.querySelector('.cjmd-day-fuel')?.value)||0;
-    const materials=Number(card.querySelector('.cjmd-day-materials')?.value)||0;
+    const materials=Number(card.querySelector('.cjmd-day-materials')?.value)||0;const packMaterials=Number(card.querySelector('.cjmd-day-packmaterials')?.value)||0;
     const parking=Number(card.querySelector('.cjmd-day-parking')?.value)||0;
     const qDay=(j.quoteDays&&j.quoteDays[idx])||{};
     const dayDate=qDay.date||j.date||'';
-    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,moveSegments:moveSegments,movePay:_movePayTotal,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,parking:parking});
+    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,moveSegments:moveSegments,movePay:_movePayTotal,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,packMaterials:packMaterials,parking:parking});
     // For averages: only include in average if the day had non-zero hours
     if(moveHours>0){aggMoveHours+=moveHours;aggMovers+=movers;aggMoveRate+=moveRate;nMoveDays++;}
     if(packHours>0){aggPackHours+=packHours;aggPackers+=packers;aggPackRate+=packRate;nPackDays++;}
