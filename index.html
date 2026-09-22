@@ -12147,6 +12147,25 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
   if(_accessLoadEl)_accessLoadEl.value=_pick(j.accessLoad,_lead?_lead.accessLoad:'');
   const _accessUnloadEl=document.getElementById('cj-access-unload');
   if(_accessUnloadEl)_accessUnloadEl.value=_pick(j.accessUnload,_lead?_lead.accessUnload:'');
+  // Pre-fill the remaining fields the BOOKED JOB already knows (2026-08-19, David). These were
+  // cleared on open and retyped every time. They are defaults to confirm or correct, not
+  // assertions: the crew leader, the agreed date and the agreed rate and fees are almost always
+  // what actually happened, and a prefilled field that is wrong gets noticed, whereas a blank
+  // one gets left blank — which is why analytics has been full of "Unknown size" rows.
+  // DELIBERATELY NOT PREFILLED: hours, total, damage, notes, payment amounts and the parking
+  // fee. Those are the actuals the completion form exists to capture, and pre-filling them with
+  // an estimate would quietly turn a guess into a recorded fact.
+  {const _set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
+   _set('cj-date',_pick(j.date,_lead?_lead.date:''));
+   _set('cj-crew',_pick(j.crewLeader,j.crew,_lead?_lead.crewLeader:''));
+   _set('cj-rate',_pick(j.rateRegular,j.rate));
+   _set('cj-fuel',j.feeFuel);
+   _set('cj-materials',j.feeMaterials);
+   // Insurance FEE follows the choice already recorded on the booking.
+   _set('cj-insurance',j.feeInsurance);
+   // COI only when the booking actually carried one — it is a charge, not a default.
+   if(Number(j.feeCoi))_set('cj-coi',j.feeCoi);
+  }
   // Pre-fill packing scope from the booked job (which inherits from the lead). The packer
   // will confirm or change this on the completion form — that's what gets recorded.
   const _packEl=document.getElementById('cj-packing');
