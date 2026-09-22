@@ -485,6 +485,7 @@ function buildSummary(d){
   // it. buildSummary is shared by both, so stating it here fixes both at once.
   if(d.haulAway==='yes')out+='Haul away: YES'+(d.haulAwayItems?' — '+d.haulAwayItems:'')+'\n';
   else if(d.haulAway==='maybe')out+='Haul away: NOT SURE — wants to be asked'+(d.haulAwayItems?' — '+d.haulAwayItems:'')+'\n';
+  else out+='Haul away: No\n';
   out+='\n📦 Moving from:\n'+fmtLoadLocations(d)+'\n';
   out+='\n🏠 Moving to:\n'+fmtUnloadLocations(d)+'\n';
   if(d.notes)out+='\nAdditional notes:\n'+d.notes+'\n';
@@ -505,8 +506,11 @@ function buildCustomerEmail(d){
   // Haul-away (2026-08-19). Confirms back to the customer that we noted it — which is the point
   // of asking, and it is also what prompts them to remember the rest of what they want gone.
   // Nothing prints when they answered no, so every other confirmation is unaffected.
+  // Always stated, including the default "No" (David, 2026-08-19) — so the customer sees we
+  // asked, and an answer of no is distinguishable from the question having been missed.
   if(d.haulAway==='yes')body+='Haul away: Yes'+(d.haulAwayItems?' — '+d.haulAwayItems:'')+'\n';
   else if(d.haulAway==='maybe')body+='Haul away: You asked us to check with you\n';
+  else body+='Haul away: No\n';
   body+='\n📦 Moving from:\n'+fmtLoadLocations(d)+'\n';
   body+='\n🏠 Moving to:\n'+fmtUnloadLocations(d)+'\n';
   if(d.notes)body+='\nAdditional notes:\n'+d.notes+'\n';
