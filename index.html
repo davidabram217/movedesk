@@ -2281,6 +2281,23 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 
 
+<div class="modal-bg" id="modal-qb-paste">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header"><div><div class="modal-title">📋 Paste your quote</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Crew, rates, hours, fees and vaults are read straight from your text. Totals are recalculated here, never copied.</div></div>
+      <button class="modal-close" onclick="closeModal('qb-paste')">✕</button></div>
+    <div class="modal-body">
+      <textarea id="qbp-text" style="min-height:260px;font-size:12.5px;line-height:1.55" placeholder="Paste the quote you wrote…"></textarea>
+      <div id="qbp-status" style="font-size:12px;color:var(--text3);margin-top:8px"></div>
+      <div id="qbp-preview" style="margin-top:10px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('qb-paste')">Cancel</button>
+      <button class="btn btn-primary" id="qbp-btn" onclick="parseQbPaste()">✨ Extract →</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-quote-builder" style="cursor:default">
   <div class="modal" style="max-width:720px;max-height:92vh;overflow-y:auto">
     <div class="modal-header">
@@ -2291,6 +2308,18 @@ input[type=number]{-moz-appearance:textfield}
       <button class="modal-close" onclick="closeModal('quote-builder')">✕</button>
     </div>
     <div class="modal-body">
+
+      <!-- Paste-from-email: David verbalises a quote into an AI first, then pastes the result
+           here. Everything in that text is HIS OWN decided quote — crew, rates, cash rates, hours,
+           fees, vaults — so extracting it is transcription, not price inference, and crew/rate/
+           hours are filled like any other field. Totals are NEVER read from a pasted summary
+           table; the builder calculates them and the table is used only to verify. -->
+      <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px">
+        <div style="font-size:12.5px;color:var(--text2);margin-bottom:8px">✍️ Already written this quote out? Paste it and we'll fill the form.</div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openQbPaste()">📋 Paste from email</button>
+        <span id="qb-paste-note" style="margin-left:8px;font-size:11.5px;color:var(--text3)"></span>
+      </div>
+
 
       <!-- Read-only banner: shows the lead's additional notes + office notes so the user
            has context while building the quote. Populated by openQuoteBuilder(). Internal —
@@ -16749,6 +16778,116 @@ function updateQbDaySubtotal(dayId){
   // Find the day subtotal box by data attribute we add in renderQbDays
   const box=document.querySelector('[data-qb-day-subtotal="'+dayId+'"]');
   if(box)box.innerHTML=out;
+}
+
+// ── Paste a written quote into the builder ──────────────────────────────────────────────────
+// David dictates a quote to an AI first, then pastes the result here. Everything in that text is
+// his OWN decided quote, so crew, rates, cash rates and hours are extracted like any other field
+// — there is no price inference involved. Two rules that matter:
+//   1. TOTALS ARE NEVER READ from a pasted summary table. The builder calculates them from the
+//      parts, so the line items and the total cannot disagree, and editing an hour afterwards
+//      still updates the total. The pasted table is used ONLY to verify the extraction.
+//   2. Discount narrative ("$25, discounted from $50") is ignored — the effective figure wins.
+function openQbPaste(){
+  const t=document.getElementById('qbp-text');if(t)t.value='';
+  const st=document.getElementById('qbp-status');if(st)st.textContent='';
+  const pv=document.getElementById('qbp-preview');if(pv)pv.innerHTML='';
+  openModal('qb-paste');
+  setTimeout(()=>{const el=document.getElementById('qbp-text');if(el)el.focus();},100);
+}
+async function parseQbPaste(){
+  const text=((document.getElementById('qbp-text')||{}).value||'').trim();
+  if(!text){showToast('Paste the quote first.');return;}
+  const btn=document.getElementById('qbp-btn');
+  const st=document.getElementById('qbp-status');
+  if(btn){btn.disabled=true;btn.textContent='Reading\u2026';}
+  if(st){st.textContent='Reading your quote\u2026';st.style.color='var(--text3)';}
+  let q=null;
+  try{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/parse-quote',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+      body:JSON.stringify({text})
+    });
+    const data=await res.json();
+    if(!res.ok||!data.ok)throw new Error(data.error||('Edge function error '+res.status));
+    q=data.quote;
+  }catch(e){
+    console.warn('parse-quote failed:',e);
+    if(st){st.textContent='\u26a0 Could not read it \u2014 the parse-quote function may not be deployed yet.';st.style.color='var(--amber)';}
+    if(btn){btn.disabled=false;btn.innerHTML='\u2728 Extract \u2192';}
+    return;
+  }
+  const filled=_applyQbPaste(q);
+  if(btn){btn.disabled=false;btn.innerHTML='\u2728 Extract \u2192';}
+  // Show field by field what was filled. A silent mismapping — taking $50 where the text said
+  // "$25, discounted from $50" — is the failure worth designing against, so nothing is applied
+  // invisibly.
+  const pv=document.getElementById('qbp-preview');
+  if(pv){
+    pv.innerHTML='<div style="font-size:12px"><div style="font-weight:600;margin-bottom:6px">Filled in:</div>'
+      +filled.map(f=>'<div style="padding:2px 0;color:var(--text2)">\u2022 '+f+'</div>').join('')
+      +(q._checkNote?('<div style="margin-top:8px;padding:6px 8px;border-radius:var(--radius);font-size:11.5px;background:'
+        +(q._checkOk?'var(--surface2)':'var(--amber-light)')+';color:'+(q._checkOk?'var(--text3)':'var(--text2)')+'">'+q._checkNote+'</div>'):'')
+      +'</div>';
+  }
+  if(st){st.textContent='\u2713 Done \u2014 check the form before sending.';st.style.color='var(--accent)';}
+}
+function _applyQbPaste(q){
+  const filled=[];
+  const set=(id,v,label)=>{
+    if(v==null||v==='')return;
+    const el=document.getElementById(id);if(!el)return;
+    el.value=v;filled.push(label+': '+v);
+  };
+  set('qb-project-name',q.projectName,'Project');
+  set('qb-move-type',q.moveType,'Move type');
+  set('qb-packing',q.packing,'Packing');
+  set('qb-description',q.description,'Description');
+  set('qb-estimated-vaults',q.vaults,'Vaults');
+  // Storage and cash discount are handled as a pair throughout the builder, so the paste fills
+  // both when the text states them — a quote that mentions a cash rate for the whole job has a
+  // cash discount line, not just per-day cash rates.
+  if(q.storageCostsText||q.storagePerVault){set('qb-storage-costs',q.storageCostsText||('$'+q.storagePerVault+' per vault per month'),'Storage');}
+  if(q.cashDiscountText){set('qb-cash-discount',q.cashDiscountText,'Cash discount');}
+  // Days — multi-day is detected from the text having more than one day block.
+  if(Array.isArray(q.days)&&q.days.length){
+    qbJobType=q.days.length>1?'multi':'single';
+    qbDays=q.days.map(d=>Object.assign(_qbBlankDay?_qbBlankDay():{},{
+      id:uid(),label:d.label||'',date:d.date||'',
+      crew:d.crew||'',crewNote:d.crewNote||'',
+      rate:d.rate||'',rateCash:d.rateCash||'',
+      hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',
+      feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||''
+    }));
+    filled.push(q.days.length>1?('Multi-day \u2014 '+q.days.length+' days'):'Single day');
+    q.days.forEach((d,i)=>{
+      const bits=[];
+      if(d.crew)bits.push(d.crew+' movers');
+      if(d.rate)bits.push('$'+d.rate+'/hr'+(d.rateCash?' ($'+d.rateCash+' cash)':''));
+      if(d.hrsMin)bits.push(d.hrsMin+(d.hrsMax&&d.hrsMax!==d.hrsMin?'\u2013'+d.hrsMax:'')+' hrs');
+      if(d.feeFuel)bits.push('$'+d.feeFuel+' fuel');
+      if(d.feeMaterials)bits.push('$'+d.feeMaterials+' materials');
+      if(d.crewNote)bits.push('note: '+d.crewNote);
+      filled.push('Day '+(i+1)+(d.label?' ('+d.label+')':'')+' \u2014 '+bits.join(', '));
+    });
+    if(typeof renderQbDays==='function')renderQbDays();
+  }
+  // Range fees such as "packing materials approximately $500\u2013$600".
+  (q.fees||[]).forEach(f=>{
+    if(!f||!f.label)return;
+    qbFees.push({id:uid(),label:f.label,included:true,
+      type:f.hrsMax?'range':'flat',
+      amount:f.amount||0,hrsMin:f.hrsMin||0,hrsMax:f.hrsMax||0,note:f.note||''});
+    filled.push('Fee \u2014 '+f.label+': '+(f.hrsMax?('$'+f.hrsMin+'\u2013$'+f.hrsMax):('$'+f.amount)));
+  });
+  if(typeof renderQbFees==='function')renderQbFees();
+  if(typeof updateQbTotal==='function')updateQbTotal();
+  if(typeof qbAutoSave==='function')qbAutoSave();
+  closeModal('qb-paste');
+  const note=document.getElementById('qb-paste-note');
+  if(note){note.textContent='\u2713 Filled from your pasted quote \u2014 check it over';note.style.color='var(--accent)';}
+  return filled;
 }
 
 function renderQbDays(){
