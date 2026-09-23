@@ -126,8 +126,12 @@ ok(HTML.includes('d.unloadCrew&&d.unloadRate\n      ?`${d.crewLoadDiff?(d.crewLo
    'office Load label is gated on an unload crew existing');
 
 // Legacy rows untouched in both files.
-ok(HTML.includes('${fmt(d.hrsMin*d.rate)} – ${fmt(d.hrsMax*d.rate)}'), 'office legacy hourly row verbatim');
-ok(QPJS.includes("fmt(d.hrsMin*d.rate)+' \\u2013 '+fmt(d.hrsMax*d.rate)"), 'customer legacy hourly row verbatim');
+// CHANGED 2026-08-19: the hourly row now renders through _rangeMoney / _qpRangeMoney so that a
+// quote with no real range (max blank or equal to min) prints ONE figure instead of "$675 – $675".
+// A genuine range is unaffected. Both files must use the helper — patching only index.html would
+// fix the office preview while the CUSTOMER still saw the doubled value.
+ok(HTML.includes('_rangeMoney(fmt,d.hrsMin*d.rate,d.hrsMax*d.rate)'), 'office hourly row uses the range helper');
+ok(QPJS.includes('_qpRangeMoney(fmt,d.hrsMin*d.rate,d.hrsMax*d.rate)'), 'customer hourly row uses the range helper');
 ok(HTML.includes("d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`"),
    'office legacy crew-diff label still reachable for old quotes');
 ok(QPJS.includes("d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers'"),

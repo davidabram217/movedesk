@@ -6864,6 +6864,21 @@ let currentConfirmEmailLeadId=null;
 // Kept separate from the crew COUNT so totals and analytics are untouched; this is wording only.
 // One helper for every place the crew line is printed, so the email, the calendar entry and the
 // quote cannot word it differently.
+// Hours and money collapse to a SINGLE value when there is no real range (2026-08-19, David).
+// Quoting just the minimum is common — a 2-man crew has a 3 hour minimum, and sometimes the quote
+// IS that minimum. Previously the only way to express it was entering 3–3, which rendered
+// "3–3 hrs" and "$675 – $675" and looked like a mistake on a customer document. Now leaving the
+// max blank, or equal to the min, prints one figure. A genuine range is unaffected.
+function _hrText(min,max){
+  const a=Number(min)||0, b=Number(max)||0;
+  if(!b||b===a)return a+' hr'+(a===1?'':'s');
+  return a+'\u2013'+b+' hrs';
+}
+function _rangeMoney(fmt,minV,maxV){
+  const a=Number(minV)||0, b=Number(maxV)||0;
+  return (!b||Math.abs(b-a)<0.005)?fmt(a):(fmt(a)+' \u2013 '+fmt(b));
+}
+
 function _crewNote(src){
   const n=src&&(src.crewNote||src.crewnote);
   return n&&String(n).trim()?' \u2014 '+String(n).trim():'';
@@ -8757,7 +8772,7 @@ function _renderBjQuoteDays(){
     const crewDisp=d.crewLoadDiff?(d.crewLoad||d.crew)+'/'+(d.crewUnload||d.crew):d.crew;
     const rateInfo=d.flatRate?
       ('Flat $'+(Number(d.flatPrice)||0).toLocaleString()+(d.flatPriceCash?' / $'+(Number(d.flatPriceCash)||0).toLocaleString()+' cash':'')):
-      ((d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr · '+crewDisp+' movers');
+      (_hrText(d.hrsMin,d.hrsMax)+' · $'+(d.rate||0)+'/hr · '+crewDisp+' movers');
     let body='';
     if(!kept){
       body='<div style="color:var(--text3);font-size:11.5px;padding:3px 0 0 27px">Dropped from this booking</div>';
@@ -9102,7 +9117,7 @@ function openBooking(leadId){
     if(quote.days&&quote.days.length){
       quote.days.forEach((d,i)=>{
         const parts=[];
-        if(d.hrsMin&&d.hrsMax)parts.push(`Est. ${d.hrsMin}–${d.hrsMax} hrs`);
+        if(d.hrsMin)parts.push('Est. '+_hrText(d.hrsMin,d.hrsMax));
         else if(d.hrsMin)parts.push(`Est. ${d.hrsMin}+ hrs`);
         if(d.rate)parts.push(`$${d.rate}/hr`);
         if(d.crew)parts.push(`${d.crew} movers`);
@@ -16646,15 +16661,15 @@ function updateQbDaySubtotal(dayId){
     out='<strong>'+dayLabel+' estimate:</strong> '+(totalMin===totalMax?fmtMoney(totalMin):fmtMoney(totalMin)+' – '+fmtMoney(totalMax));
     if(flatCash)out+=' <span style="color:var(--accent);font-weight:500">or '+(cashMin===cashMax?fmtMoney(cashMin):fmtMoney(cashMin)+' – '+fmtMoney(cashMax))+' cash</span>';
     out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Flat rate'+(d.crew?' · '+d.crew+' movers':'')+(d.flatHrs?' · ~'+d.flatHrs+' hrs estimated':'');
-    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+(d.packHrsMin||'?')+'–'+(d.packHrsMax||'?')+' hrs · $'+d.packRate+'/hr';
+    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+_hrText(d.packHrsMin,d.packHrsMax)+' · $'+d.packRate+'/hr';
     out+='</div>';
   } else {
     const moveMin=(d.hrsMin||0)*d.rate;
     const moveMax=(d.hrsMax||0)*d.rate;
     const crewDesc=d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':(d.crew||0)+' movers';
-    out='<strong>'+dayLabel+' estimate:</strong> '+fmtMoney(moveMin+packMin)+' – '+fmtMoney(moveMax+packMax);
-    out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">'+crewDesc+' · '+(d.hrsMin||0)+'–'+(d.hrsMax||0)+' hrs · $'+(d.rate||0)+'/hr';
-    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+(d.packHrsMin||'?')+'–'+(d.packHrsMax||'?')+' hrs · $'+d.packRate+'/hr';
+    out='<strong>'+dayLabel+' estimate:</strong> '+_rangeMoney(fmtMoney,moveMin+packMin,moveMax+packMax);
+    out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">'+crewDesc+' · '+_hrText(d.hrsMin,d.hrsMax)+' · $'+(d.rate||0)+'/hr';
+    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+_hrText(d.packHrsMin,d.packHrsMax)+' · $'+d.packRate+'/hr';
     out+='</div>';
   }
   // Find the day subtotal box by data attribute we add in renderQbDays
@@ -16841,8 +16856,8 @@ function renderQbDays(){
             // wording on the quote, not data.
             const _cn=String(d.crewNote||'').trim();
             const crewDesc=(d.unloadCrew?`${d.crewLoadDiff?(d.crewLoad||d.crew):d.crew} movers load`:(d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} movers`))+(_cn?' \u2014 '+_cn:'');
-            let out=`<strong>${dayLabel} estimate:</strong> ${fmtMoney(moveMin+unlMin+packMin)} – ${fmtMoney(moveMax+unlMax+packMax)}`;
-            out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${d.hrsMin}–${d.hrsMax} hrs · $${d.rate}/hr`;
+            let out=`<strong>${dayLabel} estimate:</strong> ${_rangeMoney(fmtMoney,moveMin+unlMin+packMin,moveMax+unlMax+packMax)}`;
+            out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${_hrText(d.hrsMin,d.hrsMax)} · $${d.rate}/hr`;
             if(d.unloadCrew&&d.unloadRate)out+=` + ${d.unloadCrewSize||'?'} movers unload · ${d.unloadHrsMin||'?'}–${d.unloadHrsMax||'?'} hrs · $${d.unloadRate}/hr`;
             if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
             out+='</div>';
@@ -17118,9 +17133,9 @@ function renderQuoteHTML(q,lead){
     } else {
       html+=`<tr style="border-bottom:1px solid #f0ece4">
         <td style="padding:11px 6px">${esc(label)}</td>
-        <td style="padding:11px 6px;text-align:right;color:#6b6860">${d.hrsMin} – ${d.hrsMax} hrs</td>
+        <td style="padding:11px 6px;text-align:right;color:#6b6860">${_hrText(d.hrsMin,d.hrsMax)}</td>
         <td style="padding:11px 6px;text-align:right;color:#6b6860">${fmt(d.rate)}/hr</td>
-        <td style="padding:11px 6px;text-align:right;font-weight:600">${fmt(d.hrsMin*d.rate)} – ${fmt(d.hrsMax*d.rate)}</td>
+        <td style="padding:11px 6px;text-align:right;font-weight:600">${_rangeMoney(fmt,d.hrsMin*d.rate,d.hrsMax*d.rate)}</td>
       </tr>`;
     }
     if(d.unloadCrew&&d.unloadRate){

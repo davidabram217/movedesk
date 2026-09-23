@@ -159,9 +159,9 @@ function renderQuote(q){
     } else {
       html+='<tr style="border-bottom:1px solid #f0ece4">'+
         '<td style="padding:11px 6px">'+esc(label)+'</td>'+
-        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+d.hrsMin+' \u2013 '+d.hrsMax+' hrs</td>'+
+        '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+_qpHrText(d.hrsMin,d.hrsMax)+'</td>'+
         '<td style="padding:11px 6px;text-align:right;color:#6b6860">'+fmt(d.rate)+'/hr</td>'+
-        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+fmt(d.hrsMin*d.rate)+' \u2013 '+fmt(d.hrsMax*d.rate)+'</td>'+
+        '<td style="padding:11px 6px;text-align:right;font-weight:600">'+_qpRangeMoney(fmt,d.hrsMin*d.rate,d.hrsMax*d.rate)+'</td>'+
         '</tr>';
     }
     if(d.unloadCrew&&d.unloadRate){
@@ -185,6 +185,20 @@ function renderQuote(q){
         '</tr>';
     }
   });
+
+// Hours and money collapse to a SINGLE value when there is no real range (2026-08-19).
+// Mirrors _hrText/_rangeMoney in index.html — this file renders the CUSTOMER's quote page, so a
+// change made only in index.html would fix the office preview and leave the customer seeing
+// "3 – 3 hrs" and "$675 – $675".
+function _qpHrText(min,max){
+  var a=Number(min)||0, b=Number(max)||0;
+  if(!b||b===a)return a+' hr'+(a===1?'':'s');
+  return a+'\u2013'+b+' hrs';
+}
+function _qpRangeMoney(fmt,minV,maxV){
+  var a=Number(minV)||0, b=Number(maxV)||0;
+  return (!b||Math.abs(b-a)<0.005)?fmt(a):(fmt(a)+' \u2013 '+fmt(b));
+}
 
   fees.forEach(function(f){
     var amt=f.type==='range'?fmt(f.hrsMin||0)+' \u2013 '+fmt(f.hrsMax||0):fmt(f.amount||0);
