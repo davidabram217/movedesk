@@ -16818,7 +16818,17 @@ async function parseQbPaste(){
     if(btn){btn.disabled=false;btn.innerHTML='\u2728 Extract \u2192';}
     return;
   }
-  const filled=_applyQbPaste(q);
+  let filled=[];
+  try{
+    filled=_applyQbPaste(q);
+  }catch(e){
+    // Never leave the button spinning on "Reading…". If applying the result fails, say so
+    // plainly rather than looking like the request never returned.
+    console.error('applying the extracted quote failed:',e);
+    if(st){st.textContent='\u26a0 Read your quote, but could not fill the form: '+(e.message||e);st.style.color='var(--amber)';}
+    if(btn){btn.disabled=false;btn.innerHTML='\u2728 Extract \u2192';}
+    return;
+  }
   if(btn){btn.disabled=false;btn.innerHTML='\u2728 Extract \u2192';}
   // Show field by field what was filled. A silent mismapping — taking $50 where the text said
   // "$25, discounted from $50" — is the failure worth designing against, so nothing is applied
@@ -16853,12 +16863,24 @@ function _applyQbPaste(q){
   // Days — multi-day is detected from the text having more than one day block.
   if(Array.isArray(q.days)&&q.days.length){
     qbJobType=q.days.length>1?'multi':'single';
-    qbDays=q.days.map(d=>Object.assign(_qbBlankDay?_qbBlankDay():{},{
+    // Build a COMPLETE day object. An earlier version referenced a `_qbBlankDay` helper that does
+    // not exist — referencing an undeclared name throws a ReferenceError, which killed this
+    // function before it could clear the "Reading…" status, so the extraction succeeded and the
+    // page appeared to hang. Every field the renderer expects is set explicitly here.
+    qbDays=q.days.map(d=>({
       id:uid(),label:d.label||'',date:d.date||'',
       crew:d.crew||'',crewNote:d.crewNote||'',
       rate:d.rate||'',rateCash:d.rateCash||'',
       hrsMin:d.hrsMin||'',hrsMax:d.hrsMax||'',
-      feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||''
+      feeFuel:d.feeFuel||'',feeMaterials:d.feeMaterials||'',
+      flatRate:false,flatPrice:'',flatPriceCash:'',flatHrs:'',
+      arrivalStart:d.arrivalStart||'8:00 AM',arrivalEnd:d.arrivalEnd||'9:00 AM',
+      crewLoadDiff:false,crewLoad:'',crewUnload:'',
+      unloadCrew:false,unloadCrewSize:'',unloadRate:'',unloadHrsMin:'',unloadHrsMax:'',
+      packCrew:false,packCrewSize:'',packRate:'',packHrsMin:'',packHrsMax:'',
+      loads:[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}],
+      unloads:[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}],
+      locations:true
     }));
     filled.push(q.days.length>1?('Multi-day \u2014 '+q.days.length+' days'):'Single day');
     q.days.forEach((d,i)=>{
