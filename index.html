@@ -16753,7 +16753,6 @@ function renderQbDays(){
             ${d.flatRate?`
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>No. of movers <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><select oninput="updateQbDay('${d.id}','crew',this.value)"><option value="">— none —</option>${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
-             <div class="form-group"><label>Crew note <span style="font-size:10.5px;color:var(--text3)">(shown on the quote after the crew)</span></label><input type="text" value="${escHtml(d.crewNote||'')}" placeholder="e.g. packing all day" oninput="updateQbDay('${d.id}','crewNote',this.value)"></div>
               <div class="form-group"><label>Estimated hours <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><input type="number" value="${d.flatHrs||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','flatHrs',this.value)" placeholder="e.g. 5"></div>
               <div class="form-group"><label>Flat rate price ($)</label><input type="number" value="${d.flatPrice||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPrice',this.value)" placeholder="e.g. 1500"></div>
               <div class="form-group"><label>Flat rate cash price ($) <span style="font-size:10.5px;color:var(--text3)">(optional)</span></label><input type="number" value="${d.flatPriceCash||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPriceCash',this.value)" placeholder="e.g. 1400"></div>
@@ -16763,6 +16762,7 @@ function renderQbDays(){
             `:`
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>No. of movers</label><select oninput="updateQbDay('${d.id}','crew',this.value)">${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+              <div class="form-group"><label>Crew note <span style="font-size:10.5px;color:var(--text3)">(optional — shown after the crew on the quote)</span></label><input type="text" value="${escHtml(d.crewNote||'')}" placeholder="e.g. packing all day" oninput="updateQbDay('${d.id}','crewNote',this.value)"></div>
               <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.rate||225}" oninput="updateQbDay('${d.id}','rate',this.value)"></div>
               <div class="form-group"><label>Min hours</label><input type="number" value="${d.hrsMin||2}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMin',this.value)"></div>
               <div class="form-group"><label>Max hours</label><input type="number" value="${d.hrsMax||4}" min="1" step="0.5" oninput="updateQbDay('${d.id}','hrsMax',this.value)"></div>
@@ -16948,16 +16948,18 @@ function calcQbTotals(){
       }
     } else {
       laborMin+=(d.hrsMin||0)*d.rate;
-      laborMax+=(d.hrsMax||0)*d.rate;
+      // A BLANK max means the quote is the minimum only, not zero hours (2026-08-19). Without
+      // this the maximum total came out as fees alone — an estimated total of "$395 – $115".
+      laborMax+=((Number(d.hrsMax)||Number(d.hrsMin)||0))*d.rate;
       // Add unload crew if set (Move crew above is the load half)
       if(d.unloadCrew&&d.unloadRate){
         laborMin+=(d.unloadHrsMin||0)*d.unloadRate;
-        laborMax+=(d.unloadHrsMax||0)*d.unloadRate;
+        laborMax+=((Number(d.unloadHrsMax)||Number(d.unloadHrsMin)||0))*d.unloadRate;
       }
       // Add packing crew if set
       if(d.packCrew&&d.packRate){
         laborMin+=(d.packHrsMin||0)*d.packRate;
-        laborMax+=(d.packHrsMax||0)*d.packRate;
+        laborMax+=((Number(d.packHrsMax)||Number(d.packHrsMin)||0))*d.packRate;
       }
     }
   });
