@@ -132,6 +132,11 @@ ok(HTML.includes('d.unloadCrew&&d.unloadRate\n      ?`${d.crewLoadDiff?(d.crewLo
 // fix the office preview while the CUSTOMER still saw the doubled value.
 ok(HTML.includes('_rangeMoney(fmt,d.hrsMin*d.rate,d.hrsMax*d.rate)'), 'office hourly row uses the range helper');
 ok(QPJS.includes('_qpRangeMoney(fmt,d.hrsMin*d.rate,d.hrsMax*d.rate)'), 'customer hourly row uses the range helper');
+// The crew note must reach the CUSTOMER's page too, not just the office preview — quote-page.js
+// carries its own crewDesc, and patching only index.html showed the note to David and not to the
+// customer, which is how this was first reported.
+ok(QPJS.includes("var _cn=String(d.crewNote||'').trim();"), 'customer page reads the crew note');
+ok(QPJS.includes("+(_cn?' \\u2014 '+_cn:'')"), 'customer page appends the crew note to the crew label');
 ok(HTML.includes("d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`"),
    'office legacy crew-diff label still reachable for old quotes');
 ok(QPJS.includes("d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers'"),

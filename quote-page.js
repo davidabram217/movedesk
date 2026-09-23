@@ -141,9 +141,14 @@ function renderQuote(q){
 
   days.forEach(function(d,i){
     // When an unload crew is set, the Move crew line IS the load half of the job.
-    var crewDesc=(d.unloadCrew&&d.unloadRate)
+    // Crew note from the quote day, e.g. "3 Movers \u2014 packing all day" (2026-08-19). Mirrors
+    // _crewNote in index.html — this file renders the CUSTOMER's page, so without it the note
+    // would show in the office preview and be missing from what the customer actually receives.
+    var _cn=String(d.crewNote||'').trim();
+    var crewDesc=((d.unloadCrew&&d.unloadRate)
       ?((d.crewLoadDiff?(d.crewLoad||d.crew):d.crew)+' Movers \u2013 Load')
-      :(d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':d.crew+' Movers');
+      :(d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':d.crew+' Movers'))
+      +(_cn?' \u2014 '+_cn:'');
     var label=isMulti?'Day '+(i+1)+' \u2013 '+crewDesc:crewDesc;
     if(d.flatRate){
       var flatPrice=Number(d.flatPrice)||0;
