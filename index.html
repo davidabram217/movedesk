@@ -940,7 +940,7 @@ input[type=number]{-moz-appearance:textfield}
       </div>
       <div class="form-grid form-grid-2">
         <div class="form-group" style="position:relative"><label>Full name *</label><input type="text" id="nl-name" placeholder="Customer name" autocomplete="off" oninput="customerAutocomplete(this.value)"><div id="nl-name-ac" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:200;max-height:180px;overflow-y:auto"></div></div>
-        <div class="form-group"><label>Phone *</label><input type="tel" id="nl-phone" placeholder="(555) 000-0000" onblur="checkRepeatByPhone(this.value)"></div>
+        <div class="form-group"><label>Phone <span style="font-size:10.5px;color:var(--text3);font-weight:400">(optional)</span></label><input type="tel" id="nl-phone" placeholder="(555) 000-0000" onblur="checkRepeatByPhone(this.value)"></div>
         <div class="form-group"><label>Email</label><input type="email" id="nl-email" placeholder="email@example.com"></div>
         <div class="form-group"><label>How did they hear about us? *</label>
           <select id="nl-source" onchange="toggleSourceDetail()"><option value="">Select source…</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Stager</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
@@ -6143,7 +6143,11 @@ function saveLead(opts){
   const phone=document.getElementById('nl-phone').value.trim();
   const source=document.getElementById('nl-source').value;
   const takenBy=document.getElementById('nl-taken-by').value.trim();
-  if(!name||!phone||!source){if(auto)return;showToast('Please fill in name, phone, and source.');return;}
+  // Phone is OPTIONAL (2026-08-19, David). Requiring it meant typing "???" or a made-up number
+  // to get a lead saved — and a repeated placeholder then matched an earlier lead and
+  // auto-populated it with the wrong customer's details. A missing phone number is honest;
+  // a fake one corrupts the matching that the repeat-customer and duplicate checks rely on.
+  if(!name||!source){if(auto)return;showToast('Please fill in name and source.');return;}
   /* 'Call taken by' is no longer a required field (hidden in the form) */
   if(auto&&!editingLeadId)return; // half-finished NEW leads stay as local drafts, not real leads
 
@@ -6651,7 +6655,7 @@ function renderLeadsTable(){
     if(aCreated!==bCreated)return bCreated.localeCompare(aCreated);
     return (b.id||'').localeCompare(a.id||'');
   });
-  if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone}</td><td class="td-mono">${fmtDate(l.date)}</td>${leadAgeCell(l.createdAt)}<td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
+  if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone||'\u2014'}</td><td class="td-mono">${fmtDate(l.date)}</td>${leadAgeCell(l.createdAt)}<td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
 }
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
 function filterLeadsSource(v){leadFilter.source=v;renderLeadsTable();}
@@ -6668,7 +6672,7 @@ function renderArchivedLeads(){
   document.getElementById('archived-tbody').innerHTML=leads.length?leads.map(l=>`
     <tr>
       <td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td>
-      <td class="td-mono">${l.phone}</td>
+      <td class="td-mono">${l.phone||'\u2014'}</td>
       <td class="td-mono">${fmtDate(l.date)}</td>
       <td>${l.size||'—'}</td>
       <td>${sourceBadge(l.source,l.sourceDetail)}</td>
