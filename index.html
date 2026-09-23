@@ -829,6 +829,8 @@ input[type=number]{-moz-appearance:textfield}
           <textarea id="ar-reply" style="min-height:340px;font-family:'DM Mono',monospace;font-size:12px;line-height:1.7"></textarea>
           <button class="btn btn-primary" onclick="copyAgentReply()">📋 Copy</button>
           <button class="btn btn-secondary" onclick="generateAgentReply()">↻ Try again</button>
+          <button class="btn btn-secondary" onclick="saveAgentExample()" title="Teach the drafter to write more like this">⭐ Save as house example</button>
+          <span id="ar-example-note" style="margin-left:8px;font-size:11.5px;color:var(--text3)"></span>
         </div>
       </div>
     </div>
@@ -2823,7 +2825,7 @@ input[type=number]{-moz-appearance:textfield}
 <div id="toast"></div>
 
 <script>
-let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],hotels:[],vehicles:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
+let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],hotels:[],vehicles:[],agentExamples:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
 // ── SUPABASE CONFIG ──
 const SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
@@ -5156,7 +5158,8 @@ async function generateAgentReply(){
     const res=await fetch(SUPABASE_URL+'/functions/v1/agent-reply',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
-      body:JSON.stringify({email,notes})
+      // Past approved replies go with the request so the drafter imitates them.
+      body:JSON.stringify({email,notes,examples:((db.agentExamples||[]).length?db.agentExamples:[_AR_SEED_EXAMPLE]).slice(0,3)})
     });
     const data=await res.json();
     if(!res.ok||!data.ok)throw new Error(data.error||('Edge function error '+res.status));
@@ -5283,6 +5286,77 @@ function _agentReplyTemplate(email){
   put('Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970');
   return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
+// ── House examples ──────────────────────────────────────────────────────────────────────────
+// David's EDITS are the training data. Comparing my draft to what he actually sent taught more
+// than any written style guide would: he offers MORE ways in rather than fewer (call, FaceTime,
+// or a free in-person estimate, where I had said no walkthrough was needed), he volunteers extra
+// services unprompted, he cuts my justifications, and he signs with his first name. Saving an
+// approved reply stores that as an example the drafter can imitate, so the tool improves every
+// time he corrects it rather than only when the prompt is rewritten.
+// David's approved reply to an office-move enquiry (Alexandra, Oct 2026), seeded so the drafter
+// has a worked example from the first use rather than only after he has saved one. It is the
+// clearest record of how he differs from my drafts: three ways in rather than none, an unprompted
+// offer to help pack, no justification of the crew size, a real Sunday rate, and a first-name
+// sign-off. Used only when he has not yet saved examples of his own.
+const _AR_SEED_EXAMPLE={
+  id:'seed-alexandra',
+  enquiry:'Small office move, 1355 Market St 8th floor (lifts + dock) to 500 Washington St 2nd floor (lifts). Oct 11\u201315. 4 sit-stand desks, 8\u201310 Apple monitors, conferencing equipment, dry foodstuff. Packing, loading, transport, unloading, desk disassembly/reassembly. Many details still pending; asked whether photos or a video walkthrough are needed.',
+  reply:[
+    'Hi Alexandra,','',
+    'Thank you for the detailed inquiry. The information you provided gives us a very good picture of the move and allows us to answer most of your questions without guessing.','',
+    'I\u2019ll go through everything below.','',
+    '1) CREW, TRUCK & HOURLY RATE','',
+    '3 Movers + Truck: $225.00 per hour','2-hour minimum','',
+    '2) PACKING MATERIALS, PROTECTION & DESK WORK','',
+    'Our standard materials fee is $40.00 and covers moving blankets, plastic wrap and tape.','',
+    'The Apple monitors and conferencing equipment would be individually wrapped and boxed. Original boxes are ideal if you still have them \u2014 if not, we carry all materials needed to make sure everything is fully wrapped and protected.','',
+    'Desk disassembly and reassembly is included in the crew\u2019s time rather than billed as a separate service.','',
+    'Dry foodstuff is no problem, provided it is sealed and boxed. We can also help you pack up items also, just let me know and I will be happy to help.','',
+    'There is no stair or long-carry surcharge. Those conditions affect how long a move takes, but we do not add a separate fee for them.','',
+    '3) ESTIMATED MOVE TIME','',
+    'Based on your inventory and access, our working estimate:','',
+    '\u2022 Load at 1355 Market, 8th floor, lift and dock: approximately 2 - 3 hours',
+    '\u2022 Transport to 500 Washington, roughly 2 miles: approximately 30 minutes',
+    '\u2022 Unload and place at the 2nd floor, lift available: approximately 2 to 2.5 hours',
+    '\u2022 Return drive time back to our warehouse at completion (30 minute minimum)','',
+    'Estimated total: approximately 5 to 6.5 hours, or $1,125 to $1,462.50 in labour.','',
+    'With the $50.00 fuel fee and $40.00 materials fee, an estimated total of roughly $1,215 to $1,552.50','',
+    '4) ADDITIONAL FEES','',
+    '\u2022 $50.00 Fuel Fee','\u2022 $40.00 Materials Fee','\u2022 Return drive time as above','',
+    '5) DATES, DEPOSIT, CANCELLATION & PAYMENT','',
+    'Any weekday from October 12 to 15 is the same rate. October 11 is a Sunday, and the rate would be $240 per hour that day.','',
+    'No deposit is required to reserve the date. A $400.00 deposit is charged only if the move is cancelled or rescheduled with less than 7 days notice.','',
+    'COI: we issue certificates of insurance as a matter of course. Send me your buildings\u2019 requirements and I will have our insurer issue them.','',
+    'EXCLUDED','',
+    'We do disconnect electronics but we do not reconnect them. We move them safely, you or your IT handle the connections at both ends.','',
+    'NEXT STEP \u2014 LET\u2019S TALK','',
+    'What would really help is a short phone call. I am also happy to jump on a FaceTime or set up a free in-person estimate to really narrow down the quote.','',
+    'The items you have listed as pending are exactly the ones that decide the final number: suite numbers, whether the lifts can be reserved, the loading access at 500 Washington, each building\u2019s move-hour restrictions, and the COI requirements.','',
+    'Please send a good phone number and a time that suits, and we will go through those, confirm the date and send your final written estimate the same day.','',
+    'We look forward to speaking with you and hopefully helping with your move.','David'
+  ].join('\n')
+};
+
+async function saveAgentExample(){
+  const reply=(document.getElementById('ar-reply')||{}).value||'';
+  const email=(document.getElementById('ar-email')||{}).value||'';
+  const note=document.getElementById('ar-example-note');
+  if(!reply.trim()){showToast('Nothing to save yet.');return;}
+  const row={id:uid(),enquiry:email.trim().slice(0,4000),reply:reply.trim().slice(0,8000),
+             savedAt:new Date().toISOString()};
+  if(!db.agentExamples)db.agentExamples=[];
+  db.agentExamples.unshift(row);
+  // Keep the most recent few. More than a handful crowds the prompt and the oldest examples are
+  // the least representative of how David writes now.
+  db.agentExamples=db.agentExamples.slice(0,5);
+  saveDB();
+  try{
+    await sbFetch('agent_reply_examples',{method:'POST',body:[{id:row.id,data:row}]});
+  }catch(e){ console.warn('agent example not synced (table may not exist yet):',e); }
+  if(note){note.textContent='\u2713 Saved \u2014 future drafts will follow this more closely ('+db.agentExamples.length+' stored)';note.style.color='var(--accent)';}
+  showToast('\u2b50 Saved as a house example');
+}
+
 function copyAgentReply(){
   const el=document.getElementById('ar-reply');
   if(!el)return;
