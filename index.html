@@ -6860,6 +6860,15 @@ let currentConfirmEmailLeadId=null;
 // Builds the "Here are the details as I understand them" block — the same block that goes
 // into the confirmation email body, but extracted so the calendar entry can include it
 // verbatim without requiring the email modal to be opened first. Returns a plain text block.
+// Free-text crew note from the quote day, e.g. "3 Movers — packing all day" (2026-08-19).
+// Kept separate from the crew COUNT so totals and analytics are untouched; this is wording only.
+// One helper for every place the crew line is printed, so the email, the calendar entry and the
+// quote cannot word it differently.
+function _crewNote(src){
+  const n=src&&(src.crewNote||src.crewnote);
+  return n&&String(n).trim()?' \u2014 '+String(n).trim():'';
+}
+
 function buildMoveDetailsBlock(l,bj){
   function _fmtRate(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
   // Locate the most relevant quote for this lead/booking — accepted > sent > any with days
@@ -6914,7 +6923,7 @@ function buildMoveDetailsBlock(l,bj){
       // and the dollar-range fee lines (which reuse the hrsMin/hrsMax field names for MONEY, not
       // hours) are untouched. hrsMin/hrsMax remain stored on the job and still drive quotes and
       // analytics; only this email stops printing them.
-      s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(dayCash?' ($'+_fmtRate(dayCash)+' If Paid Cash)':'');
+      s+='\n'+crew+' Movers'+_crewNote(day)+' @ $'+_fmtRate(rate)+' Per Hour'+(dayCash?' ($'+_fmtRate(dayCash)+' If Paid Cash)':'');
         }
       // Day-specific fees. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMD=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
@@ -6981,7 +6990,9 @@ function buildMoveDetailsBlock(l,bj){
       var flatCash=Number(d.flatPriceCash)||0;
       if(flatPrice)s+='\n'+(d.flatDescription||'Move services')+': $'+_fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+_fmtRate(flatCash)+' If Paid Cash)':'');
     } else if(rate){
-      s+='\n'+crew+' Movers @ $'+_fmtRate(rate)+' Per Hour'+(cashRate?' ($'+_fmtRate(cashRate)+' If Paid Cash)':'');
+      // Single-day: the note lives on the quote's first (only) day.
+      const _q0day=(_q&&_q.days&&_q.days[0])||{};
+      s+='\n'+crew+' Movers'+_crewNote(_q0day)+' @ $'+_fmtRate(rate)+' Per Hour'+(cashRate?' ($'+_fmtRate(cashRate)+' If Paid Cash)':'');
     }
     // Fee precedence: booking fuel/materials win over quote's matching fee lines
     var bjFuelFeeS=Number(bj?.feeFuel)||0;
@@ -7154,7 +7165,7 @@ function openConfirmEmail(leadId,bookedJob){
           moveDetailsSection+='\n'+flatLabelLine;
         }
       } else if(rate){
-        moveDetailsSection+='\n'+crew+' Movers @ $'+fmtRate(rate)+' Per Hour'+(dayCash?' ($'+fmtRate(dayCash)+' If Paid Cash)':'');
+        moveDetailsSection+='\n'+crew+' Movers'+_crewNote(day)+' @ $'+fmtRate(rate)+' Per Hour'+(dayCash?' ($'+fmtRate(dayCash)+' If Paid Cash)':'');
         // Hour minimum sits directly under the rate on EVERY branch (2026-08-19). It was first
         // added to only one of the three, so a job that priced through a different branch —
         // which is most of them — showed a rate with no minimum beneath it.
@@ -7249,7 +7260,7 @@ function openConfirmEmail(leadId,bookedJob){
       if(flatPrice){
         moveDetailsSection+='\n'+(d.flatDescription||'Move services')+': $'+Number(flatPrice).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' flat rate'+(flatCash?' ($'+Number(flatCash).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
       }
-    } else if(rate){moveDetailsSection+='\n'+crew+' Movers @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
+    } else if(rate){moveDetailsSection+='\n'+crew+' Movers'+_crewNote((q&&q.days&&q.days[0])||{})+' @ $'+Number(rate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour'+(cashRate?' ($'+Number(cashRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' If Paid Cash)':'');
         // Hour minimum sits directly under the rate on EVERY branch (2026-08-19). It was first
         // added to only one of the three, so a job that priced through a different branch —
         // which is most of them — showed a rate with no minimum beneath it.
@@ -9346,9 +9357,12 @@ function buildCrewCoverSheet(j,l){
   gap();
 
   // 7. Rates exactly as provided — nothing invented.
-  const crew=(j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
+  // Crew note carried through from the quote day so the crew sheet says the same thing the
+  // customer was told — "4 men — packing all day" rather than a bare headcount.
+  const _cnote=_crewNote(j)||_crewNote((j.quoteDays&&j.quoteDays[0])||{});
+  const crew=((j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
     ?((j.crewLoad||j.movers||'?')+' men for load / '+(j.crewUnload||j.movers||'?')+' for unload')
-    :((j.movers||'?')+' men');
+    :((j.movers||'?')+' men'))+_cnote;
   if(j.flatRate&&Number(j.flatPrice)){
     put((n(j.flatDescription)||'Move services')+': '+_csMoney2(j.flatPrice)+' flat rate'
       +(Number(j.flatPriceCash)?' ('+_csMoney2(j.flatPriceCash)+' cash rate)':''));
@@ -16724,6 +16738,7 @@ function renderQbDays(){
             ${d.flatRate?`
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>No. of movers <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><select oninput="updateQbDay('${d.id}','crew',this.value)"><option value="">— none —</option>${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}"${d.crew==n?' selected':''}>${n} movers</option>`).join('')}</select></div>
+             <div class="form-group"><label>Crew note <span style="font-size:10.5px;color:var(--text3)">(shown on the quote after the crew)</span></label><input type="text" value="${escHtml(d.crewNote||'')}" placeholder="e.g. packing all day" oninput="updateQbDay('${d.id}','crewNote',this.value)"></div>
               <div class="form-group"><label>Estimated hours <span style="font-size:10.5px;color:var(--text3)">(optional, internal)</span></label><input type="number" value="${d.flatHrs||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','flatHrs',this.value)" placeholder="e.g. 5"></div>
               <div class="form-group"><label>Flat rate price ($)</label><input type="number" value="${d.flatPrice||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPrice',this.value)" placeholder="e.g. 1500"></div>
               <div class="form-group"><label>Flat rate cash price ($) <span style="font-size:10.5px;color:var(--text3)">(optional)</span></label><input type="number" value="${d.flatPriceCash||''}" min="0" step="50" oninput="updateQbDay('${d.id}','flatPriceCash',this.value)" placeholder="e.g. 1400"></div>
@@ -16821,7 +16836,11 @@ function renderQbDays(){
             const unlMax=d.unloadCrew&&d.unloadRate?(d.unloadHrsMax||0)*d.unloadRate:0;
             const moveMin=(d.hrsMin||0)*d.rate;
             const moveMax=(d.hrsMax||0)*d.rate;
-            const crewDesc=d.unloadCrew?`${d.crewLoadDiff?(d.crewLoad||d.crew):d.crew} movers load`:(d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} movers`);
+            // Optional free-text note after the crew, e.g. "3 movers — packing all day" (2026-08-19).
+            // Kept OUT of the crew count itself so totals and analytics are unaffected — it is
+            // wording on the quote, not data.
+            const _cn=String(d.crewNote||'').trim();
+            const crewDesc=(d.unloadCrew?`${d.crewLoadDiff?(d.crewLoad||d.crew):d.crew} movers load`:(d.crewLoadDiff?`${d.crewLoad||d.crew} load / ${d.crewUnload||d.crew} unload movers`:`${d.crew} movers`))+(_cn?' \u2014 '+_cn:'');
             let out=`<strong>${dayLabel} estimate:</strong> ${fmtMoney(moveMin+unlMin+packMin)} – ${fmtMoney(moveMax+unlMax+packMax)}`;
             out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${d.hrsMin}–${d.hrsMax} hrs · $${d.rate}/hr`;
             if(d.unloadCrew&&d.unloadRate)out+=` + ${d.unloadCrewSize||'?'} movers unload · ${d.unloadHrsMin||'?'}–${d.unloadHrsMax||'?'} hrs · $${d.unloadRate}/hr`;

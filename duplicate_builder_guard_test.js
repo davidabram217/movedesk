@@ -40,6 +40,14 @@ eq(count(/String\(f\.label\|\|f\.name\|\|''\)\.trim\(\)/g), 5,
     'no rate branch derives the minimum from hrsMin');
 }
 
+// ── crew note reaches every place the crew line is printed ───────────────────
+// One helper used by all of them, so the quote, the confirmation email and the crew sheet
+// cannot word it differently — the failure mode that has recurred all session.
+// 7 = the definition, four crew lines in the two email builders, and the calendar entry's
+// two-step fallback (job note, then the first quote day's note).
+eq(count(/_crewNote\(/g), 7,
+  'crew note helper defined once and used at every crew-line site');
+
 // ── completion: BOTH paths must offer the review ask ─────────────────────────
 // Hooked to single-day only at first, so multi-day jobs silently never prompted.
 eq(count(/try\{openReviewAsk\(/g), 2,
