@@ -15991,34 +15991,19 @@ function reactivateEmployee(id){
   const e=db.employees.find(x=>x.id===id);
   if(e){e.active=true;saveDB();renderEmployees();showToast(e.name+' reactivated');}
 }
-// Reorder employees (2026-08-19, David). The order is the list's own order in db.employees, so
-// moving someone swaps them with their neighbour there. Two details that matter:
-//   • The swap is done among the ACTIVE employees only — an inactive employee sitting between two
-//     active ones in the underlying array would otherwise swallow a press and make the button
-//     look broken.
-//   • `_localEditedAt` is stamped so the new order survives a cloud merge rather than being
-//     reverted by whichever copy synced last.
-function moveEmployee(id,dir){
-  const all=db.employees||[];
-  const active=all.filter(e=>e.active!==false);
-  const pos=active.findIndex(e=>e.id===id);
-  if(pos<0)return;
-  const target=pos+dir;
-  if(target<0||target>=active.length)return;   // already at the end — nothing to do
-  const aIdx=all.indexOf(active[pos]);
-  const bIdx=all.indexOf(active[target]);
-  if(aIdx<0||bIdx<0)return;
-  const tmp=all[aIdx];all[aIdx]=all[bIdx];all[bIdx]=tmp;
-  const now=new Date().toISOString();
-  all[aIdx]._localEditedAt=now;all[bIdx]._localEditedAt=now;
-  db.employees=all;
-  saveDB();
-  renderEmployees();
-}
-
 function renderEmployees(){
   initPayrollDB();
   const active=db.employees.filter(e=>e.active!==false);
+  // Apply the saved drag order, exactly as the payroll table does — without this a drag would
+  // snap back the moment the list re-rendered. Anyone not yet in the saved order sorts last
+  // rather than jumping to the top, so a newly added employee does not disturb the arrangement.
+  if(db.settings&&db.settings.empOrder&&db.settings.empOrder.length){
+    active.sort((a,b)=>{
+      const ai=db.settings.empOrder.indexOf(a.id);
+      const bi=db.settings.empOrder.indexOf(b.id);
+      return (ai===-1?999:ai)-(bi===-1?999:bi);
+    });
+  }
   const inactive=db.employees.filter(e=>e.active===false);
   const empRow=(e,isInactive)=>{
     let rateDesc='—';
@@ -16026,7 +16011,10 @@ function renderEmployees(){
     else if(e.payType==='payroll')rateDesc=`$${e.payrollRate}/hr payroll`;
     else if(e.payType==='mixed')rateDesc=`$${e.mixedPayroll}/hr payroll + $${e.mixedCash}/hr cash${e.otThreshold?` · OT after ${e.otThreshold}hrs @ $${e.otCashRate}/hr`:''}`;
     const payLabel={'cash':'Full cash','payroll':'Full payroll','mixed':'Mixed'};
-    return`<tr style="${isInactive?'opacity:0.5':''}">
+    // Draggable, exactly as the payroll rows are — same handlers, same saved order.
+    // Inactive employees are not draggable: they sit in their own table and reordering
+    // something hidden from the active list would write a confusing order.
+    return`<tr ${isInactive?'':`draggable="true" data-empid="${e.id}" ondragstart="rowDragStart(event)" ondragover="rowDragOver(event)" ondrop="rowDrop(event)" ondragend="rowDragEnd(event)"`} style="${isInactive?'opacity:0.5':'cursor:grab'}">
       <td style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:500">${e.name}${isInactive?'<span style="margin-left:6px;font-size:10px;color:var(--text3);font-weight:400">inactive</span>':''}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><span class="badge ${e.payType==='cash'?'pill-green':e.payType==='payroll'?'pill-blue':'pill-purple'}">${payLabel[e.payType]||e.payType}</span></td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">${rateDesc}</td>
@@ -16034,9 +16022,7 @@ function renderEmployees(){
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><div style="display:flex;gap:5px">
         ${isInactive
           ?`<button class="btn btn-secondary btn-sm" onclick="reactivateEmployee('${e.id}')">Reactivate</button>`
-          :`<button class="btn btn-secondary btn-sm" onclick="moveEmployee('${e.id}',-1)" title="Move up" style="padding:4px 8px">↑</button>
-            <button class="btn btn-secondary btn-sm" onclick="moveEmployee('${e.id}',1)" title="Move down" style="padding:4px 8px">↓</button>
-            <button class="btn btn-secondary btn-sm" onclick="openEditEmployee('${e.id}')">Edit</button>
+          :`<button class="btn btn-secondary btn-sm" onclick="openEditEmployee('${e.id}')">Edit</button>
             <button class="btn btn-danger btn-sm" onclick="deactivateEmployee('${e.id}')">Deactivate</button>`
         }
       </div></td>
@@ -16123,13 +16109,17 @@ function loadWeek(){
 let _dragSrcRow=null;
 function rowDragStart(e){_dragSrcRow=e.currentTarget;e.currentTarget.style.opacity='0.4';e.dataTransfer.effectAllowed='move';}
 function rowDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';const row=e.currentTarget;if(row!==_dragSrcRow)row.style.borderTop='2px solid var(--accent)';}
-function rowDragEnd(e){e.currentTarget.style.opacity='';document.querySelectorAll('#weekly-hours-tbody tr').forEach(r=>r.style.borderTop='');}
+function rowDragEnd(e){e.currentTarget.style.opacity='';(e.currentTarget.closest('tbody')||document).querySelectorAll('tr').forEach(r=>r.style.borderTop='');}
 function rowDrop(e){
   e.preventDefault();
   const target=e.currentTarget;
   if(!_dragSrcRow||target===_dragSrcRow)return;
-  document.querySelectorAll('#weekly-hours-tbody tr').forEach(r=>r.style.borderTop='');
-  const tbody=document.getElementById('weekly-hours-tbody');
+  // Work from the row's OWN tbody rather than a hardcoded id (2026-08-19), so the same handlers
+  // drive both the payroll table and the Employees list. Both write db.settings.empOrder, so a
+  // drag in either place reorders the other — one order, one implementation.
+  const tbody=target.closest('tbody');
+  if(!tbody)return;
+  tbody.querySelectorAll('tr').forEach(r=>r.style.borderTop='');
   const rows=Array.from(tbody.querySelectorAll('tr'));
   const srcIdx=rows.indexOf(_dragSrcRow);
   const tgtIdx=rows.indexOf(target);
