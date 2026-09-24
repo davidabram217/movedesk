@@ -15991,6 +15991,31 @@ function reactivateEmployee(id){
   const e=db.employees.find(x=>x.id===id);
   if(e){e.active=true;saveDB();renderEmployees();showToast(e.name+' reactivated');}
 }
+// Reorder employees (2026-08-19, David). The order is the list's own order in db.employees, so
+// moving someone swaps them with their neighbour there. Two details that matter:
+//   • The swap is done among the ACTIVE employees only — an inactive employee sitting between two
+//     active ones in the underlying array would otherwise swallow a press and make the button
+//     look broken.
+//   • `_localEditedAt` is stamped so the new order survives a cloud merge rather than being
+//     reverted by whichever copy synced last.
+function moveEmployee(id,dir){
+  const all=db.employees||[];
+  const active=all.filter(e=>e.active!==false);
+  const pos=active.findIndex(e=>e.id===id);
+  if(pos<0)return;
+  const target=pos+dir;
+  if(target<0||target>=active.length)return;   // already at the end — nothing to do
+  const aIdx=all.indexOf(active[pos]);
+  const bIdx=all.indexOf(active[target]);
+  if(aIdx<0||bIdx<0)return;
+  const tmp=all[aIdx];all[aIdx]=all[bIdx];all[bIdx]=tmp;
+  const now=new Date().toISOString();
+  all[aIdx]._localEditedAt=now;all[bIdx]._localEditedAt=now;
+  db.employees=all;
+  saveDB();
+  renderEmployees();
+}
+
 function renderEmployees(){
   initPayrollDB();
   const active=db.employees.filter(e=>e.active!==false);
@@ -16009,7 +16034,9 @@ function renderEmployees(){
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><div style="display:flex;gap:5px">
         ${isInactive
           ?`<button class="btn btn-secondary btn-sm" onclick="reactivateEmployee('${e.id}')">Reactivate</button>`
-          :`<button class="btn btn-secondary btn-sm" onclick="openEditEmployee('${e.id}')">Edit</button>
+          :`<button class="btn btn-secondary btn-sm" onclick="moveEmployee('${e.id}',-1)" title="Move up" style="padding:4px 8px">↑</button>
+            <button class="btn btn-secondary btn-sm" onclick="moveEmployee('${e.id}',1)" title="Move down" style="padding:4px 8px">↓</button>
+            <button class="btn btn-secondary btn-sm" onclick="openEditEmployee('${e.id}')">Edit</button>
             <button class="btn btn-danger btn-sm" onclick="deactivateEmployee('${e.id}')">Deactivate</button>`
         }
       </div></td>
