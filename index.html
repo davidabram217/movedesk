@@ -16380,6 +16380,38 @@ let qbJobType='single';
 let qbDays=[];
 let qbFees=[];
 
+// The customer quote form and every other form in the app store packing as "No" / "Partial" /
+// "Full", while the Quote Builder's options are customer-facing wording — "No — just moving",
+// "Partial pack", "Full pack" — because that value is PRINTED ON THE CUSTOMER'S QUOTE. A lead
+// saying "No" therefore matched no option and the field came up blank (2026-08-19, David).
+// Mapping on prefill rather than renaming the options, so existing saved quotes and the wording
+// the customer reads are both left alone.
+function _qbPackingOption(v){
+  const t=String(v||'').trim();
+  if(!t)return '';
+  const map={
+    'no':'No \u2014 just moving',
+    'no packing':'No \u2014 just moving',
+    'none':'No \u2014 just moving',
+    'full':'Full pack',
+    'full packing':'Full pack',
+    'full packing service':'Full pack',
+    'partial':'Partial pack',
+    'partial packing':'Partial pack',
+    'fragiles only':'Fragiles only',
+    'all breakables':'Fragiles only',
+    'kitchen pack only':'Kitchen pack',
+    'kitchen pack':'Kitchen pack',
+    'unpack only':'Unpack only'
+  };
+  // An exact option value passes straight through; anything unrecognised returns '' so the field
+  // stays blank rather than being filled with a guess.
+  const hit=map[t.toLowerCase()];
+  if(hit)return hit;
+  const known=['No \u2014 just moving','Full pack','Partial pack','Fragiles only','Kitchen pack','Unpack only'];
+  return known.indexOf(t)>-1?t:'';
+}
+
 function openQuoteBuilder(leadId){
   currentQuoteLeadId=leadId;
   currentQuoteId=null;
@@ -16449,7 +16481,7 @@ function openQuoteBuilder(leadId){
   if(l&&l.packing&&l.packing!=='No — just moving')qbFees.push({id:uid(),label:'Packing Materials',amount:0,included:true});
   document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
   if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=l?.moveType||'';
-  if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=l?.packing||'';
+  if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=_qbPackingOption(l?.packing);
   document.getElementById('qb-description').value=''; // no default project description (removed 2026-07-10)
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-storage-costs').value='';
