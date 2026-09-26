@@ -306,6 +306,16 @@ input[type=number]{-moz-appearance:textfield}
         <div class="card-body" id="payment-method-chart"></div>
       </div>
 
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📍 Busiest zip codes</div>
+            <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Where jobs came from and went to — completed jobs in the selected period</div>
+          </div>
+        </div>
+        <div class="card-body" id="zip-chart"></div>
+      </div>
+
       
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
         <div class="card">
@@ -13892,6 +13902,52 @@ function removeRoughQuoteFromRecord(kind,id,name){
   if(document.getElementById('page-analytics')?.classList.contains('active'))renderAnalytics();
 }
 
+// Busiest zip codes (2026-08-19, David). Counts completed jobs by their FROM and TO zips over
+// whatever period the analytics filter is showing, so it moves with the rest of the page.
+// Deliberate choices: from and to are counted SEPARATELY rather than summed, because "where we
+// pick up" and "where we deliver" are different questions — a storage-heavy business will show
+// its own warehouse zip dominating the TO column, which is worth seeing rather than hiding.
+// Jobs with no zip recorded are counted once and reported, so a short list is never mistaken
+// for a quiet area when it is really missing data.
+function renderZipChart(){
+  const host=document.getElementById('zip-chart');
+  if(!host)return;
+  const jobs=(typeof getAnalyticsJobs==='function')?getAnalyticsJobs():[];
+  const clean=z=>{const m=String(z==null?'':z).match(/\b\d{5}\b/);return m?m[0]:'';};
+  const from={},to={},any={};let missing=0;
+  jobs.forEach(j=>{
+    const f=clean(j.fromZip),t=clean(j.toZip);
+    if(!f&&!t){missing++;return;}
+    if(f)from[f]=(from[f]||0)+1;
+    if(t)to[t]=(to[t]||0)+1;
+    // "Any" is total ACTIVITY in a zip — which areas we work in, whichever direction. A job
+    // counts once per zip it touches, so a move WITHIN one zip counts once rather than twice
+    // and cannot inflate its own area.
+    new Set([f,t].filter(Boolean)).forEach(z=>{any[z]=(any[z]||0)+1;});
+  });
+  const top=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const fromTop=top(from),toTop=top(to),anyTop=top(any);
+  if(!fromTop.length&&!toTop.length){
+    host.innerHTML='<div class="empty-state" style="padding:20px"><div class="empty-title">No zip codes recorded yet</div><div class="empty-sub">Zips come from the lead\u2019s addresses \u2014 completed jobs in this period have none.</div></div>';
+    return;
+  }
+  const col=(title,rows)=>{
+    const max=rows.length?rows[0][1]:1;
+    return '<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">'+title+'</div>'
+      +(rows.length?rows.map(([z,n])=>
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+        +'<div style="width:52px;font-family:\'DM Mono\',monospace;font-size:12.5px">'+z+'</div>'
+        +'<div style="flex:1;background:var(--surface2);border-radius:3px;height:16px;overflow:hidden">'
+        +'<div style="width:'+Math.round(n/max*100)+'%;height:100%;background:var(--accent);opacity:.75"></div></div>'
+        +'<div style="width:28px;text-align:right;font-size:12px;color:var(--text2)">'+n+'</div></div>'
+      ).join(''):'<div style="font-size:12px;color:var(--text3)">\u2014</div>')
+      +'</div>';
+  };
+  host.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">'
+    +col('Moving from',fromTop)+col('Moving to',toTop)+col('Any \u2014 from or to',anyTop)+'</div>'
+    +(missing?'<div style="margin-top:10px;font-size:11.5px;color:var(--amber)">'+missing+' job'+(missing===1?'':'s')+' in this period have no zip recorded</div>':'');
+}
+
 function renderAnalytics(){
   // Refresh staff filter from current settings (db.settings.crew may have loaded since page init)
   staffFilter=_getStaffFilter();
@@ -14760,6 +14816,7 @@ function renderAnalytics(){
     :`<div class="empty-state"><div class="empty-title">No data yet</div></div>`;
 
   try{renderPerDayInsights();}catch(_){}
+  try{renderZipChart();}catch(e){console.warn('zip chart failed:',e);}
 }
 
 // ── Phase 2 readout: per-activity + multi-day benchmarks ───────────────────
