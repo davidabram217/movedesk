@@ -13618,10 +13618,15 @@ function _etCounts(e){return !!e&&_ET_EXCLUDED_GLOBAL.indexOf(e.estimateType)===
 // and source "Leads booked" are unaffected — the move did not happen.
 function _acceptedThenCancelled(l){
   if(!l||l.status!=='Did not book')return false;
-  const _log=(l.cancelLog||[]).filter(c=>c&&c.type==='cancel');
-  if(l.dnbType!=='cancel'&&!_log.length)return false;
-  const reason=String(l.dnbReason||(_log.length?_log[_log.length-1].reason:'')||'').toLowerCase();
-  return reason.indexOf('another mover')===-1;
+  // Was booked at some point: cancelled from a booked job, or rescheduled from one ("new date TBD"
+  // moves it back to leads) and later marked Did not book (2026-09-30).
+  const _log=(l.cancelLog||[]).filter(c=>c&&(c.type==='cancel'||String(c.type||'').indexOf('reschedule')===0));
+  const _wasBooked=l.dnbType==='cancel'||_log.length>0||(l.rescheduleLog||[]).length>0;
+  if(!_wasBooked)return false;
+  const _last=_log.length?_log[_log.length-1]:((l.rescheduleLog||[]).slice(-1)[0]||{});
+  const reason=String(l.dnbReason||_last.reason||'').toLowerCase();
+  // Lost to a competitor or on price = a genuine sales loss, even after accepting.
+  return !/another mover|cheaper|price/.test(reason);
 }
 function getEstimateEvents(){
   // Returns array of {name, estimateType, status, rate, leadStatus, quoteStatus}
