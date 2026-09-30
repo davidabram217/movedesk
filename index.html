@@ -13536,7 +13536,26 @@ function getEstimateEvents(){
 }
 
 
-function calcPackMaterials(){
+// ── Packing calculator: per-estimate job curation (2026-09-30) ───────────────────────────────
+// Same idea as the AI quote's "Jobs used" list: see the comparable jobs behind the historical
+// range, untick any that aren't a fair match, and recalculate. Nothing is deleted — exclusions
+// only apply to the current calculation and clear whenever an input changes.
+let _pcExcludedKeys=new Set();
+let _pcLastHist=[];
+function _pcKey(h){return [h.source||'',h.id||'',h.name||'',h.date||'',h.amt||''].join('¦');}
+function recalcPackMaterials(){
+  const ex=new Set();
+  document.querySelectorAll('.pc-job-incl').forEach(cb=>{
+    const h=_pcLastHist[Number(cb.getAttribute('data-idx'))];
+    if(h&&!cb.checked)ex.add(_pcKey(h));
+  });
+  _pcExcludedKeys=ex;
+  calcPackMaterials(true);
+}
+function resetPackMaterialsExclusions(){_pcExcludedKeys=new Set();calcPackMaterials(true);}
+
+function calcPackMaterials(isRecalc){
+  if(isRecalc!==true)_pcExcludedKeys=new Set();
   try{if(_healMultiDayPackMaterials())saveDB();}catch(_){}
   const size=document.getElementById('pc-size').value;
   const sqft=Number(document.getElementById('pc-sqft').value)||0;
@@ -13658,21 +13677,29 @@ function calcPackMaterials(){
     if(!matchesSize(j))return false;
     if(!matchesScope(j))return false;
     return true;
-  }).map(j=>({amt:Number(j.feePackMaterials),source:'completed',name:j.name||'',date:j.date,scope:packScope(j)}));
+  }).map(j=>({amt:Number(j.feePackMaterials),source:'completed',id:j.id,name:j.name||'',date:j.date,scope:packScope(j),
+    size:j.size||'',sqft:Number(j.sqft)||null,vaults:Number(j.vaults)||null,packHours:Number(j.packHoursActual)||null,
+    packMen:Number(j.packMen)||null,moveType:j.moveType||'',packing:j.packing||'',multiDay:!!j.multiDay}));
   // From uploaded spreadsheet
   const spreadsheetHist=(typeof SPREADSHEET_TRAINING!=='undefined'?SPREADSHEET_TRAINING:[]).filter(r=>{
     if(!r.feePackMaterials||Number(r.feePackMaterials)<=0)return false;
     if(!matchesSize(r))return false;
     if(!matchesScope(r))return false;
     return true;
-  }).map(r=>({amt:Number(r.feePackMaterials),source:'spreadsheet',name:r.name||'',date:r.date||'historical',scope:packScope(r)}));
+  }).map(r=>({amt:Number(r.feePackMaterials),source:'spreadsheet',id:r.id,name:r.name||'',date:r.date||'historical',scope:packScope(r),
+    size:r.size||'',sqft:Number(r.sqft)||null,vaults:Number(r.estimatedVaults||r.actualVaults)||null,packHours:Number(r.packHoursActual)||null,
+    packMen:Number(r.packMen)||null,moveType:r.moveType||'',packing:r.packing||'',multiDay:false}));
   const histAll=[...completedHist,...spreadsheetHist].sort((a,b)=>a.amt-b.amt);
-  const histAmounts=histAll.map(h=>h.amt);
+  _pcLastHist=histAll;
+  // Only the jobs still ticked feed the numbers below.
+  const histUsed=histAll.filter(h=>!_pcExcludedKeys.has(_pcKey(h)));
+  const _pcHidden=histAll.length-histUsed.length;
+  const histAmounts=histUsed.map(h=>h.amt);
   const histAvg=histAmounts.length?Math.round(histAmounts.reduce((s,n)=>s+n,0)/histAmounts.length):null;
   const histMin=histAmounts.length?histAmounts[0]:null;
   const histMax=histAmounts.length?histAmounts[histAmounts.length-1]:null;
-  const histFromCompleted=completedHist.length;
-  const histFromSpreadsheet=spreadsheetHist.length;
+  const histFromCompleted=histUsed.filter(h=>h.source==='completed').length;
+  const histFromSpreadsheet=histUsed.filter(h=>h.source==='spreadsheet').length;
 
   // Update UI
   document.getElementById('pc-results').style.display='block';
@@ -13697,16 +13724,44 @@ function calcPackMaterials(){
       </tr></tfoot>
     </table>`;
 
+  const _pcE=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const _pcScopeLabel={'full':'full pack','partial-or-kitchen':'partial / kitchen'};
+  const _pcJobList=histAll.length?`
+    <details style="margin-top:12px;border-top:1px solid var(--border2);padding-top:10px"${_pcHidden?' open':''}>
+      <summary style="cursor:pointer;font-size:12px;color:var(--text2);font-weight:600">🔍 See the comparable jobs (${histUsed.length}${_pcHidden?' used · '+_pcHidden+' hidden':''})</summary>
+      <div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Untick any job that isn't a fair match, then recalculate. This changes <strong>this calculation only</strong> — nothing is deleted.</div>
+        ${histAll.map((h,i)=>{
+          const on=!_pcExcludedKeys.has(_pcKey(h));
+          const nm=_pcE(h.name).trim()||'(no name on record)';
+          const line2=[h.date&&h.date!=='historical'?_pcE(h.date):null,_pcE(h.size)||null,h.sqft?h.sqft+' sqft':null,h.vaults?h.vaults+' vaults':null].filter(Boolean).join(' · ');
+          const line3=[h.moveType?_pcE(h.moveType):null,_pcScopeLabel[h.scope]||null,h.multiDay?'multi-day':null,h.packHours?h.packHours+' pack hrs':null,h.packMen?h.packMen+' packers':null].filter(Boolean).join(' · ');
+          return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2);overflow-wrap:anywhere;${on?'':'opacity:.55'}">
+            <label style="display:block;cursor:pointer">
+              <span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="pc-job-incl" data-idx="${i}" ${on?'checked':''} style="display:inline-block;width:auto;vertical-align:middle;margin:0 8px 0 0">${nm}</span>
+              <span style="font-weight:700;font-size:12.5px;color:var(--accent);margin-left:6px">$${h.amt}</span>
+              <span style="color:var(--text3);font-size:10.5px;margin-left:6px">${h.source==='spreadsheet'?'historical data':'your job'}</span>
+            </label>
+            <div style="margin-left:24px">
+              ${line2?`<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${line2}</div>`:''}
+              ${line3?`<div style="font-size:11.5px;color:var(--text2);margin-top:1px">${line3}</div>`:''}
+            </div>
+          </div>`;}).join('')}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button onclick="recalcPackMaterials()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate with ticked jobs</button>
+          ${_pcHidden?'<button onclick="resetPackMaterialsExclusions()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':''}
+        </div>
+      </div>
+    </details>`:'';
   document.getElementById('pc-historical').innerHTML=histAmounts.length?`
     <div style="font-size:13.5px;line-height:2">
-      <div>Comparable jobs: <strong>${histAmounts.length}</strong>${histFromSpreadsheet&&histFromCompleted?` <span style="color:var(--text3);font-weight:400;font-size:12px">(${histFromCompleted} from completed jobs, ${histFromSpreadsheet} from historical data)</span>`:histFromSpreadsheet?` <span style="color:var(--text3);font-weight:400;font-size:12px">(from historical spreadsheet)</span>`:` <span style="color:var(--text3);font-weight:400;font-size:12px">(from completed jobs)</span>`}</div>
+      <div>Comparable jobs: <strong>${histAmounts.length}</strong>${histFromSpreadsheet&&histFromCompleted?` <span style="color:var(--text3);font-weight:400;font-size:12px">(${histFromCompleted} from completed jobs, ${histFromSpreadsheet} from historical data)</span>`:histFromSpreadsheet?` <span style="color:var(--text3);font-weight:400;font-size:12px">(from historical spreadsheet)</span>`:` <span style="color:var(--text3);font-weight:400;font-size:12px">(from completed jobs)</span>`}${_pcHidden?` <span style="color:var(--text3);font-weight:400;font-size:12px">· ${_pcHidden} hidden by you</span>`:''}</div>
       <div>Average charged: <strong style="color:var(--accent)">$${histAvg}</strong></div>
       <div>Range: <strong>$${histMin} – $${histMax}</strong></div>
     </div>
-    <div style="margin-top:12px">
-      ${histAll.map(h=>`<span title="${h.name}${h.date?' · '+h.date:''}${h.source==='spreadsheet'?' (historical)':''}" style="display:inline-block;background:${h.source==='spreadsheet'?'var(--surface2)':'#e8f0ea'};border-radius:4px;padding:3px 8px;font-size:12px;margin:2px;cursor:default">$${h.amt}</span>`).join('')}
-    </div>`
-    :`<div class="empty-state"><div class="empty-title">No comparable past jobs yet</div><div class="empty-sub">We only count past jobs where you actually packed for the customer (not standalone material charges). As you complete packing jobs and tag them as Full / Partial / Kitchen, this section will fill in.</div></div>`;
+    ${_pcJobList}`
+    :(_pcHidden?`<div class="empty-state"><div class="empty-title">All ${_pcHidden} comparable jobs are hidden</div><div class="empty-sub">The estimate below is based on material costs only.</div><button onclick="resetPackMaterialsExclusions()" class="btn" style="margin-top:10px;font-size:12px;padding:6px 12px">Reset (use all jobs)</button></div>${_pcJobList}`
+    :`<div class="empty-state"><div class="empty-title">No comparable past jobs yet</div><div class="empty-sub">We only count past jobs where you actually packed for the customer (not standalone material charges). As you complete packing jobs and tag them as Full / Partial / Kitchen, this section will fill in.</div></div>`);
 
   // Suggested range: prefer historical data when we have ≥3 comparable jobs;
   // otherwise blend rules-based with whatever sparse history exists; fall back to rules-based alone.
