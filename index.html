@@ -13612,6 +13612,17 @@ let staffFilter=_getStaffFilter();
 // remember, and the per-person card's TOTAL forgot, so its header disagreed with its rows.
 const _ET_EXCLUDED_GLOBAL=['Summary + rough quote'];
 function _etCounts(e){return !!e&&_ET_EXCLUDED_GLOBAL.indexOf(e.estimateType)===-1;}
+// Accepted, then cancelled late (2026-09-30). The customer said yes to the price, so for QUOTE
+// success (acceptance rate, hourly rate success, staff close rates) this still counts as accepted.
+// Exception: "found another mover" is a genuine sales loss and stays a loss. Job counts, revenue
+// and source "Leads booked" are unaffected — the move did not happen.
+function _acceptedThenCancelled(l){
+  if(!l||l.status!=='Did not book')return false;
+  const _log=(l.cancelLog||[]).filter(c=>c&&c.type==='cancel');
+  if(l.dnbType!=='cancel'&&!_log.length)return false;
+  const reason=String(l.dnbReason||(_log.length?_log[_log.length-1].reason:'')||'').toLowerCase();
+  return reason.indexOf('another mover')===-1;
+}
 function getEstimateEvents(){
   // Returns array of {name, estimateType, status, rate, leadStatus, quoteStatus}
   // Only includes leads where a PRICE was given — rough quote, formal estimate, or quote sent
@@ -13660,10 +13671,11 @@ function getEstimateEvents(){
     const rawEstType=l.estimateType||linkedQ?.estimateType||(_hasRoughQuoteData&&!l.estimateType?'Summary + rough quote':'');
     const estimateType=rawEstType==='Rough quote only'?'Summary + rough quote':rawEstType;
     const rate=linkedQ?.days?.[0]?.rate?Math.round(Number(linkedQ.days[0].rate)):0;
-    const booked=BOOKED.includes(l.status);
-    const lost=l.status==='Did not book';
+    const cancelledAfterAccept=_acceptedThenCancelled(l);
+    const booked=BOOKED.includes(l.status)||cancelledAfterAccept;
+    const lost=l.status==='Did not book'&&!cancelledAfterAccept;
     const pending=!booked&&!lost;
-    events.push({name,estimateType,rate,booked,lost,pending,leadId:l.id,leadStatus:l.status,quoteStatus:linkedQ?.status||''});
+    events.push({name,estimateType,rate,booked,lost,pending,cancelledAfterAccept,leadId:l.id,leadStatus:l.status,quoteStatus:linkedQ?.status||''});
   });
   // ── Jobs booked with NO estimate and no quote ──────────────────────────────────────────────
   // These fail both gates above (no rough quote, no formal estimate), so they never reached the
@@ -14497,7 +14509,7 @@ function renderAnalytics(){
   const staffEntries=Object.entries(staffData);
   // Count unique booked leads per person where a price was given (not summary only)
   const uniqueBookedByName={};
-  db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)).forEach(l=>{
+  db.leads.filter(l=>['Quote accepted','Confirmation sent','Booked','Completed'].includes(l.status)||_acceptedThenCancelled(l)).forEach(l=>{
     const hasRoughQuote=!!(l.roughQuoteDate||l.roughQuoteMin);
     const hasFormalEstimate=!!(l.estimateType||(db.quotes||[]).some(q=>q.leadId===l.id)||l.estimateSentBy);
     if(!hasRoughQuote&&!hasFormalEstimate)return; // skip summary-only leads
@@ -14670,7 +14682,9 @@ function renderAnalytics(){
     if(_isBooked)sourceConv[key].booked++;
     // Booked AFTER a quote was sent (2026-09-30) — the quote win rate. The rest of the booked
     // column booked without a sent quote (on the call, repeat customers, etc.).
-    if(_isQuoted&&_isBooked)sourceConv[key].quotedBooked++;
+    // Quotes won counts a quote accepted then cancelled late (not for another mover) — same rule as
+    // the quote acceptance charts. Leads booked above does not: the move never happened.
+    if(_isQuoted&&(_isBooked||_acceptedThenCancelled(l)))sourceConv[key].quotedBooked++;
     const lk=key+'||'+canonSource(l.source); _lblCount[lk]=(_lblCount[lk]||0)+1;
   });
   Object.keys(sourceConv).forEach(key=>{ let best=sourceConv[key].label,bestN=-1; Object.keys(_lblCount).forEach(lk=>{ if(lk.indexOf(key+'||')===0&&_lblCount[lk]>bestN){bestN=_lblCount[lk];best=lk.slice((key+'||').length);} }); if(best)sourceConv[key].label=best; });
@@ -14891,6 +14905,7 @@ function renderAnalytics(){
   const _evBooked=_ev.filter(e=>e.booked).length;
   const _evLost=_ev.filter(e=>e.lost).length;
   const _evPending=_ev.filter(e=>e.pending).length;
+  const _evCancelled=_ev.filter(e=>e.cancelledAfterAccept).length;
   const _qRate=_evSent?Math.round(_evBooked/_evSent*100):0;
   document.getElementById('quote-acceptance-chart').innerHTML=_evSent?`
     <div style="display:flex;gap:24px;align-items:center;margin-bottom:16px">
@@ -14902,7 +14917,7 @@ function renderAnalytics(){
         <div style="background:var(--surface2);border-radius:4px;height:10px"><div style="height:100%;border-radius:4px;background:var(--amber);width:${_evSent?Math.round(_evPending/_evSent*100):0}%"></div></div>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--text3)">${_evSent} estimate${_evSent!==1?'s':''} sent · ${_evBooked} booked · ${_evLost} declined · ${_evPending} awaiting response</div>`
+    <div style="font-size:12px;color:var(--text3)">${_evSent} estimate${_evSent!==1?'s':''} sent · ${_evBooked} booked · ${_evLost} declined · ${_evPending} awaiting response</div>${_evCancelled?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Booked includes <strong>${_evCancelled}</strong> accepted then cancelled late — they said yes to the quote. (Cancelled for another mover counts as declined.)</div>`:''}`
     :`<div class="empty-state"><div class="empty-title">No estimates sent yet</div></div>`;
 
   // 2. Staff quote success
@@ -15544,13 +15559,14 @@ function renderActivityPatterns(){
   _rv.forEach(e=>{
     if(!e.rate)return;
     const bucket='$'+e.rate+'/hr';
-    if(!_rg[bucket])_rg[bucket]={sent:0,accepted:0,direct:0,rate:e.rate};
+    if(!_rg[bucket])_rg[bucket]={sent:0,accepted:0,direct:0,cancelled:0,rate:e.rate};
     // Direct bookings are counted in their OWN column and never touch sent/accepted — a phone
     // booking has no "sent then accepted" moment, so folding it in would make the acceptance
     // percentage meaningless (every direct booking would read as a 100% close).
     if(e.direct){_rg[bucket].direct++;return;}
     _rg[bucket].sent++;
     if(e.booked)_rg[bucket].accepted++;
+    if(e.cancelledAfterAccept)_rg[bucket].cancelled++;
   });
   const _rgEntries=Object.entries(_rg).sort((a,b)=>a[1].rate-b[1].rate);
   document.getElementById('rate-success-chart').innerHTML=_rgEntries.length?`
@@ -15572,7 +15588,7 @@ function renderActivityPatterns(){
         return`<tr>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);font-weight:600">${bucket}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text3)">${_noSent?'\u2014':d.sent}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${_noSent?'var(--text3)':color}">${_noSent?'\u2014':d.accepted}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${_noSent?'var(--text3)':color}">${_noSent?'\u2014':d.accepted}${d.cancelled?`<div style="font-size:10px;font-weight:400;color:var(--text3)" title="Accepted the quote, then cancelled late">incl. ${d.cancelled} cancelled</div>`:''}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;color:${_noSent?'var(--text3)':color}">${_noSent?'\u2014':pct+'%'}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;font-weight:600;color:${d.direct?'var(--text)':'var(--text3)'}">${d.direct||'\u2014'}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border)">
