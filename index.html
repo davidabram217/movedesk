@@ -2810,6 +2810,28 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 
 
+<div class="modal-bg" id="modal-record-cancel-fee">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Record cancellation fee</div>
+      <button class="modal-close" onclick="closeModal('record-cancel-fee')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">For <strong id="rcf-who"></strong>. Use this when the fee was charged after the job was already cancelled or rescheduled. It counts in income as a cancellation fee, not as a job.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>Amount ($)</label><input type="number" id="rcf-amount" min="0"></div>
+        <div class="form-group"><label>Paid by</label><select id="rcf-method"><option value="">Select…</option><option>Credit card</option><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Other</option></select></div>
+        <div class="form-group"><label>Date collected</label><input type="date" id="rcf-date"></div>
+        <div class="form-group"><label>For</label><select id="rcf-type"><option value="cancel">Late cancellation</option><option value="reschedule">Late reschedule</option></select></div>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="rcf-notes" style="min-height:50px" placeholder="Optional"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('record-cancel-fee')">Back</button>
+      <button class="btn btn-primary" onclick="saveRecordCancellationFee()">Save fee</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="modal-cancel-job">
   <div class="modal" style="max-width:460px">
     <div class="modal-header">
@@ -2848,6 +2870,15 @@ input[type=number]{-moz-appearance:textfield}
         <label>Days notice given</label>
         <input type="number" id="cj-days-notice" placeholder="e.g. 3" min="0" oninput="onDaysNoticeChange()">
         <div id="cj-deposit-warning" style="display:none;margin-top:6px;padding:8px 10px;background:#fff3cd;border-radius:var(--radius);font-size:12px;color:#856404">⚠️ Less than 7 days notice — $400 deposit applies</div>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="cj-fee-collected" onchange="onCancelFeeToggle()" style="width:auto;margin:0"> <span>Cancellation fee collected</span></label>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Tick only once the money has actually been charged. It's saved on the customer's lead and counted in income.</div>
+        <div id="cj-fee-fields" style="display:none;margin-top:10px;display:none;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div><label style="font-size:11px">Amount ($)</label><input type="number" id="cj-fee-amount" placeholder="400" min="0"></div>
+          <div><label style="font-size:11px">Paid by</label><select id="cj-fee-method"><option value="">Select…</option><option>Credit card</option><option>Cash</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Other</option></select></div>
+          <div><label style="font-size:11px">Date collected</label><input type="date" id="cj-fee-date"></div>
+        </div>
       </div>
       <div class="form-group">
         <label>Notes</label>
@@ -6355,18 +6386,31 @@ function getIncomePeriod(period){
   else if(period==='lastmonth'){jobs=db.completedJobs.filter(j=>j.date&&j.date.startsWith(lastMonthStr));label='Last month ('+new Date(lastMonthStr+'-15').toLocaleDateString('en-US',{month:'long',year:'numeric'})+')';}
   else if(period==='year'){jobs=db.completedJobs.filter(j=>j.date&&j.date.startsWith(yearStr));label='This year ('+yearStr+')';}
   else{jobs=db.completedJobs;label='All time';}
-  return{jobs,label};
+  // Cancellation fees in the same period, dated by when they were collected (2026-09-30).
+  const _fIn=d=>{if(!d)return period==='all';
+    if(period==='week')return d>=sat&&d<=friStr;
+    if(period==='lastweek')return d>=lastSatStr&&d<=lastFriStr;
+    if(period==='month')return d.startsWith(monthStr);
+    if(period==='lastmonth')return d.startsWith(lastMonthStr);
+    if(period==='year')return d.startsWith(yearStr);
+    return true;};
+  const fees=(typeof getCancellationFees==='function'?getCancellationFees():[]).filter(f=>_fIn(f.date));
+  return{jobs,fees,label};
 }
 
 function renderIncomeCard(containerId,period){
   const el=document.getElementById(containerId);
   if(!el)return;
-  const {jobs,label}=getIncomePeriod(period);
-  const total=jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  const {jobs,fees,label}=getIncomePeriod(period);
+  const jobsTotal=jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  const feeTotal=(fees||[]).reduce((s,f)=>s+f.amount,0);
+  // Revenue includes cancellation fees; the average stays per completed job.
+  const total=jobsTotal+feeTotal;
   const outstanding=jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);
-  const avg=jobs.length?total/jobs.length:0;
+  const avg=jobs.length?jobsTotal/jobs.length:0;
   const bySource={};
   jobs.forEach(j=>{const src=canonSource(j.source)||'Unknown';bySource[src]=(bySource[src]||0)+(Number(j.paid)||0);});
+  (fees||[]).forEach(f=>{const src=canonSource(f.source)||'Unknown';bySource[src]=(bySource[src]||0)+f.amount;});
   const topSources=Object.entries(bySource).sort((a,b)=>b[1]-a[1]).slice(0,5);
   el.innerHTML=`
     <div style="font-size:11.5px;color:var(--text3);margin-bottom:14px">${label}</div>
@@ -6374,7 +6418,7 @@ function renderIncomeCard(containerId,period){
       <div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px">
         <div style="font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Revenue</div>
         <div style="font-size:20px;font-weight:600;color:var(--accent)">${fmtMoney(total)}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${jobs.length} job${jobs.length!==1?'s':''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${jobs.length} job${jobs.length!==1?'s':''}${feeTotal?` + ${fmtMoney(feeTotal)} cancellation fee${fees.length!==1?'s':''}`:''}</div>
       </div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px">
         <div style="font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Avg job</div>
@@ -6392,7 +6436,7 @@ function renderIncomeCard(containerId,period){
         <div style="font-size:11px;color:var(--text3);margin-top:2px">of total billed</div>
       </div>
     </div>
-    ${jobs.length?`
+    ${jobs.length||(fees&&fees.length)?`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div>
         <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Revenue by source</div>
@@ -6400,7 +6444,7 @@ function renderIncomeCard(containerId,period){
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Recent jobs</div>
-        <div style="font-size:12.5px">${[...jobs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5).map(j=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text2)">${j.name}</span><span style="font-family:'DM Mono',monospace;font-size:11.5px">${fmtMoney(j.paid)}</span></div>`).join('')}</div>
+        <div style="font-size:12.5px">${[...jobs.map(j=>({date:j.date,name:j.name,amt:j.paid,fee:false})),...(fees||[]).map(f=>({date:f.date,name:f.name,amt:f.amount,fee:true}))].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5).map(j=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text2)">${j.name}${j.fee?' <span style="font-size:10.5px;color:var(--text3)">· cancellation fee</span>':''}</span><span style="font-family:'DM Mono',monospace;font-size:11.5px">${fmtMoney(j.amt)}</span></div>`).join('')}</div>
       </div>
     </div>`:`<div class="empty-state" style="padding:20px 0"><div class="empty-title">No completed jobs in this period</div></div>`}`;
 }
@@ -6555,7 +6599,8 @@ function renderDashboard(){
   const weekFri=new Date(weekSat+'T12:00:00');weekFri.setDate(weekFri.getDate()+6);
   const weekFriStr=weekFri.toISOString().split('T')[0];
   const comp=db.completedJobs.filter(j=>j.date&&j.date>=weekSat&&j.date<=weekFriStr);
-  const rev=comp.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  const rev=comp.reduce((s,j)=>s+(Number(j.paid)||0),0)
+    +(typeof getCancellationFees==='function'?getCancellationFees():[]).filter(f=>f.date&&f.date>=weekSat&&f.date<=weekFriStr).reduce((s,f)=>s+f.amount,0);
   const out=db.completedJobs.filter(j=>(Number(j.total)||0)>(Number(j.paid)||0));
   const owed=out.reduce((s,j)=>s+((Number(j.total)||0)-(Number(j.paid)||0)),0);
 
@@ -6674,6 +6719,7 @@ function setLeadTab(tab,el){document.querySelectorAll('.tab').forEach(t=>t.class
 let archivedFilter={text:'',source:''};
 function renderArchivedLeads(){
   const stageLabels={'after-call':'After call','after-summary':'After summary','after-summary-rq':'After summary + rough quote','after-estimate-scheduled':'After estimate','after-quote':'After quote','after-followup':'After follow-up','unknown':'Unknown'};
+  try{_migrateCancellationLogsToLeads();}catch(_){}
   const archived=db.leads.filter(l=>l.status==='Did not book');
   const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=archived.length;
   let leads=archived;
@@ -6688,7 +6734,7 @@ function renderArchivedLeads(){
       <td>${sourceBadge(l.source,l.sourceDetail)}</td>
       <td>${l.estimateType?estBadge(l.estimateType):'—'}</td>
       <td><span class="badge pill-gray" style="font-size:11px">${l.dnbStage?stageLabels[l.dnbStage]||l.dnbStage:'—'}</span></td>
-      <td style="font-size:12px;color:var(--text2)">${l.dnbReason||'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${l.dnbReason||'—'}${_leadFeeTotal(l)?`<div style="color:var(--accent);font-weight:600;margin-top:2px">💵 ${fmtMoney(_leadFeeTotal(l))} fee collected</div>`:''}</td>
       <td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-secondary btn-sm" style="color:var(--accent);border-color:var(--accent)" onclick="reactivateLead('${l.id}')">↩ Reactivate</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td>
     </tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-title">No archived leads</div><div class="empty-sub">Leads marked "Did not book" will appear here</div></div></td></tr>`;
 }
@@ -6828,7 +6874,18 @@ const _leadQuotesBlock=_leadQuotes.length?`<div style="margin-top:12px;padding:1
 </div>`:'';
 const estBlock=showEstBlock?`<div style="margin-top:12px;padding:12px;background:${isAccepted?'var(--accent-light)':'var(--amber-light)'};border-radius:var(--radius);border:1px solid ${isAccepted?'#a8d5b5':'#f0d080'}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:${isAccepted?'var(--accent)':'var(--amber)'};text-transform:uppercase;letter-spacing:.5px">${estStatusLabel}</div><div style="display:flex;gap:6px">${isAccepted&&quote?`<button class="btn btn-secondary btn-sm" onclick="viewAcceptedQuote('${quote.id}')" style="font-size:11px;color:var(--accent);border-color:var(--accent)">👁 View quote</button>`:''}${l.estimateScheduledDate&&!isAccepted?`<button class="btn btn-secondary btn-sm" onclick="closeModal('view');setTimeout(()=>openScheduleEstimate('${l.id}'),200)" style="font-size:11px">✏️ Edit estimate</button>`:''}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate type</div><div>${estBadge(l.estimateType)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Date sent</div><div>${fmtDate(l.estimateDate)}</div></div>${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Sent by</div><div style="font-weight:600">${l.estimateSentBy}</div></div>`:''}${l.estimateDoneBy&&l.estimateDoneBy!==l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateQuote?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Quoted amount</div><div style="font-weight:600">${fmtMoney(l.estimateQuote)}</div></div>`:''} ${l.estimateNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div>${l.estimateNotes}</div></div>`:''}</div></div>`:
   l.estimateType&&l.status==='Estimate scheduled'?`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);font-size:12.5px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Estimate scheduled</div><button class="btn btn-secondary btn-sm" onclick="closeModal('view');setTimeout(()=>openScheduleEstimate('${l.id}'),200)" style="font-size:11px">✏️ Edit estimate</button></div><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">${estBadge(l.estimateType)}${l.estimateScheduledDate?`<span style="color:var(--text2)">${fmtDate(l.estimateScheduledDate)}${l.estimateScheduledTime?' at '+l.estimateScheduledTime:''}</span>`:''}${l.estimateSetupBy?`<span style="color:var(--text3)">Set up by <strong style="color:var(--text2)">${l.estimateSetupBy}</strong></span>`:''}</div></div>`:'';
-document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Phone</div><div>${l.phone||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Email</div><div>${l.email||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Move date</div><div>${fmtDate(l.date)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Home size</div><div>${l.size||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Source</div><div>${sourceBadge(l.source,l.sourceDetail)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Packing</div><div>${l.packing||'—'}</div></div>${l.haulAway?`<div style="padding:6px 0"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">🗑 Haul away</div><div style="color:${l.haulAway==='yes'?'var(--accent)':'var(--amber)'};font-weight:600">${l.haulAway==='yes'?'Yes':'Not sure — ask'}${l.haulAwayItems?' · '+l.haulAwayItems:''}</div></div>`:''}${l.takenBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Call taken by</div><div>${l.takenBy}</div></div>`:''}${l.estimateSetupBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate set up by</div><div>${l.estimateSetupBy}</div></div>`:''}${l.estimateOfficeNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">🔒 Office notes (estimate)</div><div class="note-display" style="font-size:12px;color:var(--amber);font-style:italic">${l.estimateOfficeNotes}</div></div>`:''}${l.estimateDoneBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate sent by</div><div><strong>${l.estimateSentBy}</strong></div></div>`:''}</div><div class="loc-section-label" style="margin-top:12px">📦 Load location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.from||'—'}${l.fromUnit?' #'+l.fromUnit:''}${l.fromZip?' '+l.fromZip:''}</div></div>${l.fromType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.fromType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessLoad||'—'}${l.fromElevator?' · Elevator':''}<br>${l.fromLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.fromStairs?l.fromStairs+' flights':'—'}${l.fromFloor?' · Floor '+l.fromFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingLoad||'—'}</div></div>${l.fromNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.fromNotes}</div></div>`:''}</div>${(l.extraLoads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">📦 Pickup ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}<div class="loc-section-label" style="margin-top:12px">🏠 Unload location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.to||'—'}${l.toUnit?' #'+l.toUnit:''}${l.toZip?' '+l.toZip:''}</div></div>${l.toType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.toType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessUnload||'—'}${l.toElevator?' · Elevator':''}<br>${l.toLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.toStairs?l.toStairs+' flights':'—'}${l.toFloor?' · Floor '+l.toFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingUnload||'—'}</div></div>${l.toNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.toNotes}</div></div>`:''}</div>${(l.extraUnloads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">🏠 Drop-off ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}${l.sqft||l.storage?`<div style="margin-top:10px;display:flex;gap:16px;font-size:12.5px">${l.sqft?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Square footage</div><div>${l.sqft} sq ft</div></div>`:''} ${l.storage?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Storage</div><div>Moving to CareMore Storage</div></div>`:''}</div>`:''}${quoteDaysBlock}${estBlock}${_leadQuotesBlock}${l.officeNotes?`<div style="margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--amber)"><div style="font-size:10.5px;color:var(--amber);font-weight:600;margin-bottom:2px">🔒 Office notes only</div><div class="note-display" style="font-size:12.5px">${l.officeNotes}</div></div>`:''}<hr class="divider"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Activity timeline</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;font-size:12px">${[
+// Cancellation fees + late-cancel log (2026-09-30). Shown when the lead has any, and the
+// "Record cancellation fee" button is offered on did-not-book / cancelled / rescheduled leads.
+const _cFees=(l.cancellationFees||[]);
+const _cLog=(l.cancelLog||[]);
+const _cOffer=l.status==='Did not book'||_cLog.length||_cFees.length||(l.rescheduleLog||[]).length;
+const _cancelFeeBlock=_cOffer?`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
+  <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">💵 Cancellation fees</div>
+  ${_cLog.map(c=>`<div style="font-size:12px;color:var(--text2);margin-bottom:4px">${c.type==='cancel'?'Cancelled':'Rescheduled'}${c.originalDate?' (was '+fmtDate(c.originalDate)+')':''}${c.daysNotice!=null?' · '+c.daysNotice+' day'+(c.daysNotice===1?'':'s')+' notice':''}${c.reason?' · '+escHtml(c.reason):''}${c.loggedAt?' · logged '+fmtDate(String(c.loggedAt).slice(0,10)):''}</div>`).join('')}
+  ${_cFees.length?_cFees.map(f=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;padding:4px 0"><span><strong style="color:var(--accent)">${fmtMoney(f.amount)}</strong> collected${f.method?' · '+escHtml(f.method):''} · ${fmtDate(f.date)}${f.type==='reschedule'?' · late reschedule':''}${f.notes?' · '+escHtml(f.notes):''}</span><button class="btn btn-secondary btn-sm" style="font-size:11px;padding:2px 8px" onclick="removeCancellationFee('${l.id}','${f.id}')">Remove</button></div>`).join(''):`<div style="font-size:12px;color:var(--text3)">No fee recorded.</div>`}
+  <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="openRecordCancellationFee('${l.id}')">+ Record cancellation fee</button>
+</div>`:'';
+document.getElementById('view-modal-body').innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12.5px"><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Phone</div><div>${l.phone||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Email</div><div>${l.email||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Move date</div><div>${fmtDate(l.date)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Home size</div><div>${l.size||'—'}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Source</div><div>${sourceBadge(l.source,l.sourceDetail)}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Packing</div><div>${l.packing||'—'}</div></div>${l.haulAway?`<div style="padding:6px 0"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px">🗑 Haul away</div><div style="color:${l.haulAway==='yes'?'var(--accent)':'var(--amber)'};font-weight:600">${l.haulAway==='yes'?'Yes':'Not sure — ask'}${l.haulAwayItems?' · '+l.haulAwayItems:''}</div></div>`:''}${l.takenBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Call taken by</div><div>${l.takenBy}</div></div>`:''}${l.estimateSetupBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate set up by</div><div>${l.estimateSetupBy}</div></div>`:''}${l.estimateOfficeNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">🔒 Office notes (estimate)</div><div class="note-display" style="font-size:12px;color:var(--amber);font-style:italic">${l.estimateOfficeNotes}</div></div>`:''}${l.estimateDoneBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate done by</div><div>${l.estimateDoneBy}</div></div>`:''}${l.estimateSentBy?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Estimate sent by</div><div><strong>${l.estimateSentBy}</strong></div></div>`:''}</div><div class="loc-section-label" style="margin-top:12px">📦 Load location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.from||'—'}${l.fromUnit?' #'+l.fromUnit:''}${l.fromZip?' '+l.fromZip:''}</div></div>${l.fromType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.fromType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessLoad||'—'}${l.fromElevator?' · Elevator':''}<br>${l.fromLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.fromStairs?l.fromStairs+' flights':'—'}${l.fromFloor?' · Floor '+l.fromFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingLoad||'—'}</div></div>${l.fromNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.fromNotes}</div></div>`:''}</div>${(l.extraLoads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">📦 Pickup ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}<div class="loc-section-label" style="margin-top:12px">🏠 Unload location</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${l.to||'—'}${l.toUnit?' #'+l.toUnit:''}${l.toZip?' '+l.toZip:''}</div></div>${l.toType?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Type</div><div>${l.toType}</div></div>`:''}<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${l.accessUnload||'—'}${l.toElevator?' · Elevator':''}<br>${l.toLongwalk?'Long walk':''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Stairs / Floor</div><div>${l.toStairs?l.toStairs+' flights':'—'}${l.toFloor?' · Floor '+l.toFloor:''}</div></div><div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${l.parkingUnload||'—'}</div></div>${l.toNotes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${l.toNotes}</div></div>`:''}</div>${(l.extraUnloads||[]).filter(ex=>ex.address).map((ex,i)=>`<div class="loc-section-label" style="margin-top:10px">🏠 Drop-off ${i+2}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px"><div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Address</div><div>${ex.address}${ex.unit?' #'+ex.unit:''}${ex.zip?' '+ex.zip:''}</div></div>${ex.access?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Access</div><div>${ex.access}</div></div>`:''}${ex.parking?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Parking</div><div>${ex.parking}</div></div>`:''}${ex.notes?`<div style="grid-column:1/-1"><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Notes</div><div class="note-display">${ex.notes}</div></div>`:''}</div>`).join('')}${l.sqft||l.storage?`<div style="margin-top:10px;display:flex;gap:16px;font-size:12.5px">${l.sqft?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Square footage</div><div>${l.sqft} sq ft</div></div>`:''} ${l.storage?`<div><div style="font-size:10.5px;color:var(--text3);margin-bottom:2px">Storage</div><div>Moving to CareMore Storage</div></div>`:''}</div>`:''}${quoteDaysBlock}${estBlock}${_leadQuotesBlock}${_cancelFeeBlock}${l.officeNotes?`<div style="margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--amber)"><div style="font-size:10.5px;color:var(--amber);font-weight:600;margin-bottom:2px">🔒 Office notes only</div><div class="note-display" style="font-size:12.5px">${l.officeNotes}</div></div>`:''}<hr class="divider"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Activity timeline</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;font-size:12px">${[
   l.createdAt?{date:l.createdAt,label:'Lead created',by:l.takenBy?'by '+l.takenBy:''}:null,
   ...(l.summaryLog&&l.summaryLog.length?l.summaryLog.map((s,i)=>({date:s.date,label:'Summary email sent'+(l.summaryLog.length>1?' #'+(i+1):''),by:s.to?'to '+s.to:''})):[l.summaryEmailBody&&l.summarySentAt?{date:l.summarySentAt,label:'Summary email sent',by:l.summaryEmailTo?'to '+l.summaryEmailTo:''}:null]),
   l.roughQuoteDate?{date:l.roughQuoteDate,label:`Rough quote sent: $${(l.roughQuoteMin||0).toLocaleString()}${l.roughQuoteMax&&l.roughQuoteMax!==l.roughQuoteMin?' – $'+(l.roughQuoteMax||0).toLocaleString():''}`,by:l.roughQuoteSentBy?'by '+l.roughQuoteSentBy:''}:null,
@@ -10985,6 +11042,11 @@ function cancelJob(id){
   document.getElementById('cj-new-date-row').style.display='none';
   document.getElementById('cj-days-notice').value=daysNotice!==null?Math.max(0,daysNotice):'';
   document.getElementById('cj-deposit-warning').style.display=daysNotice!==null&&daysNotice<7?'block':'none';
+  const _feeCb=document.getElementById('cj-fee-collected');if(_feeCb)_feeCb.checked=false;
+  const _feeAmt=document.getElementById('cj-fee-amount');if(_feeAmt)_feeAmt.value='400';
+  const _feeMeth=document.getElementById('cj-fee-method');if(_feeMeth)_feeMeth.value='';
+  const _feeDate=document.getElementById('cj-fee-date');if(_feeDate)_feeDate.value=new Date().toISOString().split('T')[0];
+  onCancelFeeToggle();
   document.getElementById('cj-confirm-btn').textContent='Confirm';
   openModal('cancel-job');
 }
@@ -10993,6 +11055,92 @@ function onCancelJobTypeChange(){
   const type=document.getElementById('cj-type').value;
   document.getElementById('cj-new-date-row').style.display=type==='reschedule-known'?'block':'none';
   document.getElementById('cj-confirm-btn').textContent=type==='cancel'?'Cancel job':type.startsWith('reschedule')?'Reschedule job':'Confirm';
+}
+
+// ── Cancellation fees (2026-09-30) ─────────────────────────────────────────────────────────
+// A fee kept when a customer cancels or reschedules late. Stored on the LEAD (which syncs to the
+// cloud) as lead.cancellationFees = [{id, amount, method, date, type, jobId, originalDate, reason,
+// notes, recordedAt}]. Counted as its own income line — never as a completed job — so it shows in
+// revenue, income, revenue by source and payment methods without touching job counts, averages,
+// quote accuracy or AI pricing.
+function addCancellationFee(lead,fee,skipSave){
+  if(!lead||!fee||!(Number(fee.amount)>0))return null;
+  const rec={id:uid(),amount:Math.round(Number(fee.amount)*100)/100,method:fee.method||'',
+    date:fee.date||new Date().toISOString().split('T')[0],type:fee.type||'cancel',jobId:fee.jobId||null,
+    originalDate:fee.originalDate||'',reason:fee.reason||'',notes:fee.notes||'',recordedAt:new Date().toISOString()};
+  lead.cancellationFees=(lead.cancellationFees||[]).concat([rec]);
+  if(!skipSave)saveDB();
+  return rec;
+}
+function getCancellationFees(){
+  const out=[];
+  (db.leads||[]).forEach(l=>{
+    (l.cancellationFees||[]).forEach(f=>{
+      if(f&&Number(f.amount)>0)out.push({...f,amount:Number(f.amount),leadId:l.id,name:l.name||'',source:l.source||'',sourceDetail:l.sourceDetail||''});
+    });
+  });
+  return out;
+}
+function _leadFeeTotal(l){return (l&&l.cancellationFees||[]).reduce((s,f)=>s+(Number(f&&f.amount)||0),0);}
+function removeCancellationFee(leadId,feeId){
+  const l=db.leads.find(x=>x.id===leadId);if(!l)return;
+  const f=(l.cancellationFees||[]).find(x=>x.id===feeId);if(!f)return;
+  if(!confirm('Remove the '+fmtMoney(f.amount)+' cancellation fee from '+(l.name||'this lead')+'? It will no longer count in income.'))return;
+  l.cancellationFees=(l.cancellationFees||[]).filter(x=>x.id!==feeId);
+  saveDB();showToast('Cancellation fee removed');
+  try{viewLead(leadId);}catch(_){}
+  try{if(typeof renderDashboard==='function')renderDashboard();}catch(_){}
+}
+let _feeLeadId=null;
+function openRecordCancellationFee(leadId){
+  _feeLeadId=leadId;
+  const l=db.leads.find(x=>x.id===leadId);if(!l)return;
+  document.getElementById('rcf-who').textContent=l.name||'';
+  document.getElementById('rcf-amount').value='400';
+  document.getElementById('rcf-method').value='';
+  document.getElementById('rcf-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('rcf-type').value='cancel';
+  document.getElementById('rcf-notes').value='';
+  openModal('record-cancel-fee');
+}
+function saveRecordCancellationFee(){
+  const l=db.leads.find(x=>x.id===_feeLeadId);if(!l)return;
+  const amount=Number(document.getElementById('rcf-amount').value)||0;
+  const method=document.getElementById('rcf-method').value;
+  if(amount<=0){showToast('Enter the amount collected');return;}
+  if(!method){showToast('Select how it was paid');return;}
+  addCancellationFee(l,{amount,method,date:document.getElementById('rcf-date').value,
+    type:document.getElementById('rcf-type').value,notes:document.getElementById('rcf-notes').value.trim(),
+    originalDate:l.date||''});
+  closeModal('record-cancel-fee');
+  showToast('✓ '+fmtMoney(amount)+' cancellation fee recorded for '+(l.name||'lead'));
+  try{viewLead(l.id);}catch(_){}
+  try{if(typeof renderDashboard==='function')renderDashboard();}catch(_){}
+}
+// Older cancellations were logged only in this browser (db.cancellations). Copy each onto its lead
+// so it syncs. Matched by leadId when present, else by phone, else by exact name. Idempotent.
+function _migrateCancellationLogsToLeads(){
+  let moved=0;
+  try{
+    (db.cancellations||[]).forEach(c=>{
+      if(!c||c._onLead)return;
+      const digits=s=>String(s||'').replace(/\D/g,'');
+      const lead=(c.leadId&&db.leads.find(l=>l.id===c.leadId))
+        ||(digits(c.phone).length>=7&&db.leads.find(l=>digits(l.phone)===digits(c.phone)))
+        ||(c.customerName&&db.leads.find(l=>(l.name||'').trim().toLowerCase()===String(c.customerName).trim().toLowerCase()));
+      if(!lead)return;
+      const already=(lead.cancelLog||[]).some(x=>x&&x.loggedAt===c.loggedAt);
+      if(!already)lead.cancelLog=(lead.cancelLog||[]).concat([{...c,leadId:lead.id,_onLead:true}]);
+      c._onLead=true;c.leadId=lead.id;moved++;
+    });
+    if(moved)saveDB();
+  }catch(e){console.warn('Cancellation log migration failed:',e);}
+  return moved;
+}
+
+function onCancelFeeToggle(){
+  const on=!!document.getElementById('cj-fee-collected')?.checked;
+  const f=document.getElementById('cj-fee-fields');if(f)f.style.display=on?'grid':'none';
 }
 
 function onDaysNoticeChange(){
@@ -11010,8 +11158,17 @@ function confirmCancelJob(){
   const daysNotice=Number(document.getElementById('cj-days-notice').value)||0;
   const depositApplies=daysNotice<7;
   const newDate=document.getElementById('cj-new-date').value;
+  // Cancellation fee actually collected (2026-09-30). Validated before anything changes.
+  const _feeOn=!!document.getElementById('cj-fee-collected')?.checked;
+  const _feeAmount=_feeOn?Number(document.getElementById('cj-fee-amount')?.value)||0:0;
+  const _feeMethod=_feeOn?(document.getElementById('cj-fee-method')?.value||''):'';
+  const _feeDate=_feeOn?(document.getElementById('cj-fee-date')?.value||new Date().toISOString().split('T')[0]):'';
+  if(_feeOn&&_feeAmount<=0){showToast('Enter the cancellation fee amount collected');return;}
+  if(_feeOn&&!_feeMethod){showToast('Select how the cancellation fee was paid');return;}
+  const _cancelLead=db.leads.find(x=>x.id===j.leadId);
   const log={
     jobId:j.id,
+    leadId:j.leadId||null,
     customerName:j.name,
     phone:j.phone,
     originalDate:j.date,
@@ -11020,17 +11177,28 @@ function confirmCancelJob(){
     notes,
     daysNotice,
     depositApplies,
+    feeCollected:_feeAmount||0,
     loggedAt:new Date().toISOString()
   };
   if(!db.cancellations)db.cancellations=[];
   db.cancellations.push(log);
+  // db.cancellations only lives in this browser (there is no cloud table for it), so the log and
+  // any fee are ALSO written onto the lead, which syncs.
+  if(_cancelLead){
+    log._onLead=true;
+    _cancelLead.cancelLog=(_cancelLead.cancelLog||[]).concat([log]);
+    if(_feeAmount>0)addCancellationFee(_cancelLead,{amount:_feeAmount,method:_feeMethod,date:_feeDate,type,jobId:j.id,originalDate:j.date,reason,notes},true);
+  } else if(_feeAmount>0){
+    showToast('⚠ No lead linked to this job — the fee could not be saved to income');
+  }
+  const _feeMsg=_feeAmount>0?' — '+fmtMoney(_feeAmount)+' fee recorded':(depositApplies?' — $400 deposit applies':'');
   if(type==='cancel'){
     // Move lead back to active with status Did not book
     const lead=db.leads.find(x=>x.id===j.leadId);
     if(lead){lead.status='Did not book';lead.dnbType='cancel';lead.dnbReason=reason;lead.dnbNotes=notes;}
     db.bookedJobs=db.bookedJobs.filter(x=>x.id!==currentCancelJobId);
     saveDB();closeModal('cancel-job');closeModal('view');
-    showToast('Job cancelled'+(depositApplies?' — $400 deposit applies':''));
+    showToast('Job cancelled'+_feeMsg);
     renderBooked();renderLeads();
   } else if(type==='reschedule-known'&&newDate){
     j.date=newDate;
@@ -11039,7 +11207,7 @@ function confirmCancelJob(){
     j.rescheduleLog=j.rescheduleLog||[];
     j.rescheduleLog.push(log);
     saveDB();closeModal('cancel-job');closeModal('view');
-    showToast('Job rescheduled to '+fmtDate(newDate)+(depositApplies?' — $400 deposit may apply':''));
+    showToast('Job rescheduled to '+fmtDate(newDate)+(_feeAmount>0?_feeMsg:(depositApplies?' — $400 deposit may apply':'')));
     renderBooked();
   } else {
     // Reschedule with TBD date — move back to leads as Confirmation sent
@@ -11050,7 +11218,7 @@ function confirmCancelJob(){
     j.rescheduleLog.push(log);
     db.bookedJobs=db.bookedJobs.filter(x=>x.id!==currentCancelJobId);
     saveDB();closeModal('cancel-job');closeModal('view');
-    showToast('Job moved back to leads — date TBD'+(depositApplies?' — $400 deposit may apply':''));
+    showToast('Job moved back to leads — date TBD'+(_feeAmount>0?_feeMsg:(depositApplies?' — $400 deposit may apply':'')));
     renderBooked();renderLeads();
   }
 }
@@ -13400,6 +13568,18 @@ function confirmUpdatePayment(){
 function renderCalendar(){const now=new Date();if(!calYear){calYear=now.getFullYear();calMonth=now.getMonth();}const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];document.getElementById('cal-day-headers').innerHTML=days.map(d=>`<div class="cal-day-header">${d}</div>`).join('');const months=['January','February','March','April','May','June','July','August','September','October','November','December'];document.getElementById('cal-month-label').textContent=months[calMonth]+' '+calYear;const first=new Date(calYear,calMonth,1);const last=new Date(calYear,calMonth+1,0);const startDay=first.getDay();const todayStr=now.toISOString().split('T')[0];let html='';for(let i=0;i<startDay;i++){const d=new Date(calYear,calMonth,-startDay+i+1);html+=`<div class="cal-day other-month"><div class="cal-day-num">${d.getDate()}</div></div>`;}for(let d=1;d<=last.getDate();d++){const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const iT=ds===todayStr;const bk=db.bookedJobs.filter(j=>j.date===ds);const es=db.leads.filter(l=>l.date===ds&&l.status!=='Booked'&&l.status!=='Completed');html+=`<div class="cal-day${iT?' today':''}"><div class="cal-day-num">${d}</div>${bk.map(j=>`<div class="cal-event">${j.name}</div>`).join('')}${es.map(l=>`<div class="cal-event estimate">${l.name}</div>`).join('')}</div>`;}const rem=(7-(startDay+last.getDate())%7)%7;for(let i=1;i<=rem;i++){html+=`<div class="cal-day other-month"><div class="cal-day-num">${i}</div></div>`;}document.getElementById('cal-grid').innerHTML=html;}
 function calNav(dir){calMonth+=dir;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
 
+// Cancellation fees in the analytics year/quarter, dated by when collected (2026-09-30).
+function getAnalyticsCancelFees(){
+  const year=document.getElementById('analytics-year')?.value||new Date().getFullYear().toString();
+  const period=document.getElementById('analytics-period')?.value||'all';
+  const qMap={all:[1,12],q1:[1,3],q2:[4,6],q3:[7,9],q4:[10,12]};
+  const[mStart,mEnd]=qMap[period]||[1,12];
+  return (typeof getCancellationFees==='function'?getCancellationFees():[]).filter(f=>{
+    if(!f.date)return false;
+    const y=f.date.slice(0,4);const m=parseInt(f.date.slice(5,7));
+    return y===year&&m>=mStart&&m<=mEnd;
+  });
+}
 function getAnalyticsJobs(){
   const year=document.getElementById('analytics-year')?.value||new Date().getFullYear().toString();
   const period=document.getElementById('analytics-period')?.value||'all';
@@ -14030,12 +14210,17 @@ function renderAnalytics(){
   }
   const allJobs=db.completedJobs;
   const filteredJobs=getAnalyticsJobs();
-  const tr=filteredJobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  try{_migrateCancellationLogsToLeads();}catch(_){}
+  const _aFees=getAnalyticsCancelFees();
+  const _aFeeTotal=_aFees.reduce((s,f)=>s+f.amount,0);
+  const _jobsRev=filteredJobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  // Revenue includes cancellation fees; average job value below stays per completed job.
+  const tr=_jobsRev+_aFeeTotal;
   const totalLeadsForRate=db.leads.filter(l=>l.status!=='New'&&l.status!=='Need to follow up'&&l.status!=='Estimate scheduled'&&l.status!=='Need to send estimate').length;
   const cr=totalLeadsForRate?Math.round(db.completedJobs.length/totalLeadsForRate*100):0;
-  const avg=filteredJobs.length?Math.round(tr/filteredJobs.length):0;
+  const avg=filteredJobs.length?Math.round(_jobsRev/filteredJobs.length):0;
   const out=allJobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);
-  document.getElementById('analytics-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Revenue (period)</div><div class="stat-value">${fmtMoney(tr)}</div><div class="stat-sub">${filteredJobs.length} jobs</div></div><div class="stat-card"><div class="stat-label">Avg job value</div><div class="stat-value">${fmtMoney(avg)}</div></div><div class="stat-card"><div class="stat-label">Close rate</div><div class="stat-value">${cr}%</div><div class="stat-sub">${db.completedJobs.length} of ${db.leads.length} leads</div></div><div class="stat-card"><div class="stat-label">Outstanding (all time)</div><div class="stat-value ${out>0?'owe-badge':''}">${fmtMoney(out)}</div></div>`;
+  document.getElementById('analytics-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Revenue (period)</div><div class="stat-value">${fmtMoney(tr)}</div><div class="stat-sub">${filteredJobs.length} jobs${_aFeeTotal?' + '+fmtMoney(_aFeeTotal)+' cancellation fees':''}</div></div><div class="stat-card"><div class="stat-label">Avg job value</div><div class="stat-value">${fmtMoney(avg)}</div></div><div class="stat-card"><div class="stat-label">Close rate</div><div class="stat-value">${cr}%</div><div class="stat-sub">${db.completedJobs.length} of ${db.leads.length} leads</div></div><div class="stat-card"><div class="stat-label">Outstanding (all time)</div><div class="stat-value ${out>0?'owe-badge':''}">${fmtMoney(out)}</div></div>`;
 
   // Source chart with drill-down
   const sources={};const sourceDetails={};
@@ -14117,7 +14302,7 @@ function renderAnalytics(){
       _staffGrid.innerHTML='';
     }
   }
-  const rbm={};filteredJobs.forEach(j=>{if(j.date){const m=j.date.slice(0,7);rbm[m]=(rbm[m]||0)+(Number(j.paid)||0);}});const mos=Object.keys(rbm).sort();const maxR=Math.max(...Object.values(rbm),1);document.getElementById('revenue-chart').innerHTML=mos.length?`<div class="bar-chart">${mos.map(m=>{const lbl=new Date(m+'-15').toLocaleDateString('en-US',{month:'short',year:'2-digit'});return`<div class="bar-row"><div class="bar-label">${lbl}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(rbm[m]/maxR*100)}%;background:var(--accent)">${fmtMoney(rbm[m])}</div></div></div>`;}).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No revenue data yet</div></div>`;
+  const rbm={};filteredJobs.forEach(j=>{if(j.date){const m=j.date.slice(0,7);rbm[m]=(rbm[m]||0)+(Number(j.paid)||0);}});_aFees.forEach(f=>{const m=f.date.slice(0,7);rbm[m]=(rbm[m]||0)+f.amount;});const mos=Object.keys(rbm).sort();const maxR=Math.max(...Object.values(rbm),1);document.getElementById('revenue-chart').innerHTML=mos.length?`<div class="bar-chart">${mos.map(m=>{const lbl=new Date(m+'-15').toLocaleDateString('en-US',{month:'short',year:'2-digit'});return`<div class="bar-row"><div class="bar-label">${lbl}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(rbm[m]/maxR*100)}%;background:var(--accent)">${fmtMoney(rbm[m])}</div></div></div>`;}).join('')}</div>`:`<div class="empty-state"><div class="empty-title">No revenue data yet</div></div>`;
   const crewAliases={'johnathan':'John','jonathan':'John','jon':'John','jonny':'John','johnny':'John','david':'Dave','davey':'Dave','davy':'Dave','davo':'Dave'};
   // REMOVED 2026-08-19: this was a hardcoded allow-list of ['John','Dave'], so every OTHER crew
   // leader was silently dropped from Crew performance — Nubio ran most of the jobs and appeared
@@ -14242,6 +14427,8 @@ function renderAnalytics(){
       });
     }
   });
+  // Cancellation fees by how they were paid (not counted as jobs).
+  _aFees.forEach(f=>{const m=f.method||'Unknown';if(!pmData[m])pmData[m]={jobs:0,total:0};pmData[m].total+=f.amount;});
   const pmEntries=Object.entries(pmData).sort((a,b)=>b[1].total-a[1].total);
   const totalPaid=pmEntries.reduce((s,[,d])=>s+d.total,0);
   const maxPM=Math.max(...pmEntries.map(([,d])=>d.total),1);
@@ -14488,6 +14675,7 @@ function renderAnalytics(){
   });
   Object.keys(sourceConv).forEach(key=>{ let best=sourceConv[key].label,bestN=-1; Object.keys(_lblCount).forEach(lk=>{ if(lk.indexOf(key+'||')===0&&_lblCount[lk]>bestN){bestN=_lblCount[lk];best=lk.slice((key+'||').length);} }); if(best)sourceConv[key].label=best; });
   (db.completedJobs||[]).forEach(j=>{ const key=_norm(j.source); if(!key||!sourceConv[key])return; sourceConv[key].revenue+=Number(j.paid)||0; });
+  getCancellationFees().forEach(f=>{ const key=_norm(f.source); if(!key||!sourceConv[key])return; sourceConv[key].revenue+=f.amount; });
   // Redesigned 2026-09-30: a table instead of bars + arrows, sorted by lead volume (a 2-lead source
   // at 100% no longer sits on top), plus the quote win rate: of the leads we sent a quote to, how
   // many booked. Sources under 5 leads are marked as a small sample.
@@ -18481,7 +18669,7 @@ function renderCustomers(){
 
   document.getElementById('customers-tbody').innerHTML=custs.length?custs.map(c=>{
     const hist=getCustomerHistory(c.id);
-    const totalSpent=hist.jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+    const totalSpent=hist.jobs.reduce((s,j)=>s+(Number(j.paid)||0),0)+hist.leads.reduce((s,l)=>s+_leadFeeTotal(l),0);
     const lastJob=[...hist.jobs].sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
     const jobCount=hist.jobs.length;
     const leadCount=hist.leads.length;
@@ -18510,7 +18698,7 @@ function viewCustomer(custId){
   if(!c)return;
   const hist=getCustomerHistory(custId);
   const jobCount=hist.jobs.length;
-  const totalSpent=hist.jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);
+  const totalSpent=hist.jobs.reduce((s,j)=>s+(Number(j.paid)||0),0)+hist.leads.reduce((s,l)=>s+_leadFeeTotal(l),0);
   const totalOwed=hist.jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);
 
   document.getElementById('cv-name').textContent=c.name;
@@ -18541,7 +18729,7 @@ function viewCustomer(custId){
   const _owedOf=j=>Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));
   const allHistory=[
     ...hist.jobs.map(j=>({date:j.date,type:'completed',label:'Completed job',sub:(j.from||'—')+' → '+(j.to||'—'),amount:fmtMoney(Number(j.total)||0),owed:_owedOf(j),paidAmt:Number(j.paid)||0,id:j.id})),
-    ...hist.leads.filter(l=>l.status!=='Completed').map(l=>({date:l.date,type:'lead',label:l.status||'Lead',sub:(l.from||'—')+' → '+(l.to||'—'),amount:'',owed:0,paidAmt:0,id:l.id}))
+    ...hist.leads.filter(l=>l.status!=='Completed').map(l=>({date:l.date,type:'lead',label:(l.status||'Lead')+(_leadFeeTotal(l)?' · cancellation fee':''),sub:(l.from||'—')+' → '+(l.to||'—'),amount:_leadFeeTotal(l)?fmtMoney(_leadFeeTotal(l)):'',owed:0,paidAmt:_leadFeeTotal(l),id:l.id}))
   ].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
   document.getElementById('cv-history').innerHTML=allHistory.length?allHistory.map(h=>`
