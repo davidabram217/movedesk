@@ -11609,7 +11609,7 @@ function confirmCompleteMultiDay(paymentState){
   const container=document.getElementById('cjmd-days-container');
   const days=[];
   let aggMoveHours=0,aggPackHours=0,aggMovers=0,aggPackers=0,aggMoveRate=0,aggPackRate=0;
-  let aggFuel=0,aggMaterials=0,aggParking=0;
+  let aggFuel=0,aggMaterials=0,aggParking=0,aggPackMaterials=0;
   let nMoveDays=0,nPackDays=0;
   [...container.children].forEach(card=>{
     const idx=Number(card.getAttribute('data-day-index'));
@@ -11628,7 +11628,7 @@ function confirmCompleteMultiDay(paymentState){
     // For averages: only include in average if the day had non-zero hours
     if(moveHours>0){aggMoveHours+=moveHours;aggMovers+=movers;aggMoveRate+=moveRate;nMoveDays++;}
     if(packHours>0){aggPackHours+=packHours;aggPackers+=packers;aggPackRate+=packRate;nPackDays++;}
-    aggFuel+=fuel;aggMaterials+=materials;aggParking+=parking;
+    aggFuel+=fuel;aggMaterials+=materials;aggParking+=parking;aggPackMaterials+=packMaterials;
   });
   // Compute total
   const total=calcMultiDayTotal();
@@ -11696,9 +11696,14 @@ function confirmCompleteMultiDay(paymentState){
     packMen:String(avgPackers||''),
     packRate:avgPackRate||'',
     // Whole-job fees
-    feeLabour:Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking+_ccFee))||0,
+    // Packing materials (2026-09-30): the per-day packing-materials boxes were counted in the total
+    // but the whole-job feePackMaterials was hard-coded '' — so they were silently folded into
+    // feeLabour and never reached the packing-materials calculator or AI training.
+    feeLabour:Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggPackMaterials+aggParking+_ccFee))||0,
     feeMaterials:String(aggMaterials||''),
-    feePackMaterials:'',
+    feePackMaterials:String(aggPackMaterials||''),
+    packHoursActual:aggPackHours?Math.round(aggPackHours*100)/100:'',
+    _packMatHealed:true,
     feeFuel:String(aggFuel||''),
     feeParkingPermit:String(aggParking||''),
     feeCOI:String(feeCOI||''),
@@ -11896,6 +11901,7 @@ function _buildEcjmdDayCard(dayIndex, prefill){
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)">
       <div class="form-group"><label style="font-size:11px">Fuel ($)</label><input type="number" class="ecjmd-day-fuel" data-day-index="${i}" placeholder="0" value="${fuel||''}" oninput="calcEditMultiDayTotal()"></div>
       <div class="form-group"><label style="font-size:11px">Materials ($)</label><input type="number" class="ecjmd-day-materials" data-day-index="${i}" placeholder="0" value="${mat||''}" oninput="calcEditMultiDayTotal()"></div>
+      <div class="form-group"><label style="font-size:11px">Packing materials ($)</label><input type="number" class="ecjmd-day-packmaterials" data-day-index="${i}" placeholder="0" value="${Number(p.packMaterials)||''}" oninput="calcEditMultiDayTotal()"></div>
       <div class="form-group"><label style="font-size:11px">Parking ($)</label><input type="number" class="ecjmd-day-parking" data-day-index="${i}" placeholder="0" value="${park||''}" oninput="calcEditMultiDayTotal()"></div>
     </div>
     <div style="text-align:right;font-size:12px;color:var(--text2);margin-top:8px">Day ${i+1} subtotal: <span class="ecjmd-day-subtotal" data-day-index="${i}" style="color:var(--text);font-weight:600">$0</span></div>
@@ -11930,6 +11936,7 @@ function ecjmdRemoveDay(idx){
       packRate:Number(card.querySelector('.ecjmd-day-pack-rate')?.value)||0,
       fuel:Number(card.querySelector('.ecjmd-day-fuel')?.value)||0,
       materials:Number(card.querySelector('.ecjmd-day-materials')?.value)||0,
+      packMaterials:Number(card.querySelector('.ecjmd-day-packmaterials')?.value)||0,
       parking:Number(card.querySelector('.ecjmd-day-parking')?.value)||0
     });
   });
@@ -11964,10 +11971,11 @@ function calcEditMultiDayTotal(){
     const pr=Number(card.querySelector('.ecjmd-day-pack-rate')?.value)||0;
     const fuel=Number(card.querySelector('.ecjmd-day-fuel')?.value)||0;
     const mat=Number(card.querySelector('.ecjmd-day-materials')?.value)||0;
+    const packMat=Number(card.querySelector('.ecjmd-day-packmaterials')?.value)||0;
     const park=Number(card.querySelector('.ecjmd-day-parking')?.value)||0;
     const movePay=_movePay;
     const packPay=ph*pr;
-    const subtotal=movePay+packPay+fuel+mat+park;
+    const subtotal=movePay+packPay+fuel+mat+packMat+park;
     const _mPay=card.querySelector('.ecjmd-day-move-pay');if(_mPay)_mPay.textContent='$'+Math.round(movePay).toLocaleString('en-US');
     const _pPay=card.querySelector('.ecjmd-day-pack-pay');if(_pPay)_pPay.textContent='$'+Math.round(packPay).toLocaleString('en-US');
     const _sub=card.querySelector('.ecjmd-day-subtotal');if(_sub)_sub.textContent='$'+Math.round(subtotal).toLocaleString('en-US');
@@ -12009,7 +12017,7 @@ function saveEditedCompletedJobMultiDay(){
   const container=document.getElementById('ecjmd-days-container');
   const days=[];
   let aggMoveHours=0,aggPackHours=0,aggMovers=0,aggPackers=0,aggMoveRate=0,aggPackRate=0;
-  let aggFuel=0,aggMaterials=0,aggParking=0;
+  let aggFuel=0,aggMaterials=0,aggParking=0,aggPackMaterials=0;
   let nMoveDays=0,nPackDays=0;
   [...container.children].forEach(card=>{
     const idx=Number(card.getAttribute('data-day-index'));
@@ -12022,12 +12030,13 @@ function saveEditedCompletedJobMultiDay(){
     const packRate=Number(card.querySelector('.ecjmd-day-pack-rate')?.value)||0;
     const fuel=Number(card.querySelector('.ecjmd-day-fuel')?.value)||0;
     const materials=Number(card.querySelector('.ecjmd-day-materials')?.value)||0;
+    const packMaterials=Number(card.querySelector('.ecjmd-day-packmaterials')?.value)||0;
     const parking=Number(card.querySelector('.ecjmd-day-parking')?.value)||0;
     const dayDate=existing.date||j.date||'';
-    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,moveSegments:moveSegments,movePay:_movePayTotal,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,parking:parking});
+    days.push({date:dayDate,type:type,movers:movers,moveHours:moveHours,moveRate:moveRate,moveSegments:moveSegments,movePay:_movePayTotal,packers:packers,packHours:packHours,packRate:packRate,fuel:fuel,materials:materials,packMaterials:packMaterials,parking:parking});
     if(moveHours>0){aggMoveHours+=moveHours;aggMovers+=movers;aggMoveRate+=moveRate;nMoveDays++;}
     if(packHours>0){aggPackHours+=packHours;aggPackers+=packers;aggPackRate+=packRate;nPackDays++;}
-    aggFuel+=fuel;aggMaterials+=materials;aggParking+=parking;
+    aggFuel+=fuel;aggMaterials+=materials;aggParking+=parking;aggPackMaterials+=packMaterials;
   });
   const total=calcEditMultiDayTotal();
   const _ecjCcFee=Number(window._ecjmdCcFee)||0; // 3.5% of subtotal (CC only), from calcEditMultiDayTotal
@@ -12069,6 +12078,9 @@ function saveEditedCompletedJobMultiDay(){
   j.packMen=String(avgPackers||'');
   j.packRate=avgPackRate||'';
   j.feeMaterials=String(aggMaterials||'');
+  j.feePackMaterials=String(aggPackMaterials||'');
+  j.packHoursActual=aggPackHours?Math.round(aggPackHours*100)/100:'';
+  j._packMatHealed=true;
   j.feeFuel=String(aggFuel||'');
   j.feeParkingPermit=String(aggParking||'');
   j.feeCOI=String(feeCOI||'');
@@ -12076,7 +12088,7 @@ function saveEditedCompletedJobMultiDay(){
   j.feeDump=String(feeDump||'');
   j.feeDamage=String(feeDamage||'');
   j.feeYelp=String(feeYelp||'');
-  j.feeLabour=Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggParking+miscTotal+_ecjCcFee))||0;
+  j.feeLabour=Math.round(total-(feeInsurance+feeCOI+feeDump+feeYelp+feeDamage+aggFuel+aggMaterials+aggPackMaterials+aggParking+miscTotal+_ecjCcFee))||0;
   j.vaults=Number(document.getElementById('ecjmd-vaults').value)||0;
   j.insuranceType=document.getElementById('ecjmd-insurance-type').value;
   j.packing=document.getElementById('ecjmd-packing').value;
@@ -13525,6 +13537,7 @@ function getEstimateEvents(){
 
 
 function calcPackMaterials(){
+  try{if(_healMultiDayPackMaterials())saveDB();}catch(_){}
   const size=document.getElementById('pc-size').value;
   const sqft=Number(document.getElementById('pc-sqft').value)||0;
   const type=document.getElementById('pc-type').value;
@@ -20436,9 +20449,41 @@ function backfillTrainingPackingAndSqft(){
   if(filled){try{saveDB();}catch(e){}console.log('Backfilled '+filled+' packing/sqft field(s) on AI training records');}
 }
 
+// ── Multi-day packing-materials repair (2026-09-30) ────────────────────────────────────────
+// Multi-day completions before this date saved each day's packing materials inside days[] and in
+// the total, but left the whole-job feePackMaterials blank and folded the amount into feeLabour.
+// So those jobs never fed the packing-materials calculator or AI training. This lifts the per-day
+// sum into feePackMaterials, takes it back out of feeLabour, fills packHoursActual, and updates the
+// job's whole-job AI training record. Runs once per job (flag), never touches the saved total.
+function _healMultiDayPackMaterials(){
+  let fixed=0;
+  try{
+    (db.completedJobs||[]).forEach(j=>{
+      if(!j||!j.multiDay||!Array.isArray(j.days)||j._packMatHealed)return;
+      const pm=j.days.reduce((a,d)=>a+(Number(d&&d.packMaterials)||0),0);
+      const ph=j.days.reduce((a,d)=>a+(Number(d&&d.packHours)||0),0);
+      j._packMatHealed=true;
+      if(!(Number(j.feePackMaterials)>0)&&pm>0){
+        j.feePackMaterials=String(pm);
+        const lab=Number(j.feeLabour)||0;
+        if(lab>=pm)j.feeLabour=Math.round(lab-pm);
+      }
+      if(!(Number(j.packHoursActual)>0)&&ph>0)j.packHoursActual=Math.round(ph*100)/100;
+      (db.aiTraining||[]).forEach(r=>{
+        if(r.kind==='day'||r.completedJobId!==j.id)return;
+        if(!(Number(r.feePackMaterials)>0)&&Number(j.feePackMaterials)>0)r.feePackMaterials=Number(j.feePackMaterials);
+        if(!(Number(r.packHoursActual)>0)&&Number(j.packHoursActual)>0)r.packHoursActual=Number(j.packHoursActual);
+        if(Number(j.feeLabour))r.actualLabour=Number(j.feeLabour);
+      });
+      fixed++;
+    });
+  }catch(e){console.warn('Multi-day packing-materials repair failed:',e);}
+  return fixed;
+}
+
 function selfHealAITraining(){
   if(!db.aiTraining)db.aiTraining=[];
-  let healed=0;
+  let healed=_healMultiDayPackMaterials();
   (db.completedJobs||[]).forEach(j=>{
     if(!j.usedForAI)return;
     // Already has a WHOLE-JOB record? Skip rebuilding it. (Per-day records have
