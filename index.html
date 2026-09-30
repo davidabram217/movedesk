@@ -20811,12 +20811,17 @@ function computeCrewRecommendation(vaults){
 // across recalcs. Cleared on every fresh quote. Jobs flagged for AI training stay
 // permanently in the data — this only hides them from the current estimate.
 let _aiExcludedKeys=new Set();
+// Jobs the user left TICKED on the last recalc (2026-09-30). null = not curating. When set, the
+// neighbour list is exactly these jobs — without it, dropping 3 of 8 just pulled the next 3 best
+// matches in to refill the top-8, so the quote kept saying "8 jobs" and never reflected the picks.
+let _aiKeptKeys=null;
 let _aiLastScored=[];
 function _trainKey(r){return [r.id||'',r.name||'',r.date||'',r.actualHours||'',r.sqft||'',r.estimatedVaults||r.actualVaults||''].join('¦');}
 function _aiTrainingPool(){return getJobTrainingData().filter(r=>!_aiExcludedKeys.has(_trainKey(r)));}
 
 function generateAIQuote(isRecalc){
   if(!isRecalc)_aiExcludedKeys=new Set();
+  if(!isRecalc)_aiKeptKeys=null;
   const inputs={
     size:document.getElementById('ai-size').value,
     vaults:parseFloat(document.getElementById('ai-vaults').value)||null,
@@ -20929,8 +20934,10 @@ function generateAIQuote(isRecalc){
   const _inBand=_cands.filter(_volOK);
   // If the guard leaves nothing, fall back to the same-type pool so a quote can still be produced,
   // and flag it so the UI can warn that the closest available jobs differ in size.
-  const _volFallback=_inBand.length===0&&_cands.length>0;
-  const _pool=_inBand.length>0?_inBand:_cands;
+  // Curated recalc: use ONLY the jobs still ticked — no refill from the wider pool.
+  const _curatedPool=_aiKeptKeys?_cands.filter(j=>_aiKeptKeys.has(_trainKey(j))):null;
+  const _volFallback=!_curatedPool&&_inBand.length===0&&_cands.length>0;
+  const _pool=_curatedPool||(_inBand.length>0?_inBand:_cands);
   const scored=_pool
     .map(j=>({...j,score:similarity(j,inputs),_work:_jobWorkHours(j)}))
     .sort((a,b)=>b.score-a.score)
@@ -21173,7 +21180,7 @@ function generateAIQuote(isRecalc){
     <details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px"${_aiExcludedKeys.size?' open':''}>
       <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">🔍 Jobs used for this estimate (${scored.length})${_aiExcludedKeys.size?' · '+_aiExcludedKeys.size+' hidden':''}</summary>
       <div style="margin-top:8px">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Uncheck any job to drop it from <strong>this estimate only</strong>, then recalculate. Nothing is deleted — your AI training data is untouched.</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Uncheck any job to drop it from <strong>this estimate only</strong>, then recalculate. The estimate then uses only the jobs left ticked — no replacements are pulled in. Nothing is deleted — your AI training data is untouched.</div>
         ${scored.map((j,i)=>{
           const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           const nm=_e(j.name).trim()||'(no name on record)';
@@ -21207,15 +21214,17 @@ function generateAIQuote(isRecalc){
 // Recalculate the current AI quote, dropping any jobs the user unchecked in the readout.
 // Exclusions accumulate (key-based) so each recalc narrows further; Reset clears them.
 function recalcAIQuote(){
+  const kept=new Set();
   document.querySelectorAll('.ai-job-incl').forEach(cb=>{
-    if(!cb.checked){
-      const rec=_aiLastScored[Number(cb.getAttribute('data-idx'))];
-      if(rec)_aiExcludedKeys.add(_trainKey(rec));
-    }
+    const rec=_aiLastScored[Number(cb.getAttribute('data-idx'))];
+    if(!rec)return;
+    if(!cb.checked)_aiExcludedKeys.add(_trainKey(rec));
+    else kept.add(_trainKey(rec));
   });
+  _aiKeptKeys=kept;
   generateAIQuote(true);
 }
-function resetAIExclusions(){_aiExcludedKeys=new Set();generateAIQuote(true);}
+function resetAIExclusions(){_aiExcludedKeys=new Set();_aiKeptKeys=null;generateAIQuote(true);}
 
 function renderAIQuote(){
   // Restore any in-progress draft inputs so the user's work survives navigation/refresh
