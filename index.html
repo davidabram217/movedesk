@@ -6633,7 +6633,7 @@ function renderDashboard(){
   let autoUpdated=false;
   db.leads.filter(l=>activeStatuses.includes(l.status)&&(l.statusUpdatedAt||l.createdAt)).forEach(l=>{
     const since=l.statusUpdatedAt||l.createdAt;
-    const days=Math.floor((new Date(today2)-new Date(since+'T12:00:00'))/(1000*60*60*24));
+    const days=Math.floor((new Date(today2)-_tsDate(since))/(1000*60*60*24));
     if(days>=3){l.status='Need to follow up';l.statusUpdatedAt=today2;autoUpdated=true;}
   });
   if(autoUpdated)saveDB();
@@ -6644,10 +6644,10 @@ function renderDashboard(){
     if(!followupStatuses.includes(l.status))return false;
     const since=l.statusUpdatedAt||l.createdAt;
     if(!since)return true;
-    const days=Math.floor((new Date(today2)-new Date(since+'T12:00:00'))/(1000*60*60*24));
+    const days=Math.floor((new Date(today2)-_tsDate(since))/(1000*60*60*24));
     return days>=3;
   })
-    .map(l=>({...l,daysSince:l.createdAt?Math.floor((new Date(today)-new Date(l.createdAt+'T12:00:00'))/(1000*60*60*24)):0}))
+    .map(l=>({...l,daysSince:l.createdAt?Math.floor((new Date(today)-_tsDate(l.createdAt))/(1000*60*60*24)):0}))
     .sort((a,b)=>b.daysSince-a.daysSince);
 
   // Nav badge
@@ -15543,7 +15543,7 @@ function renderActivityPatterns(){
 
   // Leads by day of week
   const leadsDow=Array(7).fill(0);
-  db.leads.forEach(l=>{if(l.createdAt){const d=new Date(l.createdAt+'T12:00:00');leadsDow[d.getDay()]++;}});
+  db.leads.forEach(l=>{if(l.createdAt){const d=_tsDate(l.createdAt);leadsDow[d.getDay()]++;}});
   const leadsDowMax=Math.max(...leadsDow,1);
   document.getElementById('leads-by-dow').innerHTML=barChart(DAYS.map((d,i)=>[d,leadsDow[i]]),leadsDowMax,'var(--accent)');
 
@@ -15556,7 +15556,7 @@ function renderActivityPatterns(){
 
   // Leads by month
   const leadsMonth=Array(12).fill(0);
-  db.leads.forEach(l=>{if(l.createdAt){leadsMonth[new Date(l.createdAt+'T12:00:00').getMonth()]++;}});
+  db.leads.forEach(l=>{if(l.createdAt){leadsMonth[_tsDate(l.createdAt).getMonth()]++;}});
   const leadsMonthMax=Math.max(...leadsMonth,1);
   document.getElementById('leads-by-month').innerHTML=barChart(MONTHS.map((m,i)=>[m,leadsMonth[i]]),leadsMonthMax,'var(--accent)');
 
@@ -15570,7 +15570,7 @@ function renderActivityPatterns(){
   const leadsWeek={};
   db.leads.forEach(l=>{
     if(l.createdAt){
-      const d=new Date(l.createdAt+'T12:00:00');
+      const d=_tsDate(l.createdAt);
       const start=new Date(d.getFullYear(),0,1);
       const wk=Math.ceil(((d-start)/86400000+start.getDay()+1)/7);
       leadsWeek[wk]=(leadsWeek[wk]||0)+1;
@@ -20939,6 +20939,17 @@ function backfillTrainingPackingAndSqft(){
 // So those jobs never fed the packing-materials calculator or AI training. This lifts the per-day
 // sum into feePackMaterials, takes it back out of feeLabour, fills packHoursActual, and updates the
 // job's whole-job AI training record. Runs once per job (flag), never touches the saved total.
+// Lead timestamps come in two shapes: "2026-08-05" (older leads) and full ISO
+// "2026-09-05T21:14:03.000Z" (manual leads + web-form leads since 2026-08-19).
+// Appending 'T12:00:00' to the ISO form gives Invalid Date, which silently dropped
+// those leads from Leads by month / day / week and from the 3-day follow-up check.
+// Returns local noon of the day the lead landed (in the office's timezone).
+function _tsDate(v){
+  if(!v)return new Date(NaN);
+  const s=String(v);
+  if(s.length>10&&s.includes('T')){const d=new Date(s);return isNaN(d)?new Date(s.slice(0,10)+'T12:00:00'):new Date(d.getFullYear(),d.getMonth(),d.getDate(),12);}
+  return new Date(s.slice(0,10)+'T12:00:00');
+}
 function _healMultiDayPackMaterials(){
   let fixed=0;
   try{
