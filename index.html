@@ -20620,6 +20620,13 @@ const ALL_ZIP_COORDS={
 };
 
 function isSFZip(zip){return zip&&zip.toString().startsWith('941');}
+// North Bay (Marin 949xx, Sonoma 954xx) and East Bay (945xx–947xx) — used to spot routes that
+// cross the Golden Gate or Bay Bridge (2026-10-01). Getting from the warehouse to the Golden Gate
+// means driving the length of the city, which straight-line distance badly underestimates.
+function _isNorthBayZip(z){z=String(z||'');return z.startsWith('949')||z.startsWith('954');}
+function _isEastBayZip(z){z=String(z||'');return z.startsWith('945')||z.startsWith('946')||z.startsWith('947');}
+function _crossesGoldenGate(a,b){return (isSFZip(a)&&_isNorthBayZip(b))||(isSFZip(b)&&_isNorthBayZip(a));}
+function _crossesBayBridge(a,b){return (isSFZip(a)&&_isEastBayZip(b))||(isSFZip(b)&&_isEastBayZip(a));}
 
 function zipMiles(z1,z2){
   const c1=ALL_ZIP_COORDS[z1];
@@ -20635,7 +20642,10 @@ function zipMiles(z1,z2){
   // Medium distance (50-150mi): 1.25x (mostly highway)
   // Long distance (>150mi): 1.2x (freeway, minimal detours)
   const bothSF=isSFZip(z1)&&isSFZip(z2);
-  const factor=bothSF?1.55:straight>150?1.2:straight>50?1.25:1.3;
+  // SF ↔ Marin/Sonoma runs the length of the city to the Golden Gate (2026-10-01): warehouse →
+  // Sausalito came out 14.2 mi vs ~17 mi by road. Uses the city factor for those legs.
+  const ggCross=_crossesGoldenGate(z1,z2)&&straight<=50;
+  const factor=(bothSF||ggCross)?1.55:straight>150?1.2:straight>50?1.25:1.3;
   return Math.round(straight*factor*10)/10;
 }
 
@@ -20669,12 +20679,27 @@ function estimateFuelAndTime(loadZip,unloadZip,men,rate){
   // 20 mph (city) for the whole trip, which massively over-counts highway miles — a 100-mile haul
   // came out ~10 hrs. Now: short regional trips (≤60 round-trip mi) at ~25 mph, longer trips at
   // ~45 mph blended (local maneuvering + highway). Tune these divisors if real drive times differ.
-  const driveHours=loadSF&&unloadSF?Math.max(0.5,unloadToWH/15):(fullTripMiles<=60?fullTripMiles/25:fullTripMiles/45);
+  // Drive time (recalibrated 2026-10-01 against Google Maps). A flat 25 mph over the whole trip
+  // under-counted city/bridge routes (warehouse → Sausalito: 46 min one way by car, MoveDesk said
+  // ~1 hr ROUND trip) while over-counting quick freeway runs. Now, for a truck: the first 30 miles
+  // at 40 mph and the rest at 55 mph (Bay Area streets/approaches vs open highway), + 10 min of
+  // local streets at the end of each leg, + 15 min for each leg that crosses the Golden Gate (the
+  // drive through the city). Checked against Google Maps car times +~15% for a truck: Sausalito,
+  // San Mateo, Santa Cruz, Sacramento. SF-to-SF jobs still bill only the return leg (unchanged).
+  const _legs=[[WH,loadZip,whToLoad],[loadZip,unloadZip,loadToUnload],[unloadZip,WH,unloadToWH]].filter(l=>l[2]>0.5);
+  const _ggLegs=_legs.filter(l=>_crossesGoldenGate(l[0],l[1])).length;
+  const _roadHrs=Math.min(fullTripMiles,30)/40+Math.max(0,fullTripMiles-30)/55;
+  const driveHours=loadSF&&unloadSF?Math.max(0.5,unloadToWH/15)
+    :Math.round((_roadHrs+_legs.length*(10/60)+_ggLegs*(15/60))*100)/100;
+  // Bridge tolls are charged on the way INTO San Francisco (Golden Gate southbound, Bay Bridge
+  // westbound). Not priced — truck tolls depend on axles — just flagged so nobody forgets.
+  const tolls=[];
+  _legs.forEach(l=>{if(isSFZip(l[1])&&!isSFZip(l[0])){if(_isNorthBayZip(l[0])&&tolls.indexOf('Golden Gate Bridge')<0)tolls.push('Golden Gate Bridge');if(_isEastBayZip(l[0])&&tolls.indexOf('Bay Bridge')<0)tolls.push('Bay Bridge');}});
   const fuel=Math.max(35,Math.round(fullTripMiles*RATE_PER_MILE/5)*5);
   const actualFuelLow=Math.round(fullTripMiles/8*5);
   const actualFuelHigh=Math.round(fullTripMiles/8*8);
 
-  return{fuel,driveHours,totalMiles:fullTripMiles,chargedMiles:fullTripMiles,actualFuelLow,actualFuelHigh,
+  return{fuel,driveHours,totalMiles:fullTripMiles,chargedMiles:fullTripMiles,actualFuelLow,actualFuelHigh,tolls,
     note:'Full trip: warehouse → load → unload → warehouse'};
 }
 
@@ -20699,7 +20724,11 @@ function calcQuickFuel(){
   if(z2&&z2!==z1)legs.push([z1+' → '+z2+city(z2),zipMiles(z1,z2)]);
   legs.push([(z2||z1)+' → warehouse',zipMiles(stop2,WH)]);
   const charge=r.fuel*trucks;
-  const hrs=Math.round(r.driveHours*4)/4;
+  const _fmtDur=h=>{const m=Math.round(h*60/5)*5;return m<60?m+' min':Math.floor(m/60)+' hr'+(m%60?' '+(m%60)+' min':'');};
+  const firstLeg=legs[0][1]||0;
+  const oneWayHrs=r.totalMiles?r.driveHours*(firstLeg/r.totalMiles):0;
+  const stops=[z1].concat(z2&&z2!==z1?[z2]:[]);
+  const gmaps='https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=94124&destination=94124&waypoints='+encodeURIComponent(stops.join('|'));
   out.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:12px 14px">
@@ -20708,16 +20737,38 @@ function calcQuickFuel(){
         <div style="font-size:11px;color:var(--text3)">${trucks===2?'2 trucks × '+fmtMoney(r.fuel):'$2/mile, $35 minimum'}</div>
       </div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px">
-        <div style="font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Round trip</div>
-        <div style="font-size:26px;font-weight:700">${r.totalMiles} mi</div>
-        <div style="font-size:11px;color:var(--text3)">about ${hrs<1?Math.round(hrs*60)+' min':hrs+' hr'+(hrs===1?'':'s')} driving</div>
+        <div style="font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Truck drive time</div>
+        <div style="font-size:20px;font-weight:700;line-height:1.3">${_fmtDur(oneWayHrs)} <span style="font-size:12px;font-weight:500;color:var(--text3)">to ${escHtml(z1)}</span></div>
+        <div style="font-size:12px;color:var(--text2)">${_fmtDur(r.driveHours)} round trip · ${r.totalMiles} mi</div>
       </div>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12.5px">
       ${legs.map(([lbl,mi])=>`<tr><td style="padding:6px 0;border-bottom:1px solid var(--border2);color:var(--text2)">${escHtml(lbl)}</td><td style="padding:6px 0;border-bottom:1px solid var(--border2);text-align:right;font-family:'DM Mono',monospace">${Math.round(mi*10)/10} mi</td></tr>`).join('')}
     </table>
-    <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">Road miles are estimated from zip-code centres, so treat them as close, not exact. Our actual fuel cost for this trip is roughly ${fmtMoney(r.actualFuelLow*trucks)}–${fmtMoney(r.actualFuelHigh*trucks)}.</div>
-    <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="navigator.clipboard.writeText('${charge}');showToast('✓ Copied ${fmtMoney(charge)}')">📋 Copy fuel charge</button>`;
+    ${(r.tolls||[]).length?`<div style="margin-top:10px;padding:8px 10px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12px">🌉 ${r.tolls.join(' and ')} toll on the way back into the city — not included in the fuel charge.</div>`:''}
+    <div id="fc-google" style="margin-top:10px;font-size:12px;color:var(--text2)"></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">MoveDesk's miles and times are estimates for a truck, from zip-code centres — close, not exact. Our actual fuel cost for this trip is roughly ${fmtMoney(r.actualFuelLow*trucks)}–${fmtMoney(r.actualFuelHigh*trucks)}.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${charge}');showToast('✓ Copied ${fmtMoney(charge)}')">📋 Copy fuel charge</button>
+      <a class="btn btn-secondary btn-sm" href="${gmaps}" target="_blank" rel="noopener" style="text-decoration:none">🗺 Open in Google Maps</a>
+    </div>`;
+  // Live check against Google (2026-10-01): real road miles + car time for this exact route, using
+  // the Maps key the app already loads for address autocomplete. Silent if unavailable.
+  try{
+    if(window.google&&google.maps&&google.maps.DirectionsService){
+      const _key=stops.join('|');window._fcLastKey=_key;
+      new google.maps.DirectionsService().route({origin:'94124, CA',destination:'94124, CA',
+        waypoints:stops.map(z=>({location:z+', CA',stopover:true})),travelMode:google.maps.TravelMode.DRIVING},function(res,status){
+        const el=document.getElementById('fc-google');
+        if(!el||window._fcLastKey!==_key||status!=='OK')return;
+        const lg=res.routes[0].legs;
+        const mi=lg.reduce((a,l)=>a+l.distance.value,0)/1609.34;
+        const sec=lg.reduce((a,l)=>a+l.duration.value,0);
+        el.innerHTML='<strong>Google Maps (car, no traffic):</strong> '+_fmtDur(lg[0].duration.value/3600)+' to '+escHtml(z1)+' · '+_fmtDur(sec/3600)+' round trip · '+Math.round(mi)+' mi'
+          +'<div style="font-size:11px;color:var(--text3)">A truck usually takes 10–20% longer. Google\'s miles would make the fuel charge '+fmtMoney(Math.max(35,Math.round(Math.round(mi)*2/5)*5)*trucks)+'.</div>';
+      });
+    }
+  }catch(_){}
 }
 
 function estimatePackingMaterials(size,moveType){
