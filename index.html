@@ -101,6 +101,7 @@ input[type=number]{-moz-appearance:textfield}
     <div class="nav-item" onclick="showPage('settings')"><span>◇</span> Settings</div>
     <div class="nav-item" onclick="showPage('aiquote')"><span>🤖</span> AI Quote Builder</div>
     <div class="nav-item" onclick="showPage('packcalc')"><span>📦</span> Pack Materials Calc</div>
+    <div class="nav-item" onclick="showPage('fuelcalc')"><span>⛽</span> Fuel Calculator</div>
     <div class="nav-item" onclick="showPage('fleet');renderFleet()"><span>🚚</span> Fleet</div>
     <div class="nav-item" onclick="showPage('hotels');renderHotels()"><span>🏨</span> Truck-Friendly Hotels</div>
     <div class="nav-item" onclick="showPage('agentreply')"><span>🤖</span> Agent Enquiry Reply</div>
@@ -881,6 +882,21 @@ input[type=number]{-moz-appearance:textfield}
       <div class="card"><div class="card-body" id="hotels-list" style="padding:0"></div></div>
     </div>
 
+    <div class="page" id="page-fuelcalc">
+      <div style="max-width:620px">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><div class="card-title">Quick fuel calculator</div><div style="font-size:11.5px;color:var(--text3)">From the warehouse (94124) and back</div></div>
+          <div class="card-body">
+            <div class="form-grid form-grid-2">
+              <div class="form-group"><label>Going to (zip)</label><input type="text" id="fc-zip1" inputmode="numeric" maxlength="5" placeholder="e.g. 94402" oninput="calcQuickFuel()"></div>
+              <div class="form-group"><label>Then to (zip) <span style="font-size:10.5px;color:var(--text3)">(optional — e.g. drop-off)</span></label><input type="text" id="fc-zip2" inputmode="numeric" maxlength="5" placeholder="leave blank if one stop" oninput="calcQuickFuel()"></div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;margin-top:4px"><input type="checkbox" id="fc-two-trucks" onchange="calcQuickFuel()" style="width:auto;margin:0"> Two trucks (8+ vaults) — fuel charged per truck</label>
+            <div id="fc-result" style="margin-top:16px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="page" id="page-fleet">
       <div style="max-width:820px">
         <div id="fleet-content"></div>
@@ -4559,7 +4575,7 @@ document.addEventListener('visibilitychange',function(){
     refreshFromSupabase();
   }
 });
-const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type']};
+const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type'],fuelcalc:['Fuel Calculator','Quick fuel charge from the warehouse and back']};
 function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
 // Paste-to-lead: takes free-form text (email, SMS, notes) and extracts structured lead fields
 // using regex pattern matching, then auto-fills the New Lead form for review.
@@ -20660,6 +20676,48 @@ function estimateFuelAndTime(loadZip,unloadZip,men,rate){
 
   return{fuel,driveHours,totalMiles:fullTripMiles,chargedMiles:fullTripMiles,actualFuelLow,actualFuelHigh,
     note:'Full trip: warehouse → load → unload → warehouse'};
+}
+
+// ── Quick fuel calculator (2026-10-01) ─────────────────────────────────────────────────────
+// Warehouse (94124) → zip → (optional second zip) → warehouse. Uses estimateFuelAndTime, the
+// same math the AI quote uses ($2/mile, $35 minimum, rounded to $5), so the two never disagree.
+function calcQuickFuel(){
+  const out=document.getElementById('fc-result');if(!out)return;
+  const clean=v=>String(v||'').replace(/\D/g,'').slice(0,5);
+  const z1=clean(document.getElementById('fc-zip1').value);
+  const z2=clean(document.getElementById('fc-zip2').value);
+  const trucks=document.getElementById('fc-two-trucks').checked?2:1;
+  if(z1.length<5){out.innerHTML='<div style="font-size:12.5px;color:var(--text3)">Enter a 5-digit zip to see the fuel charge.</div>';return;}
+  if(z2&&z2.length<5){out.innerHTML='<div style="font-size:12.5px;color:var(--text3)">Finish the second zip, or leave it blank.</div>';return;}
+  const WH='94124';
+  const stop2=z2||z1;
+  const unknown=[...new Set([z1,stop2])].filter(z=>!ALL_ZIP_COORDS[z]);
+  if(unknown.length){out.innerHTML='<div style="padding:10px 12px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12.5px">Zip '+unknown.join(', ')+' isn\'t in MoveDesk\'s zip list (it covers California, Nevada and Arizona). Work this one out manually.</div>';return;}
+  const r=estimateFuelAndTime(z1,stop2,0,0);
+  const city=z=>(typeof CA_ZIP_CITY!=='undefined'&&CA_ZIP_CITY[z])?' ('+CA_ZIP_CITY[z]+')':'';
+  const legs=[['Warehouse 94124 → '+z1+city(z1),zipMiles(WH,z1)]];
+  if(z2&&z2!==z1)legs.push([z1+' → '+z2+city(z2),zipMiles(z1,z2)]);
+  legs.push([(z2||z1)+' → warehouse',zipMiles(stop2,WH)]);
+  const charge=r.fuel*trucks;
+  const hrs=Math.round(r.driveHours*4)/4;
+  out.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="background:var(--accent-light);border:1px solid #a8d5b5;border-radius:var(--radius);padding:12px 14px">
+        <div style="font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Fuel charge</div>
+        <div style="font-size:26px;font-weight:700;color:var(--accent)">${fmtMoney(charge)}</div>
+        <div style="font-size:11px;color:var(--text3)">${trucks===2?'2 trucks × '+fmtMoney(r.fuel):'$2/mile, $35 minimum'}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px">
+        <div style="font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">Round trip</div>
+        <div style="font-size:26px;font-weight:700">${r.totalMiles} mi</div>
+        <div style="font-size:11px;color:var(--text3)">about ${hrs<1?Math.round(hrs*60)+' min':hrs+' hr'+(hrs===1?'':'s')} driving</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      ${legs.map(([lbl,mi])=>`<tr><td style="padding:6px 0;border-bottom:1px solid var(--border2);color:var(--text2)">${escHtml(lbl)}</td><td style="padding:6px 0;border-bottom:1px solid var(--border2);text-align:right;font-family:'DM Mono',monospace">${Math.round(mi*10)/10} mi</td></tr>`).join('')}
+    </table>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5">Road miles are estimated from zip-code centres, so treat them as close, not exact. Our actual fuel cost for this trip is roughly ${fmtMoney(r.actualFuelLow*trucks)}–${fmtMoney(r.actualFuelHigh*trucks)}.</div>
+    <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="navigator.clipboard.writeText('${charge}');showToast('✓ Copied ${fmtMoney(charge)}')">📋 Copy fuel charge</button>`;
 }
 
 function estimatePackingMaterials(size,moveType){
