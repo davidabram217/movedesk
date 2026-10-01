@@ -1352,6 +1352,7 @@ input[type=number]{-moz-appearance:textfield}
             <div class="form-group"><label>Pack rate ($/hr)</label><input type="number" id="bj-pack-rate" placeholder="e.g. 180"></div>
             <div class="form-group"><label>Pack hrs min</label><input type="number" id="bj-pack-hrs-min" placeholder="e.g. 3" step="0.5"></div>
             <div class="form-group"><label>Pack hrs max</label><input type="number" id="bj-pack-hrs-max" placeholder="e.g. 5" step="0.5"></div>
+            <div class="form-group" style="grid-column:1/-1"><label>Packing note <span style="font-size:10.5px;color:var(--text3)">(e.g. kitchen only)</span></label><input type="text" id="bj-pack-note" placeholder="e.g. Kitchen only"></div>
           </div>
         </div>
       </div>
@@ -7057,6 +7058,21 @@ function _crewNote(src){
   const n=src&&(src.crewNote||src.crewnote);
   return n&&String(n).trim()?' \u2014 '+String(n).trim():'';
 }
+// Customer-facing packing crew line for the confirmation email / sent-to-customer block
+// (2026-10-01): "2 Packers — Kitchen only @ $150 Per Hour". Day 1 prefers the booking form's
+// packing crew when it is set (same override rule as movers/rates); other days use the quote day.
+function _packEmailLine(day,bj,isDay1){
+  const src=(isDay1&&bj&&bj.packCrew&&Number(bj.packRate))?bj:((day&&day.packCrew&&Number(day.packRate))?day:null);
+  if(!src)return'';
+  const n=Number(src.packCrewSize)||0;
+  const note=_packNote(src)||(src===bj?_packNote(day):'');
+  return'\n'+(n?n+' Packer'+(n>1?'s':''):'Packing crew')+note+' @ $'+Number(src.packRate).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})+' Per Hour';
+}
+// Packing crew note, e.g. "2 Packers — kitchen only" (2026-10-01). Same shape as _crewNote.
+function _packNote(src){
+  const n=src&&src.packNote;
+  return n&&String(n).trim()?' \u2014 '+String(n).trim():'';
+}
 
 function buildMoveDetailsBlock(l,bj){
   function _fmtRate(n){return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
@@ -7113,6 +7129,7 @@ function buildMoveDetailsBlock(l,bj){
       // hours) are untouched. hrsMin/hrsMax remain stored on the job and still drive quotes and
       // analytics; only this email stops printing them.
       s+='\n'+crew+' Movers'+_crewNote(day)+' @ $'+_fmtRate(rate)+' Per Hour'+(dayCash?' ($'+_fmtRate(dayCash)+' If Paid Cash)':'');
+      s+=_packEmailLine(day,bj,isDay1);
         }
       // Day-specific fees. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMD=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
@@ -7180,8 +7197,11 @@ function buildMoveDetailsBlock(l,bj){
       if(flatPrice)s+='\n'+(d.flatDescription||'Move services')+': $'+_fmtRate(flatPrice)+' flat rate'+(flatCash?' ($'+_fmtRate(flatCash)+' If Paid Cash)':'');
     } else if(rate){
       // Single-day: the note lives on the quote's first (only) day.
-      const _q0day=(_q&&_q.days&&_q.days[0])||{};
+      // Was `_q` (undeclared) — threw a ReferenceError for every single-day hourly job, so the
+      // calendar's fallback block came out empty (2026-10-01).
+      const _q0day=(q&&q.days&&q.days[0])||{};
       s+='\n'+crew+' Movers'+_crewNote(_q0day)+' @ $'+_fmtRate(rate)+' Per Hour'+(cashRate?' ($'+_fmtRate(cashRate)+' If Paid Cash)':'');
+      s+=_packEmailLine(_q0day,bj,true);
     }
     // Fee precedence: booking fuel/materials win over quote's matching fee lines
     var bjFuelFeeS=Number(bj?.feeFuel)||0;
@@ -7363,7 +7383,7 @@ function openConfirmEmail(leadId,bookedJob){
     // job's ESTIMATED hours range floor (4.5 on a job quoted 4.5–6), NOT the billing minimum — so a
     // confirmation read "4.5 Hour Minimum", promising the customer a longer minimum than the house
     // terms. The 2-hour minimum is a fixed company term, the same one buildQuotePlainText states.
-    moveDetailsSection+='\n2 Hour Minimum';
+    moveDetailsSection+='\n2 Hour Minimum';moveDetailsSection+=_packEmailLine(day,bj,isDay1);
         }
       // Fees for this day. Day 1 only: booking-form fuel/materials override matching quote fees.
       const bjFuelFeeMulti=isDay1?(Number(bj?.feeFuel)||0):(Number(day.feeFuel)||0);
@@ -7454,7 +7474,8 @@ function openConfirmEmail(leadId,bookedJob){
         // added to only one of the three, so a job that priced through a different branch —
         // which is most of them — showed a rate with no minimum beneath it.
 
-        moveDetailsSection+='\n2 Hour Minimum';}
+        moveDetailsSection+='\n2 Hour Minimum';
+        moveDetailsSection+=_packEmailLine((q&&q.days&&q.days[0])||{},bj,true);}
     // Fees: booking-form fuel/materials override the matching quote fees. Other quote fees
     // (e.g. packing materials, custom fees) pass through unchanged.
     var bjFuelFee=Number(bj?.feeFuel)||0;
@@ -9145,6 +9166,7 @@ function bjWriteFields(j){
   j.packRate=document.getElementById('bj-pack-rate')?.value||'';
   j.packHrsMin=document.getElementById('bj-pack-hrs-min')?.value||'';
   j.packHrsMax=document.getElementById('bj-pack-hrs-max')?.value||'';
+  j.packNote=document.getElementById('bj-pack-note')?.value||'';
   j.unloadCrew=document.getElementById('bj-unload-crew')?.checked||false;
   j.unloadCrewSize=document.getElementById('bj-unload-crew-size')?.value||'';
   j.unloadRate=document.getElementById('bj-unload-rate')?.value||'';
@@ -9195,7 +9217,7 @@ function openBooking(leadId){
   // Reset all fields first
   ['bj-quote','bj-deposit','bj-rate-regular','bj-rate-cash','bj-fee-materials','bj-pack-mat-min','bj-pack-mat-max','bj-fee-fuel','bj-drive-to','bj-drive-return','bj-volume','bj-scope','bj-crew-notes','bj-email-note','bj-office-notes','bj-do-not-exceed'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('bj-time').value='8:30–9:30am';
-  document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('bj-insurance-type').selectedIndex=0;document.getElementById('bj-crew-diff').checked=false;document.getElementById('bj-crew-diff-fields').style.display='none';document.getElementById('bj-pack-crew').checked=false;document.getElementById('bj-pack-crew-fields').style.display='none';['bj-crew-load','bj-crew-unload','bj-pack-crew-size'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['bj-pack-rate','bj-pack-hrs-min','bj-pack-hrs-max','bj-pack-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   {const uc=document.getElementById('bj-unload-crew');if(uc)uc.checked=false;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display='none';const ucs=document.getElementById('bj-unload-crew-size');if(ucs)ucs.selectedIndex=0;['bj-unload-rate','bj-unload-hrs-min','bj-unload-hrs-max'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
   // The lead's move date is AUTHORITATIVE for the booking form (2026-08-19).
   // `bj-date` is <input type="date">, which silently blanks any value that isn't
@@ -9263,6 +9285,16 @@ function openBooking(leadId){
         setIfEmpty('bj-unload-rate',day.unloadRate);
         setIfEmpty('bj-unload-hrs-min',day.unloadHrsMin);
         setIfEmpty('bj-unload-hrs-max',day.unloadHrsMax);
+      }
+      // Prefill the packing crew from the quote day, including its note (2026-10-01).
+      if(day.packCrew){
+        const pc=document.getElementById('bj-pack-crew');
+        if(pc){pc.checked=true;const pcf=document.getElementById('bj-pack-crew-fields');if(pcf)pcf.style.display='block';}
+        if(day.packCrewSize){const el=document.getElementById('bj-pack-crew-size');if(el)el.value=day.packCrewSize;}
+        setIfEmpty('bj-pack-rate',day.packRate);
+        setIfEmpty('bj-pack-hrs-min',day.packHrsMin);
+        setIfEmpty('bj-pack-hrs-max',day.packHrsMax);
+        setIfEmpty('bj-pack-note',day.packNote);
       }
     }
     setIfEmpty('bj-quote',quote.totalMax||quote.totalMin);
@@ -9450,6 +9482,16 @@ function openBooking(leadId){
     draftSetIfHasValue('bj-crew-notes',_existingDraft.crewNotes);
     draftSetIfHasValue('bj-email-note',_existingDraft.emailNote);
     draftSetIfHasValue('bj-office-notes',_existingDraft.officeNotes);
+    // Packing crew + note typed on an earlier visit (2026-10-01) — previously not restored at all.
+    if(typeof _existingDraft.packCrew==='boolean'){
+      const _pc=document.getElementById('bj-pack-crew');
+      if(_pc){_pc.checked=_existingDraft.packCrew;const _pcf=document.getElementById('bj-pack-crew-fields');if(_pcf)_pcf.style.display=_existingDraft.packCrew?'block':'none';}
+    }
+    draftSetIfHasValue('bj-pack-crew-size',_existingDraft.packCrewSize);
+    draftSetIfHasValue('bj-pack-rate',_existingDraft.packRate);
+    draftSetIfHasValue('bj-pack-hrs-min',_existingDraft.packHrsMin);
+    draftSetIfHasValue('bj-pack-hrs-max',_existingDraft.packHrsMax);
+    draftSetIfHasValue('bj-pack-note',_existingDraft.packNote);
     if(_existingDraft.insuranceType){
       const sel=document.getElementById('bj-insurance-type');
       if(sel){for(let i=0;i<sel.options.length;i++){if(sel.options[i].value===_existingDraft.insuranceType||sel.options[i].text===_existingDraft.insuranceType){sel.selectedIndex=i;break;}}}
@@ -9560,6 +9602,14 @@ function buildCrewCoverSheet(j,l){
     put(crew+' @ '+_csMoney2(j.rateRegular)+' per hour'
       +(Number(j.rateCash)?' ('+_csMoney2(j.rateCash)+' cash rate)':''));
     put('2 hour minimum');
+  }
+  // Packing crew (2026-10-01) — the sheet only said "Full pack"/"Kitchen" in scope and never
+  // listed the packers. Booking-form values first, then the quote's day 1.
+  const _pk=j.packCrew&&Number(j.packRate)?j:((j.quoteDays&&j.quoteDays[0]&&j.quoteDays[0].packCrew&&Number(j.quoteDays[0].packRate))?j.quoteDays[0]:null);
+  if(_pk){
+    const _pkN=Number(_pk.packCrewSize)||0;
+    put((_pkN?_pkN+' packer'+(_pkN>1?'s':''):'Packing crew')+(_packNote(j)||_packNote(_pk))+' @ '+_csMoney2(_pk.packRate)+' per hour'
+      +((_pk.packHrsMin||_pk.packHrsMax)?' \u00b7 '+(_pk.packHrsMin||'?')+'\u2013'+(_pk.packHrsMax||'?')+' hrs':''));
   }
   if(Number(j.feeFuel))put(_csMoney2(j.feeFuel)+' fuel fee');
   if(Number(j.feeMaterials))put(_csMoney2(j.feeMaterials)+' material fee');
@@ -9709,7 +9759,7 @@ function buildJobCalUrl(j){
   if(j.packing&&j.packing!=='No')lines.push(`Packing: ${j.packing}`);
   if(j.insuranceType)lines.push(`Insurance: ${j.insuranceType}`);
   if(j.crewDiff){lines.push(`Load crew: ${j.crewLoad||j.movers||'?'} movers`);lines.push(`Unload crew: ${j.crewUnload||j.movers||'?'} movers`);}
-  if(j.packCrew&&j.packRate){lines.push(`Packing crew: ${j.packCrewSize||1} packer(s) @ $${j.packRate}/hr · ${j.packHrsMin||'?'}–${j.packHrsMax||'?'} hrs`);}
+  if(j.packCrew&&j.packRate){lines.push(`Packing crew: ${j.packCrewSize||1} packer(s)${_packNote(j)||_packNote((j.quoteDays&&j.quoteDays[0])||{})} @ $${j.packRate}/hr · ${j.packHrsMin||'?'}–${j.packHrsMax||'?'} hrs`);}
   lines.push('');
 
   // ───────────────────────────────────────────────────────────
@@ -10997,7 +11047,7 @@ function editBookedJob(jobId){
   document.getElementById('bj-email-note').value=j.emailNote||'';
   if(document.getElementById('bj-do-not-exceed'))document.getElementById('bj-do-not-exceed').value=j.doNotExceed||'';
   const _bjLeadOn=db.leads.find(x=>x.id===j.leadId);
-  if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=_bjLeadOn?.officeNotes||j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';
+  if(document.getElementById('bj-office-notes'))document.getElementById('bj-office-notes').value=_bjLeadOn?.officeNotes||j.officeNotes||'';document.getElementById('bj-crew-diff').checked=!!j.crewDiff;document.getElementById('bj-crew-diff-fields').style.display=j.crewDiff?'block':'none';if(j.crewLoad)document.getElementById('bj-crew-load').value=j.crewLoad;if(j.crewUnload)document.getElementById('bj-crew-unload').value=j.crewUnload;document.getElementById('bj-pack-crew').checked=!!j.packCrew;document.getElementById('bj-pack-crew-fields').style.display=j.packCrew?'block':'none';if(j.packCrewSize)document.getElementById('bj-pack-crew-size').value=j.packCrewSize;if(document.getElementById('bj-pack-rate'))document.getElementById('bj-pack-rate').value=j.packRate||'';if(document.getElementById('bj-pack-hrs-min'))document.getElementById('bj-pack-hrs-min').value=j.packHrsMin||'';if(document.getElementById('bj-pack-hrs-max'))document.getElementById('bj-pack-hrs-max').value=j.packHrsMax||'';if(document.getElementById('bj-pack-note'))document.getElementById('bj-pack-note').value=j.packNote||'';
   {const uc=document.getElementById('bj-unload-crew');if(uc){uc.checked=!!j.unloadCrew;const ucf=document.getElementById('bj-unload-crew-fields');if(ucf)ucf.style.display=j.unloadCrew?'block':'none';}if(j.unloadCrewSize){const el=document.getElementById('bj-unload-crew-size');if(el)el.value=j.unloadCrewSize;}if(document.getElementById('bj-unload-rate'))document.getElementById('bj-unload-rate').value=j.unloadRate||'';if(document.getElementById('bj-unload-hrs-min'))document.getElementById('bj-unload-hrs-min').value=j.unloadHrsMin||'';if(document.getElementById('bj-unload-hrs-max'))document.getElementById('bj-unload-hrs-max').value=j.unloadHrsMax||'';}
   const titleEl=document.querySelector('#modal-book-job .modal-title');
   const btnEl=document.getElementById('bj-submit-btn');
@@ -17042,6 +17092,7 @@ function addQuoteDay(){
     packRate:last.packRate||'',
     packHrsMin:last.packHrsMin||'',
     packHrsMax:last.packHrsMax||'',
+    packNote:last.packNote||'',
     // Copy locations from last day
     loads:JSON.parse(JSON.stringify(last.loads||[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}])),
     unloads:JSON.parse(JSON.stringify(last.unloads||[{address:'',unit:'',floor:'',access:'',locType:'',parking:''}])),
@@ -17159,6 +17210,7 @@ function updateQbDay(id,field,val){
     try{updateQbDaySubtotal(id);}catch(_){}
   } else {
     d[field]=val;
+    if(field==='packNote'){try{updateQbDaySubtotal(id);}catch(_){}}
   }
   updateQbTotal();
   qbAutoSave();
@@ -17183,7 +17235,7 @@ function updateQbDaySubtotal(dayId){
     out='<strong>'+dayLabel+' estimate:</strong> '+(totalMin===totalMax?fmtMoney(totalMin):fmtMoney(totalMin)+' – '+fmtMoney(totalMax));
     if(flatCash)out+=' <span style="color:var(--accent);font-weight:500">or '+(cashMin===cashMax?fmtMoney(cashMin):fmtMoney(cashMin)+' – '+fmtMoney(cashMax))+' cash</span>';
     out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Flat rate'+(d.crew?' · '+d.crew+' movers':'')+(d.flatHrs?' · ~'+d.flatHrs+' hrs estimated':'');
-    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+_hrText(d.packHrsMin,d.packHrsMax)+' · $'+d.packRate+'/hr';
+    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+escHtml(_packNote(d))+' · '+_hrText(d.packHrsMin,d.packHrsMax)+' · $'+d.packRate+'/hr';
     out+='</div>';
   } else {
     const moveMin=(d.hrsMin||0)*d.rate;
@@ -17191,7 +17243,7 @@ function updateQbDaySubtotal(dayId){
     const crewDesc=d.crewLoadDiff?(d.crewLoad||d.crew)+' load / '+(d.crewUnload||d.crew)+' unload movers':(d.crew||0)+' movers';
     out='<strong>'+dayLabel+' estimate:</strong> '+_rangeMoney(fmtMoney,moveMin+packMin,moveMax+packMax);
     out+='<div style="font-size:11.5px;color:var(--text3);margin-top:4px">'+crewDesc+' · '+_hrText(d.hrsMin,d.hrsMax)+' · $'+(d.rate||0)+'/hr';
-    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+' · '+_hrText(d.packHrsMin,d.packHrsMax)+' · $'+d.packRate+'/hr';
+    if(d.packCrew&&d.packRate)out+=' + '+(d.packCrewSize||1)+' packer'+((d.packCrewSize||1)>1?'s':'')+escHtml(_packNote(d))+' · '+_hrText(d.packHrsMin,d.packHrsMax)+' · $'+d.packRate+'/hr';
     out+='</div>';
   }
   // Find the day subtotal box by data attribute we add in renderQbDays
@@ -17476,6 +17528,7 @@ function renderQbDays(){
               <div class="form-group"><label>Rate ($/hr total)</label><input type="number" value="${d.packRate||''}" oninput="updateQbDay('${d.id}','packRate',this.value)" placeholder="e.g. 180"></div>
               <div class="form-group"><label>Min hours</label><input type="number" value="${d.packHrsMin||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','packHrsMin',this.value)" placeholder="e.g. 2"></div>
               <div class="form-group"><label>Max hours</label><input type="number" value="${d.packHrsMax||''}" min="1" step="0.5" oninput="updateQbDay('${d.id}','packHrsMax',this.value)" placeholder="e.g. 4"></div>
+              <div class="form-group" style="grid-column:1/-1"><label>Packing note <span style="font-size:10.5px;color:var(--text3)">(optional — shown after the packers on the quote)</span></label><input type="text" value="${escHtml(d.packNote||'')}" oninput="updateQbDay('${d.id}','packNote',this.value)" placeholder="e.g. Kitchen only"></div>
             </div>
           </div>`:''}
         </div>
@@ -17496,7 +17549,7 @@ function renderQbDays(){
               let out=`<strong>${dayLabel} estimate:</strong> ${totalMin===totalMax?fmtMoney(totalMin):fmtMoney(totalMin)+' – '+fmtMoney(totalMax)}`;
               if(flatCash)out+=` <span style="color:var(--accent);font-weight:500">or ${cashMin===cashMax?fmtMoney(cashMin):fmtMoney(cashMin)+' – '+fmtMoney(cashMax)} cash</span>`;
               out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Flat rate${d.crew?' · '+d.crew+' movers':''}${d.flatHrs?' · ~'+d.flatHrs+' hrs estimated':''}`;
-              if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
+              if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''}${escHtml(_packNote(d))} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
               out+='</div>';
               return out;
             }
@@ -17513,7 +17566,7 @@ function renderQbDays(){
             let out=`<strong>${dayLabel} estimate:</strong> ${_rangeMoney(fmtMoney,moveMin+unlMin+packMin,moveMax+unlMax+packMax)}`;
             out+=`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">${crewDesc} · ${_hrText(d.hrsMin,d.hrsMax)} · $${d.rate}/hr`;
             if(d.unloadCrew&&d.unloadRate)out+=` + ${d.unloadCrewSize||'?'} movers unload · ${d.unloadHrsMin||'?'}–${d.unloadHrsMax||'?'} hrs · $${d.unloadRate}/hr`;
-            if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
+            if(d.packCrew&&d.packRate)out+=` + ${d.packCrewSize||1} packer${(d.packCrewSize||1)>1?'s':''}${escHtml(_packNote(d))} · ${d.packHrsMin||'?'}–${d.packHrsMax||'?'} hrs · $${d.packRate}/hr`;
             out+='</div>';
             return out;
           })()}
@@ -17806,7 +17859,7 @@ function renderQuoteHTML(q,lead){
     }
     if(d.packCrew&&d.packRate){
       const pCount=Number(d.packCrewSize)||0;
-      const pl=(isMulti?`Day ${i+1} – `:'')+(pCount?pCount+' Packer'+(pCount>1?'s':''):'Packing crew');
+      const pl=(isMulti?`Day ${i+1} – `:'')+(pCount?pCount+' Packer'+(pCount>1?'s':''):'Packing crew')+_packNote(d);
       html+=`<tr style="border-bottom:1px solid #f0ece4">
         <td style="padding:11px 6px">${esc(pl)}</td>
         <td style="padding:11px 6px;text-align:right;color:#6b6860">${d.packHrsMin||'?'} – ${d.packHrsMax||'?'} hrs</td>
@@ -18269,6 +18322,12 @@ function buildQuotePlainText(){
     const label=isMulti?'Day '+(i+1)+' - '+fmtCrewDesc(d):fmtCrewDesc(d);
     txt+=label+': '+d.hrsMin+' - '+d.hrsMax+' hours @ $'+d.rate+'/hr\n';
     txt+='  Range: '+fmtMoney(d.hrsMin*d.rate)+' - '+fmtMoney(d.hrsMax*d.rate)+'\n';
+    // Packing crew + note (2026-10-01) — the text version never listed the packers.
+    if(d.packCrew&&d.packRate){
+      const _pn=Number(d.packCrewSize)||0;
+      txt+=(isMulti?'Day '+(i+1)+' - ':'')+(_pn?_pn+' packer'+(_pn>1?'s':''):'Packing crew')+_packNote(d)+': '+(d.packHrsMin||'?')+' - '+(d.packHrsMax||'?')+' hours @ $'+d.packRate+'/hr\n';
+      txt+='  Range: '+fmtMoney((d.packHrsMin||0)*d.packRate)+' - '+fmtMoney((d.packHrsMax||0)*d.packRate)+'\n';
+    }
   });
   qbFees.filter(f=>f.included).forEach(f=>{
     const amt=f.type==='range'?fmtMoney(f.hrsMin||0)+' - '+fmtMoney(f.hrsMax||0):fmtMoney(f.amount||0);
