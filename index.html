@@ -13920,7 +13920,7 @@ function calcPackMaterials(isRecalc){
     if(rec.packing){
       const p=String(rec.packing).toLowerCase();
       if(p.includes('full'))return 'full';
-      if(p.includes('partial')||p.includes('kitchen')||p.includes('fragile'))return 'partial-or-kitchen';
+      if(p.includes('partial')||p.includes('kitchen')||p.includes('fragile')||p.includes('breakable'))return 'partial-or-kitchen';
       if(p==='no'||p.includes('just moving'))return (Number(rec.feePackMaterials)||0)>0?'material-only':'none';
     }
     // Next strongest: moveType
@@ -13943,8 +13943,8 @@ function calcPackMaterials(isRecalc){
     if(!scopeWanted)return true; // calculator hasn't picked a type yet
     return s===scopeWanted;
   }
-  // Normalize size strings ("1 Bedroom" vs " 1 Bedroom")
-  const normSize=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();
+  // Normalize size strings ("1 Bedroom" vs " 1 Bedroom", "Office/commercial" vs "Office / Commercial")
+  const normSize=s=>String(s||'').toLowerCase().replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim();
   const sizeWanted=normSize(size);
   function matchesSize(rec){
     if(!sizeWanted)return true;
