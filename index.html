@@ -21000,9 +21000,24 @@ function selfHealAITraining(){
   return healed;
 }
 
+// Access difficulty in "flights" (2026-10-01). Was an exact-match lookup on the dropdown wording
+// ('1 Flight', '2 Flight', 'Elevator'), so older records written "1 flight", "2 flights",
+// "Elevator with long walk", "3rd floor walk-up" all scored 0 = flat — which made every new
+// quote look harder than its matched jobs and padded the hours (~+0.5 h on a typical 1-bed).
 function accessScore(access){
-  const map={'Flat':0,'1 Flight':1,'2 Flight':2,'3 Flight':3,'Elevator':0.5};
-  return map[access]||0;
+  const t=String(access||'').toLowerCase().trim();
+  if(!t)return 0;
+  const words={one:1,two:2,three:3,four:4,five:5};
+  let n=null;
+  const m=t.match(/(\d+)\s*(?:\+\s*)?(?:flight|flt|floor|stor(?:e)?y|level)/)||t.match(/(one|two|three|four|five)\s+(?:flight|floor|stor(?:e)?y|level)/);
+  if(m)n=words[m[1]]!=null?words[m[1]]:Number(m[1]);
+  let score;
+  if(t.indexOf('elevator')>=0||t.indexOf('lift')>=0)score=0.5;            // elevator beats stairs
+  else if(n!=null)score=Math.min(n,4);
+  else if(/stairs?|walk-?up|steps/.test(t))score=1;
+  else score=0;                                                            // flat / ground / unknown
+  if(/long\s*(walk|carry)|far\s*walk|long\s*hallway/.test(t))score+=0.5;
+  return score;
 }
 
 // Normalize a move-type label (form input or record) so equivalent labels compare equal.
@@ -21447,11 +21462,21 @@ function generateAIQuote(isRecalc){
   const _curatedPool=_aiKeptKeys?_cands.filter(j=>_aiKeptKeys.has(_trainKey(j))):null;
   const _volFallback=!_curatedPool&&_inBand.length===0&&_cands.length>0;
   const _pool=_curatedPool||(_inBand.length>0?_inBand:_cands);
-  const scored=_pool
+  const _top8=_pool
     .map(j=>({...j,score:similarity(j,inputs),_work:_jobWorkHours(j)}))
     .sort((a,b)=>b.score-a.score)
     .slice(0,8);
-  _aiLastScored=scored;
+  // Weak-match filter (2026-10-01): when at least 5 jobs are strong matches (within 20% of the best
+  // score), leave out the clearly weaker ones — e.g. 2-bed/4-mover jobs at match 38 next to 1-beds
+  // at 52–53 were stretching a 1-bed range. They stay listed, unticked, so ticking one and
+  // recalculating brings it back. Not applied to a hand-picked (curated) recalc.
+  let scored=_top8,_weakDropped=[];
+  if(!_curatedPool&&_top8.length){
+    const _best=_top8[0].score;
+    const _strong=_top8.filter(j=>j.score>=_best*0.8);
+    if(_strong.length>=5&&_strong.length<_top8.length){scored=_strong;_weakDropped=_top8.filter(j=>j.score<_best*0.8);}
+  }
+  _aiLastScored=scored.concat(_weakDropped);
 
   if(!scored.length){
     document.getElementById('ai-result').innerHTML='<div class="empty-state"><div class="empty-title">No matching jobs yet</div>'+(_wantType?'<div style="margin-top:8px;font-size:12px;color:var(--text2)">No completed <strong>'+(inputs.moveType||'')+'</strong> jobs in your AI training data yet. Move type is matched exactly, so complete a few of this type and this will start working.</div>':'')+(_aiExcludedKeys.size?'<div style="margin-top:8px;font-size:12px;color:var(--text2)">You\'ve also hidden '+_aiExcludedKeys.size+' job(s) from this estimate.</div><button onclick="resetAIExclusions()" class="btn" style="margin-top:10px;font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':'')+'</div>';
@@ -21483,11 +21508,11 @@ function generateAIQuote(isRecalc){
   // Crucially: access time scales inversely with crew size
   // More men = stairs take less wall-clock time (trips are shared)
   // We use 3-man as baseline for the 0.81 figure, then scale by crew
-  const accessScores={'Flat':0,'1 Flight':1,'2 Flight':2,'3 Flight':3,'Elevator':0.5};
-  const inputAccessScore=(accessScores[inputs.accessLoad]||0)+(accessScores[inputs.accessUnload]||0);
+  // Uses accessScore(), which reads any wording ("2 flights", "Elevator with long walk") — 2026-10-01.
+  const inputAccessScore=accessScore(inputs.accessLoad)+accessScore(inputs.accessUnload);
   const avgAccessScore=scored.reduce((s,j)=>{
-    const ls=accessScores[j.accessLoad]||0;
-    const us=accessScores[j.accessUnload]||0;
+    const ls=accessScore(j.accessLoad);
+    const us=accessScore(j.accessUnload);
     return s+(ls+us);
   },0)/scored.length;
 
@@ -21687,10 +21712,11 @@ function generateAIQuote(isRecalc){
       <em>Add insurance, COI, parking, dump fees as needed. 3.5% CC fee if applicable.</em>
     </div>
     <details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px"${_aiExcludedKeys.size?' open':''}>
-      <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">🔍 Jobs used for this estimate (${scored.length})${_aiExcludedKeys.size?' · '+_aiExcludedKeys.size+' hidden':''}</summary>
+      <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">🔍 Jobs used for this estimate (${scored.length})${_weakDropped.length?' · '+_weakDropped.length+' weaker match'+(_weakDropped.length===1?'':'es')+' left out':''}${_aiExcludedKeys.size?' · '+_aiExcludedKeys.size+' hidden':''}</summary>
       <div style="margin-top:8px">
         <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Uncheck any job to drop it from <strong>this estimate only</strong>, then recalculate. The estimate then uses only the jobs left ticked — no replacements are pulled in. Nothing is deleted — your AI training data is untouched.</div>
-        ${scored.map((j,i)=>{
+        ${_aiLastScored.map((j,i)=>{
+          const _on=i<scored.length;
           const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           const nm=_e(j.name).trim()||'(no name on record)';
           const src=j.fromSpreadsheet?'seed data':'your job';
@@ -21700,10 +21726,10 @@ function generateAIQuote(isRecalc){
           const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null].filter(Boolean).join(' · ');
           const line3=[j.moveType?_e(j.moveType):null,j.packing?'pack: '+_e(j.packing):null,(j.accessLoad||j.accessUnload)?(_e(j.accessLoad||'?')+'→'+_e(j.accessUnload||'?')):null,j.moveMen?j.moveMen+' movers':null,j.packMen?'+'+j.packMen+' packers':null].filter(Boolean).join(' · ');
           const hrs=(qmin||qmax)?`Quoted ${qmin||'?'}–${qmax||'?'} → actual <strong>${j.actualHours} hrs</strong>${over?' <span style="color:#b7860b;font-weight:600">⚠ ran over</span>':''}`:`Actual <strong>${j.actualHours} hrs</strong>`;
-          return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2);overflow-wrap:anywhere;word-break:break-word">
+          return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2);overflow-wrap:anywhere;word-break:break-word${_on?'':';opacity:.6'}">
           <label style="display:block;cursor:pointer">
-            <span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="ai-job-incl" data-idx="${i}" checked style="vertical-align:middle;margin-right:8px">${nm}</span>
-            <span style="color:var(--text3);font-size:10.5px;margin-left:6px">match ${Math.round(j.score)} · ${src}</span>
+            <span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="ai-job-incl" data-idx="${i}" ${_on?'checked':''} style="vertical-align:middle;margin-right:8px">${nm}</span>
+            <span style="color:var(--text3);font-size:10.5px;margin-left:6px">match ${Math.round(j.score)} · ${src}${_on?'':' · weaker match, left out — tick to include'}</span>
           </label>
           <div style="margin-left:24px">
             ${line2?`<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${line2}</div>`:''}
