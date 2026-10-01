@@ -667,6 +667,7 @@ input[type=number]{-moz-appearance:textfield}
                   <option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option>
                 </select>
               </div>
+              <div class="form-group" id="ai-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="ai-container" onchange="saveAIQuoteDraft()"><option value="">Select…</option></select></div>
               <div class="form-group"><label>Packing service</label>
                 <select id="ai-packing" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
@@ -996,6 +997,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Type of move</label>
           <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select>
         </div>
+        <div class="form-group" id="nl-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="nl-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label>Packing needed?</label>
           <select id="nl-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select>
         </div>
@@ -1435,7 +1437,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Home size</label><select id="cj-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cj-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
-        <div class="form-group"><label></label><div style="height:1px"></div></div>
+        <div class="form-group" id="cj-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cj-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label>Access at load</label><select id="cj-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="cj-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
       </div>
@@ -1593,7 +1595,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Home size</label><select id="cjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cjmd-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
-        <div class="form-group"><label></label><div style="height:1px"></div></div>
+        <div class="form-group" id="cjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cjmd-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label>Access at load</label><select id="cjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="cjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
       </div>
@@ -2104,7 +2106,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="ecjmd-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
-        <div class="form-group"><label></label><div style="height:1px"></div></div>
+        <div class="form-group" id="ecjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="ecjmd-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label>Access at load</label><select id="ecjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="ecjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
       </div>
@@ -2384,6 +2386,7 @@ input[type=number]{-moz-appearance:textfield}
             <option>Internal</option>
           </select>
         </div>
+        <div class="form-group" id="qb-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:11px;color:var(--text3)">(shown on quote)</span></label><select id="qb-container" oninput="qbAutoSave()"><option value="">Select…</option></select></div>
         <div class="form-group">
           <label>Packing needed?</label>
           <select id="qb-packing" oninput="qbAutoSave()">
@@ -5630,6 +5633,7 @@ function autoSaveLeadDraft(){
     size:document.getElementById('nl-size')?.value||'',
     sqft:document.getElementById('nl-sqft')?.value||'',
     moveType:document.getElementById('nl-move-type')?.value||'',
+    containerSize:_readContainer('nl'),
     packing:document.getElementById('nl-packing')?.value||'',
     takenBy:document.getElementById('nl-taken-by')?.value||'',
     from:document.getElementById('nl-from')?.value||'',
@@ -5683,7 +5687,7 @@ function restoreLeadDraft(){
     set('nl-name',d.name);set('nl-phone',d.phone);set('nl-email',d.email);
     set('nl-source',d.source);set('nl-source-detail',d.sourceDetail);toggleSourceDetail();set('nl-date',d.date==='TBD'?'':d.date);set('nl-size',d.size);set('nl-size-other',d.sizeOther||'');toggleSizeOther();
     {const _tb=document.getElementById('nl-date-tbd');if(_tb){_tb.checked=(d.date==='TBD');nlToggleDateTBD();}}
-    set('nl-sqft',d.sqft);set('nl-move-type',d.moveType);set('nl-packing',d.packing);
+    set('nl-sqft',d.sqft);set('nl-move-type',d.moveType);set('nl-packing',d.packing);_syncContainerField('nl',d.containerSize);
     set('nl-taken-by',d.takenBy);set('nl-from',d.from);set('nl-from-zip',d.fromZip);
     set('nl-from-unit',d.fromUnit);set('nl-from-type',d.fromType);set('nl-from-floor',d.fromFloor);
     set('nl-from-notes',d.fromNotes);set('nl-access-load',d.accessLoad);set('nl-parking-load',d.parkingLoad);
@@ -5707,7 +5711,7 @@ document.addEventListener('click',e=>{
     e.target.classList.remove('open');
   }
 });
-function resetNewLeadForm(){editingLeadId=null;document.querySelector('#modal-new-lead .modal-title').textContent='New lead intake';const _slBtn=document.querySelector('#modal-new-lead .btn-primary');if(_slBtn)_slBtn.textContent='Save lead';const _backBtn2=document.getElementById('nl-go-back-btn');if(_backBtn2)_backBtn2.style.display='none';const _savedInd2=document.getElementById('nl-saved-indicator');if(_savedInd2)_savedInd2.style.display='none';['nl-name','nl-phone','nl-email','nl-from','nl-from-zip','nl-from-unit','nl-from-floor','nl-from-notes','nl-to','nl-to-zip','nl-to-unit','nl-to-floor','nl-to-notes','nl-notes','nl-office-notes','nl-sqft','nl-source-other','nl-source-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['nl-source','nl-size','nl-move-type','nl-packing','nl-access-load','nl-access-unload','nl-parking-load','nl-parking-unload','nl-from-type','nl-to-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['nl-storage'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const storSel=document.getElementById('nl-storage-select');if(storSel)storSel.value='no';const og=document.getElementById('nl-source-other-group');if(og)og.style.display='none';const dg=document.getElementById('nl-source-detail-group');if(dg)dg.style.display='none';resetExtraLocations();const rcp=document.getElementById('nl-repeat-customer-panel');if(rcp)rcp.style.display='none';['nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-pack-mat-min','nl-rq-pack-mat-max','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const rqm=document.getElementById('nl-rq-movers');if(rqm)rqm.selectedIndex=0;
+function resetNewLeadForm(){try{setTimeout(()=>_syncContainerField('nl',''),0);}catch(_){}editingLeadId=null;document.querySelector('#modal-new-lead .modal-title').textContent='New lead intake';const _slBtn=document.querySelector('#modal-new-lead .btn-primary');if(_slBtn)_slBtn.textContent='Save lead';const _backBtn2=document.getElementById('nl-go-back-btn');if(_backBtn2)_backBtn2.style.display='none';const _savedInd2=document.getElementById('nl-saved-indicator');if(_savedInd2)_savedInd2.style.display='none';['nl-name','nl-phone','nl-email','nl-from','nl-from-zip','nl-from-unit','nl-from-floor','nl-from-notes','nl-to','nl-to-zip','nl-to-unit','nl-to-floor','nl-to-notes','nl-notes','nl-office-notes','nl-sqft','nl-source-other','nl-source-detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['nl-source','nl-size','nl-move-type','nl-packing','nl-access-load','nl-access-unload','nl-parking-load','nl-parking-unload','nl-from-type','nl-to-type'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});['nl-storage'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});const storSel=document.getElementById('nl-storage-select');if(storSel)storSel.value='no';const og=document.getElementById('nl-source-other-group');if(og)og.style.display='none';const dg=document.getElementById('nl-source-detail-group');if(dg)dg.style.display='none';resetExtraLocations();const rcp=document.getElementById('nl-repeat-customer-panel');if(rcp)rcp.style.display='none';['nl-rq-rate','nl-rq-hrs-min','nl-rq-hrs-max','nl-rq-fuel','nl-rq-materials','nl-rq-pack-mat-min','nl-rq-pack-mat-max','nl-rq-other'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});const rqm=document.getElementById('nl-rq-movers');if(rqm)rqm.selectedIndex=0;
 const rqcb=document.getElementById('nl-include-rq');if(rqcb)rqcb.checked=false;
 const rqf=document.getElementById('nl-rq-fields');if(rqf)rqf.style.display='none';
   const d=new Date();d.setDate(d.getDate()+7);const _tbR=document.getElementById('nl-date-tbd');if(_tbR)_tbR.checked=false;nlToggleDateTBD();document.getElementById('nl-date').value=d.toISOString().split('T')[0];populateStaffSelect('nl-taken-by','');}
@@ -6087,6 +6091,7 @@ function openEditLead(leadId){
   {const _tb=document.getElementById('nl-date-tbd');if(_tb){_tb.checked=(l.date==='TBD');nlToggleDateTBD();}}
   document.getElementById('nl-size').value=l.size||'';
   document.getElementById('nl-move-type').value=_canonMoveTypeLabel(l.moveType)||'';
+  _syncContainerField('nl',l.containerSize||'');
   document.getElementById('nl-packing').value=l.packing||'No';
   // ----- Pickups & drop-offs: populate EVERY stop, not just the first -----
   resetExtraLocations();
@@ -6220,6 +6225,7 @@ function saveLead(opts){
       l.size=document.getElementById('nl-size').value;
       l.sizeOther=document.getElementById('nl-size-other')?.value.trim()||'';
       l.moveType=document.getElementById('nl-move-type').value;
+      l.containerSize=(typeof _readContainer==='function')?_readContainer('nl'):(l.containerSize||'');
       l.from=document.getElementById('nl-from').value.trim();
       l.fromZip=document.getElementById('nl-from-zip').value.trim();
       l.fromUnit=document.getElementById('nl-from-unit').value.trim();
@@ -6278,7 +6284,7 @@ function saveLead(opts){
     }
   } else {
     // New lead — save then show next step prompt
-    const lead={id:uid(),name,phone,email:document.getElementById('nl-email').value.trim(),source,sourceDetail:document.getElementById('nl-source-detail').value.trim(),date:document.getElementById('nl-date').value,size:document.getElementById('nl-size').value,sizeOther:document.getElementById('nl-size-other')?.value.trim()||'',moveType:document.getElementById('nl-move-type').value,
+    const lead={id:uid(),name,phone,email:document.getElementById('nl-email').value.trim(),source,sourceDetail:document.getElementById('nl-source-detail').value.trim(),date:document.getElementById('nl-date').value,size:document.getElementById('nl-size').value,sizeOther:document.getElementById('nl-size-other')?.value.trim()||'',moveType:document.getElementById('nl-move-type').value,containerSize:(typeof _readContainer==='function')?_readContainer('nl'):'',
       from:document.getElementById('nl-from').value.trim(),fromZip:document.getElementById('nl-from-zip').value.trim(),fromUnit:document.getElementById('nl-from-unit').value.trim(),fromType:document.getElementById('nl-from-type').value,fromFloor:document.getElementById('nl-from-floor').value.trim(),fromStairs:'',fromElevator:false,fromLongwalk:false,fromNotes:document.getElementById('nl-from-notes').value.trim(),
       accessLoad:document.getElementById('nl-access-load').value,parkingLoad:document.getElementById('nl-parking-load').value,
       to:document.getElementById('nl-to').value.trim(),toZip:document.getElementById('nl-to-zip').value.trim(),toUnit:document.getElementById('nl-to-unit').value.trim(),toType:document.getElementById('nl-to-type').value,toFloor:document.getElementById('nl-to-floor').value.trim(),toStairs:'',toElevator:false,toLongwalk:false,toNotes:document.getElementById('nl-to-notes').value.trim(),
@@ -9579,6 +9585,8 @@ function buildCrewCoverSheet(j,l){
   const bits=[];
   if(n(j.size))bits.push(n(j.size));
   if(n(j.packing))bits.push(/^no/i.test(n(j.packing))?'No packing':n(j.packing));
+  const _cs=n(j.containerSize)||n(l&&l.containerSize);
+  if(_cs&&_isPodTruckType(j.moveType||(l&&l.moveType)))bits.push((/^unload/i.test(n(j.moveType||(l&&l.moveType)))?'Unload ':'Load ')+_cs);
   if(Number(j.vaults))bits.push('Around ('+j.vaults+') vaults');
   const notes=n(l&&l.officeNotes)||n(j.officeNotes);
   if(bits.length||notes){
@@ -9683,6 +9691,8 @@ function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
   if(n(j.size))facts.push(n(j.size));
   if(Number(j.vaults))facts.push(j.vaults+' vault'+(Number(j.vaults)===1?'':'s'));
   if(n(j.packing))facts.push(/^no/i.test(n(j.packing))?'No packing':n(j.packing));
+  const _csd=n(j.containerSize)||n(l&&l.containerSize);
+  if(_csd&&_isPodTruckType(j.moveType||(l&&l.moveType)))facts.push((/^unload/i.test(n(j.moveType||(l&&l.moveType)))?'Unload ':'Load ')+_csd);
   put('SCOPE OF PROJECT');
   if(facts.length)put(facts.join(' \u00b7 '));
   const _notes=n(l&&l.officeNotes)||n(j.officeNotes);
@@ -10071,7 +10081,7 @@ function confirmBooking(){
   const _existingDraft=_reopenId?db.bookedJobs.find(x=>x.id===_reopenId):null;
   const jobId=_existingDraft?_existingDraft.id:uid();
   const jobBookedAt=_existingDraft?(_existingDraft.bookedAt||new Date().toISOString().split('T')[0]):new Date().toISOString().split('T')[0];
-  const job={id:jobId,leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',sqft:l?l.sqft:null,accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:_existingDraft?_existingDraft.confirmEmailSent:(l?!!l.emailConfirmationSent:false),pendingConfirmation:true,bookedAt:jobBookedAt,
+  const job={id:jobId,leadId:currentBookingLeadId,name:l?l.name:'Unknown',phone:l?l.phone:'',email:l?l.email:'',date,time:document.getElementById('bj-time').value,crew:'',movers:document.getElementById('bj-movers').value,quote:document.getElementById('bj-quote').value,deposit:document.getElementById('bj-deposit').value,rateRegular:document.getElementById('bj-rate-regular').value,rateCash:document.getElementById('bj-rate-cash').value,feeMaterials:document.getElementById('bj-fee-materials').value,feeFuel:document.getElementById('bj-fee-fuel').value,driveTo:document.getElementById('bj-drive-to').value,driveReturn:document.getElementById('bj-drive-return').value,insuranceType:document.getElementById('bj-insurance-type').value,volume:document.getElementById('bj-volume').value,scope:document.getElementById('bj-scope').value,crewNotes:document.getElementById('bj-crew-notes').value,size:l?l.size:'',moveType:l?l.moveType:'',containerSize:(l&&l.containerSize)||(((db.quotes||[]).filter(_q=>_q.leadId===currentBookingLeadId&&_q.containerSize).sort((a,b)=>(b.sentAt||b.savedAt||'').localeCompare(a.sentAt||a.savedAt||''))[0]||{}).containerSize)||'',from:l?l.from:'',to:l?l.to:'',fromZip:l?l.fromZip:'',toZip:l?l.toZip:'',packing:l?l.packing:'',sqft:l?l.sqft:null,accessLoad:l?l.accessLoad:'',parkingLoad:l?l.parkingLoad:'',accessUnload:l?l.accessUnload:'',parkingUnload:l?l.parkingUnload:'',extraLoads:l?l.extraLoads||[]:[], extraUnloads:l?l.extraUnloads||[]:[], source:l?l.source:'',estimateType:l?l.estimateType:'',emailNote:document.getElementById('bj-email-note').value,officeNotes:document.getElementById('bj-office-notes')?.value||'',confirmEmailSent:_existingDraft?_existingDraft.confirmEmailSent:(l?!!l.emailConfirmationSent:false),pendingConfirmation:true,bookedAt:jobBookedAt,
     multiDay:isMultiDayQuote,quoteDays:_quoteDaysSnap,quoteFees:_quoteFeesSnap,quoteId:leadQuote?leadQuote.id:null
   };
   // Direct multi-day booking (toggle on, no governing quote): overwrite the quote-derived multiDay/
@@ -11462,7 +11472,7 @@ function cjConvertToMultiDay(){
   const _readNum=id=>{const v=document.getElementById(id)?.value;return v===''||v==null?null:Number(v);};
   const _readChecked=id=>document.getElementById(id)?.checked||false;
   const _snap={
-    size:_read('cj-size'),sqft:_read('cj-sqft'),movetype:_read('cj-movetype'),
+    size:_read('cj-size'),sqft:_read('cj-sqft'),movetype:_read('cj-movetype'),container:_read('cj-container'),
     accessLoad:_read('cj-access-load'),accessUnload:_read('cj-access-unload'),
     crew:_read('cj-crew'),source:_read('cj-source'),
     moveHours:_readNum('cj-hours'),movers:_readNum('cj-movers'),
@@ -11486,7 +11496,7 @@ function cjConvertToMultiDay(){
   setTimeout(()=>{
     // Job Context
     const _setVal=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v;};
-    _setVal('cjmd-size',_snap.size);_setVal('cjmd-sqft',_snap.sqft);_setVal('cjmd-movetype',_snap.movetype);
+    _setVal('cjmd-size',_snap.size);_setVal('cjmd-sqft',_snap.sqft);_setVal('cjmd-movetype',_snap.movetype);_syncContainerField('cjmd',_snap.container||'');
     _setVal('cjmd-access-load',_snap.accessLoad);_setVal('cjmd-access-unload',_snap.accessUnload);
     _setVal('cjmd-crew',_snap.crew);_setVal('cjmd-source',_snap.source);
     _setVal('cjmd-packing',_snap.packing);_setVal('cjmd-vaults',_snap.vaults);_setVal('cjmd-payment',_snap.payment);
@@ -11555,6 +11565,7 @@ function openCompleteMultiDay(jobId){
   if(_sqftEl)_sqftEl.value=_pick(j.sqft,_l?_l.sqft:'');
   const _movetypeEl=document.getElementById('cjmd-movetype');
   if(_movetypeEl)_movetypeEl.value=_canonMoveTypeLabel(_pick(j.moveType,_l?_l.moveType:''));
+  _syncContainerField('cjmd',j.containerSize||(_l&&_l.containerSize)||'');
   const _accLoadEl=document.getElementById('cjmd-access-load');
   if(_accLoadEl)_accLoadEl.value=_pick(j.accessLoad,_l?_l.accessLoad:'');
   const _accUnloadEl=document.getElementById('cjmd-access-unload');
@@ -11951,7 +11962,7 @@ function confirmCompleteMultiDay(paymentState){
     // Carryover from booked job context (mirrors single-day confirmComplete)
     from:j.from,to:j.to,fromZip:j.fromZip,toZip:j.toZip,
     // Job Context — use form values (user may have corrected them) over raw booked-job values
-    size:ctxSize,sqft:ctxSqft,moveType:ctxMoveType,source:source||j.source,packing:packing,
+    size:ctxSize,sqft:ctxSqft,moveType:ctxMoveType,containerSize:_readContainer('cjmd'),source:source||j.source,packing:packing,
     accessLoad:ctxAccessLoad,parkingLoad:j.parkingLoad,
     accessUnload:ctxAccessUnload,parkingUnload:j.parkingUnload,
     extraLoads:j.extraLoads||[],extraUnloads:j.extraUnloads||[],
@@ -12084,6 +12095,7 @@ function openEditCompleteMultiDay(jobId){
   // Completed jobs recorded before 2026-07-15 hold the LEGACY wording ("Storage In" etc).
   // Resolve to the canonical label or the <select> silently blanks. See _canonMoveTypeLabel.
   _setVal('ecjmd-movetype',_canonMoveTypeLabel(j.moveType));
+  _syncContainerField('ecjmd',j.containerSize||'');
   _setVal('ecjmd-access-load',j.accessLoad);_setVal('ecjmd-access-unload',j.accessUnload);
   // Misc Charges — prefill from saved miscCharges array (empty rows for missing slots)
   const _misc=Array.isArray(j.miscCharges)?j.miscCharges:[];
@@ -12335,7 +12347,7 @@ function saveEditedCompletedJobMultiDay(){
   j.usedForAI=document.getElementById('ecjmd-ai-training').checked;
   j.excludeFromAccuracy=document.getElementById('ecjmd-exclude-accuracy')?document.getElementById('ecjmd-exclude-accuracy').checked:!!j.excludeFromAccuracy;
   // Job Context written back
-  j.size=ctxSize;j.sqft=ctxSqft;j.moveType=ctxMoveType;
+  j.size=ctxSize;j.sqft=ctxSqft;j.moveType=ctxMoveType;j.containerSize=_readContainer('ecjmd');
   j.accessLoad=ctxAccessLoad;j.accessUnload=ctxAccessUnload;
   // Misc Charges saved
   j.miscCharges=miscCharges;
@@ -12542,6 +12554,7 @@ document.getElementById('complete-job-summary').innerHTML=`<strong>${j.name}</st
   if(_sqftEl)_sqftEl.value=_pick(j.sqft,_lead?_lead.sqft:'');
   const _movetypeEl=document.getElementById('cj-movetype');
   if(_movetypeEl)_movetypeEl.value=_canonMoveTypeLabel(_pick(j.moveType,_lead?_lead.moveType:''));
+  _syncContainerField('cj',j.containerSize||(_lead&&_lead.containerSize)||'');
   const _accessLoadEl=document.getElementById('cj-access-load');
   if(_accessLoadEl)_accessLoadEl.value=_pick(j.accessLoad,_lead?_lead.accessLoad:'');
   const _accessUnloadEl=document.getElementById('cj-access-unload');
@@ -12635,7 +12648,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
     const _ai=document.getElementById('cj-misc-'+_i+'-ai')?.checked||false;
     if(_amt>0)_miscCharges.push({label:_lab,amount:_amt,aiTraining:_ai});
   }
-  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:_resolveCompletedLeadId(j),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',splitCrew:(typeof cjIsSplitCrew==='function'&&cjIsSplitCrew()),moveSegments:(typeof cjIsSplitCrew==='function'&&cjIsSplitCrew())?_cjReadSegments():null,packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
+  const completed={id:uid(),bookedJobId:currentCompleteJobId,leadId:_resolveCompletedLeadId(j),name:j?j.name:'Unknown',phone:j?j.phone:'',email:j?j.email:'',date:(document.getElementById('cj-date')&&document.getElementById('cj-date').value)||(j?j.date:''),crew:document.getElementById('cj-crew').value,source:j?j.source:'',estimateType:j?j.estimateType:'',size:_cjSize,sqft:_cjSqft,packing:document.getElementById('cj-packing')?.value||(j?j.packing:''),moveType:_cjMoveType,containerSize:_readContainer('cj'),from:j?j.from:'',to:j?j.to:'',fromZip:j?j.fromZip:'',toZip:j?j.toZip:'',accessLoad:_cjAccessLoad,accessUnload:_cjAccessUnload,total:total||labour,paid,actualTotal:actualTotal||Number(total||labour)||null,capDiscount:capDiscount||0,owing,paymentState:paymentState||'paid',payment:_paymentMethod,hours:document.getElementById('cj-hours').value,moveMen:document.getElementById('cj-movers')?.value||'',splitCrew:(typeof cjIsSplitCrew==='function'&&cjIsSplitCrew()),moveSegments:(typeof cjIsSplitCrew==='function'&&cjIsSplitCrew())?_cjReadSegments():null,packHoursActual:document.getElementById('cj-pack-hours')?.value||'',packMen:document.getElementById('cj-pack-movers')?.value||'',vaults:vaults||null,ratePerHour:rph,hourlyRateCharged:_chargedRate,
     // NEW: preserve the rate context so analytics know what to base future quotes on
     quotedRate:_quotedRate||null,
     cashRate:_cashRate,
@@ -12683,6 +12696,7 @@ function confirmComplete(paymentState){const labour=document.getElementById('cj-
       splitCrew:!!completed.splitCrew,
       moveSegments:completed.splitCrew&&Array.isArray(completed.moveSegments)?completed.moveSegments:null,
       packHoursActual:Number(completed.packHoursActual)||null,
+      containerSize:completed.containerSize||'',
       packMen:Number(completed.packMen)||null,
       feePackMaterials:Number(completed.feePackMaterials)||null,
       actualVaults:Number(vaults)||null,
@@ -12898,6 +12912,7 @@ function saveJobForAI(completedJobId){
     actualHours:Number(j.hours)||null,
     moveMen:Number(j.moveMen)||null,
     packHoursActual:Number(j.packHoursActual)||null,
+    containerSize:j.containerSize||'',
     packMen:Number(j.packMen)||null,
     feePackMaterials:Number(j.feePackMaterials)||null,
     actualVaults:Number(j.vaults)||null,
@@ -13038,6 +13053,7 @@ if(!aiRec&&j.usedForAI){
     actualHours:Number(j.hours)||null,
     moveMen:Number(j.moveMen)||null,
     packHoursActual:Number(j.packHoursActual)||null,
+    containerSize:j.containerSize||'',
     packMen:Number(j.packMen)||null,
     feePackMaterials:Number(j.feePackMaterials)||null,
     actualVaults:Number(j.vaults)||null,
@@ -16913,6 +16929,7 @@ function openQuoteBuilder(leadId){
   if(l&&l.packing&&l.packing!=='No — just moving')qbFees.push({id:uid(),label:'Packing Materials',amount:0,included:true});
   document.getElementById('qb-project-name').value=l?l.name+' — '+(l.date?fmtDate(l.date):''):'';
   if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=l?.moveType||'';
+  try{_syncContainerField('qb',l?.containerSize||'');}catch(_){}
   if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=_qbPackingOption(l?.packing);
   document.getElementById('qb-description').value=''; // no default project description (removed 2026-07-10)
   document.getElementById('qb-cash-discount').value='';
@@ -17011,6 +17028,7 @@ function loadQuoteIntoBuilder(q){
   }
   document.getElementById('qb-notes').value=_loadedNotes;
   const sbEl=document.getElementById('qb-sent-by');if(sbEl)sbEl.value=q.sentBy||'';const etEl=document.getElementById('qb-estimate-type');if(etEl)etEl.value=q.estimateType||l?.estimateType||'';if(document.getElementById('qb-move-type'))document.getElementById('qb-move-type').value=q.moveType||'';if(document.getElementById('qb-packing'))document.getElementById('qb-packing').value=q.packing||'';
+  try{_syncContainerField('qb',q.containerSize||l?.containerSize||'');}catch(_){}
   // Office notes: lead is the single source of truth. We deliberately IGNORE q.officeNotes
   // here — a stale quote synced in from the cloud could carry old/wrong content. The lead
   // is the master; the quote's denormalized copy is for downstream consumers only.
@@ -17339,6 +17357,7 @@ function _applyQbPaste(q){
   };
   set('qb-project-name',q.projectName,'Project');
   set('qb-move-type',q.moveType,'Move type');
+  try{_syncContainerField('qb');}catch(_){}
   set('qb-packing',q.packing,'Packing');
   set('qb-description',q.description,'Description');
   set('qb-estimated-vaults',q.vaults,'Vaults');
@@ -17728,6 +17747,7 @@ function buildQuoteHTML(){
     totalMax:t.totalMax,
     projectName:document.getElementById('qb-project-name')?.value?.trim()||'',
     moveType:document.getElementById('qb-move-type')?.value||l?.moveType||'',
+    containerSize:(typeof _readContainer==='function')?_readContainer('qb'):'',
     packing:document.getElementById('qb-packing')?.value||l?.packing||'',
     description:document.getElementById('qb-description')?.value?.trim()||'',
     cashDiscount:document.getElementById('qb-cash-discount')?.value?.trim()||'',
@@ -17779,7 +17799,7 @@ function renderQuoteHTML(q,lead){
       <div style="font-size:10px;font-weight:600;color:#9e9b94;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">Project Information</div>
       <div style="font-size:14px;line-height:2;color:#333">
         ${q.projectName?`<div><span style="color:#9e9b94;font-size:12px">Project</span><br>${esc(q.projectName)}</div>`:''}
-        ${q.moveType?`<div style="margin-top:6px"><span style="color:#9e9b94;font-size:12px">Project Type</span><br>Local Move · ${esc(q.moveType)}</div>`:''}
+        ${q.moveType?`<div style="margin-top:6px"><span style="color:#9e9b94;font-size:12px">Project Type</span><br>Local Move · ${esc(q.moveType)}${q.containerSize?' · '+esc(q.containerSize):''}</div>`:''}
         ${q.size?`<div style="margin-top:6px"><span style="color:#9e9b94;font-size:12px">Project Size</span><br>${esc(q.size)}</div>`:''}
         ${q.description?`<div style="margin-top:6px"><span style="color:#9e9b94;font-size:12px">Project Description</span><br>${esc(q.description).replace(/\n/g,'<br>')}</div>`:''}
       </div>
@@ -18066,7 +18086,7 @@ function saveQuote(status,opts){
     jobType:qbJobType,
     days:_frozenDays,
     fees:_frozenFees,
-    projectName:document.getElementById('qb-project-name').value,moveType:document.getElementById('qb-move-type')?.value||'',packing:document.getElementById('qb-packing')?.value||'',
+    projectName:document.getElementById('qb-project-name').value,moveType:document.getElementById('qb-move-type')?.value||'',containerSize:(typeof _readContainer==='function')?_readContainer('qb'):'',packing:document.getElementById('qb-packing')?.value||'',
     description:document.getElementById('qb-description').value,
     cashDiscount:document.getElementById('qb-cash-discount').value,
     storageCosts:document.getElementById('qb-storage-costs').value,
@@ -20978,6 +20998,7 @@ function selfHealAITraining(){
       actualHours:Number(j.hours)||null,
       moveMen:Number(j.moveMen)||null,
       packHoursActual:Number(j.packHoursActual)||null,
+    containerSize:j.containerSize||'',
       packMen:Number(j.packMen)||null,
       feePackMaterials:Number(j.feePackMaterials)||null,
       actualVaults:Number(j.vaults)||null,
@@ -21038,6 +21059,42 @@ function accessScore(access){
 // no data migration, nothing stranded.
 // ⚠️ NEVER DELETE AN ALIAS: completed jobs recorded before 2026-07-15 carry the old wording
 // forever, and dropping an alias would silently cut the AI off from them again.
+// ── Pod / truck size (2026-10-01) ─────────────────────────────────────────────────────────
+// For "Load pod / truck only" and "Unload pod / truck only" jobs the container IS the volume, so
+// its size is recorded on the lead, the completed job and AI training, and used by the AI quote to
+// match like with like. Approximate usable cubic feet, for comparing sizes across pods and trucks.
+const CONTAINER_SIZES=[
+  ['U-Box',257],['8 ft container (PODS etc.)',400],['12 ft container',800],['16 ft container',1000],
+  ['20 ft shipping container',1170],['40 ft shipping container',2390],
+  ['10 ft truck',400],['12 ft truck',450],['15 ft truck',760],['16 ft truck',800],['17 ft truck',865],
+  ['20 ft truck',1015],['22 ft truck',1200],['26 ft truck',1700]
+];
+function _isPodTruckType(t){return /pod|truck/i.test(String(t||''));}
+function _containerCuft(label){const r=CONTAINER_SIZES.find(c=>c[0]===String(label||''));return r?r[1]:null;}
+const _CONTAINER_MOVETYPE_ID={ai:'ai-movetype',nl:'nl-move-type',cj:'cj-movetype',cjmd:'cjmd-movetype',ecjmd:'ecjmd-movetype',qb:'qb-move-type'};
+// Fill the size dropdown (once), show it only for pod/truck move types, optionally set a value.
+function _syncContainerField(pid,value){
+  const sel=document.getElementById(pid+'-container');const wrap=document.getElementById(pid+'-container-wrap');
+  if(!sel||!wrap)return;
+  if(sel.options.length<=1){
+    const og=(lbl,list)=>'<optgroup label="'+lbl+'">'+list.map(c=>'<option>'+c[0]+'</option>').join('')+'</optgroup>';
+    sel.innerHTML='<option value="">Select…</option>'+og('Pods / containers',CONTAINER_SIZES.filter(c=>!/truck/.test(c[0])))+og('Trucks',CONTAINER_SIZES.filter(c=>/truck/.test(c[0])))+'<option>Other / not sure</option>';
+  }
+  if(value!==undefined)sel.value=value||'';
+  const mt=(document.getElementById(_CONTAINER_MOVETYPE_ID[pid])||{}).value;
+  wrap.style.display=_isPodTruckType(mt)?'':'none';
+}
+function _readContainer(pid){
+  const mt=(document.getElementById(_CONTAINER_MOVETYPE_ID[pid])||{}).value;
+  if(!_isPodTruckType(mt))return '';
+  return (document.getElementById(pid+'-container')||{}).value||'';
+}
+// Show/hide as soon as a move type is picked, on any of the six forms.
+document.addEventListener('change',function(e){
+  const id=e.target&&e.target.id;if(!id)return;
+  Object.keys(_CONTAINER_MOVETYPE_ID).forEach(pid=>{if(_CONTAINER_MOVETYPE_ID[pid]===id)_syncContainerField(pid);});
+});
+
 const _MOVE_TYPE_CANONICAL=['Move','Pack and move','Packing only','Move to storage','Pack and move to storage','Move out of storage','Load pod / truck only','Unload pod / truck only','Warehouse labor','Internal'];
 const _MOVE_TYPE_ALIASES={
   'move and pack':'pack and move',       // legacy "Move & Pack"
@@ -21147,6 +21204,13 @@ function similarity(job,inputs){
     const diff=Math.abs(job.sqft-inputs.sqft);
     score+=Math.max(0,30-(diff/50));
   }
+  // Volume via POD / TRUCK SIZE (2026-10-01) — on pod/truck load or unload jobs the container is the
+  // volume. Up to 30 pts: same size 30, fading to 0 when one is twice the other (by usable cu ft).
+  const _jc=_containerCuft(job.containerSize),_ic=_containerCuft(inputs.containerSize);
+  if(_jc&&_ic){
+    const ratio=Math.max(_jc,_ic)/Math.min(_jc,_ic);
+    score+=Math.max(0,30-(ratio-1)*30);
+  }
   // Access at each end — third priority. Up to 13 pts per end.
   const loadDiff=Math.abs(accessScore(job.accessLoad)-accessScore(inputs.accessLoad));
   const unloadDiff=Math.abs(accessScore(job.accessUnload)-accessScore(inputs.accessUnload));
@@ -21195,7 +21259,7 @@ function saveAIQuoteDraft(){
   clearTimeout(_aiQuoteDraftTimer);
   _aiQuoteDraftTimer=setTimeout(()=>{
     try{
-      const ids=['ai-size','ai-vaults','ai-sqft','ai-movetype','ai-packing','ai-access-load','ai-access-unload','ai-load-zip','ai-unload-zip','ai-rate','ai-men','ai-notes'];
+      const ids=['ai-size','ai-vaults','ai-sqft','ai-movetype','ai-container','ai-packing','ai-access-load','ai-access-unload','ai-load-zip','ai-unload-zip','ai-rate','ai-men','ai-notes'];
       const draft={};
       ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;});
       draft._savedAt=new Date().toISOString();
@@ -21351,6 +21415,7 @@ function generateAIQuote(isRecalc){
     vaults:parseFloat(document.getElementById('ai-vaults').value)||null,
     sqft:parseFloat(document.getElementById('ai-sqft').value)||null,
     moveType:document.getElementById('ai-movetype').value,
+    containerSize:_readContainer('ai'),
     packing:document.getElementById('ai-packing')?.value||'',
     accessLoad:document.getElementById('ai-access-load').value,
     accessUnload:document.getElementById('ai-access-unload').value,
@@ -21453,6 +21518,9 @@ function generateAIQuote(isRecalc){
     const jv=Number(j.estimatedVaults||j.actualVaults)||0;
     if(inputs.vaults&&jv>0){const a=Number(inputs.vaults),b=jv;return Math.max(a,b)/Math.min(a,b)<=VOL_RATIO_MAX;}
     if(inputs.sqft&&j.sqft>0){const a=Number(inputs.sqft),b=Number(j.sqft);return Math.max(a,b)/Math.min(a,b)<=VOL_RATIO_MAX;}
+    // Pod / truck size (2026-10-01): a 26 ft truck job should not inform an 8 ft pod quote.
+    const _ic=_containerCuft(inputs.containerSize),_jc=_containerCuft(j.containerSize);
+    if(_ic&&_jc)return Math.max(_ic,_jc)/Math.min(_ic,_jc)<=VOL_RATIO_MAX;
     return true; // not enough info to compare volume — don't gate it out
   };
   const _inBand=_cands.filter(_volOK);
@@ -21723,7 +21791,7 @@ function generateAIQuote(isRecalc){
           const vaults=j.estimatedVaults||j.actualVaults;
           const qmin=j.quotedHoursMin,qmax=j.quotedHoursMax;
           const over=(qmax&&j.actualHours&&Number(j.actualHours)>Number(qmax));
-          const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null].filter(Boolean).join(' · ');
+          const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null,j.containerSize?_e(j.containerSize):null].filter(Boolean).join(' · ');
           const line3=[j.moveType?_e(j.moveType):null,j.packing?'pack: '+_e(j.packing):null,(j.accessLoad||j.accessUnload)?(_e(j.accessLoad||'?')+'→'+_e(j.accessUnload||'?')):null,j.moveMen?j.moveMen+' movers':null,j.packMen?'+'+j.packMen+' packers':null].filter(Boolean).join(' · ');
           const hrs=(qmin||qmax)?`Quoted ${qmin||'?'}–${qmax||'?'} → actual <strong>${j.actualHours} hrs</strong>${over?' <span style="color:#b7860b;font-weight:600">⚠ ran over</span>':''}`:`Actual <strong>${j.actualHours} hrs</strong>`;
           return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2);overflow-wrap:anywhere;word-break:break-word${_on?'':';opacity:.6'}">
@@ -21763,7 +21831,9 @@ function resetAIExclusions(){_aiExcludedKeys=new Set();_aiKeptKeys=null;generate
 
 function renderAIQuote(){
   // Restore any in-progress draft inputs so the user's work survives navigation/refresh
+  try{_syncContainerField('ai');}catch(_){}   // build the size options first so the draft value can land
   restoreAIQuoteDraft();
+  try{_syncContainerField('ai');}catch(_){}
   const all=getJobTrainingData();
   document.getElementById('ai-training-count').textContent=all.length+' training records ('+(SPREADSHEET_TRAINING.length)+' from spreadsheet, '+((db.aiTraining||[]).length)+' from completed jobs)';
   // Render the Quoting Rules card — grouped by category
