@@ -5311,10 +5311,12 @@ function _agentReplyTemplate(email){
   put('');put('I\u2019ll go through everything below.');put('');
 
   put('1) CREW & HOURLY RATE');put('');
-  put('Based on the information provided, we would recommend a [3/4]-person crew and truck.');put('');
-  put('[3/4] Movers + Truck: $[RATE] per hour');
-  put('Cash Rate: $[CASH RATE] per hour');
-  put('2-hour minimum');put('');
+  put('Based on the information provided, we would recommend a [2/3/4]-person crew and truck. Our rates are the same weekdays and weekends:');put('');
+  put('\u2022 2 Movers + Truck: $150 per hour, or $140 per hour cash (3-hour minimum)');
+  put('\u2022 3 Movers + Truck: $225 per hour, or $210 per hour cash (2-hour minimum)');
+  put('\u2022 4 Movers + Truck: $300 per hour, or $280 per hour cash (2-hour minimum)');
+  put('\u2022 Each additional mover: $75 per hour, or $70 per hour cash');put('');
+  put('The minimum includes the drive back to our warehouse after the job.');put('');
   // Only raise crew size when there is a real reason — otherwise it reads as an upsell.
   if(stairs||longCarry){
     put('One thing worth considering is crew size. With '
@@ -5325,7 +5327,7 @@ function _agentReplyTemplate(email){
 
   put('2) PACKING MATERIALS / SPECIAL ITEMS / STAIRS');put('');
   put('[ANSWER THEIR SPECIFIC QUESTIONS HERE]');put('');
-  put('Our standard materials fee is $[MATERIAL FEE] and covers the materials we use to safely protect your furniture during the move, including TV cartons, mattress bags, mirror cartons, rug bags, moving pads and shrink wrap as applicable.');
+  put('Our standard materials fee is $40 and covers the materials we use to safely protect your furniture during the move, including TV cartons, mattress bags, mirror cartons, rug bags, moving pads and shrink wrap as applicable.');
   put('');
   put('There is no additional stair or long-carry surcharge. Those conditions can affect how long the move takes, but we do not add a separate fee simply because stairs or a longer carry are involved.');
   put('');
@@ -5336,24 +5338,25 @@ function _agentReplyTemplate(email){
   put('\u2022 Load at [PICKUP]: approximately [X\u2013X] hours');
   put('\u2022 Drive to [DESTINATION]: approximately [X] hours');
   put('\u2022 Unload: approximately [X\u2013X] hours');
-  put('\u2022 Return drive time back to our warehouse at completion (30 minute minimum)');put('');
+  put('\u2022 Drive back to our warehouse at completion');put('');
   put('Estimated total: approximately [X\u2013X] hours.');put('');
   put('This is an estimate based on the information we currently have. Access, walking distance, stairs, elevators, parking and the final amount being moved can all affect the actual time.');
   put('');
 
   put('4) ADDITIONAL FEES');put('');
   put('In addition to the hourly labor rate:');put('');
-  put('\u2022 $[MATERIAL FEE] Materials Fee \u2014 covers standard furniture protection materials');
-  put('\u2022 $[FUEL FEE] Fuel Fee');
+  put('\u2022 $40 Materials Fee \u2014 covers moving blankets, tape, shrink wrap and wardrobe boxes');
+  put('\u2022 Fuel Fee \u2014 $50 flat in San Francisco; outside SF it is higher and we confirm it once we have the addresses (time is then counted from our warehouse and back)');
+  put('\u2022 If we pack for you, packing materials are charged based on what is used');
   if(/toll|bridge/i.test(txt))put('\u2022 [BRIDGE TOLL \u2014 passed through at cost / included]');
   if(/double drive|ddt/i.test(txt))put('\u2022 California Double Drive Time applies to the transit leg');
-  put('\u2022 Valuation / insurance options are set out in the PDF we send with the estimate');
+  put('\u2022 Insurance: free basic coverage at $0.60 per pound per item is included; additional coverage is available and we can go over the options');
   put('');
   put('We try to be very clear about these charges upfront so there are no unexpected fees on moving day.');
   put('');
 
   put('5) DEPOSIT / CANCELLATION / PAYMENT');put('');
-  put('No deposit is required to reserve the date. A $400.00 deposit is charged only if the move is cancelled or rescheduled with less than 7 days notice from the date of the move.');
+  put('A $400 deposit secures the booking. It is only charged if the move is cancelled or rescheduled with less than 7 days notice. With 7 or more days notice, nothing is charged.');
   put('');
   put('Payment can be made by cash, check or credit card. Credit card payments are subject to a 3.5% processing fee, and we offer the discounted cash rate shown above.');
   put('');
@@ -5366,14 +5369,14 @@ function _agentReplyTemplate(email){
 
   put('NEXT STEP \u2014 LET\u2019S TALK');put('');
   put(lvl.detailed
-    ? 'Based on the detail you\u2019ve already provided, we should be able to finalize most of this with a short phone call. A video walkthrough isn\u2019t necessary \u2014 you\u2019ve already done that work.'
-    : 'A short phone call, or a quick FaceTime or video walkthrough, will let us confirm the inventory and access so we can put firm numbers to all of the above.');
+    ? 'Based on the detail you\u2019ve already provided, a short phone call should be enough to finalize this. If it\u2019s easier, you can also send photos or a quick video, or book a free in-person estimate.'
+    : 'The quickest way to firm up the numbers is to send us photos or a short video of what\u2019s moving. We\u2019re also happy to do a FaceTime, a quick phone call, or a free in-person estimate.');
   put('');
   put('Please send us the best phone number to reach you and a good time to call, and we\u2019ll go over the move, answer any remaining questions and put together your final written estimate.');
   put('');
   put('We look forward to speaking with you and hopefully helping with your move.');
   put('');
-  put('Sincerely,\nJohnathan Hall\nManager / CareMore Moving and Storage\n(415) 822-8547\nmove@caremoremoving.com\nCAL-T 0190970');
+  put('Thanks,\nCareMore Moving');
   return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 // ── House examples ──────────────────────────────────────────────────────────────────────────
@@ -5396,7 +5399,7 @@ const _AR_SEED_EXAMPLE={
     'Thank you for the detailed inquiry. The information you provided gives us a very good picture of the move and allows us to answer most of your questions without guessing.','',
     'I\u2019ll go through everything below.','',
     '1) CREW, TRUCK & HOURLY RATE','',
-    '3 Movers + Truck: $225.00 per hour','2-hour minimum','',
+    '3 Movers + Truck: $225.00 per hour','Cash: $210.00 per hour','2-hour minimum','',
     '2) PACKING MATERIALS, PROTECTION & DESK WORK','',
     'Our standard materials fee is $40.00 and covers moving blankets, plastic wrap and tape.','',
     'The Apple monitors and conferencing equipment would be individually wrapped and boxed. Original boxes are ideal if you still have them \u2014 if not, we carry all materials needed to make sure everything is fully wrapped and protected.','',
@@ -5408,14 +5411,14 @@ const _AR_SEED_EXAMPLE={
     '\u2022 Load at 1355 Market, 8th floor, lift and dock: approximately 2 - 3 hours',
     '\u2022 Transport to 500 Washington, roughly 2 miles: approximately 30 minutes',
     '\u2022 Unload and place at the 2nd floor, lift available: approximately 2 to 2.5 hours',
-    '\u2022 Return drive time back to our warehouse at completion (30 minute minimum)','',
-    'Estimated total: approximately 5 to 6.5 hours, or $1,125 to $1,462.50 in labour.','',
-    'With the $50.00 fuel fee and $40.00 materials fee, an estimated total of roughly $1,215 to $1,552.50','',
+    '\u2022 Drive back to our warehouse at completion','',
+    'Estimated total: approximately 5 to 6.5 hours, or $1,125 to $1,462.50 in labour ($1,050 to $1,365 paying cash).','',
+    'With the $50.00 fuel fee and $40.00 materials fee, an estimated total of roughly $1,215 to $1,552.50, or $1,140 to $1,455 paying cash. This is an estimate; the final cost depends on actual time.','',
     '4) ADDITIONAL FEES','',
     '\u2022 $50.00 Fuel Fee','\u2022 $40.00 Materials Fee','\u2022 Return drive time as above','',
     '5) DATES, DEPOSIT, CANCELLATION & PAYMENT','',
-    'Any weekday from October 12 to 15 is the same rate. October 11 is a Sunday, and the rate would be $240 per hour that day.','',
-    'No deposit is required to reserve the date. A $400.00 deposit is charged only if the move is cancelled or rescheduled with less than 7 days notice.','',
+    'The rate is the same any day, weekday or weekend, so any date from October 11 to 15 works on price.','',
+    'A $400.00 deposit secures the date. It is only charged if the move is cancelled or rescheduled with less than 7 days notice.','',
     'COI: we issue certificates of insurance as a matter of course. Send me your buildings\u2019 requirements and I will have our insurer issue them.','',
     'EXCLUDED','',
     'We do disconnect electronics but we do not reconnect them. We move them safely, you or your IT handle the connections at both ends.','',
@@ -5423,7 +5426,7 @@ const _AR_SEED_EXAMPLE={
     'What would really help is a short phone call. I am also happy to jump on a FaceTime or set up a free in-person estimate to really narrow down the quote.','',
     'The items you have listed as pending are exactly the ones that decide the final number: suite numbers, whether the lifts can be reserved, the loading access at 500 Washington, each building\u2019s move-hour restrictions, and the COI requirements.','',
     'Please send a good phone number and a time that suits, and we will go through those, confirm the date and send your final written estimate the same day.','',
-    'We look forward to speaking with you and hopefully helping with your move.','David'
+    'We look forward to speaking with you and hopefully helping with your move.','','Thanks,','CareMore Moving'
   ].join('\n')
 };
 
