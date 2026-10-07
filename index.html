@@ -11227,6 +11227,19 @@ function onDaysNoticeChange(){
   document.getElementById('cj-deposit-warning').style.display=days<7?'block':'none';
 }
 
+// Cancelling, or rescheduling with no date, takes a job off Booked Jobs. (2026-10-07) Those two
+// paths only removed it locally, so the cloud copy came straight back on refresh (Ziyad Mir).
+// Same tombstone + cloud delete as every other booked-job removal. A rebooking always gets a new
+// id, so the tombstone can never block it.
+function _retireBookedJobInCloud(id){
+  if(!id)return;
+  try{
+    const tombstones=JSON.parse(localStorage.getItem('movedesk_booked_tombstones')||'{}');
+    tombstones[id]=new Date().toISOString();
+    localStorage.setItem('movedesk_booked_tombstones',JSON.stringify(tombstones));
+  }catch(_){}
+  try{sbDelete('booked_jobs',id);}catch(_){}
+}
 function confirmCancelJob(){
   const type=document.getElementById('cj-type').value;
   if(!type){showToast('Please select what happened');return;}
@@ -11276,6 +11289,7 @@ function confirmCancelJob(){
     const lead=db.leads.find(x=>x.id===j.leadId);
     if(lead){lead.status='Did not book';lead.dnbType='cancel';lead.dnbReason=reason;lead.dnbNotes=notes;}
     db.bookedJobs=db.bookedJobs.filter(x=>x.id!==currentCancelJobId);
+    _retireBookedJobInCloud(currentCancelJobId);
     saveDB();closeModal('cancel-job');closeModal('view');
     showToast('Job cancelled'+_feeMsg);
     renderBooked();renderLeads();
@@ -11296,6 +11310,7 @@ function confirmCancelJob(){
     j.rescheduleLog=j.rescheduleLog||[];
     j.rescheduleLog.push(log);
     db.bookedJobs=db.bookedJobs.filter(x=>x.id!==currentCancelJobId);
+    _retireBookedJobInCloud(currentCancelJobId);
     saveDB();closeModal('cancel-job');closeModal('view');
     showToast('Job moved back to leads — date TBD'+(_feeAmount>0?_feeMsg:(depositApplies?' — $400 deposit may apply':'')));
     renderBooked();renderLeads();
