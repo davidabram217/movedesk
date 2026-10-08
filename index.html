@@ -4169,7 +4169,21 @@ async function refreshFromSupabase(){
         }
         return true;
       });
-      _deletedFromCloud.forEach(id=>{try{sbDelete(table,id);}catch(_){}});
+      // Leads are soft-deleted (2026-10-08): the cloud row is overwritten with a {_deleted:true}
+      // marker that every device reads. This used to HARD-delete it on the next refresh, which
+      // erased the very marker that tells other devices the lead is gone. A device still holding
+      // the lead (or one whose local tombstone had expired) then pushed it back up for everyone —
+      // how the deleted test leads came back again. Now a marker is left alone, and a live row
+      // that has come back is soft-deleted again. Booked/completed jobs keep the hard delete.
+      _deletedFromCloud.forEach(id=>{
+        if(table==='leads'){
+          const row=rows.find(r=>((r.data&&r.data.id)||r.id)===id);
+          if(row&&_isDeletedRec(row.data||row))return;
+          try{_sbSoftDelete('leads',id);}catch(_){}
+          return;
+        }
+        try{sbDelete(table,id);}catch(_){}
+      });
       return _filtered;
     }
     const leadsResFiltered=applyTombstones(leadsRes,'leads');
