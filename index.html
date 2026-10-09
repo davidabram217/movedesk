@@ -21210,8 +21210,11 @@ function _canonMoveTypeLabel(s){
 // Driving is handled as a SEPARATE CALCULATION (not a matching factor): we estimate the WORK
 // from same-type jobs, then add THIS trip's drive from its zips. To keep the work estimate
 // distance-independent, we strip each past job's own baked-in drive out of its recorded hours.
-// SF jobs bill clock-on-arrival (no drive baked in); out-of-area jobs bill warehouse-to-
-// warehouse (drive IS baked in), so only those get stripped. Avoids double-counting drive.
+// Out-of-area jobs bill warehouse-to-warehouse, so the whole trip is stripped. SF jobs bill from
+// arrival to the last item unloaded PLUS the drive back to the warehouse (30 min minimum), so
+// their return leg is stripped too (2026-10-09 — it used to be left in, and the new quote's own
+// drive back was then added on top: two drives back). estimateFuelAndTime gives exactly that
+// return leg for an SF-to-SF job, the same figure the new quote adds once.
 function _jobDriveHours(j){
   const nf=j.fromZip?String(j.fromZip).split('.')[0]:'';
   const nt=j.toZip?String(j.toZip).split('.')[0]:'';
@@ -21221,12 +21224,8 @@ function _jobDriveHours(j){
 function _jobWorkHours(j){
   const h=Number(j.actualHours)||0;
   if(!h)return 0;
-  const nf=j.fromZip?String(j.fromZip).split('.')[0]:'';
-  const nt=j.toZip?String(j.toZip).split('.')[0]:'';
-  const sf=nf&&nt&&isSFZip(nf)&&isSFZip(nt);
-  if(sf)return h;                       // SF job: recorded hours are already work-only
-  const dh=_jobDriveHours(j);
-  return dh>0?Math.max(1,h-dh):h;       // out-of-area: strip the drive that was on the clock
+  const dh=_jobDriveHours(j);           // SF: the drive back · out-of-area: the whole trip
+  return dh>0?Math.max(1,h-dh):h;
 }
 
 function similarity(job,inputs){
