@@ -21449,6 +21449,14 @@ let _aiLastScored=[];
 function _trainKey(r){return [r.id||'',r.name||'',r.date||'',r.actualHours||'',r.sqft||'',r.estimatedVaults||r.actualVaults||''].join('¦');}
 function _aiTrainingPool(){return getJobTrainingData().filter(r=>!_aiExcludedKeys.has(_trainKey(r)));}
 
+// Home size as a step on a ladder: studio 0, 1 bed 1, 2 bed 2, 3 bed 3, 4+ bed 4. Anything else null.
+function _bedLadder(size){
+  const t=String(size||'').toLowerCase().replace(/\s+/g,'');
+  if(!t)return null;
+  if(t.includes('studio'))return 0;
+  const m=t.match(/^(\d)\+?(bed|br)/);
+  return m?Math.min(4,Number(m[1])):null;
+}
 function generateAIQuote(isRecalc){
   if(!isRecalc)_aiExcludedKeys=new Set();
   if(!isRecalc)_aiKeptKeys=null;
@@ -21550,6 +21558,21 @@ function generateAIQuote(isRecalc){
   let _cands=allData.filter(j=>j.actualHours);
   if(_wantType)_cands=_cands.filter(j=>_normMoveType(j.moveType)===_wantType);
   const _sameTypeCount=_cands.length;
+  // STORAGE FILL-IN (2026-10-09, owner's rule): for a plain "Move" with no packing, a "Move to
+  // storage" job with no packing is the same loading work. When this quote's home size has fewer
+  // than 3 "Move" jobs, same-size "Move to storage" jobs with no packing join the pool. They show
+  // in the job list under their own move type and can be unticked like any other.
+  const _noPack=p=>{const t=String(p||'').toLowerCase().trim();return !t||t==='no'||t.includes('just moving');};
+  const _bedKey=s=>String(s||'').toLowerCase().replace(/\s+/g,'');
+  let _storageFill=[];
+  if(_wantType===_normMoveType('Move')&&_noPack(inputs.packing)&&inputs.size){
+    const _mine=_bedKey(inputs.size);
+    if(_cands.filter(j=>_bedKey(j.size)===_mine).length<3){
+      const _stType=_normMoveType('Move to storage');
+      _storageFill=allData.filter(j=>j.actualHours&&_normMoveType(j.moveType)===_stType&&_noPack(j.packing)&&_bedKey(j.size)===_mine);
+      _cands=_cands.concat(_storageFill);
+    }
+  }
   // VOLUME GUARD: volume is the owner's top priority, so don't let a job of a very different size
   // class into the neighbour pool (e.g. a 3-bed/8-vault job informing a 1-bed/3-vault quote).
   // Compare on vaults when both have them, else sqft; drop a job when the larger volume is more
@@ -21563,6 +21586,11 @@ function generateAIQuote(isRecalc){
     // Pod / truck size (2026-10-01): a 26 ft truck job should not inform an 8 ft pod quote.
     const _ic=_containerCuft(inputs.containerSize),_jc=_containerCuft(j.containerSize);
     if(_ic&&_jc)return Math.max(_ic,_jc)/Math.min(_ic,_jc)<=VOL_RATIO_MAX;
+    // Bedroom count (2026-10-09): with no sqft / vaults / container to compare, keep sizes within
+    // one step — a studio quote uses studios and 1-beds, never 2-beds. Office, storage unit and
+    // "other" aren't on the ladder, so they aren't gated.
+    const _iL=_bedLadder(inputs.size),_jL=_bedLadder(j.size);
+    if(_iL!==null&&_jL!==null)return Math.abs(_iL-_jL)<=1;
     return true; // not enough info to compare volume — don't gate it out
   };
   const _inBand=_cands.filter(_volOK);
@@ -21757,7 +21785,7 @@ function generateAIQuote(isRecalc){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_storageFill.length&&scored.some(j=>_storageFill.some(f=>_trainKey(f)===_trainKey(j)))?' · incl. move-to-storage jobs':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
