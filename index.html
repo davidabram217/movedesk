@@ -21341,8 +21341,22 @@ function clearAIQuoteDraft(){
 // data. Returns null if there isn't enough clean data to fit reliably, so the caller can
 // fall back to the neighbor-only estimate. This is recomputed on every quote so it improves
 // as more jobs are completed — "future quotes built off past jobs."
-function computeVaultRegression(){
-  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0);
+// (2026-10-09) Fit only on jobs of the quote's move type, and only use the line when it actually
+// explains the hours (R² ≥ 0.25). A line fit across every move type found almost no link between
+// size and hours and dragged a 400 sq ft studio quote to ~10 hrs with a ±4 hr range.
+const _TREND_MIN_R2=0.25;
+function _trendTypeFilter(moveType){
+  const k=moveType&&typeof _normMoveType==='function'?_normMoveType(moveType):'';
+  return function(j){return !k||_normMoveType(j.moveType)===k;};
+}
+function _trendR2(xs,ys,slope,intercept){
+  const n=xs.length,my=ys.reduce((a,b)=>a+b,0)/n;
+  let ssTot=0,ssRes=0;
+  for(let i=0;i<n;i++){ssTot+=(ys[i]-my)**2;ssRes+=(ys[i]-(intercept+slope*xs[i]))**2;}
+  return ssTot>0?1-ssRes/ssTot:0;
+}
+function computeVaultRegression(moveType){
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0).filter(_trendTypeFilter(moveType));
   // Need a reasonable sample to fit a line — below this, the fit is too noisy to trust.
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
@@ -21370,7 +21384,9 @@ function computeVaultRegression(){
     sumAbsErr+=Math.abs(ys[i]-predicted);
   }
   const meanAbsErr=sumAbsErr/n;
-  return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY,meanAbsErr:meanAbsErr};
+  const r2=_trendR2(xs,ys,slope,intercept);
+  if(r2<_TREND_MIN_R2)return null;   // size barely explains hours here — let the matched jobs decide
+  return {slope:slope,intercept:intercept,n:n,meanVaults:meanX,meanHours:meanY,meanAbsErr:meanAbsErr,r2:r2};
 }
 
 // Square-footage → TOTAL job hours. Parallels computeVaultRegression but keyed on home size in
@@ -21379,8 +21395,8 @@ function computeVaultRegression(){
 // the fix for big jobs (e.g. a 1,886 sqft full-pack) being averaged down by smaller same-bedroom
 // jobs. Fit on all completed jobs with a recorded sqft; for multi-day jobs actualHours is the
 // total across days, so the line predicts total job hours, which the 9.5h/day cap then splits.
-function computeSqftRegression(){
-  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.sqft&&j.sqft>0);
+function computeSqftRegression(moveType){
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.sqft&&j.sqft>0).filter(_trendTypeFilter(moveType));
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
   const xs=data.map(j=>j.sqft);
@@ -21399,7 +21415,9 @@ function computeSqftRegression(){
   let sumAbsErr=0;
   for(let i=0;i<n;i++){const predicted=intercept+slope*xs[i];sumAbsErr+=Math.abs(ys[i]-predicted);}
   const meanAbsErr=sumAbsErr/n;
-  return {slope:slope,intercept:intercept,n:n,meanSqft:meanX,meanHours:meanY,meanAbsErr:meanAbsErr};
+  const r2=_trendR2(xs,ys,slope,intercept);
+  if(r2<_TREND_MIN_R2)return null;   // size barely explains hours here — let the matched jobs decide
+  return {slope:slope,intercept:intercept,n:n,meanSqft:meanX,meanHours:meanY,meanAbsErr:meanAbsErr,r2:r2};
 }
 
 // Recommend a crew size for a given vault count, based on the crew sizes you've actually used
@@ -21669,8 +21687,8 @@ function generateAIQuote(isRecalc){
   // there isn't enough data to fit reliably, we fall back to the pure neighbor estimate.
   // Because the vault term increases smoothly with vault count, the blended estimate is
   // monotonic: adding vaults never lowers the hours.
-  const _vaultReg=computeVaultRegression();
-  const _sqftReg=(!inputs.vaults&&inputs.sqft)?computeSqftRegression():null;
+  const _vaultReg=computeVaultRegression(inputs.moveType);
+  const _sqftReg=(!inputs.vaults&&inputs.sqft)?computeSqftRegression(inputs.moveType):null;
   let adjustedHours;
   let _usedVaultReg=false;
   let _usedSqftReg=false;
@@ -21734,6 +21752,9 @@ function generateAIQuote(isRecalc){
     p25=_rawP25;
     p75=_rawP75;
   }
+  // Never let the top of the range fall below the bottom (2026-10-09): a big negative access
+  // adjustment (easy access vs. stair-heavy matches) could push the high end under 1 hr → "1.5–0 hrs".
+  p25=Math.max(1,p25);p75=Math.max(p25,p75);
   const hoursLow=Math.max(1,Math.floor(p25*2)/2);
   const hoursHigh=Math.ceil(p75*2)/2;
 
