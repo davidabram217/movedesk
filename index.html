@@ -513,6 +513,7 @@ input[type=number]{-moz-appearance:textfield}
             <th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px">Move date</th>
             <th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px">Type</th>
             <th style="padding:10px 14px;text-align:right;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px">Est. total</th>
+            <th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px">Sent</th>
             <th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px">Sent by</th>
             <th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px">Status</th>
             <th style="padding:10px 14px;border-bottom:1px solid var(--border)"></th>
@@ -18663,6 +18664,23 @@ function deleteQuote(id){
   renderQuotes();showToast('Quote deleted');
 }
 
+// Quotes list "Sent" column (2026-10-15): the date it went out, how long ago, and the accepted
+// date underneath when the customer accepted. Drafts show "Not sent".
+function _quoteDayLabel(v){
+  const d=typeof _tsDate==='function'?_tsDate(v):new Date(String(v).slice(0,10)+'T12:00:00');
+  if(!v||isNaN(d))return null;
+  const t=new Date();const today=new Date(t.getFullYear(),t.getMonth(),t.getDate(),12);
+  const days=Math.round((today-d)/86400000);
+  const ago=days<=0?'today':days===1?'yesterday':days<60?days+' days ago':Math.round(days/30)+' months ago';
+  return {date:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),ago};
+}
+function _quoteSentCell(q){
+  const sent=q&&q.status!=='draft'?_quoteDayLabel(q.sentAt):null;
+  if(!sent)return '<span style="color:var(--text3)">'+(q&&q.status==='draft'?'Not sent':'—')+'</span>';
+  const acc=q.status==='accepted'?_quoteDayLabel(q.acceptedAt):null;
+  return sent.date+'<div style="font-size:11px;color:var(--text3)">'+sent.ago+'</div>'
+    +(acc?'<div style="font-size:11px;color:var(--accent)">Accepted '+acc.date+'</div>':'');
+}
 function renderQuotes(){
   if(!db.quotes)db.quotes=[];
   const statusBadgeQ=(s)=>{const m={draft:'pill-gray',sent:'pill-green',accepted:'pill-green',declined:'pill-red'};return`<span class="badge ${m[s]||'pill-gray'}">${s}</span>`;};
@@ -18672,6 +18690,7 @@ function renderQuotes(){
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${fmtDate(q.moveDate)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)"><span class="badge pill-gray">${q.jobType==='multi'?'Multi-day':'Single day'}</span></td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${fmtMoney(q.totalMin)} — ${fmtMoney(q.totalMax)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap">${_quoteSentCell(q)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${q.sentBy||'—'}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${statusBadgeQ(q.status)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">
@@ -18684,7 +18703,7 @@ function renderQuotes(){
         </div>
       </td>
     </tr>`).join('')
-    :`<tr><td colspan="7"><div class="empty-state"><div class="empty-title">No quotes yet</div><div class="empty-sub">Open a lead and click "Build quote"</div></div></td></tr>`;
+    :`<tr><td colspan="8"><div class="empty-state"><div class="empty-title">No quotes yet</div><div class="empty-sub">Open a lead and click "Build quote"</div></div></td></tr>`;
 }
 
 function markQuoteSent(quoteId){
