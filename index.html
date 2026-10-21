@@ -2531,11 +2531,11 @@ input[type=number]{-moz-appearance:textfield}
     <div class="modal-body">
       <div class="form-group">
         <label>To</label>
-        <input type="email" id="qe-to" placeholder="customer@email.com">
+        <input type="email" id="qe-to" placeholder="customer@email.com" oninput="autoSaveQuoteEmail()">
       </div>
       <div class="form-group">
         <label>Subject</label>
-        <input type="text" id="qe-subject">
+        <input type="text" id="qe-subject" oninput="autoSaveQuoteEmail()">
       </div>
       <div class="form-group">
         <label>Message</label>
@@ -18453,9 +18453,11 @@ async function openQuoteGmail(){
   const quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+q.publicId;
   const subject='Your Move Estimate — CareMore Moving & Storage';
   const body='Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage at the link below. If you have any questions or would like to confirm the booking please feel free to contact us anytime and we will be happy to help.\n\nView your quote here:\n'+quoteLink+'\n\nThank you,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com';
-  // Restore draft if one was saved
+  // Restore draft if one was saved. (2026-10-21) The draft lives on the LEAD, keyed by quote id —
+  // saveQuote('draft') above rebuilds the quote object, so a draft kept on the quote was wiped
+  // before it could be read. Same approach as the confirmation email (lead._confirmEmailDraft).
   const existingQ=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
-  const draft=existingQ?._emailDraft;
+  const draft=(l&&l._quoteEmailDrafts&&l._quoteEmailDrafts[q.id])||existingQ?._emailDraft;
   document.getElementById('qe-to').value=draft?.to||to;
   document.getElementById('qe-subject').value=draft?.subject||subject;
   document.getElementById('qe-body').value=draft?.body||body;
@@ -18620,14 +18622,20 @@ async function sendQuoteEmail(){
 }
 
 function autoSaveQuoteEmail(){
-  // Save current email edits to quote draft so nothing is lost
+  // Save current email edits so nothing is lost if the modal is closed. Kept on the lead, keyed by
+  // quote id (2026-10-21) — the quote object is rebuilt by saveQuote and would drop it. Falls back
+  // to the quote for a quote with no lead.
   const q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
   if(!q)return;
-  q._emailDraft={
+  const draft={
     to:document.getElementById('qe-to')?.value||'',
     subject:document.getElementById('qe-subject')?.value||'',
-    body:document.getElementById('qe-body')?.value||''
+    body:document.getElementById('qe-body')?.value||'',
+    savedAt:new Date().toISOString()
   };
+  const l=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
+  if(l){l._quoteEmailDrafts=Object.assign({},l._quoteEmailDrafts||{},{[q.id]:draft});}
+  else q._emailDraft=draft;
   saveDB();
 }
 
