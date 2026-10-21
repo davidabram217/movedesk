@@ -1763,10 +1763,17 @@ input[type=number]{-moz-appearance:textfield}
       <div class="form-group"><label>Date</label><input type="date" id="vr-date"></div>
       <div class="form-group"><label>Cost ($)</label><input type="number" id="vr-cost" placeholder="0"></div>
       <div class="form-group" style="grid-column:1/-1"><label>What was repaired?</label><textarea id="vr-desc" placeholder="e.g. New brakes, oil change"></textarea></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Invoice</label>
+        <input type="file" id="vr-file" accept="image/*,application/pdf" multiple style="display:none" onchange="onRepairInvoicePicked(this)">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('vr-file').click()">&#128247; Take a photo or add a file</button>
+        <div id="vr-invoices" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+        <div id="vr-upload-status" style="font-size:11.5px;color:var(--text3);margin-top:4px"></div>
+      </div>
     </div></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('vehicle-repair')">Cancel</button><button class="btn btn-primary" onclick="saveVehicleRepair()">Save repair</button></div>
   </div>
 </div>
+<input type="file" id="vr-attach-file" accept="image/*,application/pdf" multiple style="display:none" onchange="onRepairInvoiceAttach(this)">
 
 <div class="modal-bg" id="modal-paste-to-booking">
   <div class="modal" style="max-width:560px">
@@ -5571,7 +5578,7 @@ function _vehCard(v){
   }).join('');
   const repairs=(v.repairs||[]).slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
   const repTotal=_vehRepairTotal(v);
-  const repList=repairs.length?repairs.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--border2);font-size:12px"><span>'+escHtml(r.date||'')+(r.desc?' \u2014 '+escHtml(r.desc):'')+'</span><span style="font-weight:600;white-space:nowrap">'+fmtMoney(r.cost)+' <button title="Delete repair" onclick="deleteVehicleRepair(\''+v.id+'\',\''+r.id+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">\u00d7</button></span></div>';}).join(''):'<div style="font-size:12px;color:var(--text3);padding:4px 0">No repairs logged yet.</div>';
+  const repList=repairs.length?repairs.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid var(--border2);font-size:12px"><span>'+escHtml(r.date||'')+(r.desc?' \u2014 '+escHtml(r.desc):'')+_repairInvoiceLinks(v.id,r)+'</span><span style="font-weight:600;white-space:nowrap">'+fmtMoney(r.cost)+' <button title="Delete repair" onclick="deleteVehicleRepair(\''+v.id+'\',\''+r.id+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">\u00d7</button></span></div>';}).join(''):'<div style="font-size:12px;color:var(--text3);padding:4px 0">No repairs logged yet.</div>';
   return '<div class="card" style="margin-bottom:14px"><div class="card-body">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div style="font-weight:700;font-size:15px">'+escHtml(_vehTitle(v))+'</div><div style="white-space:nowrap"><button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="openVehicleModal(\''+v.type+'\',\''+v.id+'\')">Edit</button> <button class="btn btn-secondary" style="font-size:11px;padding:4px 8px" onclick="deleteVehicle(\''+v.id+'\')">Delete</button></div></div>'
     +rows
@@ -5620,7 +5627,93 @@ function _autoSaveVehicle(){
   _commitVehicle({auto:true});
 }
 function deleteVehicle(id){ if(!confirm('Delete this vehicle and its repair history? This cannot be undone.'))return; db.vehicles=(db.vehicles||[]).filter(function(v){return v.id!==id;}); saveDB(); renderFleet(); showToast('Vehicle deleted'); }
+// ── Repair invoices (2026-10-21) ──────────────────────────────────────────────────────────
+// Photos / PDFs of repair invoices go to the Supabase Storage bucket "repair-invoices" (public,
+// unguessable file names) — NOT into the vehicle record, which is also kept in localStorage and
+// would hit the browser's ~5 MB limit after a handful of photos. The repair keeps only the link:
+// repair.invoices=[{url,path,name,type,uploadedAt}]. Phone photos are shrunk to ≤1800 px JPEG first.
+// On a phone, the file picker offers "Take Photo" as well as the photo library / files.
+const _REPAIR_BUCKET='repair-invoices';
+let _vrPending=[],_vrUploading=0,_vrAttachTarget=null;
+function _shrinkInvoiceImage(file){
+  return new Promise(function(resolve){
+    if(!file||!/^image\//.test(file.type)||/gif|svg/.test(file.type)){resolve(file);return;}
+    const url=URL.createObjectURL(file);const img=new Image();
+    img.onload=function(){
+      try{
+        const MAX=1800;let w=img.naturalWidth,h=img.naturalHeight;
+        if(!w||!h){URL.revokeObjectURL(url);resolve(file);return;}
+        const k=Math.min(1,MAX/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
+        const c=document.createElement('canvas');c.width=w;c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        c.toBlob(function(b){URL.revokeObjectURL(url);resolve(b&&b.size<file.size?b:file);},'image/jpeg',0.8);
+      }catch(_){URL.revokeObjectURL(url);resolve(file);}
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);resolve(file);};
+    img.src=url;
+  });
+}
+async function _uploadRepairInvoice(file,vid){
+  if(file.size>20*1024*1024)throw new Error('File is over 20 MB');
+  const blob=await _shrinkInvoiceImage(file);
+  const type=blob.type||file.type||'application/octet-stream';
+  const ext=type==='application/pdf'?'pdf':type==='image/png'?'png':type==='image/jpeg'?'jpg':((file.name||'').split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'')||'bin';
+  const path=String(vid||'misc').replace(/[^\w-]/g,'')+'/'+Date.now().toString(36)+Math.random().toString(36).slice(2,8)+'.'+ext;
+  const res=await fetch(SUPABASE_URL+'/storage/v1/object/'+_REPAIR_BUCKET+'/'+path,{method:'POST',
+    headers:{'Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY,'Content-Type':type,'x-upsert':'false'},body:blob});
+  if(!res.ok){
+    let msg='';try{msg=(await res.json()).message||'';}catch(_){}
+    if(/bucket not found/i.test(msg))throw new Error('the invoice storage isn\u2019t set up in Supabase yet');
+    if(res.status===401||res.status===403||/row-level security|policy/i.test(msg))throw new Error('Supabase isn\u2019t allowing uploads yet (storage policy missing)');
+    throw new Error(msg||('upload failed ('+res.status+')'));
+  }
+  return {url:SUPABASE_URL+'/storage/v1/object/public/'+_REPAIR_BUCKET+'/'+path,path:path,name:file.name||('invoice.'+ext),type:type,uploadedAt:new Date().toISOString()};
+}
+function _invoiceChip(inv,removeJs){
+  const isImg=/^image\//.test(inv.type||'');
+  return '<span style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:11.5px;background:var(--surface2)">'
+    +(isImg?'<a href="'+escHtml(inv.url)+'" target="_blank" rel="noopener"><img src="'+escHtml(inv.url)+'" alt="Invoice" style="width:42px;height:42px;object-fit:cover;border-radius:4px;display:block"></a>'
+           :'<a href="'+escHtml(inv.url)+'" target="_blank" rel="noopener">&#128196; '+escHtml(inv.name||'Invoice')+'</a>')
+    +(removeJs?'<button type="button" title="Remove" onclick="'+removeJs+'" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:13px">&times;</button>':'')
+    +'</span>';
+}
+function _renderPendingInvoices(){
+  const el=document.getElementById('vr-invoices');if(!el)return;
+  el.innerHTML=_vrPending.map(function(inv,i){return _invoiceChip(inv,'_vrPending.splice('+i+',1);_renderPendingInvoices()');}).join('');
+}
+function _repairInvoiceLinks(vid,r){
+  const inv=(r.invoices||[]).map(function(x,i){return ' <a href="'+escHtml(x.url)+'" target="_blank" rel="noopener" title="Open invoice" style="text-decoration:none">'+(/^image\//.test(x.type||'')?'&#128247;':'&#128196;')+'</a>';}).join('');
+  return inv+' <button title="Add invoice photo" onclick="attachRepairInvoice(\''+vid+'\',\''+r.id+'\')" style="border:none;background:none;cursor:pointer;color:var(--text3);font-size:12px;padding:0 2px">&#128206;</button>';
+}
+async function _uploadInvoiceFiles(files,vid,onDone){
+  const status=document.getElementById('vr-upload-status');
+  for(const f of Array.from(files||[])){
+    _vrUploading++;
+    if(status)status.textContent='Uploading '+(f.name||'photo')+'\u2026';
+    showToast('Uploading invoice\u2026');
+    try{const inv=await _uploadRepairInvoice(f,vid);onDone(inv);showToast('\u2713 Invoice added');}
+    catch(e){showToast('\u26a0 Couldn\u2019t upload the invoice \u2014 '+(e&&e.message||e));console.warn('Repair invoice upload failed:',e);}
+    finally{_vrUploading--;}
+  }
+  if(status)status.textContent=_vrUploading?status.textContent:'';
+}
+function onRepairInvoicePicked(input){
+  const vid=document.getElementById('modal-vehicle-repair').dataset.vehId;
+  const files=input.files;
+  _uploadInvoiceFiles(files,vid,function(inv){_vrPending.push(inv);_renderPendingInvoices();}).then(function(){input.value='';});
+}
+function attachRepairInvoice(vid,rid){_vrAttachTarget={vid:vid,rid:rid};const el=document.getElementById('vr-attach-file');if(el){el.value='';el.click();}}
+function onRepairInvoiceAttach(input){
+  const t=_vrAttachTarget;if(!t)return;
+  _uploadInvoiceFiles(input.files,t.vid,function(inv){
+    const v=(db.vehicles||[]).find(function(x){return x.id===t.vid;});if(!v)return;
+    const r=(v.repairs||[]).find(function(x){return x.id===t.rid;});if(!r)return;
+    r.invoices=(r.invoices||[]).concat([inv]);saveDB();renderFleet();
+  }).then(function(){input.value='';});
+}
 function openVehicleRepairModal(vid){
+  _vrPending=[];_renderPendingInvoices();
+  const _st=document.getElementById('vr-upload-status');if(_st)_st.textContent='';
   document.getElementById('modal-vehicle-repair').dataset.vehId=vid;
   document.getElementById('vr-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('vr-desc').value='';
@@ -5634,9 +5727,12 @@ function saveVehicleRepair(){
   const desc=document.getElementById('vr-desc').value.trim();
   const cost=Number(document.getElementById('vr-cost').value)||0;
   const date=document.getElementById('vr-date').value||new Date().toISOString().split('T')[0];
-  if(!desc&&!cost){showToast('Add a description or cost first');return;}
+  if(_vrUploading>0){showToast('Still uploading the invoice \u2014 one moment');return;}
+  if(!desc&&!cost&&!_vrPending.length){showToast('Add a description or cost first');return;}
   if(!v.repairs)v.repairs=[];
-  v.repairs.push({id:'rep'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),date:date,desc:desc,cost:cost});
+  const _rep={id:'rep'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),date:date,desc:desc,cost:cost};
+  if(_vrPending.length)_rep.invoices=_vrPending.slice();
+  v.repairs.push(_rep);_vrPending=[];
   saveDB(); closeModal('vehicle-repair'); renderFleet(); showToast('\u2713 Repair logged');
 }
 function deleteVehicleRepair(vid,rid){ const v=(db.vehicles||[]).find(function(x){return x.id===vid;}); if(!v)return; v.repairs=(v.repairs||[]).filter(function(r){return r.id!==rid;}); saveDB(); renderFleet(); }
