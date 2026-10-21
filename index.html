@@ -15982,7 +15982,7 @@ async function checkAcceptedQuotes(){
     rows.forEach(r=>{
       const q=r.data;
       if(!q||q.status!=='accepted')return;
-      const localQ=db.quotes.find(x=>x.id===r.id||x.publicId===q.publicId);
+      const localQ=db.quotes.find(x=>x.id===r.id||(q.publicId&&x.publicId===q.publicId));   // (2026-10-21) undefined===undefined matched the first quote with no publicId
       if(!localQ)return;
       // Always sync accepted status
       if(localQ.status!=='accepted'){
@@ -15992,8 +15992,18 @@ async function checkAcceptedQuotes(){
       }
       // Always check lead status — update even if quote was already marked accepted
       const lead=db.leads.find(x=>x.id===localQ.leadId);
+      // "Did not book" is a final status the office chose (2026-10-21: Mark Haghani accepted, then
+      // cancelled; every load flipped him back to Quote accepted). Only an acceptance that came
+      // AFTER the lead was marked lost may revive it — an older acceptance never overrides it.
+      if(lead&&lead.status==='Did not book'){
+        const _lostAt=String(lead._statusChangedAt||lead.dnbDate||lead.statusUpdatedAt||'');
+        const _accAt=String(q.acceptedAt||localQ.acceptedAt||'');
+        if(!_accAt||!_lostAt||_accAt<=_lostAt)return;
+      }
       if(lead&&lead.status!=='Quote accepted'&&lead.status!=='Confirmation sent'&&lead.status!=='Booked'&&lead.status!=='Completed'){
         lead.status='Quote accepted';
+        lead.statusUpdatedAt=new Date().toISOString().split('T')[0];
+        lead._statusChangedAt=new Date().toISOString();
         changed=true;
         showToast('🎉 '+localQ.customerName+' has accepted their quote!');
       }
