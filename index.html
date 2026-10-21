@@ -3250,13 +3250,13 @@ async function loadDB(){
     let _vehiclesFromCloud=false;
     try{
       const vRows=await sbFetch('vehicles?select=id,data&order=created_at.desc');
-      if(Array.isArray(vRows)&&vRows.length){db.vehicles=vRows.map(r=>({...r.data,id:r.id}));_vehiclesFromCloud=true;}
+      if(Array.isArray(vRows)&&vRows.length){db.vehicles=_mergeSideTable('vehicles',vRows.map(r=>({...r.data,id:r.id})),_LD.vehicles);_vehiclesFromCloud=true;}
     }catch(e){ console.warn('vehicles load skipped (table may not exist yet):',e); }
     window._vehiclesFromCloud=_vehiclesFromCloud;
     try{
       const hotelRows=await sbFetch('hotels?select=id,data&order=created_at.desc');
       // Same rule as ai_training below: an empty cloud table must not wipe a local list.
-      if(Array.isArray(hotelRows)&&hotelRows.length)db.hotels=hotelRows.map(r=>({...r.data,id:r.id}));
+      if(Array.isArray(hotelRows)&&hotelRows.length)db.hotels=_mergeSideTable('hotels',hotelRows.map(r=>({...r.data,id:r.id})),_LD.hotels);
     }catch(e){ console.warn('hotels load skipped (table may not exist yet):',e); }
     try{
       const aiRows=await sbFetch('ai_training?select=id,data&order=created_at.desc');
@@ -4004,6 +4004,52 @@ function _pushTable(table,rows,key){
     return res;
   });
 }
+// Vehicles / hotels / AI training (2026-10-21). These were pushed through _pushTable and the table
+// was flagged "missing" whenever the result was null — but sbFetch returns null for a SUCCESSFUL
+// upsert too (Supabase sends back an empty body). So the first successful vehicle upload switched
+// vehicle syncing off for the rest of the session, and every truck / repair added after that only
+// lived in this browser until the next refresh replaced it with the cloud copy. This helper reads
+// the real HTTP result: 'ok', 'missing' (table genuinely not there) or 'failed' (retry next sync).
+// Ids confirmed in the cloud are remembered so loadDB can tell "never uploaded" from "deleted".
+function _cloudIdsKey(table){return 'movedesk_cloud_ids_'+table;}
+function _cloudIds(table){try{return JSON.parse(localStorage.getItem(_cloudIdsKey(table))||'{}');}catch(_){return {};}}
+function _rememberCloudIds(table,ids){
+  try{const m=_cloudIds(table);ids.forEach(function(id){if(id)m[id]=1;});localStorage.setItem(_cloudIdsKey(table),JSON.stringify(m));}catch(_){}
+}
+const _sideSyncWarned={};
+function _pushSideTable(table,rows){
+  const dirty=_dirtyRows(table,rows);
+  if(!dirty.length)return null;
+  return fetch(SUPABASE_URL+'/rest/v1/'+table,{method:'POST',
+    headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify(dirty)}).then(async function(res){
+      if(res.ok){_markSynced(table,dirty);_rememberCloudIds(table,dirty.map(function(r){return r.id;}));return 'ok';}
+      let t='';try{t=await res.text();}catch(_){}
+      console.warn('Supabase '+table+' upload failed:',res.status,t);
+      if(res.status===404||/PGRST205|does not exist|Could not find the table/i.test(t))return 'missing';
+      if((table==='vehicles'||table==='hotels')&&!_sideSyncWarned[table]&&typeof showToast==='function'){
+        _sideSyncWarned[table]=true;
+        showToast('\u26a0 '+(table==='vehicles'?'Fleet':'Hotel')+' changes couldn\u2019t be saved to the cloud yet \u2014 MoveDesk will keep retrying');
+      }
+      return 'failed';
+    }).catch(function(){return 'failed';});
+}
+// loadDB: keep local records the cloud has never had (added here, upload still pending); drop ones
+// the cloud HAD and no longer has (deleted on another device). For vehicles, an edit made here
+// after the cloud copy (newer _editedAt) wins over the cloud copy.
+function _mergeSideTable(table,cloudList,localList){
+  const known=_cloudIds(table);
+  const out=cloudList.slice();
+  const idx={};out.forEach(function(r,i){idx[r.id]=i;});
+  (localList||[]).forEach(function(r){
+    if(!r||!r.id)return;
+    if(idx[r.id]===undefined){if(!known[r.id])out.push(r);return;}
+    const c=out[idx[r.id]];
+    if(r._editedAt&&(!c._editedAt||r._editedAt>c._editedAt))out[idx[r.id]]=r;
+  });
+  _rememberCloudIds(table,cloudList.map(function(r){return r.id;}));
+  return out;
+}
 
 // Removes cloud rows that no longer exist locally, for the small self-contained tables.
 // The push UPSERTS but never deletes, so a row removed locally stayed in the cloud and returned
@@ -4073,8 +4119,8 @@ async function syncToSupabase(){
     // ai_training — wrapped so a missing table doesn't break other syncs
     const aiRows=(db.aiTraining||[]).map(r=>({id:r.id,data:r}));
     if(aiRows.length&&!_aiTrainingMissing){
-      const _aiOp=_pushTable('ai_training',aiRows);
-      if(_aiOp)ops.push(_aiOp.then(res=>{if(res===null)_aiTrainingMissing=true;}).catch(()=>{_aiTrainingMissing=true;}));
+      const _aiOp=_pushSideTable('ai_training',aiRows);
+      if(_aiOp)ops.push(_aiOp.then(res=>{if(res==='missing')_aiTrainingMissing=true;}));
     }
     // hotels — shared truck-parking list, same guarded pattern as ai_training so a missing
     // table degrades to local-only instead of breaking every other sync.
@@ -4083,13 +4129,13 @@ async function syncToSupabase(){
     // reload", which is exactly what eventually happened. Same guarded pattern as hotels.
     const vehicleRows=(db.vehicles||[]).map(v=>({id:v.id,data:v}));
     if(vehicleRows.length&&!_vehiclesTableMissing){
-      const _vOp=_pushTable('vehicles',vehicleRows);
-      if(_vOp)ops.push(_vOp.then(res=>{if(res===null)_vehiclesTableMissing=true;}).catch(()=>{_vehiclesTableMissing=true;}));
+      const _vOp=_pushSideTable('vehicles',vehicleRows);
+      if(_vOp)ops.push(_vOp.then(res=>{if(res==='missing')_vehiclesTableMissing=true;}));
     }
     const hotelRows=(db.hotels||[]).map(h=>({id:h.id,data:h}));
     if(hotelRows.length&&!_hotelsTableMissing){
-      const _hOp=_pushTable('hotels',hotelRows);
-      if(_hOp)ops.push(_hOp.then(res=>{if(res===null)_hotelsTableMissing=true;}).catch(()=>{_hotelsTableMissing=true;}));
+      const _hOp=_pushSideTable('hotels',hotelRows);
+      if(_hOp)ops.push(_hOp.then(res=>{if(res==='missing')_hotelsTableMissing=true;}));
     }
     await Promise.all(ops);
     // DELETE RECONCILIATION (2026-08-19). The push UPSERTS but never deletes, so a row removed
@@ -5609,6 +5655,7 @@ function _commitVehicle(opts){
   let v=id?(db.vehicles||[]).find(function(x){return x.id===id;}):null;
   if(!v){ v={id:'veh'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),type:type,repairs:[]}; if(!db.vehicles)db.vehicles=[]; db.vehicles.push(v); modal.dataset.editId=v.id; }
   fields.forEach(function(f){ const el=document.getElementById('veh-'+f[0]); if(el)v[f[0]]=el.value.trim(); });
+  v._editedAt=new Date().toISOString();
   saveDB(); renderFleet();
   if(opts.close){ closeModal('vehicle'); showToast('\u2713 Vehicle saved'); return; }
   // Auto-save: flash the inline "Auto-saved" indicator, keep the modal open
@@ -5708,7 +5755,7 @@ function onRepairInvoiceAttach(input){
   _uploadInvoiceFiles(input.files,t.vid,function(inv){
     const v=(db.vehicles||[]).find(function(x){return x.id===t.vid;});if(!v)return;
     const r=(v.repairs||[]).find(function(x){return x.id===t.rid;});if(!r)return;
-    r.invoices=(r.invoices||[]).concat([inv]);saveDB();renderFleet();
+    r.invoices=(r.invoices||[]).concat([inv]);v._editedAt=new Date().toISOString();saveDB();renderFleet();
   }).then(function(){input.value='';});
 }
 function openVehicleRepairModal(vid){
@@ -5732,10 +5779,10 @@ function saveVehicleRepair(){
   if(!v.repairs)v.repairs=[];
   const _rep={id:'rep'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),date:date,desc:desc,cost:cost};
   if(_vrPending.length)_rep.invoices=_vrPending.slice();
-  v.repairs.push(_rep);_vrPending=[];
+  v.repairs.push(_rep);_vrPending=[];v._editedAt=new Date().toISOString();
   saveDB(); closeModal('vehicle-repair'); renderFleet(); showToast('\u2713 Repair logged');
 }
-function deleteVehicleRepair(vid,rid){ const v=(db.vehicles||[]).find(function(x){return x.id===vid;}); if(!v)return; v.repairs=(v.repairs||[]).filter(function(r){return r.id!==rid;}); saveDB(); renderFleet(); }
+function deleteVehicleRepair(vid,rid){ const v=(db.vehicles||[]).find(function(x){return x.id===vid;}); if(!v)return; v.repairs=(v.repairs||[]).filter(function(r){return r.id!==rid;}); v._editedAt=new Date().toISOString(); saveDB(); renderFleet(); }
 
 function autoSaveLeadDraft(){
   const draft={
