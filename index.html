@@ -4604,6 +4604,7 @@ async function refreshFromSupabase(){
           setTimeout(()=>{showToast('🎉 '+window._customerAcceptedLead+' accepted the quote');delete window._customerAcceptedLead;},400);
         }
       }
+      try{const _ac=_autoCommitReadyDrafts();if(_ac)updated+=_ac;}catch(_){}
       if(_selfHealed)console.log('Refresh self-healed '+_selfHealed+' lead status(es)');
     }catch(e){console.warn('Self-heal during refresh failed:',e);}
     if(updated>0){
@@ -7864,6 +7865,7 @@ function sendConfirmationEmail(){
   const ceModal=document.getElementById('modal-confirm-email');
   if(ceModal)ceModal.style.zIndex='';
   showToast('✓ Confirmation email sent');
+  if(bookedJobId)setTimeout(()=>_autoCommitBookingIfReady(bookedJobId),0);
   const _ceLead=l||(db.leads.find(x=>x.id===currentConfirmEmailLeadId));
   const _resolvedId=currentBookedJobId||(_ceLead?(db.bookedJobs||[]).find(b=>b.leadId===_ceLead.id)?.id:null);
   // FIX: only treat this as a "day email" if _currentDayId actually belongs to
@@ -10547,6 +10549,8 @@ function renderBookingChecklist(){
     allCalDone=!!j.calendarAdded;
   }
   const bothDone=allCalDone&&(emailDone||!j.email);
+  // Both steps done on a draft → book it now (2026-10-22). Deferred so this render finishes first.
+  if(bothDone&&j._draft){const _jid=j.id;setTimeout(()=>_autoCommitBookingIfReady(_jid),0);}
 
   document.getElementById('booking-checklist').innerHTML=`
     <div style="padding:12px 14px;border-radius:var(--radius);border:1px solid ${emailDone?'var(--accent)':'var(--border2)'};background:${emailDone?'var(--accent-light)':'var(--surface)'}">
@@ -10836,6 +10840,39 @@ function buildJobCalDesc(j){
   return lines.join('\n');
 }
 
+// ── Auto-commit (2026-10-22, owner unlock) ─────────────────────────────────────────────────
+// A booking used to stay an unfinished draft — hidden from Booked Jobs, lead stuck at "Quote
+// accepted" — until someone clicked Done, even with the calendar entry and confirmation email both
+// done (Jeremy Tepper's Oct 4 job). Now it commits itself the moment the SAME conditions Done
+// checks are met. Done still works. Only drafts are touched.
+function _bookingStepsDone(j){
+  if(!j)return false;
+  const isMulti=j.multiDay&&j.quoteDays&&j.quoteDays.length>1;
+  const allCalDone=isMulti?j.quoteDays.every((_,i)=>j['calDay'+(i+1)+'Added']):!!j.calendarAdded;
+  return allCalDone&&(!!j.confirmEmailSent||!j.email);
+}
+function _autoCommitBookingIfReady(jobId){
+  const j=(db.bookedJobs||[]).find(x=>x.id===jobId);
+  if(!j||!j._draft||!_bookingStepsDone(j))return false;
+  const _prev=currentBookedJobId;
+  currentBookedJobId=j.id;
+  try{bookingNextDone();}finally{if(_prev&&_prev!==j.id)currentBookedJobId=_prev;}
+  return true;
+}
+// Startup / refresh: commit drafts that already had both steps done (no prompts, no modals).
+function _autoCommitReadyDrafts(){
+  let n=0;
+  (db.bookedJobs||[]).forEach(j=>{
+    if(!j||!j._draft||!_bookingStepsDone(j))return;
+    j.pendingConfirmation=false;
+    delete j._draft;
+    const l=(db.leads||[]).find(x=>x.id===j.leadId);
+    if(l&&!['Completed','Did not book'].includes(l.status)){l.status='Booked';l.statusUpdatedAt=new Date().toISOString().split('T')[0];l._statusChangedAt=new Date().toISOString();}
+    n++;
+  });
+  if(n){saveDB();console.log('Auto-booked '+n+' booking(s) whose calendar entry and confirmation email were already done');}
+  return n;
+}
 function bookingNextDone(){
   const j=db.bookedJobs.find(x=>x.id===currentBookedJobId);
   if(!j)return;
@@ -22402,6 +22439,7 @@ window.deleteLead=deleteLead;
   // last-known-good state; if a bad merge or a blank save damages the data, this is what saves us.
   try{ await takeSnapshot('startup'); }catch(_){}
   await loadDB();
+  try{_autoCommitReadyDrafts();}catch(e){console.warn('Auto-commit of ready bookings failed:',e);}
   // And a second one after a healthy load, so the newest snapshot reflects the merged truth.
   try{ await takeSnapshot('post-load',JSON.parse(JSON.stringify(db))); }catch(_){}
   // Always rebuild customer list from leads and completed jobs
