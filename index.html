@@ -88,6 +88,7 @@ input[type=number]{-moz-appearance:textfield}
     <div class="nav-section-label">Overview</div>
     <div class="nav-item active" onclick="showPage('dashboard')"><span>▦</span> Dashboard</div>
     <div class="nav-item" onclick="showPage('analytics')"><span>◈</span> Analytics</div>
+    <div class="nav-item" onclick="showPage('demand');renderDemand()"><span>📈</span> Demand & Pricing</div>
     <div class="nav-section-label">Jobs</div>
     <div class="nav-item" onclick="showPage('leads')"><span>◎</span> Leads & Estimates <span id="leads-followup-badge" style="display:none;background:var(--amber);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span></div>
     <div class="nav-item" onclick="showPage('customers')"><span>👤</span> Customers</div>
@@ -884,6 +885,9 @@ input[type=number]{-moz-appearance:textfield}
       <div class="card"><div class="card-body" id="hotels-list" style="padding:0"></div></div>
     </div>
 
+    <div class="page" id="page-demand">
+      <div id="demand-body"></div>
+    </div>
     <div class="page" id="page-fuelcalc">
       <div style="max-width:620px">
         <div class="card" style="margin-bottom:16px">
@@ -4647,7 +4651,7 @@ document.addEventListener('visibilitychange',function(){
     refreshFromSupabase();
   }
 });
-const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type'],fuelcalc:['Fuel Calculator','Quick fuel charge from the warehouse and back']};
+const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type'],fuelcalc:['Fuel Calculator','Quick fuel charge from the warehouse and back'],demand:['Demand & Pricing','Your busiest and quietest days — where to charge more and where to discount']};
 function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
 // Paste-to-lead: takes free-form text (email, SMS, notes) and extracts structured lead fields
 // using regex pattern matching, then auto-fills the New Lead form for review.
@@ -5602,6 +5606,140 @@ function hotelSearchChanged(){
   },600);
 }
 
+// ── Demand & Pricing (2026-10-26) ─────────────────────────────────────────────────────────────
+// Which days are busy (charge more) and which are quiet (room for a discount). Two signals:
+//   • JOBS — completed + booked moves on that date (work we did / have).
+//   • REQUESTS — every enquiry's requested move date, INCLUDING leads that didn't book, so days we
+//     turn work away show up too, not only days we worked.
+// Each day is labelled Peak / Normal / Quiet against the average; the owner sets any surcharge or
+// discount. Rates are per occurrence (e.g. jobs per Friday in the period), so a weekday that simply
+// occurred more often isn't mistaken for a busier one. Read-only — changes no data.
+const _DM_DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const _DM_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function _dmYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _dmDate(s){const t=String(s||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(t))return null;const d=new Date(t+'T12:00:00');return isNaN(d)?null:d;}
+function computeDemand(){
+  const today=new Date();today.setHours(12,0,0,0);
+  const todayStr=_dmYmd(today);
+  const horizon=new Date(today);horizon.setDate(horizon.getDate()+400);
+  // Jobs: completed + booked (not unfinished drafts), one per job, by its move date.
+  const jobs=[];const seen=new Set();let futureCompleted=0;
+  (db.completedJobs||[]).forEach(j=>{const d=_dmDate(j.date);if(!d||seen.has(j.id))return;
+    if(_dmYmd(d)>todayStr){futureCompleted++;return;}   // a completed job can't be in the future — bad year
+    seen.add(j.id);jobs.push({date:_dmYmd(d),d,value:Number(j.total)||0,done:true});});
+  (db.bookedJobs||[]).forEach(j=>{if(j._draft)return;const d=_dmDate(j.date);if(!d||seen.has(j.id)||d>horizon)return;
+    seen.add(j.id);jobs.push({date:_dmYmd(d),d,value:0,done:false});});
+  // Requests: every lead with a firm requested move date (any status).
+  const reqs=[];
+  (db.leads||[]).forEach(l=>{if(!l||_isDeletedRec&&_isDeletedRec(l))return;const d=_dmDate(l.date);if(!d||d>horizon)return;
+    reqs.push({date:_dmYmd(d),d,lost:l.status==='Did not book'});});
+  // History window = first past job/request → today (future bookings feed only the upcoming list).
+  const past=jobs.filter(x=>x.date<=todayStr).concat(reqs.filter(x=>x.date<=todayStr));
+  if(!past.length)return {empty:true,futureCompleted};
+  const start=past.reduce((m,x)=>x.d<m?x.d:m,past[0].d);
+  const occWd=Array(7).fill(0),occDom=Array(32).fill(0),occMon={};
+  for(let d=new Date(start);d<=today;d.setDate(d.getDate()+1)){occWd[d.getDay()]++;occDom[d.getDate()]++;const mk=d.getFullYear()+'-'+d.getMonth();occMon[mk]=(occMon[mk]||0)+1;}
+  const histJobs=jobs.filter(x=>x.date<=todayStr),histReqs=reqs.filter(x=>x.date<=todayStr);
+  const byDate={};
+  histJobs.forEach(x=>{(byDate[x.date]=byDate[x.date]||{jobs:0,reqs:0,lost:0,value:0}).jobs++;byDate[x.date].value+=x.value;});
+  histReqs.forEach(x=>{const r=(byDate[x.date]=byDate[x.date]||{jobs:0,reqs:0,lost:0,value:0});r.reqs++;if(x.lost)r.lost++;});
+  // Generic grouping → per-occurrence rates + a demand index (100 = average day).
+  function group(keyOf,keys,occOf,labelOf){
+    const rows=keys.map(k=>({key:k,label:labelOf(k),occ:occOf(k),jobs:0,reqs:0,lost:0,value:0,doneJobs:0,daysWorked:0}));
+    const idx={};rows.forEach(r=>idx[r.key]=r);
+    Object.keys(byDate).forEach(ds=>{const r=idx[keyOf(_dmDate(ds))];if(!r)return;const b=byDate[ds];
+      r.jobs+=b.jobs;r.reqs+=b.reqs;r.lost+=b.lost;r.value+=b.value;if(b.jobs)r.daysWorked++;});
+    histJobs.forEach(x=>{const r=idx[keyOf(x.d)];if(r&&x.done)r.doneJobs++;});
+    const totOcc=rows.reduce((a,r)=>a+r.occ,0)||1;
+    const avgJ=rows.reduce((a,r)=>a+r.jobs,0)/totOcc,avgR=rows.reduce((a,r)=>a+r.reqs,0)/totOcc;
+    rows.forEach(r=>{
+      r.jobsPer=r.occ?r.jobs/r.occ:0;r.reqsPer=r.occ?r.reqs/r.occ:0;r.busyRate=r.occ?r.daysWorked/r.occ:0;
+      r.avgJob=r.doneJobs?r.value/r.doneJobs:0;
+      const parts=[];if(avgJ>0)parts.push(r.jobsPer/avgJ);if(avgR>0)parts.push(r.reqsPer/avgR);
+      r.index=parts.length?Math.round(parts.reduce((a,b)=>a+b,0)/parts.length*100):0;
+      r.enough=r.occ>=3&&(r.jobs+r.reqs)>=1;
+      r.tag=!r.occ?'—':r.index>=125?'Peak':r.index<=75?'Quiet':'Normal';
+    });
+    return rows;
+  }
+  const weekday=group(d=>d.getDay(),[1,2,3,4,5,6,0],k=>occWd[k],k=>_DM_DAYS[k]);
+  const domBand=d=>{const n=d.getDate(),last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    return n<=3?'a':n<=10?'b':n<=20?'c':n>last-4?'e':'d';};
+  const bandOcc={a:0,b:0,c:0,d:0,e:0};
+  for(let d=new Date(start);d<=today;d.setDate(d.getDate()+1))bandOcc[domBand(d)]++;
+  const monthBand=group(domBand,['a','b','c','d','e'],k=>bandOcc[k],k=>({a:'1st–3rd (start of month)',b:'4th–10th',c:'11th–20th',d:'21st to 4 days before month end',e:'Last 4 days of the month'})[k]);
+  const monthKeys=Object.keys(occMon).sort((x,y)=>{const[a1,a2]=x.split('-').map(Number),[b1,b2]=y.split('-').map(Number);return a1-b1||a2-b2;});
+  const months=group(d=>d.getFullYear()+'-'+d.getMonth(),monthKeys,k=>occMon[k],k=>{const[y,m]=k.split('-').map(Number);return _DM_MONTHS[m]+' '+y;});
+  const dates=Object.keys(byDate).map(ds=>({date:ds,...byDate[ds],score:byDate[ds].jobs*2+byDate[ds].reqs}));
+  const busiestDates=dates.slice().sort((a,b)=>b.score-a.score||b.jobs-a.jobs).slice(0,10);
+  // Same calendar date across years (needs 2+ years for a "this date every year" read).
+  const years=new Set(Object.keys(byDate).map(s=>s.slice(0,4)));
+  // Upcoming 6 weeks: label each day by its weekday + month-band, show what's booked / asked for.
+  const wdTag={};weekday.forEach(r=>wdTag[r.key]=r);const mbTag={};monthBand.forEach(r=>mbTag[r.key]=r);
+  const upcoming=[];
+  for(let i=1;i<=42;i++){const d=new Date(today);d.setDate(d.getDate()+i);const ds=_dmYmd(d);
+    const w=wdTag[d.getDay()],b=mbTag[domBand(d)];
+    const idx=Math.round(((w?w.index:100)+(b?b.index:100))/2);
+    upcoming.push({date:ds,d,index:idx,tag:idx>=125?'Peak':idx<=75?'Quiet':'Normal',why:(w?w.label+' '+w.tag.toLowerCase():'')+(b&&b.tag!=='Normal'?' · '+b.label.toLowerCase()+' '+b.tag.toLowerCase():''),
+      booked:jobs.filter(x=>x.date===ds).length,asked:reqs.filter(x=>x.date===ds).length});}
+  return {start:_dmYmd(start),end:todayStr,days:Math.round((today-start)/86400000)+1,jobs:histJobs.length,reqs:histReqs.length,
+    lost:histReqs.filter(x=>x.lost).length,weekday,monthBand,months,busiestDates,multiYear:years.size>=2,upcoming,futureCompleted};
+}
+function _dmTagBadge(t){const c=t==='Peak'?'pill-red':t==='Quiet'?'pill-blue':t==='Normal'?'pill-gray':'pill-gray';return '<span class="badge '+c+'">'+t+'</span>';}
+function _dmBar(index,max){const w=max?Math.max(2,Math.round(index/max*100)):0;const col=index>=125?'var(--danger)':index<=75?'var(--info)':'var(--accent)';
+  return '<div style="background:var(--surface2);border-radius:4px;height:10px;min-width:60px"><div style="width:'+w+'%;height:100%;border-radius:4px;background:'+col+'"></div></div>';}
+function _dmTable(rows,opts){
+  opts=opts||{};const max=Math.max(...rows.map(r=>r.index),1);
+  const th='padding:7px 8px;text-align:left;font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap';
+  const td='padding:8px;border-bottom:1px solid var(--border2);font-size:12.5px;white-space:nowrap';
+  return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>'
+    +'<th style="'+th+'">'+(opts.first||'Day')+'</th><th style="'+th+'">Demand</th><th style="'+th+';min-width:90px"></th>'
+    +'<th style="'+th+';text-align:right">Jobs</th><th style="'+th+';text-align:right">Requests</th><th style="'+th+';text-align:right">Lost</th>'
+    +(opts.busy?'<th style="'+th+';text-align:right" title="Share of these days we had at least one job">Busy rate</th>':'')
+    +'<th style="'+th+';text-align:right">Avg job</th></tr></thead><tbody>'
+    +rows.map(r=>'<tr><td style="'+td+';font-weight:500">'+escHtml(r.label)+'</td><td style="'+td+'">'+(r.occ?_dmTagBadge(r.tag):'—')+'</td><td style="'+td+'">'+_dmBar(r.index,max)+'</td>'
+      +'<td style="'+td+';text-align:right;font-family:\'DM Mono\',monospace">'+r.jobs+'</td><td style="'+td+';text-align:right;font-family:\'DM Mono\',monospace">'+r.reqs+'</td>'
+      +'<td style="'+td+';text-align:right;font-family:\'DM Mono\',monospace;color:var(--text3)">'+(r.lost||'—')+'</td>'
+      +(opts.busy?'<td style="'+td+';text-align:right">'+(r.occ?Math.round(r.busyRate*100)+'%':'—')+'</td>':'')
+      +'<td style="'+td+';text-align:right">'+(r.avgJob?fmtMoney(Math.round(r.avgJob)):'—')+'</td></tr>').join('')
+    +'</tbody></table></div>';
+}
+function renderDemand(){
+  const el=document.getElementById('demand-body');if(!el)return;
+  const D=computeDemand();
+  const warn=D.futureCompleted?'<div style="padding:9px 11px;background:#fff5e6;border-left:3px solid #b7860b;border-radius:4px;font-size:12px;margin-bottom:14px">⚠ '+D.futureCompleted+' completed job'+(D.futureCompleted>1?'s are':' is')+' dated in the future (probably the wrong year) and '+(D.futureCompleted>1?'are':'is')+' left out here. Correct the date in Completed Jobs to include '+(D.futureCompleted>1?'them':'it')+'.</div>':'';
+  if(D.empty){el.innerHTML=warn+'<div class="empty-state"><div class="empty-title">Not enough history yet</div><div class="empty-sub">Complete a few jobs and this page fills in.</div></div>';return;}
+  const months=Math.round(D.days/30.4);
+  const peakDays=D.weekday.filter(r=>r.tag==='Peak').map(r=>r.label),quietDays=D.weekday.filter(r=>r.tag==='Quiet').map(r=>r.label);
+  const peakBand=D.monthBand.filter(r=>r.tag==='Peak').map(r=>r.label.toLowerCase()),quietBand=D.monthBand.filter(r=>r.tag==='Quiet').map(r=>r.label.toLowerCase());
+  const lines=[];
+  if(peakDays.length)lines.push('<strong>Peak days:</strong> '+peakDays.join(', ')+' — good candidates for a premium rate.');
+  if(quietDays.length)lines.push('<strong>Quiet days:</strong> '+quietDays.join(', ')+' — room for a discount to fill the calendar.');
+  if(peakBand.length)lines.push('<strong>Busiest time of month:</strong> '+peakBand.join(', ')+'.');
+  if(quietBand.length)lines.push('<strong>Quietest time of month:</strong> '+quietBand.join(', ')+'.');
+  if(!lines.length)lines.push('No day stands out as peak or quiet yet — demand is fairly even.');
+  const card=(title,sub,body)=>'<div class="card" style="margin-bottom:16px;min-width:0"><div class="card-header" style="flex-wrap:wrap;gap:4px 12px"><div class="card-title">'+title+'</div>'+(sub?'<div style="font-size:11.5px;color:var(--text3)">'+sub+'</div>':'')+'</div><div class="card-body" style="min-width:0">'+body+'</div></div>';
+  const stat=(l,v,s)=>'<div class="stat-card"><div class="stat-label">'+l+'</div><div class="stat-value">'+v+'</div><div class="stat-sub">'+s+'</div></div>';
+  const upc=D.upcoming.filter(u=>u.tag!=='Normal'||u.booked||u.asked);
+  el.innerHTML=warn
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:12px;margin-bottom:16px">'
+      +stat('History',months+' month'+(months===1?'':'s'),fmtDate(D.start)+' – '+fmtDate(D.end))
+      +stat('Jobs',D.jobs,'completed + booked, to date')
+      +stat('Requests',D.reqs,'enquiries with a move date')
+      +stat('Lost requests',D.lost,'marked did not book')
+    +'</div>'
+    +card('What the data says','Peak = at least 25% busier than an average day · Quiet = at least 25% quieter','<div style="font-size:13px;line-height:1.8">'+lines.join('<br>')+'</div>'
+      +'<div style="font-size:11.5px;color:var(--text3);margin-top:8px">Demand blends jobs and requested move dates, per day that occurred in the period. You decide any surcharge or discount.</div>')
+    +card('Day of the week','Jobs and requests per day of the week',_dmTable(D.weekday,{busy:true}))
+    +card('Time of the month','End-of-month and start-of-month rushes show up here',_dmTable(D.monthBand,{first:'Days of the month',busy:true}))
+    +card('Month by month','Seasonality — becomes a year-over-year comparison after 12 months',_dmTable(D.months,{first:'Month'}))
+    +card('Busiest dates so far','Ranked by jobs, then requests',
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'+D.busiestDates.map(b=>{const d=_dmDate(b.date);
+        return '<tr><td style="padding:7px 8px;border-bottom:1px solid var(--border2);white-space:nowrap">'+_DM_DAYS[d.getDay()].slice(0,3)+' '+fmtDate(b.date)+'</td><td style="padding:7px 8px;border-bottom:1px solid var(--border2)">'+b.jobs+' job'+(b.jobs===1?'':'s')+'</td><td style="padding:7px 8px;border-bottom:1px solid var(--border2);color:var(--text2)">'+b.reqs+' request'+(b.reqs===1?'':'s')+(b.lost?' · '+b.lost+' lost':'')+'</td></tr>';}).join('')+'</table></div>'
+      +'<div style="font-size:11.5px;color:var(--text3);margin-top:8px">'+(D.multiYear?'':'"Busiest date every year" needs at least two years of history — this list will start comparing the same dates across years once you have it.')+'</div>')
+    +card('Next 6 weeks','Expected demand for upcoming dates, with what is already booked or asked for',
+      upc.length?'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">'+upc.map(u=>'<tr><td style="padding:7px 8px;border-bottom:1px solid var(--border2);white-space:nowrap">'+_DM_DAYS[u.d.getDay()].slice(0,3)+' '+fmtDate(u.date)+'</td><td style="padding:7px 8px;border-bottom:1px solid var(--border2)">'+_dmTagBadge(u.tag)+'</td><td style="padding:7px 8px;border-bottom:1px solid var(--border2);color:var(--text2)">'+escHtml(u.why)+'</td><td style="padding:7px 8px;border-bottom:1px solid var(--border2);white-space:nowrap;text-align:right">'+(u.booked?u.booked+' booked':'')+(u.booked&&u.asked?' · ':'')+(u.asked?u.asked+' asked':'')+'</td></tr>').join('')+'</table></div>':'<div style="font-size:12.5px;color:var(--text3)">Nothing stands out in the next 6 weeks.</div>');
+}
 function renderFleet(){
   const el=document.getElementById('fleet-content'); if(!el)return;
   const veh=db.vehicles||[];
