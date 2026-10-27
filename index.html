@@ -2064,6 +2064,25 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Amount paid ($)</label><input type="number" id="ecj-paid" placeholder="0.00"></div>
       </div>
 
+      <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Miscellaneous charges <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— storage, COI letters, one-off fees. Changing an amount updates Total charged. Check the AI box only if it's representative of the move work.</span></div>
+      <div id="ecj-misc-rows" style="margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" id="ecj-misc-1-label" placeholder="Description (e.g. 12mo storage)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+          <input type="number" id="ecj-misc-1-amount" placeholder="0.00" step="0.01" oninput="_ecjMiscChanged(this)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="ecj-misc-1-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" id="ecj-misc-2-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+          <input type="number" id="ecj-misc-2-amount" placeholder="0.00" step="0.01" oninput="_ecjMiscChanged(this)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="ecj-misc-2-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="text" id="ecj-misc-3-label" placeholder="Description" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">
+          <input type="number" id="ecj-misc-3-amount" placeholder="0.00" step="0.01" oninput="_ecjMiscChanged(this)" style="font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:'DM Mono',monospace">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer"><input type="checkbox" id="ecj-misc-3-ai" style="width:14px;height:14px;cursor:pointer">Include in AI</label>
+        </div>
+      </div>
+
       <div class="form-group"><label>Notes</label><textarea id="ecj-notes" style="min-height:60px" oninput="if(currentEditCompletedJobId)liveAutosaveNotes('completed',currentEditCompletedJobId,{notes:this.value})"></textarea></div>
 
       <div style="margin-top:16px;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
@@ -13742,9 +13761,26 @@ function openEditCompletedJob(jobId){
   if(aiEl)aiEl.checked=!!j.usedForAI;
   const excEl=document.getElementById('ecj-exclude-accuracy');
   if(excEl)excEl.checked=!!j.excludeFromAccuracy;
+  // Miscellaneous charges (2026-10-27) — were on the Complete form but missing from this edit form,
+  // so extra storage etc. couldn't be added or corrected after a job was closed out.
+  const _mc=Array.isArray(j.miscCharges)?j.miscCharges:[];
+  for(let _i=1;_i<=3;_i++){
+    const _m=_mc[_i-1]||{};
+    const _lab=document.getElementById('ecj-misc-'+_i+'-label'),_amt=document.getElementById('ecj-misc-'+_i+'-amount'),_ai=document.getElementById('ecj-misc-'+_i+'-ai');
+    if(_lab)_lab.value=_m.label||'';
+    if(_amt){_amt.value=_m.amount||'';_amt.dataset.prev=String(Number(_m.amount)||0);}
+    if(_ai)_ai.checked=!!(_m.aiTraining||_m.includeInAI);
+  }
   openModal('edit-completed');
 }
 
+// A misc amount changed on the edit form: move Total charged by the same difference, so adding $210
+// of storage adds $210 to the total (the total stays editable for anything else).
+function _ecjMiscChanged(el){
+  const now=Number(el.value)||0,prev=Number(el.dataset.prev)||0;el.dataset.prev=String(now);
+  const t=document.getElementById('ecj-total');if(!t||now===prev)return;
+  t.value=Math.round(((Number(t.value)||0)+now-prev)*100)/100;
+}
 function saveEditedCompletedJob(){
   const j=db.completedJobs.find(x=>x.id===currentEditCompletedJobId);
   if(!j)return;
@@ -13803,6 +13839,21 @@ function saveEditedCompletedJob(){
   j.capDiscount=(_ecjAt&&_ecjAt>total)?Math.round((_ecjAt-total)*100)/100:0;
   j.owing=Math.max(0,total-paid);
   j.paymentState=j.owing<=0?'paid':'owing';
+  // Misc charges from the 3 rows (same format the Complete form saves). Rows beyond the 3 shown
+  // (none today) are kept as they were.
+  {
+    const _prevMc=Array.isArray(j.miscCharges)?j.miscCharges:[];
+    const _mc=[];
+    for(let _i=1;_i<=3;_i++){
+      const _lab=(document.getElementById('ecj-misc-'+_i+'-label')?.value||'').trim();
+      const _amt=Number(document.getElementById('ecj-misc-'+_i+'-amount')?.value)||0;
+      const _ai=document.getElementById('ecj-misc-'+_i+'-ai')?.checked||false;
+      if(_amt>0)_mc.push({label:_lab,amount:_amt,aiTraining:_ai});
+    }
+    j.miscCharges=_mc.concat(_prevMc.slice(3));
+    const _aiM=(db.aiTraining||[]).find(r=>r.completedJobId===j.id&&r.kind!=='day');
+    if(_aiM){_aiM.miscChargesAI=j.miscCharges.filter(m=>m.aiTraining||m.includeInAI);_aiM.miscChargesAITotal=_aiM.miscChargesAI.reduce((s2,m)=>s2+(Number(m.amount)||0),0);}
+  }
   j.notes=document.getElementById('ecj-notes').value;
   // Propagate this completed job's notes back to the lead and any other linked records
   propagateNotesEdits('completed',j.id,{notes:j.notes});
