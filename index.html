@@ -21916,7 +21916,28 @@ function _aiHoursOf(j){
     const mh=_aiDayMoveMap[j.completedJobId];
     if(mh>0){const dh=_jobDriveHours(j);return dh>0?Math.max(1,mh-dh):mh;}
   }
-  return _jobWorkHours(j);
+  const w=_jobWorkHours(j);
+  // One crew does it all (2026-10-31): a single-day job records move hours and pack hours
+  // separately, and only the move hours were counted — so on a "Pack and move" quote the packing
+  // time vanished. Add it back, converted to the move crew's time (packer-hours ÷ movers).
+  // Multi-day job records already hold both combined. With a separate pack day planned, packing is
+  // estimated on its own, so it is left out here.
+  if(!_aiMoveOnly&&j&&!j.multiDay&&Number(j.packHoursActual)>0&&w>0){
+    const mm=Number(j.moveMen)||3,pm=Number(j.packMen)||mm;
+    return w+Number(j.packHoursActual)*pm/mm;
+  }
+  return w;
+}
+// Scale a past job's hours to this job's size (2026-10-31). A 16-vault quote matched to ~10-vault
+// jobs used their hours as they were, so the bigger the job, the bigger the under-estimate whenever
+// no trend line applied. Vaults scale with exponent 0.8 (part of every job is fixed set-up and
+// travel, so time grows a bit slower than volume); sq ft, a rougher proxy, with 0.7.
+function _aiScaleToSize(h,j,inputs){
+  if(!(h>0))return h;
+  const jv=Number(j.estimatedVaults||j.actualVaults)||0;
+  if(inputs.vaults&&jv>0)return h*Math.pow(Number(inputs.vaults)/jv,0.8);
+  if(!inputs.vaults&&inputs.sqft&&Number(j.sqft)>0)return h*Math.pow(Number(inputs.sqft)/Number(j.sqft),0.7);
+  return h;
 }
 function _aiPackObservations(){
   const obs=[],seenJobs=new Set();
@@ -22169,7 +22190,7 @@ function generateAIQuote(isRecalc){
   const _volFallback=!_curatedPool&&_inBand.length===0&&_cands.length>0;
   const _pool=_curatedPool||(_inBand.length>0?_inBand:_cands);
   const _top8=_pool
-    .map(j=>({...j,score:similarity(j,inputs),_work:_aiHoursOf(j)}))
+    .map(j=>{const _raw=_aiHoursOf(j);return {...j,score:similarity(j,inputs),_workRaw:_raw,_work:_aiScaleToSize(_raw,j,inputs)};})
     .sort((a,b)=>b.score-a.score)
     .slice(0,8);
   // Weak-match filter (2026-10-01): when at least 5 jobs are strong matches (within 20% of the best
@@ -22356,7 +22377,7 @@ function generateAIQuote(isRecalc){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_storageFill.length&&scored.some(j=>_storageFill.some(f=>_trainKey(f)===_trainKey(j)))?' · incl. move-to-storage jobs':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${scored.some(j=>j._workRaw>0&&Math.abs(j._work/j._workRaw-1)>0.05)?' · scaled to job size':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_storageFill.length&&scored.some(j=>_storageFill.some(f=>_trainKey(f)===_trainKey(j)))?' · incl. move-to-storage jobs':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
@@ -22435,6 +22456,8 @@ function generateAIQuote(isRecalc){
           const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null,j.containerSize?_e(j.containerSize):null].filter(Boolean).join(' · ');
           const line3=[j.moveType?_e(j.moveType):null,j.packing?'pack: '+_e(j.packing):null,(j.accessLoad||j.accessUnload)?(_e(j.accessLoad||'?')+'→'+_e(j.accessUnload||'?')):null,j.moveMen?j.moveMen+' movers':null,j.packMen?'+'+j.packMen+' packers':null].filter(Boolean).join(' · ');
           const hrs=(qmin||qmax)?`Quoted ${qmin||'?'}–${qmax||'?'} → actual <strong>${j.actualHours} hrs</strong>${over?' <span style="color:#b7860b;font-weight:600">⚠ ran over</span>':''}`:`Actual <strong>${j.actualHours} hrs</strong>`;
+          const _adj=(j._workRaw>0&&Math.abs(j._work/j._workRaw-1)>0.05)?` <span style="color:var(--text3)">· counted as ~${Math.round(j._work*10)/10} hrs at your job's size</span>`:'';
+          const hrsLine=hrs+_adj;
           return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2);overflow-wrap:anywhere;word-break:break-word${_on?'':';opacity:.6'}">
           <label style="display:block;cursor:pointer">
             <span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="ai-job-incl" data-idx="${i}" ${_on?'checked':''} style="vertical-align:middle;margin-right:8px">${nm}</span>
@@ -22443,7 +22466,7 @@ function generateAIQuote(isRecalc){
           <div style="margin-left:24px">
             ${line2?`<div style="font-size:11.5px;color:var(--text2);margin-top:2px">${line2}</div>`:''}
             ${line3?`<div style="font-size:11.5px;color:var(--text2);margin-top:1px">${line3}</div>`:''}
-            <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${hrs}</div>
+            <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${hrsLine}</div>
             ${j.notes?`<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic">📝 ${_e(j.notes)}</div>`:''}
           </div>
         </div>`;}).join('')}
