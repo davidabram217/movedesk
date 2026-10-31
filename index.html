@@ -712,15 +712,17 @@ input[type=number]{-moz-appearance:textfield}
               </div>
               <div class="form-group"><label>Separate pack day(s)?</label>
                 <select id="ai-pack-days" onchange="_aiTogglePackDays();saveAIQuoteDraft()">
-                  <option value="0">No — one crew does it all</option>
+                  <option value="auto" selected>Auto — give packing its own day when it's big</option>
+                  <option value="none">No — one crew does it all</option>
                   <option value="1">1 pack day before the move</option>
                   <option value="2">2 pack days before the move</option>
                   <option value="3">3 pack days before the move</option>
                 </select>
               </div>
-              <div class="form-group" id="ai-packers-wrap" style="display:none"><label>Packers per pack day</label>
+              <div class="form-group" id="ai-packers-wrap"><label>Packers per pack day</label>
                 <select id="ai-packers" onchange="saveAIQuoteDraft()">
-                  <option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
+                  <option value="auto" selected>Auto</option>
+                  <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
                 </select>
               </div>
             </div>
@@ -21903,11 +21905,45 @@ function _bedLadder(size){
 // tickable list of jobs. Packing scales close to linearly with packers, so past pack work is
 // compared in packer-hours and divided by the packers you plan to send.
 let _aiMoveOnly=false,_aiDayMoveMap=null,_aiPackKept=null,_aiPackLast=[];
-function _aiPackDaysPlanned(){return Number((document.getElementById('ai-pack-days')||{}).value)||0;}
+// Pack-day setting: 'auto' (default, and anything unrecognised such as an old saved "0"), 'none',
+// or a fixed number of pack days. The plan actually used is decided per quote (_aiDecidePlan).
+let _aiPlan={packDays:0,packers:0,auto:false};
+function _aiPackSetting(){
+  const el=document.getElementById('ai-pack-days');if(!el)return 'none';
+  if(el.selectedIndex<0||!el.value){el.value='auto';}
+  const v=el.value;return v==='none'?'none':v==='auto'?'auto':(Number(v)||'auto');
+}
+function _aiPackDaysPlanned(){return _aiPlan.packDays||0;}
 function _aiTogglePackDays(){
-  const n=_aiPackDaysPlanned();
-  const w=document.getElementById('ai-packers-wrap');if(w)w.style.display=n?'':'none';
-  const l=document.getElementById('ai-men-label');if(l)l.textContent=n?'Movers on move day':'Number of movers';
+  const v=_aiPackSetting();
+  const w=document.getElementById('ai-packers-wrap');if(w)w.style.display=v==='none'?'none':'';
+  const l=document.getElementById('ai-men-label');if(l)l.textContent=v==='none'?'Number of movers':'Movers on move day';
+}
+// Decide the day plan for this quote. Auto: when packing is part of the job and the past packing work
+// comes to 4+ hours for 3 packers, packing gets its own day(s) before the move, with the packers sized
+// to finish in about a working day (3–5 packers, more days if needed). Small packing (a kitchen, a
+// few boxes) stays on move day with the one crew.
+function _aiDecidePlan(inputs){
+  const set=_aiPackSetting();
+  const pkSel=(document.getElementById('ai-packers')||{}).value;
+  const pickedPackers=Number(pkSel)||0;
+  const plan={packDays:0,packers:0,auto:set==='auto',autoPackers:!pickedPackers};
+  if(set==='none')return plan;
+  const scope=_aiPackScope(inputs.packing);
+  if(set==='auto'&&!(scope>0))return plan;            // no packing on this job
+  const _kept=_aiPackKept;const P=_aiPackEstimate(inputs,3,1);_aiPackKept=_kept;
+  const ph=P.none?0:P.meanPackerHours;
+  if(set==='auto'&&(P.none||ph/3<4))return plan;      // small packing stays on move day
+  // Size the crew on the HIGH end of the estimate so a pack day doesn't run past 9.5 hrs.
+  const phHi=P.none?0:P.totHi*3,DAY=9.5;
+  if(set==='auto'){
+    plan.packers=pickedPackers||Math.min(6,Math.max(3,Math.ceil(phHi/DAY)));
+    plan.packDays=Math.max(1,Math.ceil(phHi/plan.packers/DAY));
+  }else{
+    plan.packDays=set;
+    plan.packers=pickedPackers||(phHi?Math.min(8,Math.max(2,Math.ceil(phHi/(DAY*set)))):3);
+  }
+  return plan;
 }
 // Hours a past job spent MOVING. Multi-day job records hold move + pack combined, so when a pack
 // day is planned separately their move hours are read from the per-day records instead.
@@ -22001,54 +22037,73 @@ function recalcAIPackDay(){
 function resetAIPackDay(){_aiPackKept=null;generateAIQuote(true);}
 // Called at the end of generateAIQuote with the move-day numbers it just worked out.
 function _aiAfterMoveQuote(m){
-  const packDays=_aiPackDaysPlanned();
-  const el=document.getElementById('ai-result');
-  if(!packDays||!el)return;
-  const packers=Number((document.getElementById('ai-packers')||{}).value)||3;
-  const P=_aiPackEstimate(m.inputs,packers,packDays);
+  const el=document.getElementById('ai-result');if(!el)return;
+  const packDays=_aiPlan.packDays||0;
+  if(!packDays&&m.estDays<=1)return;          // a one-day, one-crew job needs no day plan
+  const packers=_aiPlan.packers||3;
+  const P=packDays?_aiPackEstimate(m.inputs,packers,packDays):null;
   const e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const money=n=>'$'+Math.round(n).toLocaleString();
-  const packRate=m.ratePerMan*packers;
-  const packLabLo=P.none?0:P.totLo*packRate,packLabHi=P.none?0:P.totHi*packRate;
-  const moveFirst=packDays+1,moveLast=packDays+m.estDays;
   const dayLbl=(a,b)=>a===b?'Day '+a:'Days '+a+'–'+b;
-  const td='padding:8px 10px;border-bottom:1px solid var(--border2);font-size:12.5px;vertical-align:top';
+  const td='padding:9px 10px;border-bottom:1px solid var(--border2);font-size:12.5px;vertical-align:top';
   const th='padding:6px 10px;text-align:left;font-size:10.5px;color:var(--text3);font-weight:500;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)';
-  const packRow=P.none
-    ?`<tr><td style="${td};font-weight:600">${dayLbl(1,packDays)}</td><td style="${td}">Packing</td><td style="${td}">${packers} packers</td><td style="${td}" colspan="2"><span style="color:#b7860b">No past packing jobs to compare yet — estimate the pack day by hand.</span></td></tr>`
-    :`<tr><td style="${td};font-weight:600">${dayLbl(1,packDays)}</td><td style="${td}">Packing</td><td style="${td}">${packers} packers @ ${money(packRate)}/hr</td><td style="${td}">${P.dayLo}–${P.dayHi} hrs${packDays>1?'/day':''}${packDays>1?'<div style="font-size:10.5px;color:var(--text3)">'+P.totLo+'–'+P.totHi+' hrs total</div>':''}${P.dayHi>9.5?'<div style="font-size:10.5px;color:#b7860b">⚠ over 9.5 hrs a day — add packers or a day</div>':''}</td><td style="${td};text-align:right;white-space:nowrap">${money(packLabLo)}–${money(packLabHi)}</td></tr>`;
-  const moveRow=`<tr><td style="${td};font-weight:600">${dayLbl(moveFirst,moveLast)}</td><td style="${td}">Moving</td><td style="${td}">${m.men} movers @ ${money(m.rate)}/hr</td><td style="${td}">${m.estDays>1?m.perDayLow+'–'+m.perDayHigh+' hrs/day<div style="font-size:10.5px;color:var(--text3)">'+m.low+'–'+m.high+' hrs total</div>':m.low+'–'+m.high+' hrs'}</td><td style="${td};text-align:right;white-space:nowrap">${money(m.labourMin)}–${money(m.labourMax)}</td></tr>`;
+  const warn=h=>h>9.5?'<div style="font-size:10.5px;color:#b7860b;margin-top:2px">⚠ over 9.5 hrs — add crew or a day</div>':'';
+  const autoTag=_aiPlan.auto?' <span style="font-size:10px;color:var(--text3)">(auto)</span>':'';
+  const rows=[];let labLo=0,labHi=0;
+  // Pack day rows — one per day.
+  if(packDays){
+    const packRate=m.ratePerMan*packers;
+    for(let d=1;d<=packDays;d++){
+      if(P.none){rows.push(`<tr><td style="${td};font-weight:600">Day ${d}</td><td style="${td}">📦 Packing</td><td style="${td}">${packers} packers</td><td style="${td}" colspan="2"><span style="color:#b7860b">No past packing jobs to compare yet — estimate this day by hand.</span></td></tr>`);continue;}
+      const lo=P.dayLo,hi=P.dayHi;labLo+=lo*packRate;labHi+=hi*packRate;
+      rows.push(`<tr><td style="${td};font-weight:600">Day ${d}</td><td style="${td}">📦 Packing</td><td style="${td}"><strong>${packers} packers</strong>${_aiPlan.autoPackers&&_aiPlan.auto?autoTag:''}<div style="font-size:10.5px;color:var(--text3)">${money(packRate)}/hr</div></td><td style="${td}"><strong>${lo}–${hi} hrs</strong>${warn(hi)}</td><td style="${td};text-align:right;white-space:nowrap">${money(lo*packRate)}–${money(hi*packRate)}</td></tr>`);
+    }
+  }
+  // Move day rows — one per day, the move hours shared across them.
+  for(let d=1;d<=m.estDays;d++){
+    const lo=m.estDays>1?m.perDayLow:m.low,hi=m.estDays>1?m.perDayHigh:m.high;
+    rows.push(`<tr><td style="${td};font-weight:600">Day ${packDays+d}</td><td style="${td}">🚚 Moving${packDays?'':(m.inputs&&_aiPackScope(m.inputs.packing)>0?' + packing':'')}</td><td style="${td}"><strong>${m.men} movers</strong><div style="font-size:10.5px;color:var(--text3)">${money(m.rate)}/hr</div></td><td style="${td}"><strong>${lo}–${hi} hrs</strong>${warn(hi)}</td><td style="${td};text-align:right;white-space:nowrap">${money(lo*m.rate)}–${money(hi*m.rate)}</td></tr>`);
+  }
+  labLo+=m.labourMin;labHi+=m.labourMax;
+  if(packDays&&P.none){/* pack labour unknown — left out of the total */}
+  const totalDays=packDays+m.estDays;
   const fees=(m.fuel||0)+(m.packingMaterials||0);
-  const totLo=m.labourMin+packLabLo+fees,totHi=m.labourMax+packLabHi+fees;
+  const totLo=labLo+fees,totHi=labHi+fees;
   const plan=`<div style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px"><div style="font-size:13px;font-weight:600">📅 Day plan · ${moveLast} day${moveLast>1?'s':''}</div><div style="font-size:20px;font-weight:700;color:var(--accent)">${money(totLo)} — ${money(totHi)}</div></div>
-    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Day</th><th style="${th}">Work</th><th style="${th}">Crew</th><th style="${th}">Hours</th><th style="${th};text-align:right">Labour</th></tr></thead><tbody>${packRow}${moveRow}</tbody></table></div>
-    <div style="font-size:11.5px;color:var(--text3);margin-top:8px">Whole job = pack labour + move labour + fuel ${money(m.fuel||0)}${m.packingMaterials?' + packing materials '+money(m.packingMaterials):''}. Move-day hours use move-only time from past jobs, so packing isn't counted twice. Add insurance, COI, parking, dump fees as needed.</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px"><div style="font-size:13px;font-weight:600">📅 Day plan · ${totalDays} day${totalDays>1?'s':''}</div><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:var(--accent)">${money(totLo)} — ${money(totHi)}</div><div style="font-size:10.5px;color:var(--text3)">whole job, incl. fuel${m.packingMaterials?' + packing materials':''}</div></div></div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Day</th><th style="${th}">Work</th><th style="${th}">Crew</th><th style="${th}">Hours</th><th style="${th};text-align:right">Labour</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.5">${packDays?'Packing is estimated from past packing work and the move day(s) from move-only time, so nothing is counted twice. ':''}${m.estDays>1?'The move runs over '+m.estDays+' days because it is more than one crew can do in 9.5 hrs. ':''}Fuel ${money(m.fuel||0)}${m.packingMaterials?' · packing materials '+money(m.packingMaterials):''}. Add insurance, COI, parking, dump fees as needed.${_aiPlan.auto&&packDays?' Change "Separate pack day(s)" or "Packers per pack day" to plan it differently.':''}</div>
   </div>`;
-  const packList=`<details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px"${_aiPackKept?' open':''}>
+  const packList=!packDays?'':`<details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px" open>
     <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">📦 ${dayLbl(1,packDays)} (packing) — jobs used (${P.none?0:P.used.length})${_aiPackKept?' · your selection':''}</summary>
     <div style="margin-top:8px">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Past packing work, compared in packer-hours (hours × packers) and divided by the ${packers} packers planned. Untick any job and recalculate to leave it out of the pack-day estimate.</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Past packing work, compared in packer-hours (hours × packers) and divided by the ${packers} packers planned. Untick any job and recalculate to leave it out of the packing estimate.</div>
       ${(P.shown||[]).map((o,i)=>{const on=_aiPackKept?_aiPackKept.has(o.key):!P.none&&P.used.some(u=>u.key===o.key);
         const line2=[o.date?e(o.date):null,o.size?e(o.size):null,o.sqft?o.sqft+' sqft':null,o.vaults?o.vaults+' vaults':null,o.packing?'pack: '+e(o.packing):null].filter(Boolean).join(' · ');
         return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2)${on?'':';opacity:.6'}"><label style="display:block;cursor:pointer"><span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="ai-pack-incl" data-idx="${i}" ${on?'checked':''} style="vertical-align:middle;margin-right:8px">${e(o.name)||'(no name on record)'}</span><span style="color:var(--text3);font-size:10.5px;margin-left:6px">match ${Math.round(o.score)}${o.fromSpreadsheet?' · seed data':''}</span></label>
           <div style="margin-left:24px">${line2?'<div style="font-size:11.5px;color:var(--text2);margin-top:2px">'+line2+'</div>':''}<div style="font-size:11.5px;color:var(--text2);margin-top:1px">Packed <strong>${Math.round(o.packHours*100)/100} hrs</strong> with ${o.men} packer${o.men===1?'':'s'}${o.days>1?' over '+o.days+' days':''} = ${Math.round(o.packerHours*10)/10} packer-hours</div></div></div>`;}).join('')||'<div style="font-size:12px;color:var(--text3)">No completed jobs with packing hours recorded yet.</div>'}
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="recalcAIPackDay()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate pack day</button>${_aiPackKept?'<button onclick="resetAIPackDay()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use best matches)</button>':''}</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="recalcAIPackDay()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate packing</button>${_aiPackKept?'<button onclick="resetAIPackDay()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use best matches)</button>':''}</div>
     </div>
   </details>`;
+  const mvLbl=dayLbl(packDays+1,packDays+m.estDays);
+  // The move section: label it by its day(s) and open its job list so both lists sit together.
+  let moveHtml=el.innerHTML.replace('🔍 Jobs used for this estimate','🚚 '+mvLbl+' (moving) — jobs used');
+  moveHtml=moveHtml.replace(/<details style="margin-top:14px;border-top:1px solid var\(--border2\);padding-top:10px"( open)?>\s*<summary style="cursor:pointer;font-size:11.5px;color:var\(--text3\);font-weight:600">🚚/,'<details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px" open>\n      <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">🚚');
   el.innerHTML=plan
-    +`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px">🚚 ${dayLbl(moveFirst,moveLast)} (moving) — details</div>`
-    +el.innerHTML.replace('🔍 Jobs used for this estimate','🔍 '+dayLbl(moveFirst,moveLast)+' (moving) — jobs used')
+    +`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px">🚚 ${mvLbl} (moving) — details</div>`
+    +moveHtml
     +packList;
 }
+let _aiAutoMen=null,_aiAutoMenOrig=null,_aiAutoGaveUp=false,_aiBumping=false;
 function generateAIQuote(isRecalc){
   if(!isRecalc)_aiExcludedKeys=new Set();
   if(!isRecalc)_aiKeptKeys=null;
+  // Movers not picked and the move spills past one 9.5-hr day → try a bigger crew first (up to 8)
+  // before splitting the move over several short days (2026-10-31). _aiBumping marks the re-runs.
+  const _bump=_aiBumping;_aiBumping=false;
+  if(!_bump){_aiAutoMen=null;_aiAutoMenOrig=null;_aiAutoGaveUp=false;}
   if(!isRecalc)_aiPackKept=null;
-  // Separate pack day planned → the move estimate uses move-only hours (2026-10-31).
-  _aiMoveOnly=_aiPackDaysPlanned()>0;
-  _aiDayMoveMap=null;
-  if(_aiMoveOnly){_aiDayMoveMap={};getDayTrainingData().forEach(r=>{if(r.completedJobId)_aiDayMoveMap[r.completedJobId]=(_aiDayMoveMap[r.completedJobId]||0)+(Number(r.moveHours)||0);});}
+  _aiMoveOnly=false;_aiDayMoveMap=null;_aiPlan={packDays:0,packers:0,auto:false};
   const inputs={
     size:document.getElementById('ai-size').value,
     vaults:parseFloat(document.getElementById('ai-vaults').value)||null,
@@ -22068,6 +22123,11 @@ function generateAIQuote(isRecalc){
   if(!inputs.size&&!inputs.vaults){
     showToast('Please enter at least home size or number of vaults');return;
   }
+  // Day plan (2026-10-31): decide whether packing gets its own day(s). If it does, the move estimate
+  // uses move-only hours, so packing isn't counted twice.
+  try{_aiPlan=_aiDecidePlan(inputs);}catch(e){console.warn('Day plan decision failed:',e);_aiPlan={packDays:0,packers:0,auto:false};}
+  _aiMoveOnly=_aiPlan.packDays>0;
+  if(_aiMoveOnly){_aiDayMoveMap={};getDayTrainingData().forEach(r=>{if(r.completedJobId)_aiDayMoveMap[r.completedJobId]=(_aiDayMoveMap[r.completedJobId]||0)+(Number(r.moveHours)||0);});}
 
   // PACKING-ONLY PATH (2026-05-29)
   // When the user selects moveType='Packing only', we cannot use actualHours from training
@@ -22219,7 +22279,10 @@ function generateAIQuote(isRecalc){
   const avgHours=wavg('_work');
   const avgMen=wavg('moveMen')||3;
   const ratePerMan=inputs.rate;
-  const men=inputs.men||Math.round(avgMen);
+  // Movers not picked → use the suggested crew for this volume when there is one (2026-10-31), so the
+  // quote matches the "Suggested crew" tile instead of the average of smaller past jobs.
+  const _crewRecEarly=(!inputs.men&&inputs.vaults)?computeCrewRecommendation(inputs.vaults):null;
+  const men=inputs.men||_aiAutoMen||(_crewRecEarly&&_crewRecEarly.suggested>=2?_crewRecEarly.suggested:Math.round(avgMen));
   // Effective hourly rate = per-man rate × crew size (e.g. $75/man × 5 men = $375/hr crew rate)
   const rate=ratePerMan*men;
 
@@ -22353,6 +22416,13 @@ function generateAIQuote(isRecalc){
   const MAX_DAY_HOURS=9.5;
   const _estTotalMid=(totalHoursLowAdj+totalHoursHighAdj)/2;
   const estDays=Math.max(1,Math.ceil(_estTotalMid/MAX_DAY_HOURS));
+  if(!inputs.men&&estDays>1&&!_aiAutoGaveUp){
+    if(_aiAutoMenOrig==null)_aiAutoMenOrig=men;
+    // A bigger crew (up to 8) that finishes in one day beats two short days. If even 8 can't,
+    // go back to the suggested crew and split the move over days.
+    if(men<8&&_estTotalMid<=MAX_DAY_HOURS*1.6){_aiAutoMen=men+1;_aiBumping=true;return generateAIQuote(true);}
+    if(_aiAutoMen!=null){_aiAutoMen=_aiAutoMenOrig;_aiAutoGaveUp=true;_aiBumping=true;return generateAIQuote(true);}
+  }
   const perDayLow=estDays>1?Math.round((totalHoursLowAdj/estDays)*2)/2:totalHoursLowAdj;
   const perDayHigh=estDays>1?Math.round((totalHoursHighAdj/estDays)*2)/2:totalHoursHighAdj;
 
