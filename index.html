@@ -21751,6 +21751,12 @@ function restoreAIQuoteDraft(){
       const el=document.getElementById(id);
       if(el&&draft[id]!==undefined&&draft[id]!==null)el.value=draft[id];
     });
+    // Drafts saved before Auto existed (pack days "0") carry the old default of 3 packers, which then
+    // reads as a deliberate choice and forces 3 packers over 2 days. Treat it as Auto (2026-10-31).
+    if(!['auto','none','1','2','3'].includes(String(draft['ai-pack-days']||''))){
+      const _pk=document.getElementById('ai-packers');if(_pk)_pk.value='auto';
+      const _pd=document.getElementById('ai-pack-days');if(_pd)_pd.value='auto';
+    }
     if(typeof _aiTogglePackDays==='function')_aiTogglePackDays();
   }catch(e){}
 }
