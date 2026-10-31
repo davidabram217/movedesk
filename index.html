@@ -21726,6 +21726,7 @@ function saveAIQuoteDraft(){
       const draft={};
       ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;});
       draft._savedAt=new Date().toISOString();
+      draft._v=2;   // 2 = saved with Auto packers/pack days available
       localStorage.setItem('aiQuoteDraft',JSON.stringify(draft));
       // Subtle indicator in the result card
       const r=document.getElementById('ai-result');
@@ -21753,7 +21754,9 @@ function restoreAIQuoteDraft(){
     });
     // Drafts saved before Auto existed (pack days "0") carry the old default of 3 packers, which then
     // reads as a deliberate choice and forces 3 packers over 2 days. Treat it as Auto (2026-10-31).
-    if(!['auto','none','1','2','3'].includes(String(draft['ai-pack-days']||''))){
+    // _v marks drafts saved after Auto existed. Any older draft — including ones re-saved by the first
+    // Auto release, which still carried the old default of 3 packers — goes back to Auto.
+    if(draft._v!==2||!['auto','none','1','2','3'].includes(String(draft['ai-pack-days']||''))){
       const _pk=document.getElementById('ai-packers');if(_pk)_pk.value='auto';
       const _pd=document.getElementById('ai-pack-days');if(_pd)_pd.value='auto';
     }
