@@ -666,7 +666,7 @@ input[type=number]{-moz-appearance:textfield}
               <div class="form-group"><label>Type of move</label>
                 <select id="ai-movetype" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
-                  <option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option>
+                  <option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option>
                 </select>
               </div>
               <div class="form-group" id="ai-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="ai-container" onchange="saveAIQuoteDraft()"><option value="">Select…</option></select></div>
@@ -1015,7 +1015,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group" id="nl-size-other-group" style="display:none"><label>Please describe</label><input type="text" id="nl-size-other" placeholder="e.g. Large warehouse, 2 units, etc."></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="nl-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Type of move</label>
-          <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select>
+          <select id="nl-move-type"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select>
         </div>
         <div class="form-group" id="nl-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="nl-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label>Packing needed?</label>
@@ -1456,7 +1456,7 @@ input[type=number]{-moz-appearance:textfield}
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Home size</label><select id="cj-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cj-sqft" placeholder="e.g. 800"></div>
-        <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
+        <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="cj-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cj-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label>Access at load</label><select id="cj-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="cj-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
@@ -1614,8 +1614,9 @@ input[type=number]{-moz-appearance:textfield}
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Home size</label><select id="cjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cjmd-sqft" placeholder="e.g. 800"></div>
-        <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
+        <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="cjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cjmd-container"><option value="">Select…</option></select></div>
+        <div class="form-group"><label id="cjmd-vaults-label">Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff — helps the AI quote)</span></label><input type="number" id="cjmd-vaults" placeholder="e.g. 6" step="0.5"></div>
         <div class="form-group"><label>Access at load</label><select id="cjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="cjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
       </div>
@@ -1638,7 +1639,6 @@ input[type=number]{-moz-appearance:textfield}
           <div class="form-group"><label>Dump fee ($)</label><input type="number" id="cjmd-dump" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="cjmd-yelp" placeholder="0" oninput="calcMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="cjmd-damage" placeholder="0" oninput="calcMultiDayTotal()"></div>
-          <div class="form-group"><label>Vaults used</label><input type="number" id="cjmd-vaults" placeholder="0"></div>
           <div class="form-group"><label>Insurance type</label><select id="cjmd-insurance-type" onchange="autoFillInsuranceFeeMd()"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope <span style="font-size:11px;color:var(--text3);font-weight:400">— used for AI quote training</span></label><select id="cjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         </div>
@@ -2151,8 +2151,9 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Job start date <span style="font-size:11px;color:var(--text3);font-weight:400">— day 1 of the job</span></label><input type="date" id="ecjmd-date"></div>
         <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="ecjmd-sqft" placeholder="e.g. 800"></div>
-        <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
+        <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="ecjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="ecjmd-container"><option value="">Select…</option></select></div>
+        <div class="form-group"><label id="ecjmd-vaults-label">Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff — helps the AI quote)</span></label><input type="number" id="ecjmd-vaults" placeholder="e.g. 6" step="0.5"></div>
         <div class="form-group"><label>Access at load</label><select id="ecjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
         <div class="form-group"><label>Access at unload</label><select id="ecjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
       </div>
@@ -2172,7 +2173,6 @@ input[type=number]{-moz-appearance:textfield}
           <div class="form-group"><label>Dump fee ($)</label><input type="number" id="ecjmd-dump" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Yelp fee ($)</label><input type="number" id="ecjmd-yelp" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
           <div class="form-group"><label>Damage cost ($)</label><input type="number" id="ecjmd-damage" placeholder="0" oninput="calcEditMultiDayTotal()"></div>
-          <div class="form-group"><label>Vaults used</label><input type="number" id="ecjmd-vaults" placeholder="0"></div>
           <div class="form-group"><label>Insurance type</label><select id="ecjmd-insurance-type" onchange="autoFillInsuranceFeeEcjmd()"><option value="">Select…</option><option>Option 1 — Actual Cash Value ($150)</option><option>Option 2 — Full Value Protection, No Deductible ($300)</option><option>Option 2 — Full Value Protection, $250 Deductible ($100)</option><option>Option 2 — Full Value Protection, $500 Deductible ($50)</option><option>Option 3 — Basic Liability (included)</option><option>Did not get an answer</option></select></div>
           <div class="form-group" style="grid-column:span 2"><label>Packing scope</label><select id="ecjmd-packing"><option value="No">No — just moving</option><option value="Kitchen pack only">Kitchen pack only</option><option value="All breakables">All breakables</option><option value="Partial pack">Partial pack</option><option value="Fragiles only">Fragiles only</option><option value="Full">Full pack</option><option value="Unpack only">Unpack only</option></select></div>
         </div>
@@ -2422,7 +2422,7 @@ input[type=number]{-moz-appearance:textfield}
           <select id="qb-move-type" oninput="qbAutoSave()">
             <option value="">Select…</option>
             <option>Move</option>
-            <option>Pack and move</option>
+            <option>Pack and move</option><option>Pack, move and unpack</option>
             <option>Packing only</option>
             <option>Move to storage</option>
             <option>Pack and move to storage</option>
@@ -9201,11 +9201,19 @@ function bjToggleFlatRate(){
   const on=!!(document.getElementById('bj-flat-rate')||{}).checked;
   ['bj-hourly-wrap-1','bj-hourly-wrap-2'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display=on?'none':'';});
   ['bj-flat-wrap-1','bj-flat-wrap-2'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display=on?'':'none';});
+  if(typeof _bjSyncDay1FieldVisibility==='function'&&window._bjIsMultiDay)_bjSyncDay1FieldVisibility(); // quoted multi-day: Day 1 rate lives in the day box
   if(typeof bjAutoSave==='function')bjAutoSave();
 }
 
 function addBjDay(){_bjDays.push(_bjBlankDay());renderBjDays();bjAutoSave();}
-function removeBjDay(i){if(_bjDays.length<=1)return;_bjDays.splice(i,1);renderBjDays();bjAutoSave();}
+function removeBjDay(i){if(_bjDays.length<=1)return;
+  // Quote-driven multi-day (2026-11-03): removing a quoted day here is the same as unticking it
+  // in the yellow summary, so the dropped-day record (and quoted range) stays right.
+  const _r=_bjDays[i];
+  if(window._bjIsMultiDay&&_r&&_r._qIdx!=null&&_bjKeptDays[_r._qIdx]&&_bjKeptDays.filter(Boolean).length>1){
+    _bjKeptDays[_r._qIdx]=false;const _cb=document.getElementById('bj-qday-'+_r._qIdx);if(_cb)_cb.checked=false;
+    bjToggleQuoteDay(_r._qIdx);return;}
+  _bjDays.splice(i,1);renderBjDays();bjAutoSave();}
 function bjDayToggleFlat(i){const el=document.getElementById('bjd-flat-'+i);if(_bjDays[i])_bjDays[i].flatRate=!!(el&&el.checked);renderBjDays();bjAutoSave();}
 function bjDayChanged(i){
   const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
@@ -9329,19 +9337,9 @@ function _renderBjQuoteDays(){
     if(!kept){
       body='<div style="color:var(--text3);font-size:11.5px;padding:3px 0 0 27px">Dropped from this booking</div>';
     } else {
-      const arr=d.arrivalWindow||(d.arrivalStart?(d.arrivalStart+(d.arrivalEnd?'–'+d.arrivalEnd:'')):'');
-      const rateFields=d.flatRate
-        ?'<div class="form-group"><label>Flat price ($)</label><input type="number" value="'+(d.flatPrice||'')+'" placeholder="e.g. 1200" onchange="bjEditQuoteDay('+i+',\'flatPrice\',this.value)"></div><div class="form-group"><label>Flat cash ($)</label><input type="number" value="'+(d.flatPriceCash||'')+'" placeholder="optional" onchange="bjEditQuoteDay('+i+',\'flatPriceCash\',this.value)"></div>'
-        :'<div class="form-group"><label>Rate ($/hr)</label><input type="number" value="'+(d.rate||'')+'" placeholder="e.g. 225" onchange="bjEditQuoteDay('+i+',\'rate\',this.value)"></div><div class="form-group"><label>Rate cash ($/hr)</label><input type="number" value="'+(d.rateCash||'')+'" placeholder="optional" onchange="bjEditQuoteDay('+i+',\'rateCash\',this.value)"></div>';
-      body='<div class="form-grid form-grid-2" style="margin-top:7px;padding-left:27px">'
-        +'<div class="form-group"><label>Date</label><input type="date" value="'+(d.date||'')+'" onchange="bjEditQuoteDay('+i+',\'date\',this.value)"></div>'
-        +'<div class="form-group"><label>Arrival window</label><input type="text" value="'+_ea(arr)+'" placeholder="e.g. 9–10am" onchange="bjEditQuoteDay('+i+',\'arrivalWindow\',this.value)"></div>'
-        +'<div class="form-group"><label>Movers</label><select onchange="bjEditQuoteDay('+i+',\'crew\',this.value)">'+moverOpts.map(m=>'<option'+(String(d.crew)===String(m)?' selected':'')+'>'+m+'</option>').join('')+'</select></div>'
-        +'<div class="form-group"><label></label><div style="height:1px"></div></div>'
-        +rateFields
-        +'<div class="form-group"><label>Fuel fee ($)</label><input type="number" value="'+(d.feeFuel||'')+'" placeholder="optional" onchange="bjEditQuoteDay('+i+',\'feeFuel\',this.value)"></div>'
-        +'<div class="form-group"><label>Materials fee ($)</label><input type="number" value="'+(d.feeMaterials||'')+'" placeholder="optional" onchange="bjEditQuoteDay('+i+',\'feeMaterials\',this.value)"></div>'
-        +'</div>';
+      // One set of day boxes (2026-11-03): the days are edited in the Multi-day job box below.
+      // This box is now a summary of what was QUOTED, plus the tick boxes to drop a day.
+      body='<div style="color:var(--text2);font-size:11.5px;padding:2px 0 0 27px">'+(d.date?fmtDate(d.date)+' · ':'')+rateInfo+'</div>';
     }
     return '<div style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,0.06)">'
       +'<label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer">'
@@ -9385,7 +9383,22 @@ function bjToggleQuoteDay(i){
     if(!d.flatRate&&d.rate){const el=document.getElementById('bj-rate-regular');if(el)el.value=d.rate;}
     if(!d.flatRate&&d.rateCash){const el=document.getElementById('bj-rate-cash');if(el)el.value=d.rateCash;}
   }
+  _bjLowerFromKept();
   _renderBjQuoteDays();bjAutoSave();
+}
+// Quote-driven multi-day (2026-11-03): the Multi-day job box holds one row per KEPT quote day
+// (tagged _qIdx), plus any day added by hand. Rows already there keep their edits; a re-ticked
+// day comes back as quoted.
+function _bjLowerFromKept(){
+  if(!window._bjIsMultiDay)return;
+  const full=window._bjQuoteDaysFull||[];
+  const prev=_bjDays.slice();
+  const keptIdx=full.map((d,i)=>i).filter(i=>_bjKeptDays[i]);
+  _bjLoadMultiDay(keptIdx.map(i=>full[i]));
+  _bjDays=_bjDays.map((row,k)=>{const q=keptIdx[k];const old=prev.find(r=>r._qIdx===q);const r=old||row;r._qIdx=q;return r;});
+  prev.filter(r=>r._qIdx==null).forEach(r=>_bjDays.push(r));
+  renderBjDays();
+  if(_bjDays.length)bjDayChanged(0);
 }
 // Booked-scope quoted $ range over the KEPT days — mirrors calcQbTotals' per-day labor formula plus
 // the quote's whole-job fees, so a dropped-day job is measured against what was actually booked.
@@ -9416,7 +9429,13 @@ function _bjApplyDroppedDays(j){
   const kept=full.filter((d,i)=>flags[i]);
   if(!kept.length)return; // safety — never book zero days
   j.quoteDays=JSON.parse(JSON.stringify(kept));
-  j.multiDay=kept.length>1;
+  // One set of day boxes (2026-11-03): the day details come from the Multi-day job box, laid over
+  // the quoted day so quote-only fields (pack crew, split crews…) are kept. Previously this list
+  // overwrote the box, throwing away any hours, movers or addresses changed there.
+  {const _cb=document.getElementById('bj-multiday');
+   if(_cb&&_cb.checked&&_bjDays.length){const _rd=_bjReadDays();
+     j.quoteDays=_bjDays.map((r,k)=>Object.assign({},r._qIdx!=null&&full[r._qIdx]?JSON.parse(JSON.stringify(full[r._qIdx])):{},_rd[k]));}}
+  j.multiDay=j.quoteDays.length>1;
   j._keptDayFlags=flags.slice();
   // Keep the date on the first kept day in sync with the canonical booking-form date. The owner may
   // have overridden the move date (e.g. the kept day was quoted for the 6th but the customer moved
@@ -9560,7 +9579,7 @@ function openBooking(leadId){
         <div style="font-size:11px;font-weight:600;color:#b7860b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⚠ Multi-day move — ${_leadQuote.days.length} days</div>
         <div id="bj-mday-rows"></div>
         <div id="bj-mday-status" style="display:none;font-size:11px;font-weight:600;color:var(--accent);margin-top:7px"></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">Uncheck a day the customer isn't doing (e.g. they're self-packing) to drop it from this booking. The Schedule &amp; Rates fields below apply to the <strong>first kept day</strong>; the rest are saved with the booking. Drop down to one day and it books as a single-day move.</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.4">This is what was quoted. Change dates, movers, hours, rates and addresses in the <strong>Multi-day job</strong> box below. Uncheck a day the customer isn't doing (e.g. they're self-packing) to drop it from this booking. Drop down to one day and it books as a single-day move.</div>
       </div>`;
   } else {
     window._bjQuoteDaysFull=[];window._bjQuoteForScope=null;_bjKeptDays=[];
@@ -9614,7 +9633,7 @@ function openBooking(leadId){
     if(_cb)_cb.checked=true;
     const _sec=document.getElementById('bj-multiday-section');
     if(_sec)_sec.style.display='block';
-    try{_bjLoadMultiDay(_leadQuote.days);}catch(_){}
+    try{_bjLoadMultiDay(_leadQuote.days);_bjDays.forEach((d,i)=>{d._qIdx=i;});}catch(_){}
   }
   // Helper to set a field only if it's empty AND we have a value to set
   const setIfEmpty=(id,val)=>{const el=document.getElementById(id);if(!el||val===undefined||val===null||val==='')return;if(!el.value)el.value=val;};
@@ -9866,6 +9885,14 @@ function openBooking(leadId){
       // so walk the flags and merge each kept day's saved fields back into the matching full-list entry.
       if(Array.isArray(_existingDraft.quoteDays)){let _k=0;_bjKeptDays.forEach((kept,idx)=>{if(kept&&_existingDraft.quoteDays[_k]){window._bjQuoteDaysFull[idx]=Object.assign({},window._bjQuoteDaysFull[idx],_existingDraft.quoteDays[_k]);_k++;}});}
       _renderBjQuoteDays();
+      // One set of day boxes (2026-11-03): the Multi-day job box is where days are edited, so put the
+      // saved days back there — kept quote days first (tagged), then any day added by hand.
+      if(Array.isArray(_existingDraft.quoteDays)&&_existingDraft.quoteDays.length){
+        const _ki=_bjKeptDays.map((k,i)=>k?i:-1).filter(i=>i>=0);
+        _bjLoadMultiDay(_existingDraft.quoteDays);
+        _bjDays.forEach((d,k)=>{d._qIdx=k<_ki.length?_ki[k]:null;});
+        renderBjDays();
+      }
     }
   } else {
     window._reopeningDraftId=null;
@@ -11916,6 +11943,69 @@ function cjConvertToMultiDay(){
   },50);
 }
 
+// ── Multi-day completion draft (2026-11-03) ───────────────────────────────────────────────
+// The single-day Complete form saved what you'd typed; the multi-day one didn't — and opening it
+// clears every field — so clicking out lost all the per-day hours, crews and fees. Everything typed
+// is now saved on the booked job (j._completeMdDraft, syncs like the job) a moment after each change,
+// and put back when the form is reopened. Completing the job removes the booked job, draft and all.
+let _cjmdDraftTimer=null;
+function _cjmdModalOpen(){const m=document.getElementById('modal-complete-job-multiday');return !!(m&&m.classList.contains('open'));}
+function _cjmdReadDayCards(){
+  const c=document.getElementById('cjmd-days-container');if(!c)return [];
+  return [...c.children].map(card=>({
+    type:card.querySelector('.cjmd-day-type')?.value||'Moving',
+    moveSegments:_cjmdReadSegments(card,'cjmd'),
+    movers:Number(card.querySelector('.cjmd-day-movers')?.value)||0,
+    moveHours:Number(card.querySelector('.cjmd-day-move-hours')?.value)||0,
+    moveRate:Number(card.querySelector('.cjmd-day-move-rate')?.value)||0,
+    packers:Number(card.querySelector('.cjmd-day-packers')?.value)||0,
+    packHours:Number(card.querySelector('.cjmd-day-pack-hours')?.value)||0,
+    packRate:Number(card.querySelector('.cjmd-day-pack-rate')?.value)||0,
+    fuel:Number(card.querySelector('.cjmd-day-fuel')?.value)||0,
+    materials:Number(card.querySelector('.cjmd-day-materials')?.value)||0,
+    packMaterials:Number(card.querySelector('.cjmd-day-packmaterials')?.value)||0,
+    parking:Number(card.querySelector('.cjmd-day-parking')?.value)||0
+  }));
+}
+function _cjmdDraftFields(){
+  const m=document.getElementById('modal-complete-job-multiday');if(!m)return {};
+  const out={};
+  m.querySelectorAll('input[id^="cjmd-"],select[id^="cjmd-"],textarea[id^="cjmd-"]').forEach(el=>{
+    out[el.id]=el.type==='checkbox'?{c:!!el.checked}:el.value;
+  });
+  return out;
+}
+function _cjmdSaveDraftNow(id){
+  // id is captured when the change happened, so a save still lands if you clicked out within the
+  // 600ms wait (the fields keep their values until the form is next opened).
+  id=id||(_cjmdModalOpen()?currentCompleteJobId:null);
+  if(!id||currentCompleteJobId!==id)return;
+  const j=(db.bookedJobs||[]).find(x=>x.id===id);if(!j)return;
+  j._completeMdDraft={fields:_cjmdDraftFields(),days:_cjmdReadDayCards(),savedAt:new Date().toISOString()};
+  saveDB();
+}
+function _cjmdAutoSave(){
+  if(!currentCompleteJobId||!_cjmdModalOpen())return;
+  const _id=currentCompleteJobId;clearTimeout(_cjmdDraftTimer);_cjmdDraftTimer=setTimeout(()=>_cjmdSaveDraftNow(_id),600);
+}
+function _cjmdRestoreDraft(j){
+  const d=j&&j._completeMdDraft;if(!d)return false;
+  const f=d.fields||{};
+  // Container size options are built per move type — set move type first, then rebuild.
+  if(f['cjmd-movetype']!=null){const mt=document.getElementById('cjmd-movetype');if(mt)mt.value=f['cjmd-movetype'];}
+  try{_syncContainerField('cjmd',f['cjmd-container']||'');}catch(_){}
+  Object.keys(f).forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const v=f[id];
+    if(v&&typeof v==='object'&&'c' in v){el.checked=!!v.c;}else el.value=v;
+  });
+  if(Array.isArray(d.days)&&d.days.length){
+    const qd=(j.quoteDays&&j.quoteDays.length)?j.quoteDays:[];
+    const c=document.getElementById('cjmd-days-container');
+    if(c)c.innerHTML=d.days.map((p,i)=>_buildCjmdDayCard(i,{...p,date:(qd[i]&&qd[i].date)||(i===0?j.date:'')||''})).join('');
+  }
+  return true;
+}
 function openCompleteMultiDay(jobId){
   currentCompleteJobId=jobId;
   const j=db.bookedJobs.find(x=>x.id===jobId);
@@ -11951,6 +12041,8 @@ function openCompleteMultiDay(jobId){
   const _movetypeEl=document.getElementById('cjmd-movetype');
   if(_movetypeEl)_movetypeEl.value=_canonMoveTypeLabel(_pick(j.moveType,_l?_l.moveType:''));
   _syncContainerField('cjmd',j.containerSize||(_l&&_l.containerSize)||'');
+  // Vaults (2026-11-03): start from what was booked (e.g. "6 vaults"), like the single-day form. Edit to the real count.
+  {const _vEl=document.getElementById('cjmd-vaults');const _n=String(j.volume||'').match(/[\d.]+/g);if(_vEl&&_n&&_n.length)_vEl.value=Math.max(..._n.map(Number));}
   const _accLoadEl=document.getElementById('cjmd-access-load');
   if(_accLoadEl)_accLoadEl.value=_pick(j.accessLoad,_l?_l.accessLoad:'');
   const _accUnloadEl=document.getElementById('cjmd-access-unload');
@@ -11968,8 +12060,16 @@ function openCompleteMultiDay(jobId){
   _resetCapState('cjmd');
   const _mdCapEl=document.getElementById('cjmd-cap');
   if(_mdCapEl)_mdCapEl.value=(j&&Number(j.doNotExceed)>0)?Number(j.doNotExceed):'';
+  // Put back anything typed earlier and not yet completed (2026-11-03).
+  const _restored=_cjmdRestoreDraft(j);
   if(typeof calcMultiDayTotal==='function')calcMultiDayTotal();
   openModal('complete-job-multiday');
+  if(_restored)showToast('\u21a9 Restored what you\u2019d entered'+(j._completeMdDraft.savedAt?' ('+new Date(j._completeMdDraft.savedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+')':''));
+  // Save as you type: one listener on the whole form (day cards are re-rendered, so per-field
+  // handlers would be lost). Adding/removing a day or a crew segment re-runs calcMultiDayTotal,
+  // which also triggers a save.
+  const _m=document.getElementById('modal-complete-job-multiday');
+  if(_m&&!_m._cjmdDraftHooked){_m._cjmdDraftHooked=true;['input','change'].forEach(ev=>_m.addEventListener(ev,_cjmdAutoSave,true));}
 }
 
 // Build the HTML for a single day card. Reusable so both initial render and "Add another day"
@@ -12140,6 +12240,7 @@ function renderMultiDayCompleteRows(j){
 function calcMultiDayTotal(){
   const container=document.getElementById('cjmd-days-container');
   if(!container)return;
+  if(typeof _cjmdAutoSave==="function")_cjmdAutoSave();
   const dayDivs=container.querySelectorAll('[data-day-index]');
   // dayDivs returns all elements with data-day-index — we want just the top-level day cards
   const cards=[...container.children];
@@ -12231,6 +12332,7 @@ function calcMultiDayBalance(){
 // Commit: build the completedJob with days[] AND legacy fields. Push to db, remove the
 // booked job from the list, mark lead as Completed, sync, and close the modal.
 function confirmCompleteMultiDay(paymentState){
+  clearTimeout(_cjmdDraftTimer);
   const j=db.bookedJobs.find(x=>x.id===currentCompleteJobId);
   if(!j){showToast('Booked job not found.');return;}
   const crew=document.getElementById('cjmd-crew').value.trim();
@@ -21547,6 +21649,10 @@ function _syncContainerField(pid,value){
   if(value!==undefined)sel.value=value||'';
   const mt=(document.getElementById(_CONTAINER_MOVETYPE_ID[pid])||{}).value;
   wrap.style.display=_isPodTruckType(mt)?'':'none';
+  // Multi-day complete/edit (2026-11-03): the vaults box says which vaults it means on a storage job.
+  if(pid==='cjmd'||pid==='ecjmd'){const vl=document.getElementById(pid+'-vaults-label');
+    if(vl){const t=String(mt||'').toLowerCase();
+      vl.firstChild.nodeValue=/out of storage|storage out/.test(t)?'Vaults out of storage ':/storage/.test(t)?'Vaults into storage ':'Vaults ';}}
 }
 function _readContainer(pid){
   const mt=(document.getElementById(_CONTAINER_MOVETYPE_ID[pid])||{}).value;
@@ -21559,7 +21665,7 @@ document.addEventListener('change',function(e){
   Object.keys(_CONTAINER_MOVETYPE_ID).forEach(pid=>{if(_CONTAINER_MOVETYPE_ID[pid]===id)_syncContainerField(pid);});
 });
 
-const _MOVE_TYPE_CANONICAL=['Move','Pack and move','Packing only','Move to storage','Pack and move to storage','Move out of storage','Load pod / truck only','Unload pod / truck only','Warehouse labor','Internal'];
+const _MOVE_TYPE_CANONICAL=['Move','Pack and move','Pack, move and unpack','Packing only','Move to storage','Pack and move to storage','Move out of storage','Load pod / truck only','Unload pod / truck only','Warehouse labor','Internal'];
 const _MOVE_TYPE_ALIASES={
   'move and pack':'pack and move',       // legacy "Move & Pack"
   'storage in':'move to storage',        // legacy "Storage In"
@@ -21649,6 +21755,16 @@ function _jobWorkHours(j){
   return dh>0?Math.max(1,h-dh):h;
 }
 
+// Vaults on a past job, for the AI (2026-11-03). On a storage job (into or out of our warehouse) the
+// vault count entered when the job was completed is an exact count, so it wins over the quote's
+// estimate and is used even when the quote had none. Other jobs are unchanged: the quote's estimate,
+// or with loose=true the estimate then the completed count, as before.
+function _jobVaults(j,loose){
+  if(!j)return 0;
+  const a=Number(j.actualVaults)||0,e=Number(j.estimatedVaults)||0;
+  if(a>0&&/storage/i.test(String(j.moveType||'')))return a;
+  return loose?(e||a):e;
+}
 function similarity(job,inputs){
   let score=0;
   // NOTE: move type is now a HARD FILTER applied before scoring (only same-type jobs reach
@@ -21657,8 +21773,8 @@ function similarity(job,inputs){
   // access > packing scope > bedroom count.
 
   // Volume via VAULTS — the owner's primary volume signal. Up to 35 pts, fading as counts diverge.
-  if(job.estimatedVaults&&inputs.vaults){
-    const diff=Math.abs(job.estimatedVaults-inputs.vaults);
+  if(_jobVaults(job)&&inputs.vaults){
+    const diff=Math.abs(_jobVaults(job)-inputs.vaults);
     score+=Math.max(0,35-(diff*4));
   }
   // Volume via SQFT — everyday proxy when no vault count is entered. Up to 30 pts, fading to 0
@@ -21787,11 +21903,11 @@ function _trendR2(xs,ys,slope,intercept){
   return ssTot>0?1-ssRes/ssTot:0;
 }
 function computeVaultRegression(moveType){
-  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0).filter(_trendTypeFilter(moveType));
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&_jobVaults(j)>0).filter(_trendTypeFilter(moveType));
   // Need a reasonable sample to fit a line — below this, the fit is too noisy to trust.
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
-  const xs=data.map(j=>j.estimatedVaults);
+  const xs=data.map(j=>_jobVaults(j));
   const ys=data.map(j=>_aiHoursOf(j));
   const n=xs.length;
   const meanX=xs.reduce((a,b)=>a+b,0)/n;
@@ -21859,10 +21975,10 @@ function computeSqftRegression(moveType){
 // in the training data — meaning the suggestion is extrapolation, not interpolation.
 function computeCrewRecommendation(vaults){
   if(!vaults||vaults<=0)return null;
-  const data=_aiTrainingPool().filter(j=>j.actualHours&&j.estimatedVaults&&j.estimatedVaults>0&&j.moveMen);
+  const data=_aiTrainingPool().filter(j=>j.actualHours&&_jobVaults(j)>0&&j.moveMen);
   const MIN_JOBS=6;
   if(data.length<MIN_JOBS)return null;
-  const xs=data.map(j=>j.estimatedVaults);
+  const xs=data.map(j=>_jobVaults(j));
   const ys=data.map(j=>Number(j.moveMen)||0);
   const n=xs.length;
   const meanX=xs.reduce((a,b)=>a+b,0)/n;
@@ -21969,7 +22085,7 @@ function _aiHoursOf(j){
   // estimated on its own, so it is left out here.
   if(!_aiMoveOnly&&j&&!j.multiDay&&Number(j.packHoursActual)>0&&w>0){
     const mm=Number(j.moveMen)||3,pm=Number(j.packMen)||mm;
-    return w+Number(j.packHoursActual)*pm/mm;
+    return w+Number(j.packHoursActual)*pm/mm*_aiScopeRatio(_aiInputPacking,j.packing);
   }
   return w;
 }
@@ -21979,7 +22095,7 @@ function _aiHoursOf(j){
 // travel, so time grows a bit slower than volume); sq ft, a rougher proxy, with 0.7.
 function _aiScaleToSize(h,j,inputs){
   if(!(h>0))return h;
-  const jv=Number(j.estimatedVaults||j.actualVaults)||0;
+  const jv=_jobVaults(j,true);
   if(inputs.vaults&&jv>0)return h*Math.pow(Number(inputs.vaults)/jv,0.8);
   if(!inputs.vaults&&inputs.sqft&&Number(j.sqft)>0)return h*Math.pow(Number(inputs.sqft)/Number(j.sqft),0.7);
   return h;
@@ -22000,14 +22116,27 @@ function _aiPackObservations(){
     const ph=Number(r.packHoursActual)||0;if(ph<=0)return;
     if(r.completedJobId&&seenJobs.has(r.completedJobId))return;   // already counted from its day records
     const men=Number(r.packMen)||Number(r.moveMen)||3;
-    obs.push({key:'pj:'+_trainKey(r),name:r.name,date:r.date,size:r.size,sqft:Number(r.sqft)||null,vaults:Number(r.estimatedVaults||r.actualVaults)||null,
+    obs.push({key:'pj:'+_trainKey(r),name:r.name,date:r.date,size:r.size,sqft:Number(r.sqft)||null,vaults:_jobVaults(r,true)||null,
       packing:r.packing,moveType:r.moveType,packHours:ph,packerHours:ph*men,men:men,days:1,fromSpreadsheet:!!r.fromSpreadsheet});
   });
   return obs;
 }
 function _aiPackScope(p){const s=String(p||'').toLowerCase();if(!s||s==='no'||s.includes('just moving'))return 0;if(s.includes('kitchen'))return 1;if(s.includes('breakable')||s.includes('fragile')||s.includes('partial'))return 2;if(s.includes('full'))return 3;return null;}
+// Packing scope as a share of a full pack (2026-10-31). A kitchen-only quote was being compared with
+// full-pack jobs at face value, so it planned a whole pack day with 3 packers. Past packing time is
+// now converted to the scope being quoted: kitchen ≈ 25% of a full pack, breakables / fragiles /
+// partial ≈ 50%. Same-scope jobs are used on their own when there are at least 2 of them.
+const _AI_SCOPE_SHARE={1:0.25,2:0.5,3:1};
+let _aiInputPacking='';
+function _aiScopeRatio(quotePacking,jobPacking){
+  if(!String(quotePacking||'').trim())return 1;          // packing not specified on the quote
+  const a=_aiPackScope(quotePacking),b=_aiPackScope(jobPacking);
+  if(a===0)return 0;                                     // quote has no packing at all
+  if(!(a>0)||!(b>0))return 1;                            // unknown on either side → as recorded
+  return _AI_SCOPE_SHARE[a]/_AI_SCOPE_SHARE[b];
+}
 function _aiPackEstimate(inputs,packers,packDays){
-  const all=_aiPackObservations();
+  const all=_aiPackObservations().map(o=>{const f=_aiScopeRatio(inputs.packing,o.packing)||1;return {...o,scopeFactor:f,adjPH:o.packerHours*f};});
   const bk=s=>String(s||'').toLowerCase().replace(/\s+/g,'');
   const score=o=>{let sc=0;
     if(inputs.vaults&&o.vaults)sc+=Math.max(0,35-Math.abs(o.vaults-inputs.vaults)*4);
@@ -22021,19 +22150,23 @@ function _aiPackEstimate(inputs,packers,packDays){
     const a=_bedLadder(inputs.size),b=_bedLadder(o.size);return a===null||b===null||Math.abs(a-b)<=1;};
   let pool=all;
   if(_aiPackKept)pool=all.filter(o=>_aiPackKept.has(o.key));
-  else{const n=all.filter(near);if(n.length)pool=n;}
+  else{
+    const n=all.filter(near);if(n.length)pool=n;
+    const qs=_aiPackScope(inputs.packing);
+    if(qs>0){const same=pool.filter(o=>_aiPackScope(o.packing)===qs);if(same.length>=2)pool=same;}
+  }
   const ranked=pool.map(o=>({...o,score:score(o)})).sort((x,y)=>y.score-x.score);
   const used=_aiPackKept?ranked:ranked.slice(0,8);
   const shown=_aiPackKept?all.map(o=>({...o,score:score(o)})).sort((x,y)=>y.score-x.score).slice(0,Math.max(8,used.length)):used;
   _aiPackLast=shown;
   if(!used.length)return {none:true,shown,total:all.length};
   const w=used.reduce((s,o)=>s+o.score+1,0);
-  const mean=used.reduce((s,o)=>s+o.packerHours*(o.score+1),0)/w;
-  const ph=used.map(o=>o.packerHours).sort((a,b)=>a-b);
+  const mean=used.reduce((s,o)=>s+o.adjPH*(o.score+1),0)/w;
+  const ph=used.map(o=>o.adjPH).sort((a,b)=>a-b);
   let lo,hi;
   if(ph.length>=4){lo=ph[Math.floor(ph.length*0.25)];hi=ph[Math.floor(ph.length*0.75)];lo=Math.min(lo,mean);hi=Math.max(hi,mean);}
   else{lo=mean*0.8;hi=mean*1.2;}
-  const totLo=Math.max(1,Math.floor(lo/packers*2)/2),totHi=Math.max(totLo,Math.ceil(hi/packers*2)/2);
+  const totLo=Math.max(0.5,Math.floor(lo/packers*2)/2),totHi=Math.max(totLo,Math.ceil(hi/packers*2)/2);
   return {used,shown,packers,packDays,totLo,totHi,
     dayLo:Math.max(1,Math.floor(totLo/packDays*2)/2),dayHi:Math.ceil(totHi/packDays*2)/2,
     meanPackerHours:Math.round(mean*10)/10};
@@ -22090,7 +22223,7 @@ function _aiAfterMoveQuote(m){
       ${(P.shown||[]).map((o,i)=>{const on=_aiPackKept?_aiPackKept.has(o.key):!P.none&&P.used.some(u=>u.key===o.key);
         const line2=[o.date?e(o.date):null,o.size?e(o.size):null,o.sqft?o.sqft+' sqft':null,o.vaults?o.vaults+' vaults':null,o.packing?'pack: '+e(o.packing):null].filter(Boolean).join(' · ');
         return `<div style="padding:8px 4px;border-bottom:1px solid var(--border2)${on?'':';opacity:.6'}"><label style="display:block;cursor:pointer"><span style="font-weight:600;font-size:12.5px"><input type="checkbox" class="ai-pack-incl" data-idx="${i}" ${on?'checked':''} style="vertical-align:middle;margin-right:8px">${e(o.name)||'(no name on record)'}</span><span style="color:var(--text3);font-size:10.5px;margin-left:6px">match ${Math.round(o.score)}${o.fromSpreadsheet?' · seed data':''}</span></label>
-          <div style="margin-left:24px">${line2?'<div style="font-size:11.5px;color:var(--text2);margin-top:2px">'+line2+'</div>':''}<div style="font-size:11.5px;color:var(--text2);margin-top:1px">Packed <strong>${Math.round(o.packHours*100)/100} hrs</strong> with ${o.men} packer${o.men===1?'':'s'}${o.days>1?' over '+o.days+' days':''} = ${Math.round(o.packerHours*10)/10} packer-hours</div></div></div>`;}).join('')||'<div style="font-size:12px;color:var(--text3)">No completed jobs with packing hours recorded yet.</div>'}
+          <div style="margin-left:24px">${line2?'<div style="font-size:11.5px;color:var(--text2);margin-top:2px">'+line2+'</div>':''}<div style="font-size:11.5px;color:var(--text2);margin-top:1px">Packed <strong>${Math.round(o.packHours*100)/100} hrs</strong> with ${o.men} packer${o.men===1?'':'s'}${o.days>1?' over '+o.days+' days':''} = ${Math.round(o.packerHours*10)/10} packer-hours${Math.abs(o.scopeFactor-1)>0.01?' <span style="color:var(--text3)">· counted as ~'+Math.round(o.adjPH*10)/10+' for this packing scope</span>':''}</div></div></div>`;}).join('')||'<div style="font-size:12px;color:var(--text3)">No completed jobs with packing hours recorded yet.</div>'}
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="recalcAIPackDay()" class="btn btn-primary" style="font-size:12px;padding:6px 12px">↻ Recalculate packing</button>${_aiPackKept?'<button onclick="resetAIPackDay()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use best matches)</button>':''}</div>
     </div>
   </details>`;
@@ -22134,6 +22267,7 @@ function generateAIQuote(isRecalc){
   }
   // Day plan (2026-10-31): decide whether packing gets its own day(s). If it does, the move estimate
   // uses move-only hours, so packing isn't counted twice.
+  _aiInputPacking=inputs.packing||'';
   try{_aiPlan=_aiDecidePlan(inputs);}catch(e){console.warn('Day plan decision failed:',e);_aiPlan={packDays:0,packers:0,auto:false};}
   _aiMoveOnly=_aiPlan.packDays>0;
   if(_aiMoveOnly){_aiDayMoveMap={};getDayTrainingData().forEach(r=>{if(r.completedJobId)_aiDayMoveMap[r.completedJobId]=(_aiDayMoveMap[r.completedJobId]||0)+(Number(r.moveHours)||0);});}
@@ -22231,6 +22365,13 @@ function generateAIQuote(isRecalc){
       _cands=_cands.concat(_storageFill);
     }
   }
+  // PACK, MOVE AND UNPACK (2026-11-03): a new job type, so there's little history at first. When this
+  // quote's type has fewer than 3 past jobs, "Pack and move" jobs join the pool — the same packing and
+  // moving work, minus the unpack. They show under their own move type and can be unticked.
+  if(_wantType===_normMoveType('Pack, move and unpack')&&_sameTypeCount<3){
+    const _pmType=_normMoveType('Pack and move');
+    _cands=_cands.concat(allData.filter(j=>j.actualHours&&_normMoveType(j.moveType)===_pmType));
+  }
   // VOLUME GUARD: volume is the owner's top priority, so don't let a job of a very different size
   // class into the neighbour pool (e.g. a 3-bed/8-vault job informing a 1-bed/3-vault quote).
   // Compare on vaults when both have them, else sqft; drop a job when the larger volume is more
@@ -22238,7 +22379,7 @@ function generateAIQuote(isRecalc){
   // intentionally span all sizes to extrapolate; only the neighbour list is tightened.)
   const VOL_RATIO_MAX=2.2;
   const _volOK=(j)=>{
-    const jv=Number(j.estimatedVaults||j.actualVaults)||0;
+    const jv=_jobVaults(j,true);
     if(inputs.vaults&&jv>0){const a=Number(inputs.vaults),b=jv;return Math.max(a,b)/Math.min(a,b)<=VOL_RATIO_MAX;}
     if(inputs.sqft&&j.sqft>0){const a=Number(inputs.sqft),b=Number(j.sqft);return Math.max(a,b)/Math.min(a,b)<=VOL_RATIO_MAX;}
     // Pod / truck size (2026-10-01): a 26 ft truck job should not inform an 8 ft pod quote.
@@ -22529,7 +22670,7 @@ function generateAIQuote(isRecalc){
           const _e=x=>String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
           const nm=_e(j.name).trim()||'(no name on record)';
           const src=j.fromSpreadsheet?'seed data':'your job';
-          const vaults=j.estimatedVaults||j.actualVaults;
+          const vaults=_jobVaults(j,true)||null;
           const qmin=j.quotedHoursMin,qmax=j.quotedHoursMax;
           const over=(qmax&&j.actualHours&&Number(j.actualHours)>Number(qmax));
           const line2=[j.date?_e(j.date):null,_e(j.size)||null,j.sqft?j.sqft+' sqft':null,vaults?vaults+' vaults':null,j.containerSize?_e(j.containerSize):null].filter(Boolean).join(' · ');
