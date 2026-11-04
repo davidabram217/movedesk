@@ -3266,7 +3266,20 @@ async function loadDB(){
     const _cloudDown=(leads===null&&bookedJobs===null&&completedJobs===null&&quotes===null);
     db.bookedJobs=(bookedJobs===null)
       ? (_LD.bookedJobs||[]).filter(j=>!_bookedTombs[j.id])
-      : bookedJobs.filter(r=>!_bookedTombs[r.id]).map(r=>({...r.data,id:r.id}));
+      : (function(){
+          // Keep this device's copy of a booking when it was edited more recently than the cloud's
+          // (2026-11-03) — e.g. the page was reloaded before the last change finished uploading.
+          // Only for bookings the cloud still has; it never brings back one removed elsewhere.
+          const _loc={};(_LD.bookedJobs||[]).forEach(j=>{if(j&&j.id)_loc[j.id]=j;});
+          let _kept=0;
+          const out=bookedJobs.filter(r=>!_bookedTombs[r.id]).map(r=>{
+            const c={...r.data,id:r.id};const l=_loc[r.id];
+            if(l&&l._localEditedAt&&(!c._localEditedAt||l._localEditedAt>c._localEditedAt)){_kept++;return l;}
+            return c;
+          });
+          if(_kept){console.log('Kept '+_kept+' booking(s) edited on this device after the cloud copy — re-uploading');setTimeout(()=>{try{saveDB();}catch(_){}},1500);}
+          return out;
+        })();
     db.completedJobs=(completedJobs===null)
       ? (_LD.completedJobs||[]).filter(j=>!_completedTombs[j.id])
       : completedJobs.filter(r=>!_completedTombs[r.id]).map(r=>({...r.data,id:r.id}));
@@ -3900,6 +3913,18 @@ function saveDB(){
         l._localEditedAt=l._localEditedAt||_nowIso;
       }
     });
+    // Booked jobs (2026-11-03) — same stamp. They had none, so a refresh or reload could put an older
+    // cloud copy over a booking edited here moments before (Nicole Chanel: confirmation email and
+    // calendar ticked off, then lost, while the lead — which IS protected — kept its 'email sent' flag).
+    const _prevBookedById={};
+    (_prev.bookedJobs||[]).forEach(j=>{if(j&&j.id)_prevBookedById[j.id]=j;});
+    (db.bookedJobs||[]).forEach(j=>{
+      if(!j||!j.id)return;
+      const before=_prevBookedById[j.id];
+      if(!before){j._localEditedAt=j._localEditedAt||_nowIso;return;}
+      const allKeys=new Set([...Object.keys(before),...Object.keys(j)]);
+      for(const k of allKeys){if(_metaKeys.has(k))continue;if(JSON.stringify(before[k])!==JSON.stringify(j[k])){j._localEditedAt=_nowIso;break;}}
+    });
     // Same protection for completed jobs — stamp _localEditedAt on any content change so a stale cloud
     // copy (e.g. pushed by another device or an old tab that never saw this edit) cannot overwrite it on
     // the next refresh. Without this, toggling "Exclude from Quote Accuracy" or any completed-job edit
@@ -4413,7 +4438,7 @@ async function refreshFromSupabase(){
         // For completed jobs — protect local edits (the Exclude-from-Accuracy toggle, payment updates,
         // corrections) from being overwritten by a stale cloud copy that another device re-pushed.
         // Same _localEditedAt mechanism as quotes.
-        if(table==='completedJobs'&&local&&rec){
+        if((table==='completedJobs'||table==='bookedJobs')&&local&&rec){
           const localEditIso=local._localEditedAt||'';
           const remoteEditIso=rec._localEditedAt||'';
           if(localEditIso&&remoteEditIso){
@@ -4438,7 +4463,7 @@ async function refreshFromSupabase(){
       db.leads=db.leads.filter(l=>!_allTombstones.leads[l.id]);
       if(db.leads.length<before)updated++;
     }
-    db.bookedJobs=mergeTable(bookedResFiltered,db.bookedJobs);
+    db.bookedJobs=mergeTable(bookedResFiltered,db.bookedJobs,'id','bookedJobs');
     if(Object.keys(_allTombstones.booked_jobs).length){
       const before=db.bookedJobs.length;
       db.bookedJobs=db.bookedJobs.filter(j=>!_allTombstones.booked_jobs[j.id]);
@@ -6916,12 +6941,20 @@ function renderDashboard(){
   const completedNames=new Set((db.completedJobs||[]).map(j=>(j.name||'').toLowerCase().trim()).filter(Boolean));
   const seen=new Set();
   let cleaned=false;
+  const _committedKeys=new Set((db.bookedJobs||[]).filter(j=>!j._draft).map(j=>j.leadId+'|'+j.date+'|'+j.name));
   db.bookedJobs=(db.bookedJobs||[]).filter(j=>{
     // Remove if it was completed (by ID or by name match)
     if(completedJobIds.has(j.id)){cleaned=true;return false;}
     if(!j._draft&&completedNames.has((j.name||'').toLowerCase().trim())&&(db.completedJobs||[]).find(c=>c.name===j.name&&c.date===j.date)){cleaned=true;return false;}
-    // Remove orphaned drafts
-    if(j._draft){cleaned=true;return false;}
+    // Drafts (2026-11-03): a draft is a booking in progress — waiting on the calendar entry and
+    // confirmation email. This used to delete EVERY draft whenever the Dashboard drew, taking the
+    // 'email sent' / 'calendar added' ticks with it, and a refresh then brought the older cloud copy
+    // back (Nicole Chanel). Only drop a draft that is truly orphaned: its lead is gone or marked
+    // Did not book, or the same booking has already been committed.
+    if(j._draft){
+      const _dl=(db.leads||[]).find(l=>l.id===j.leadId);
+      if(!_dl||_dl.status==='Did not book'||_committedKeys.has(j.leadId+'|'+j.date+'|'+j.name)){cleaned=true;return false;}
+    }
     // Remove duplicates — keep first occurrence per leadId+date combo
     const key=j.leadId+'|'+j.date+'|'+j.name;
     if(seen.has(key)){cleaned=true;return false;}
@@ -6990,7 +7023,7 @@ function renderDashboard(){
 
   document.getElementById('dash-stats').innerHTML=`
     <div class="stat-card"><div class="stat-label">Total leads</div><div class="stat-value">${db.leads.length}</div><div class="stat-sub">All time</div></div>
-    <div class="stat-card"><div class="stat-label">Booked jobs</div><div class="stat-value">${db.bookedJobs.length}</div><div class="stat-sub">Upcoming</div></div>
+    <div class="stat-card"><div class="stat-label">Booked jobs</div><div class="stat-value">${db.bookedJobs.filter(j=>!j._draft).length}</div><div class="stat-sub">Upcoming</div></div>
     <div class="stat-card"><div class="stat-label">Revenue this week</div><div class="stat-value">${fmtMoney(rev)}</div><div class="stat-sub">${comp.length} jobs</div></div>
     <div class="stat-card"><div class="stat-label">Outstanding</div><div class="stat-value ${owed>0?'owe-badge':''}">${fmtMoney(owed)}</div><div class="stat-sub">${out.length} jobs</div></div>
     <div class="stat-card" style="${followups.length>0?'border-color:var(--amber);background:var(--amber-light)':''}">
@@ -7013,7 +7046,7 @@ function renderDashboard(){
     </tr>`;}).join(''):`<tr><td colspan="5"><div class="empty-state" style="padding:20px"><div class="empty-icon">✓</div><div class="empty-title">No follow-ups needed</div></div></td></tr>`;}
 
   const rlt=document.getElementById('dash-recent-leads').querySelector('tbody');const rl=[...db.leads].sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||'')).slice(0,5);rlt.innerHTML=rl.length?rl.map(l=>`<tr><td class="td-name">${l.name}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td class="td-mono">${fmtDate(l.createdAt)}</td><td>${statusBadge(l.status)}</td></tr>`).join(''):`<tr><td colspan="4"><div class="empty-state" style="padding:20px"><div class="empty-title">No leads yet</div></div></td></tr>`;
-  const upt=document.getElementById('dash-upcoming').querySelector('tbody');const up=[...db.bookedJobs].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(0,5);upt.innerHTML=up.length?up.map(j=>`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${j.crew||'—'}</td></tr>`).join(''):`<tr><td colspan="3"><div class="empty-state" style="padding:20px"><div class="empty-title">No upcoming jobs</div></div></td></tr>`;
+  const upt=document.getElementById('dash-upcoming').querySelector('tbody');const up=db.bookedJobs.filter(j=>!j._draft).sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(0,5);upt.innerHTML=up.length?up.map(j=>`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${j.crew||'—'}</td></tr>`).join(''):`<tr><td colspan="3"><div class="empty-state" style="padding:20px"><div class="empty-title">No upcoming jobs</div></div></td></tr>`;
   const ot=document.getElementById('dash-outstanding').querySelector('tbody');ot.innerHTML=out.length?out.map(j=>{const o=(Number(j.total)||0)-(Number(j.paid)||0);return`<tr><td class="td-name">${j.name}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${fmtMoney(j.total)}</td><td>${fmtMoney(j.paid)}</td><td class="owe-badge">${fmtMoney(o)}</td><td style="white-space:nowrap">${invoiceStatusCell(j)}</td></tr>`;}).join(''):`<tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-icon">✓</div><div class="empty-title">All balances clear</div></div></td></tr>`;
   renderIncomeCard('dash-income-body',_incomeTabDash);
   try{renderReviewDue();}catch(_){}
