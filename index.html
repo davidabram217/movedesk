@@ -16384,17 +16384,31 @@ async function _quickLeadEnrich(d){
   }catch(_){}
   if(!x){try{x=extractLeadFromText(d.notes);}catch(_){x=null;}}
   if(!x||typeof x!=='object')return d;
+  const _isStaffName=v=>{const t=String(v||'').toLowerCase().trim();if(!t)return false;const st=((db.settings&&db.settings.crew)||[]).concat(['John','Dave']).map(n=>String(n).toLowerCase().trim());return st.includes(t);};
   const opt=(selId,v)=>{if(!v)return '';const el=document.getElementById(selId);if(!el)return v;const t=String(v).toLowerCase().trim();
     const o=[...el.options].find(o=>o.value&&(o.value.toLowerCase()===t||o.text.toLowerCase()===t));return o?o.value:'';};
   const fill=(k,v)=>{if(v!=null&&v!==''&&!d[k])d[k]=v;};
   const withCity=(a,c)=>{a=(a||'').trim();c=(c||'').trim();if(c&&a.toLowerCase().indexOf(c.toLowerCase())===-1)a=a?a+', '+c:c;return a;};
-  fill('name',x.name);fill('phone',x.phone);fill('email',x.email);
+  if(!_isStaffName(x.name))fill('name',x.name);fill('phone',x.phone);fill('email',x.email);
   if(x.moveDate&&/^\d{4}-\d{2}-\d{2}$/.test(String(x.moveDate)))fill('date',x.moveDate);
   fill('from',withCity(x.fromAddress,x.fromCity));fill('fromZip',x.fromZip);
   fill('to',withCity(x.toAddress,x.toCity));fill('toZip',x.toZip);
   fill('size',opt('nl-size',x.size));
   fill('moveType',x.moveType?(typeof _canonMoveTypeLabel==='function'?_canonMoveTypeLabel(x.moveType):x.moveType):'');
-  fill('source',opt('nl-source',x.source));fill('sourceDetail',x.sourceDetail);
+  // Source only when the caller actually said how they found us (2026-11-09). "Dave, text him some
+  // numbers" is an instruction to a staff member, not a referral from Dave — the reader was turning
+  // names said on the call into the source. Staff names are never a source detail or the customer.
+  const _said=String(d.notes||'').toLowerCase();
+  const _staff=((db.settings&&db.settings.crew)||[]).concat(['John','Dave']).map(n=>String(n).toLowerCase().trim()).filter(Boolean);
+  const _isStaff=v=>{const t=String(v||'').toLowerCase().trim();return !!t&&_staff.some(n=>t===n||t.split(/\s+/)[0]===n&&t.split(/\s+/).length===1);};
+  const _src=opt('nl-source',x.source);
+  const _srcSaid=(src)=>{const t=String(src||'').toLowerCase();if(!t||t==='other'||t==='unknown')return false;
+    if(t==='referral')return /\b(refer|referred|referral|recommend|recommended|friend|neighbou?r|family|word of mouth)\b/.test(_said);
+    if(t==='repeat customer')return /\b(repeat|again|before|last time|previous(ly)?|used us)\b/.test(_said);
+    if(t==='social media')return /\b(instagram|facebook|tiktok|social)\b/.test(_said);
+    if(t==='chatgpt')return /chat ?gpt|\bai\b/.test(_said);
+    return _said.includes(t.split(/[\s/]+/)[0]);};
+  if(_src&&_srcSaid(_src)){fill('source',_src);if(!_isStaff(x.sourceDetail))fill('sourceDetail',x.sourceDetail);}
   if(x.packing&&typeof _canonPackingValue==='function')fill('packing',_canonPackingValue(x.packing));
   if(x.storage)fill('storage',true);
   return d;

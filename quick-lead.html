@@ -219,25 +219,40 @@ function keyboardFallback(){
   $('mic-sub').textContent='This phone won\u2019t let the app listen directly here — tap the microphone on the keyboard and talk.';
   $('notes').focus();
 }
-function toggleMic(){if(live){stopMic();return;}startMic();}
+// Each listening run gets its own number, so once the mic is tapped off nothing from the old run —
+// a late result, or the phone ending and restarting itself — can switch it back on (iPhone Safari
+// keeps delivering results for a moment after stop, and its 'end' event used to restart listening).
+var runId=0,lastTap=0;
+function toggleMic(){var now=Date.now();if(now-lastTap<500)return;lastTap=now;if(live)stopMic();else startMic();}
 function startMic(){
   if(!SR){keyboardFallback();return;}
-  try{
-    rec=new SR();rec.lang='en-US';rec.continuous=true;rec.interimResults=true;
-    var t=$('notes').value.trim();base=t?t+' ':'';
-    rec.onresult=function(e){
-      var finalTxt='',interim='';
-      for(var i=e.resultIndex;i<e.results.length;i++){var r=e.results[i];if(r.isFinal)finalTxt+=r[0].transcript;else interim+=r[0].transcript;}
-      if(finalTxt){base=base+finalTxt.trim()+' ';}
-      $('notes').value=(base+interim).replace(/^\s+/,'');$('f-notes').classList.remove('has-error');
+  var my=++runId;live=true;setMicUI(true);
+  base=$('notes').value.trim();base=base?base+' ':'';
+  function listen(){
+    if(!live||my!==runId)return;
+    var r;try{r=new SR();}catch(_){live=false;setMicUI(false);keyboardFallback();return;}
+    rec=r;r.lang='en-US';r.continuous=true;r.interimResults=true;
+    var start=base;
+    r.onresult=function(e){
+      if(!live||my!==runId||rec!==r)return;
+      var fin='',interim='';
+      for(var i=0;i<e.results.length;i++){var x=e.results[i];if(x.isFinal)fin+=x[0].transcript+' ';else interim+=x[0].transcript;}
+      var txt=(start+fin+interim).replace(/\s+/g,' ').replace(/^\s+/,'');
+      $('notes').value=txt;base=(start+fin).replace(/\s+/g,' ').replace(/^\s+/,'');if(base)base+=base.slice(-1)===' '?'':' ';
+      $('f-notes').classList.remove('has-error');
     };
-    rec.onerror=function(e){if(e.error==='not-allowed'||e.error==='service-not-allowed'){live=false;setMicUI(false);keyboardFallback();}};
-    // Phones stop listening after a pause — carry on until the mic is tapped again.
-    rec.onend=function(){if(live){try{rec.start();}catch(_){live=false;setMicUI(false);}}};
-    rec.start();live=true;setMicUI(true);
-  }catch(_){live=false;setMicUI(false);keyboardFallback();}
+    r.onerror=function(e){if(my!==runId)return;if(e.error==='not-allowed'||e.error==='service-not-allowed'){stopMic();keyboardFallback();}};
+    // Phones stop listening after a pause — start a fresh run until the mic is tapped off.
+    r.onend=function(){if(live&&my===runId&&rec===r)setTimeout(listen,250);};
+    try{r.start();}catch(_){live=false;setMicUI(false);keyboardFallback();}
+  }
+  listen();
 }
-function stopMic(){if(!live)return;live=false;setMicUI(false);try{rec&&rec.stop();}catch(_){}}
+function stopMic(){
+  live=false;runId++;setMicUI(false);
+  var r=rec;rec=null;
+  if(r){r.onresult=null;r.onend=null;r.onerror=null;try{r.abort();}catch(_){try{r.stop();}catch(__){}}}
+}
 
 // Send anything saved while offline
 var _flushing=false;
