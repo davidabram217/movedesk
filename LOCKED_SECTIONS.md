@@ -300,6 +300,7 @@ Test guard: `phase2_perday_training_test.js` (65 assertions — extraction, dedu
 - **2026-06-08** — AI quote "jobs used" readout: rebuilt the job card as flat block layout (NOT a locked-section change). The flex-based card (`display:flex` row with a `flex:1;min-width:0` content column + a `white-space:nowrap` "match · source" span) collapsed in the AI result panel — the content column shrank to near-zero and every word wrapped onto its own line in a narrow strip (two screenshots from David). Replaced with pure block flow: the checkbox is inline at the start of the name line (`vertical-align:middle`), the "match N · source" sits inline after the name, and the detail lines (date·size·sqft·vaults / move·pack·access·crew / quoted→actual / notes) are block divs indented `margin-left:24px`. Card has `overflow-wrap:anywhere;word-break:break-word`. No flex, no nowrap, no `justify-content:space-between` — fills the container width and wraps normally at any width. Checkbox `class="ai-job-incl" data-idx` and recalc wiring unchanged. ai_exclude_jobs_test.js still 19/19. All suites green.
 - **2026-06-08** — AI quote: volume guard on the neighbour pool (NOT a locked-section change). Reported: a 1-bed/800sqft/3-vault quote listed a 3-bed/1460sqft/8-vault job among its sources. Cause: neighbour selection took the top-8 same-move-type jobs by score with NO similarity floor, and the access+packing points can prop up a very different-sized job when there aren't 8 close matches. Fix: after the move-type filter, drop any job whose volume is more than VOL_RATIO_MAX (=2.2) × different from the quote — compared on vaults when both have them, else sqft (so the 8-vault job is excluded from a 3-vault quote: 8/3=2.67>2.2). If the guard empties the pool, it falls back to the same-type top-8 and flags `_volFallback` → header shows "· closest available differ in size". The vault/sqft regressions are intentionally NOT gated (they span all sizes to extrapolate); only the neighbour list/readout is tightened. VOL_RATIO_MAX is tunable. New `ai_volume_guard_test.js` (14 assertions). All suites green (volume 14, exclude 19, drive 16, movetype 19, sqft 17, subject 8, phase2 66, phone 10, goodwill 18).
 - **2026-06-08** — AI quote: rebalanced blend so matched jobs drive the estimate (NOT a locked-section change). Symptom: unchecking a job barely moved the number. Cause: the estimate leaned ~65% on the vaults/sqft regression (a volume-only trend line) and only ~35% on the neighbour jobs — and move type, access, driving, packing, AND the user's exclusions only affect the neighbour portion, so curation nudged just a third of the calc. Since neighbour selection is now strong (same-move-type hard filter + volume guard + work-hours cleaning + access/driving), the neighbours are the richer signal. Flipped the blend: `VAULT_WEIGHT` 0.65→0.35 and `SQFT_WEIGHT` 0.6→0.35, so the regression is a lighter assist (mainly for extrapolating to sizes with no close neighbours) and the matched jobs carry ~65%. Effect: exclusions now visibly move the number, and the owner's priority factors actually count. `ai_sqft_regression_test.js` weight assertion updated to 0.35 (still 17/17). All suites green (sqft 17, volume 14, exclude 19, drive 16, movetype 19, multiday 13, subject 8, phase2 66, phone 10, goodwill 18, quoted-hrs 7).
+- **2026-10-31** — AI quote: kitchen-only packing planned like a full pack (2-bed, 8 vaults, kitchen → a separate pack day with 3 packers). Packing scope only nudged the match score, so full-pack jobs were averaged at face value. Now (NOT a locked-section change): `_aiScopeRatio` converts past packing time to the quoted scope (kitchen ≈ 25% of a full pack, breakables/fragiles/partial ≈ 50%; no packing → 0); `_aiPackEstimate` uses only same-scope jobs when there are 2+, otherwise the converted ones (the job list shows "counted as ~X for this packing scope"); the one-crew move estimate adds past packing time at the same ratio. Kitchen-only now stays on move day. New `ai_kitchen_pack_test.js` (5/5; 4 fail before). Day plan tests still pass. Full suite before/after: no differences.
 - **2026-06-08** — AI quote: curation turns the trend line OFF (NOT a locked-section change). Reported: excluding all jobs but one small comparable made the price go UP. Cause: the vault/sqft regression is fit over ALL non-excluded training jobs — including ones never shown in the top-8 list, which the user cannot uncheck. So "exclude all but one" still left the regression (35%) computing from hidden jobs and pulling the estimate above the single chosen comparable. Fix: `const _curating=_aiExcludedKeys.size>0;` — the vault and sqft regression branches now require `!_curating`, so the moment the user excludes any job, the trend line is disabled and the curated neighbour list drives the estimate 100% (a fresh, un-curated quote still gets the trend line at 0.35 as a light assist). Header shows "· your picks only (trend line off)" when curating. `ai_sqft_regression_test.js` updated (now 18). All suites green (sqft 18, volume 14, exclude 19, drive 16, movetype 19, multiday 13, subject 8, phase2 66, phone 10, goodwill 18, quoted-hrs 7).
 
 ---
@@ -464,3 +465,76 @@ Lead intake/edit form is not a locked section; no unlock required.
 - **2026-06-30** — Unlocked Booking and Confirming Single-Day Move section (David's explicit unlock) to let the user EDIT extracted details in the paste preview before applying. Rewrote ONLY `_renderBookingExtractPreview(ex)` (turned every displayed value into an editable `<input>`/`<textarea>`) and added two new tiny helpers `_ptbEdit(key,val)` / `_ptbEditDay(i,key,val)` that write straight back to `window._ptbExtracted` (numeric keys coerced via Number, cleared → null) with NO re-render so focus is never lost. Every field is editable: customer name/phone/alt/email; per-day date/arrival/movers/hours-min/hours-max/rate/cash/from/to for multi-day, or the single-day schedule&rates; fuel/materials/deposit/drive time; size/packing/source (+ scope for single-day); and a full editable notes textarea. Because `applyBookingExtract` already reads `window._ptbExtracted`, edits flow through to the form automatically — no change to `applyBookingExtract`, `parsePasteToBooking`, the edge call, or any locked pipeline function. Extended `paste_to_booking_test.js` to 49 assertions (7 new: inputs render with `_ptbEdit`/`_ptbEditDay` handlers + pre-filled values; edits mutate `window._ptbExtracted` with correct numeric coercion, per-day targeting, and null-on-clear). Full sweep 1035/1035 green (with crash-detection: no suite silently errored). Section 3 RE-LOCKED. Deploy `index.html`.
 
 - **2026-06-30** — Unlocked Booking and Confirming Single-Day Move section (David's explicit unlock) to save the FULL original pasted text into the booking notes. Two app edits (both in the new, non-pipeline paste code): (1) `parsePasteToBooking` now sets `extracted.officeNotes = text` (the full raw paste) before rendering — so the editable preview's notes box shows the whole paste and the user can trim it; (2) `applyBookingExtract` now writes `ex.officeNotes` (the full paste) verbatim to `bj-office-notes` (appended to any existing office notes with a blank line), replacing the old labeled-bits builder (From/To/Size/Packing/Drive time/Alt phone/Source) since the raw paste already contains all of that. Net effect: nothing pasted is ever lost, and the AI is freed to focus purely on structured fields. Paired edge-function change (redeploy `parse-booking` to Supabase): `officeNotes` is now always null and the notes-gathering rules were removed — the DEDICATED-FIELDS-first rule (rates/movers/dates/fees always go in their own fields, even when labeled "previous") is kept. No locked pipeline function touched (confirmBooking/bookingNextDone/openConfirmEmail/etc. unchanged). Extended `paste_to_booking_test.js` to 52 assertions (full-paste-verbatim-to-notes + structural). Full sweep 1038/1038 green (crash-detected). Section 3 RE-LOCKED. Deploy `index.html` AND redeploy the `parse-booking` edge function.
+
+## Changelog — 2026-11-03 — Multi-day Complete Job form auto-saves (NOT a locked section)
+- Clicking out of the multi-day Complete Job form lost everything typed (opening it resets every field).
+- Now everything on the form (per-day hours, crews, split-crew segments, fees, added days, crew leader, notes, payment boxes) is saved on the booked job as `_completeMdDraft` ~0.6s after each change, and also when you click out mid-wait. It syncs with the job.
+- Reopening the form puts it all back, with a "↩ Restored what you'd entered" toast. Other jobs open blank.
+- Completing the job removes the booked job and its draft; the completed job does not carry the draft.
+- Code: `_cjmdSaveDraftNow`, `_cjmdAutoSave`, `_cjmdRestoreDraft` (before `openCompleteMultiDay`); a save hook in `calcMultiDayTotal`.
+
+- **2026-11-03** — Unlocked Booking and Confirming (owner's OK: "yes please change this and nothing else") to remove the duplicate day boxes on a quote-driven multi-day booking. The yellow multi-day box and the "Multi-day job" box both showed every day's fields, and on save the yellow list overwrote the lower box, so hours, movers or per-day addresses changed there were thrown away.
+  - Yellow box is now a read-only summary of what was quoted (date · hours · rate · movers per day) and keeps its tick boxes to drop a day.
+  - The Multi-day job box is the one place days are edited. Its rows are tagged with their quote day (`_qIdx`). Unticking a day removes its row, and Remove on a quoted row unticks it (`_bjLowerFromKept`, `removeBjDay`).
+  - `_bjApplyDroppedDays` now lays the box's days over the quoted days, so quote-only fields such as the pack crew are kept. The dropped-day flags and the booked quoted range are unchanged.
+  - Draft reopen puts the box's days back, including days added by hand.
+  - The Rates & fees hourly-rate boxes stay hidden for quoted multi-day, because Day 1's rate is in the day box.
+  - `multiday_booking_perday_test.js`: 7 assertions updated to the new layout. Same 2 failures as before. All other suites unchanged.
+  - Section 3 RE-LOCKED.
+
+## Changelog — 2026-11-03 — Vaults on multi-day completion + storage jobs feed the AI (NOT a locked section)
+- Multi-day Complete and Edit forms: the vaults box moved from the bottom ("Vaults used") up into Job context, next to Move type.
+  - It reads "Vaults out of storage" or "Vaults into storage" to match the move type, and plain "Vaults" otherwise.
+  - Half vaults are allowed.
+  - On Complete, it's pre-filled from the booking's volume (e.g. "5 vaults").
+- AI quote: new `_jobVaults(j,loose)`.
+  - On storage jobs (move type contains "storage"), the vault count entered at completion is used, even when the quote had no estimate.
+  - It wins over the quote's estimate, because the warehouse count is exact.
+  - Before this, vault matching and the vault trend lines read only the quote's estimate, so a completed storage job's real count was ignored.
+  - Non-storage jobs behave exactly as before.
+  - Used in `similarity`, `computeVaultRegression`, the crew-from-vaults regression, `_aiScaleToSize`, the volume guard, pack observations and the job list readout.
+- `ai_exclude_jobs_test.js`: 1 text check updated to the new filter line. Same 3 failures as before. All other suites unchanged.
+
+- **2026-11-03** — Unlocked Build and Send Quote (owner: "add it to everywhere we need to know the type of job") ONLY to add one option to the Quote Builder's `qb-move-type` list. Section 1 RE-LOCKED; nothing else in it changed.
+  - New job type **"Pack, move and unpack"** added to every move-type list: new lead `nl-move-type`, Quote Builder `qb-move-type`, AI quote `ai-movetype`, Complete `cj-movetype`, multi-day Complete `cjmd-movetype`, multi-day Edit `ecjmd-movetype`. Also added to `_MOVE_TYPE_CANONICAL`.
+  - It is its own type with its own key, not merged into "Pack and move".
+  - AI quote: while this type has fewer than 3 past jobs, "Pack and move" jobs join the pool. They are listed under their own type and can be unticked. Those jobs don't include unpacking time.
+  - Tests updated to 11 types: `job_type_options_test.js` 51/51, `unload_pod_move_type_test.js` 37/37. All other suites unchanged.
+
+## Changelog — 2026-11-03 — Bookings in progress no longer lose their ticks (NOT a locked section)
+Found investigating Nicole Chanel: her lead recorded the confirmation email, but her booking draft lost both its "email sent" and "calendar added" ticks and sat in Leads as Quote accepted.
+- **Dashboard wiped drafts.** `renderDashboard` deleted EVERY `_draft` booking from this device each time it drew, with no cloud delete. The next refresh pulled the older cloud copy back without the ticks.
+  - Now a draft is only dropped when its lead is gone or marked Did not book, or the same booking is already committed.
+  - The Booked jobs count and the Upcoming list skip drafts, as they effectively did before.
+- **Booked jobs had no sync protection.** Leads, quotes and completed jobs had it.
+  - `saveDB` now stamps `_localEditedAt` on booked jobs.
+  - The refresh merge (`mergeTable(...,'bookedJobs')`) keeps a newer local edit.
+  - Page load keeps this device's copy when it was edited after the cloud's, then re-uploads it. It never resurrects a booking the cloud no longer has.
+- `completed_sync_durability_test.js`: 2 text checks updated for the shared guard (9/9). New browser test (5/5) covers stale-cloud refresh and reload, a newer edit from another device still winning, and a deleted booking not coming back. All other suites unchanged.
+
+## Changelog — 2026-11-09 — Phone quick-lead app (NOT a locked section)
+- **New file `quick-lead.html`:** a phone home-screen app for logging a call in about 10 seconds.
+  - Fields: name, phone, and a big notes box (use the keyboard mic). Optional extras: move date, size, job type, from/to, email, source.
+  - Asks once per phone who's using it, and sends that as "Call taken by".
+  - Posts to the same `pending_leads` inbox as the website quote form.
+  - No signal: the lead is kept on the phone and sent automatically later. A list shows what was sent.
+- **MoveDesk `importPendingLeads`:**
+  - Keeps `takenBy` for phone leads. The website form still sets none.
+  - Marks phone leads `fromPhoneQuickLead`, and `fromQuoteForm` stays false for them.
+  - The toast counts phone leads.
+- **MoveDesk notice:** reads "new lead(s) from the website or phone app". `checkPendingLeads` now also runs every 5 minutes and when you return to the tab, so phone leads appear without a reload.
+- New browser test: 12/12, covering the phone flow, the offline queue, and the import into MoveDesk. All other suites unchanged.
+
+## Changelog — 2026-11-09 — Phone app: no "who took the call" (owner's request)
+- `quick-lead.html` no longer asks for a name on first open and no longer sends `takenBy`. It opens straight to the New lead form. The lead form's "Call taken by" box stays hidden.
+
+## Changelog — 2026-11-09 — Phone app: tap the mic and talk, nothing required (owner's request)
+- **`quick-lead.html`:**
+  - Opens on one big 🎤 button. Tap, say everything about the call, and the words appear live in the box. Tap again to stop. It keeps listening through pauses.
+  - Uses the phone's own speech-to-text. Where the phone won't allow it, it points to the keyboard's 🎤 instead.
+  - Nothing is required. Name, phone and the other details moved under "+ Add details by hand (optional)". Only a completely empty lead is refused.
+- **MoveDesk `importPendingLeads`:**
+  - New `_quickLeadEnrich` reads phone leads' spoken notes with the "Paste from email" reader (the `parse-lead` AI first, then `extractLeadFromText`). It fills only empty fields: name, phone, email, date, from/to, size, job type, source, packing, storage.
+  - The full spoken text stays in office notes.
+  - A lead with no name still gets one: "Phone lead <date time>".
+- New browser test: 12/12. All other suites unchanged.

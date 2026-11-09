@@ -111,7 +111,7 @@ input[type=number]{-moz-appearance:textfield}
 </nav>
 <div class="main">
 <div id="pending-leads-notice" style="display:none;background:#2d6a4f;color:#fff;padding:10px 20px;align-items:center;gap:12px;font-size:13px;flex-shrink:0">
-  <span>📋 <strong><span id="pending-count">0</span> new quote form submission(s)</strong> waiting to be imported</span>
+  <span>📋 <strong><span id="pending-count">0</span> new lead(s)</strong> from the website or phone app waiting to be imported</span>
   <button onclick="importPendingLeads()" style="background:#fff;color:#2d6a4f;border:none;border-radius:4px;padding:5px 14px;font-size:12.5px;font-weight:600;cursor:pointer">Import now</button>
 </div>
   <div class="topbar">
@@ -16366,12 +16366,47 @@ function importData(){
   }
 }
 
+// Phone quick-lead (2026-11-09): the office records the whole call by voice, so a lead may arrive as
+// nothing but spoken notes. Read name, number, dates, addresses, size and source out of them with the
+// same reader the "Paste from email" box uses (AI first, basic parser if that's unavailable), filling
+// only what's still empty. The full spoken text always stays in office notes.
+async function _quickLeadEnrich(d){
+  if(!d||!d.quickLead||!d.notes||String(d.notes).trim().length<8)return d;
+  let x=null;
+  try{
+    const ctl=typeof AbortController!=='undefined'?new AbortController():null;
+    const tm=ctl?setTimeout(()=>ctl.abort(),15000):null;
+    const r=await fetch(SUPABASE_URL+'/functions/v1/parse-lead',{method:'POST',signal:ctl?ctl.signal:undefined,
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+      body:JSON.stringify({text:d.notes})});
+    if(tm)clearTimeout(tm);
+    const j=await r.json();if(r.ok&&j&&j.ok)x=j.extracted;
+  }catch(_){}
+  if(!x){try{x=extractLeadFromText(d.notes);}catch(_){x=null;}}
+  if(!x||typeof x!=='object')return d;
+  const opt=(selId,v)=>{if(!v)return '';const el=document.getElementById(selId);if(!el)return v;const t=String(v).toLowerCase().trim();
+    const o=[...el.options].find(o=>o.value&&(o.value.toLowerCase()===t||o.text.toLowerCase()===t));return o?o.value:'';};
+  const fill=(k,v)=>{if(v!=null&&v!==''&&!d[k])d[k]=v;};
+  const withCity=(a,c)=>{a=(a||'').trim();c=(c||'').trim();if(c&&a.toLowerCase().indexOf(c.toLowerCase())===-1)a=a?a+', '+c:c;return a;};
+  fill('name',x.name);fill('phone',x.phone);fill('email',x.email);
+  if(x.moveDate&&/^\d{4}-\d{2}-\d{2}$/.test(String(x.moveDate)))fill('date',x.moveDate);
+  fill('from',withCity(x.fromAddress,x.fromCity));fill('fromZip',x.fromZip);
+  fill('to',withCity(x.toAddress,x.toCity));fill('toZip',x.toZip);
+  fill('size',opt('nl-size',x.size));
+  fill('moveType',x.moveType?(typeof _canonMoveTypeLabel==='function'?_canonMoveTypeLabel(x.moveType):x.moveType):'');
+  fill('source',opt('nl-source',x.source));fill('sourceDetail',x.sourceDetail);
+  if(x.packing&&typeof _canonPackingValue==='function')fill('packing',_canonPackingValue(x.packing));
+  if(x.storage)fill('storage',true);
+  return d;
+}
 async function importPendingLeads(){
   try{
     const rows=await sbFetch('pending_leads?select=id,data&order=created_at.asc');
     const localPending=JSON.parse(localStorage.getItem('caremore-pending-leads')||'[]');
     const allPending=[...(rows||[]).map(r=>({...r.data,_sbId:r.id})),...localPending];
     if(!allPending.length){showToast('No pending quote form submissions found.');return;}
+    if(allPending.some(d=>d&&d.quickLead&&!d.name))showToast('Reading the phone leads\u2026');
+    for(const d of allPending){try{await _quickLeadEnrich(d);}catch(_){}}
     // Repeat-customer detection: matched on phone against completed/booked jobs.
     // (No dedup — every submission becomes a lead. Use "Clear all" to discard test data.)
     const phoneNorm=s=>String(s||'').replace(/\D/g,'');
@@ -16386,7 +16421,7 @@ async function importPendingLeads(){
       if(isRepeat)repeatCount++;
       const lead={
         id:uid(),
-        name:d.name||((d.firstName||'')+' '+(d.lastName||'')).trim(),
+        name:d.name||((d.firstName||'')+' '+(d.lastName||'')).trim()||(d.quickLead?('Phone lead '+new Date(d.submittedAt||Date.now()).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})):''),
         phone:d.phone||'',
         email:d.email||'',
         source:isRepeat?'Repeat customer':(d.source||''),
@@ -16425,7 +16460,8 @@ async function importPendingLeads(){
         // or confirmation emails — those will be composed fresh by the office.
         notes:'',
         officeNotes:d.notes||'',
-        takenBy:'',
+        // Phone quick-lead page (2026-11-09) sends who took the call; the website form never does.
+        takenBy:d.quickLead?(d.takenBy||''):'',
         estimateType:'',estimateDate:'',estimateQuote:'',estimateNotes:'',
         status:'New',
         // Keep the FULL timestamp (2026-08-19). This used to `.split('T')[0]` and throw the time
@@ -16433,7 +16469,8 @@ async function importPendingLeads(){
           // recorded only the day while manually-added ones (saveLead) kept the minute. Knowing a
           // lead landed at 11pm on a Sunday is exactly the kind of thing worth knowing.
           createdAt:(d.submittedAt||new Date().toISOString()),
-        fromQuoteForm:true,
+        fromQuoteForm:!d.quickLead,
+        fromPhoneQuickLead:!!d.quickLead,
         repeatCustomer:isRepeat||false
       };
       db.leads.push(lead);imported++;
@@ -16443,7 +16480,8 @@ async function importPendingLeads(){
     }
     localStorage.removeItem('caremore-pending-leads');
     saveDB();renderLeads();renderDashboard();
-    let msg=`✓ ${imported} lead${imported!==1?'s':''} imported from quote form`;
+    const _phoneN=allPending.filter(d=>d&&d.quickLead).length;
+    let msg=`✓ ${imported} lead${imported!==1?'s':''} imported`+(_phoneN?` (${_phoneN} from the phone app)`:' from quote form');
     if(repeatCount)msg+=` · ${repeatCount} repeat customer${repeatCount!==1?'s':''} 👋`;
     showToast(msg);
     document.getElementById('pending-leads-notice').style.display='none';
@@ -23064,6 +23102,10 @@ window.deleteLead=deleteLead;
   checkAcceptedQuotes();
   // Poll for accepted quotes every 2 minutes
   setInterval(function(){ if(document.hidden)return; checkAcceptedQuotes(); }, 5*60*1000);
+  // New leads from the website form or the phone quick-lead page (2026-11-09): look again every 5
+  // minutes and when you come back to the tab, so "Import now" appears without a page reload.
+  setInterval(function(){ if(document.hidden)return; checkPendingLeads(); }, 5*60*1000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden)checkPendingLeads(); });
   document.getElementById('page-title').textContent='Dashboard';
   document.getElementById('page-sub').textContent='Your business at a glance';
 })();
