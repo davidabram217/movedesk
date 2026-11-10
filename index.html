@@ -9998,6 +9998,17 @@ function buildCrewCoverSheet(j,l){
   if(unloadBits.length)put('UNLOAD: '+unloadBits.join(' / '));
   if(loadBits.length||unloadBits.length)gap();
 
+  // 6+7 FROM THE EMAIL ACTUALLY SENT (2026-11-10, owner unlock). When the confirmation email was sent
+  // from MoveDesk, its "Here are the details as I understand them" section (captured at send time as
+  // _sentDetailsBlock, including anything typed into it by hand) replaces When/From/To and Rates &
+  // fees word for word, so the crew sees exactly what the customer was told. No sent email → the
+  // sections are built from the booking as before.
+  const _sentBlk=n(j._sentDetailsBlock);
+  if(_sentBlk){
+    put('AS SENT TO CUSTOMER');
+    _sentBlk.split('\n').forEach(x=>put(x.replace(/\s+$/,'')));
+    if(Number(j.doNotExceed)&&!/exceed/i.test(_sentBlk))put('DO NOT EXCEED: '+_csMoney2(j.doNotExceed));
+  }else{
   // 6. When / from / to, in the order the crew will visit.
   if(j.date)put('WHEN: '+_csDate(j.date)+(n(j.time)?', arriving between '+n(j.time):''));
   if(n(j.from))put('FROM: '+n(j.from));
@@ -10045,6 +10056,7 @@ function buildCrewCoverSheet(j,l){
   put('Return drive time back to warehouse at completion of unload');
   if(j.storage||(l&&l.storage))put('Storage costs: $120.00 per month per 5x7x8 container used');
   if(Number(j.doNotExceed))put('DO NOT EXCEED: '+_csMoney2(j.doNotExceed));
+  }
 
   // 8. Special crew instructions.
   const bill=_csLines(j.billingAlerts);
