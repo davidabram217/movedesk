@@ -10003,10 +10003,19 @@ function buildCrewCoverSheet(j,l){
   // _sentDetailsBlock, including anything typed into it by hand) replaces When/From/To and Rates &
   // fees word for word, so the crew sees exactly what the customer was told. No sent email → the
   // sections are built from the booking as before.
+  // Crew line, worked out once — used by the sent-email branch and the booking branch below.
+  const _cnote=_crewNote(j)||_crewNote((j.quoteDays&&j.quoteDays[0])||{});
+  const crew=((j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
+    ?((j.crewLoad||j.movers||'?')+' men for load / '+(j.crewUnload||j.movers||'?')+' for unload')
+    :((j.movers||'?')+' men'))+_cnote;
   const _sentBlk=n(j._sentDetailsBlock);
   if(_sentBlk){
     put('AS SENT TO CUSTOMER');
     _sentBlk.split('\n').forEach(x=>put(x.replace(/\s+$/,'')));
+    // Flat-rate emails don't say how many movers are coming — the crew still needs to know.
+    if(!/\b(movers?|men)\b/i.test(_sentBlk)&&(j.movers||j.crewLoad)){
+      put(crew);
+    }
     if(Number(j.doNotExceed)&&!/exceed/i.test(_sentBlk))put('DO NOT EXCEED: '+_csMoney2(j.doNotExceed));
   }else{
   // 6. When / from / to, in the order the crew will visit.
@@ -10020,10 +10029,6 @@ function buildCrewCoverSheet(j,l){
   // 7. Rates exactly as provided — nothing invented.
   // Crew note carried through from the quote day so the crew sheet says the same thing the
   // customer was told — "4 men — packing all day" rather than a bare headcount.
-  const _cnote=_crewNote(j)||_crewNote((j.quoteDays&&j.quoteDays[0])||{});
-  const crew=((j.crewDiff&&(j.crewLoad||j.crewUnload)&&String(j.crewLoad)!==String(j.crewUnload))
-    ?((j.crewLoad||j.movers||'?')+' men for load / '+(j.crewUnload||j.movers||'?')+' for unload')
-    :((j.movers||'?')+' men'))+_cnote;
   if(j.flatRate&&Number(j.flatPrice)){
     put((n(j.flatDescription)||'Move services')+': '+_csMoney2(j.flatPrice)+' flat rate'
       +(Number(j.flatPriceCash)?' ('+_csMoney2(j.flatPriceCash)+' cash rate)':''));
@@ -10109,6 +10114,25 @@ function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
   const bring=_csLines(j.bringList);
   if(bring.length){put('BRING: '+bring.join(' / ').toUpperCase());gap();}
 
+  // ALL DAYS FROM THE EMAIL ACTUALLY SENT (2026-11-10, owner's request). When the confirmation email
+  // went out from MoveDesk, every day's entry shows the whole "details as I understand them" section
+  // — all days, word for word, including hand-typed changes — instead of this day's When / From / To
+  // and Rates & fees. Parking and access for THIS day stay, since the email doesn't carry them.
+  // No sent email → the day's sections are built from the booking as before.
+  const _sentAll=n(j._sentDetailsBlock);
+  if(_sentAll){
+    const _ld=(D.loads&&D.loads[0])||{},_ud=(D.unloads&&D.unloads[0])||{};
+    const _lp=[n(_ld.parking)||n(D.fromParking)||n(j.parkingLoad),n(_ld.access)||n(D.fromAccess)||n(D.fromFloor)||n(j.accessLoad)].filter(Boolean);
+    const _up=[n(_ud.parking)||n(D.toParking)||n(j.parkingUnload),n(_ud.access)||n(D.toAccess)||n(D.toFloor)||n(j.accessUnload)].filter(Boolean);
+    if(_lp.length)put('LOAD: '+_lp.join(' / '));
+    if(_up.length)put('UNLOAD: '+_up.join(' / '));
+    if(_lp.length||_up.length)gap();
+    put('AS SENT TO CUSTOMER — ALL DAYS');
+    _sentAll.split('\n').forEach(x=>put(x.replace(/\s+$/,'')));
+    // Flat-rate wording doesn't say how many movers — add this day's crew so the crew knows.
+    if(!/\b(movers?|men)\b/i.test(_sentAll)&&(D.crew||j.movers))put('THIS DAY: '+(D.crew||j.movers)+' men');
+    if(dayNum===totalDays&&Number(j.doNotExceed)&&!/exceed/i.test(_sentAll))put('DO NOT EXCEED (WHOLE JOB): '+_csMoney(j.doNotExceed)+' + 3.5% card fee (no fee for check)');
+  }else{
   // Addresses: the day's own loads/unloads first, then its from/to, then the job's.
   const _loads=(D.loads&&D.loads.length)?D.loads:[{address:n(D.from)||n(j.from),parking:n(D.fromParking),access:n(D.fromAccess)||n(D.fromFloor)}];
   // An EXPLICITLY empty day.to means this day has no delivery — a packing day, or a load-only
@@ -10162,6 +10186,7 @@ function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
   if(_fuel)put(_csMoney(_fuel)+' Fuel Fee');
   put('Return drive time back to warehouse at completion (30-minute minimum)');
   if(dayNum===totalDays&&Number(j.doNotExceed))put('DO NOT EXCEED (WHOLE JOB): '+_csMoney(j.doNotExceed)+' + 3.5% card fee (no fee for check)');
+  }
 
   const bill=_csLines(j.billingAlerts);
   if(bill.length){gap();bill.forEach(b=>put(b.toUpperCase()));}
