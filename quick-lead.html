@@ -53,6 +53,12 @@ textarea{min-height:120px;resize:vertical;line-height:1.45}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,57,43,.45)}70%{box-shadow:0 0 0 22px rgba(192,57,43,0)}100%{box-shadow:0 0 0 0 rgba(192,57,43,0)}}
 .mic-label{font-size:16px;font-weight:600;margin-top:12px}
 .mic-sub{font-size:13px;color:var(--text3);margin-top:4px;line-height:1.4}
+.sum-row{display:none;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.sum-row.show{display:flex}
+.sum-btn{font:inherit;font-size:15px;font-weight:600;padding:10px 14px;border-radius:12px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent)}
+.sum-btn:disabled{opacity:.6}
+.sum-note{font-size:13px;color:var(--text2);flex:1 1 100%}
+.link-btn{font:inherit;font-size:13.5px;background:none;border:none;color:var(--accent);text-decoration:underline;padding:4px 0}
 .banner{display:none;background:var(--amber-light);color:var(--amber);border:1px solid #f0d080;border-radius:12px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
 </style>
 </head>
@@ -70,7 +76,12 @@ textarea{min-height:120px;resize:vertical;line-height:1.45}
         <div class="mic-label" id="mic-label">Tap and talk</div>
         <div class="mic-sub" id="mic-sub">Say everything about the call — name, number, where, when, size, how they found us.</div>
       </div>
-      <div class="field" id="f-notes" style="margin-top:14px"><textarea id="notes" placeholder="What you say shows up here. You can also type, or use the 🎤 on your keyboard."></textarea><div class="err">Say or type something first</div></div>
+      <div class="field" id="f-notes" style="margin-top:14px"><textarea id="notes" placeholder="What you say shows up here. You can also type, or use the 🎤 on your keyboard."></textarea><div class="err">Say or type something first</div>
+        <div class="sum-row" id="sum-row">
+          <button type="button" class="sum-btn" id="sum-btn" onclick="summarizeCall()">✨ Summarize the call</button>
+          <button type="button" class="link-btn" id="sum-undo" style="display:none" onclick="undoSummary()">Show the full call instead</button>
+          <div class="sum-note" id="sum-note"></div>
+        </div></div>
     </div>
 
     <details class="card more" id="more">
@@ -119,6 +130,11 @@ textarea{min-height:120px;resize:vertical;line-height:1.45}
 var SUPABASE_URL='https://oohqrvjhncssasjqkrzl.supabase.co';
 var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vaHFydmpobmNzc2FzanFrcnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDY2MzIsImV4cCI6MjA5MDM4MjYzMn0.x9N_sTjBRmSrxD-LVatV9hcpPLCuWtQh6-lIMMYfxLI';
 var K_QUEUE='cm-quick-queue',K_RECENT='cm-quick-recent';
+// Long calls (2026-11-16): a call recorded on speaker can run to pages. "Summarize the call" asks the
+// summarize-call function for a short office summary; the summary is what gets saved as the notes and
+// the FULL transcript is saved alongside it, so nothing is lost. Undo puts the full call back.
+var transcript='',summarized=false,sumMsg='';
+var SUM_MIN=400;   // characters before the Summarize button appears (roughly a minute of talking)
 
 function ls(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k)||'null');localStorage.setItem(k,JSON.stringify(v));}catch(_){return null;}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
@@ -154,6 +170,7 @@ function collect(){
     to:$('to').value.trim(),
     source:src,
     notes:notes,
+    transcript:(summarized&&transcript)?transcript:'',
     quickLead:true,
     submittedAt:new Date().toISOString()
   };
@@ -204,8 +221,8 @@ function sendLead(){
     $('done-text').textContent='No connection right now — it will send by itself next time you open this with signal.';
   }).finally(function(){btn.disabled=false;btn.textContent='Save lead';show('done');});
 }
-function newLead(){$('lead-form').reset();document.querySelectorAll('.chip.on').forEach(function(c){c.classList.remove('on');});
-  $('more').open=false;document.querySelectorAll('.has-error').forEach(function(f){f.classList.remove('has-error');});show('app');}
+function newLead(){transcript='';summarized=false;sumMsg='';$('notes').style.height='';$('lead-form').reset();document.querySelectorAll('.chip.on').forEach(function(c){c.classList.remove('on');});
+  $('more').open=false;document.querySelectorAll('.has-error').forEach(function(f){f.classList.remove('has-error');});show('app');refreshSumRow();}
 
 // ── Tap and talk ─────────────────────────────────────────────────────────────────────────────
 // Uses the phone's own speech-to-text (Chrome on Android, Safari on iPhone). Words appear in the box
@@ -239,7 +256,7 @@ function startMic(){
       for(var i=0;i<e.results.length;i++){var x=e.results[i];if(x.isFinal)fin+=x[0].transcript+' ';else interim+=x[0].transcript;}
       var txt=(start+fin+interim).replace(/\s+/g,' ').replace(/^\s+/,'');
       $('notes').value=txt;base=(start+fin).replace(/\s+/g,' ').replace(/^\s+/,'');if(base)base+=base.slice(-1)===' '?'':' ';
-      $('f-notes').classList.remove('has-error');
+      $('f-notes').classList.remove('has-error');refreshSumRow();
     };
     r.onerror=function(e){if(my!==runId)return;if(e.error==='not-allowed'||e.error==='service-not-allowed'){stopMic();keyboardFallback();}};
     // Phones stop listening after a pause — start a fresh run until the mic is tapped off.
@@ -253,6 +270,31 @@ function stopMic(){
   var r=rec;rec=null;
   if(r){r.onresult=null;r.onend=null;r.onerror=null;try{r.abort();}catch(_){try{r.stop();}catch(__){}}}
 }
+
+function refreshSumRow(){
+  var t=$('notes').value.trim();
+  var show=summarized||t.length>=SUM_MIN;
+  $('sum-row').classList.toggle('show',show);
+  $('sum-btn').style.display=summarized?'none':'';
+  $('sum-undo').style.display=summarized?'':'none';
+  if(!summarized)$('sum-note').textContent=sumMsg||(show?'Long call? Get a short summary first — the full call is kept with the lead.':'');
+}
+$('notes').addEventListener('input',function(){sumMsg='';if(summarized&&$('notes').value.trim()===''){summarized=false;transcript='';}refreshSumRow();});
+function summarizeCall(){
+  stopMic();
+  var t=$('notes').value.trim();if(!t)return;
+  sumMsg='';var b=$('sum-btn');b.disabled=true;b.textContent='Summarizing…';$('sum-note').textContent='';
+  var ctl=window.AbortController?new AbortController():null;var tm=ctl?setTimeout(function(){ctl.abort();},45000):null;
+  fetch(SUPABASE_URL+'/functions/v1/summarize-call',{method:'POST',signal:ctl?ctl.signal:undefined,
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+    body:JSON.stringify({text:t})})
+  .then(function(r){return r.json().then(function(j){if(!r.ok||!j.ok||!j.summary)throw new Error(j.error||('HTTP '+r.status));return j.summary;});})
+  .then(function(sum){transcript=t;summarized=true;$('notes').value=sum;var _n=$('notes');_n.style.height='auto';_n.style.height=Math.min(_n.scrollHeight+4,520)+'px';_n.scrollTop=0;
+    $('sum-note').textContent='✓ Summary above — edit it if anything\u2019s off. The full call is saved with the lead too.';})
+    .catch(function(){sumMsg='Couldn\u2019t summarize right now (no signal, or the summary service isn\u2019t set up yet). You can still save the full call.';})
+  .finally(function(){if(tm)clearTimeout(tm);b.disabled=false;b.textContent='✨ Summarize the call';refreshSumRow();});
+}
+function undoSummary(){if(!summarized)return;$('notes').value=transcript;$('notes').style.height='';summarized=false;transcript='';refreshSumRow();}
 
 // Send anything saved while offline
 var _flushing=false;
