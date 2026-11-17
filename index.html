@@ -870,7 +870,27 @@ input[type=number]{-moz-appearance:textfield}
           <div class="card-title">📊 Reply results</div>
           <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Goal: get them on the phone, get their number, get a video, or schedule an estimate. Mark each saved reply when you know what happened.</div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="exportAgentTestSet()" title="Download the test set — used to test new reply instructions">⬇ Export</button></div>
+        <div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="openAddPastAgent()">➕ Add a past email</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportAgentTestSet()" title="Download the test set — used to test new reply instructions">⬇ Export</button></div></div>
+        <div id="ar-past-form" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2)">
+          <div style="font-size:12.5px;font-weight:600;margin-bottom:8px">Add an enquiry you've already answered</div>
+          <div class="form-group"><label>Paste the whole email thread <span style="font-size:10.5px;color:var(--text3);font-weight:400">— straight from Gmail; it's split into their email and our reply below. Check them, then save.</span></label>
+            <textarea id="arp-thread" style="min-height:90px;font-size:12px" placeholder="Paste the whole conversation…" oninput="_arpSplitThread()"></textarea>
+            <div id="arp-split-note" style="font-size:11.5px;color:var(--text3);margin-top:4px"></div></div>
+          <div class="form-grid form-grid-2">
+            <div class="form-group"><label>What they sent</label><textarea id="arp-enquiry" style="min-height:160px;font-size:12px" placeholder="Paste the AI agent's enquiry…"></textarea></div>
+            <div class="form-group"><label>What we replied</label><textarea id="arp-reply" style="min-height:160px;font-size:12px" placeholder="Paste the reply you sent…"></textarea></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:12.5px;font-weight:600">What happened <select id="arp-outcome" style="margin-left:6px;font-size:12.5px"></select></label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="arp-booked"> Booked the move</label>
+            <input type="date" id="arp-date" title="When we replied (optional)" style="font-size:12.5px;width:auto">
+            <button class="btn btn-primary btn-sm" onclick="saveAddPastAgent(false)">Save</button>
+            <button class="btn btn-secondary btn-sm" onclick="saveAddPastAgent(true)">Save &amp; add another</button>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ar-past-form').style.display='none'">Close</button>
+            <span id="arp-note" style="font-size:12px;color:var(--accent)"></span>
+          </div>
+        </div>
         <div class="card-body" id="ar-results"><div style="font-size:12.5px;color:var(--text3)">Nothing saved yet.</div></div>
       </div>
     </div>
@@ -5668,6 +5688,75 @@ function renderAgentResults(){
       +'<td style="text-align:center"><input type="checkbox" '+(r.booked?'checked':'')+' onchange="setAgentBooked(\''+r.id+'\',this.checked)"></td>'
       +'<td><button class="btn btn-danger btn-sm" onclick="deleteAgentTest(\''+r.id+'\')">\u2715</button></td></tr>').join('')
     +'</tbody></table></div>';
+}
+// Past emails (2026-11-17): enquiries already answered by hand, with the outcome known. Same rows as
+// "Save to test set", marked version 'past (by hand)' so they're kept apart from AI-drafted replies.
+function openAddPastAgent(){
+  const f=document.getElementById('ar-past-form');if(!f)return;
+  const sel=document.getElementById('arp-outcome');
+  if(sel&&!sel.options.length)sel.innerHTML=_AR_OUTCOMES.map(([v,l])=>'<option value="'+v+'">'+l+'</option>').join('');
+  f.style.display='';setTimeout(()=>{const e=document.getElementById('arp-thread');if(e)e.focus();},50);
+}
+// Split a pasted Gmail thread (2026-11-17). Gmail copies each message as a sender line
+// "Name <email>", a date line, a "to …" line, then the body. The FIRST message not from CareMore is
+// their enquiry; the first CareMore message after it is our reply. Anything the customer wrote after
+// that suggests the outcome (a phone number → "gave their number", a video → "sent a video").
+const _AR_OUR_DOMAIN=/caremoremoving\.com|caremore/i;
+function _arpParseThread(text){
+  const lines=String(text||'').replace(/\r/g,'').split('\n');
+  const hdr=/^\s*(.{1,80}?)\s*<([^<>\s]+@[^<>\s]+)>\s*$/;
+  const msgs=[];let cur=null;
+  for(let i=0;i<lines.length;i++){
+    const m=lines[i].match(hdr);
+    if(m){cur={from:m[1].trim(),email:m[2].trim(),body:[]};msgs.push(cur);
+      // Skip the date line and the "to me" / "to Phil" line that Gmail puts right after the sender.
+      let k=i+1;let skipped=0;
+      while(k<lines.length&&skipped<3){const t=lines[k].trim();
+        if(!t||/^(mon|tue|wed|thu|fri|sat|sun)\b|\d{1,2}:\d{2}\s*(am|pm)|\bago\)?$|^(to|cc)\b\s/i.test(t)){k++;if(t)skipped++;}else break;}
+      i=k-1;continue;}
+    if(cur)cur.body.push(lines[i]);
+  }
+  const clean=m=>m.body.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  const isUs=m=>_AR_OUR_DOMAIN.test(m.email)||_AR_OUR_DOMAIN.test(m.from);
+  const firstThem=msgs.findIndex(m=>!isUs(m));
+  if(firstThem<0)return null;
+  const firstUs=msgs.findIndex((m,i)=>i>firstThem&&isUs(m));
+  const later=firstUs>=0?msgs.slice(firstUs+1).filter(m=>!isUs(m)).map(clean).join('\n'):'';
+  let outcome='';
+  if(firstUs>=0){
+    if(/\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/.test(later))outcome='number';
+    else if(/\bvideo|\bphotos?\b|\bpictures?\b/i.test(later))outcome='video';
+    else if(/\b(schedul|walkthrough|survey|estimate)\w*\b.*\b(at|on)\b/i.test(later))outcome='estimate';
+    else if(!later.trim())outcome='noreply';
+  }
+  return {enquiry:clean(msgs[firstThem]),reply:firstUs>=0?clean(msgs[firstUs]):'',outcome,messages:msgs.length,laterFromThem:!!later.trim()};
+}
+function _arpSplitThread(){
+  const g=id=>document.getElementById(id);
+  const r=_arpParseThread(g('arp-thread').value);
+  const note=g('arp-split-note');
+  if(!r){if(note)note.textContent=g('arp-thread').value.trim()?'Couldn\u2019t find the sender lines \u2014 paste their email and our reply into the boxes below instead.':'';return;}
+  g('arp-enquiry').value=r.enquiry;g('arp-reply').value=r.reply;
+  const oc=g('arp-outcome');if(oc&&!oc.options.length)openAddPastAgent();
+  if(oc&&r.outcome)oc.value=r.outcome;
+  const lbl=(_AR_OUTCOMES.find(o=>o[0]===r.outcome)||[,''])[1];
+  if(note)note.textContent='\u2713 Found '+r.messages+' message'+(r.messages===1?'':'s')+(r.reply?'':' \u2014 no reply from us found, paste it below')
+    +(r.outcome?' \u00b7 suggested outcome: '+lbl+' (check it)':(r.laterFromThem?' \u00b7 they wrote back \u2014 choose what happened':''));
+}
+function saveAddPastAgent(again){
+  const g=id=>document.getElementById(id);
+  const enquiry=(g('arp-enquiry').value||'').trim(),reply=(g('arp-reply').value||'').trim();
+  if(!enquiry||!reply){showToast('Paste both what they sent and what we replied.');return;}
+  const set=_arTestSet();
+  if(set.some(r=>r.enquiry===enquiry.slice(0,6000))){showToast('That enquiry is already in the test set.');return;}
+  const d=g('arp-date').value;
+  set.unshift({id:uid(),savedAt:d?d+'T12:00:00.000Z':new Date().toISOString(),enquiry:enquiry.slice(0,6000),aiDraft:'',
+    sentReply:reply.slice(0,8000),notes:'',version:'past (by hand)',edited:false,
+    outcome:g('arp-outcome').value||'',outcomeAt:g('arp-outcome').value?new Date().toISOString():'',booked:!!g('arp-booked').checked});
+  db.settings.agentTestSet=set.slice(0,150);saveDB();renderAgentResults();
+  g('arp-thread').value='';g('arp-split-note').textContent='';g('arp-enquiry').value='';g('arp-reply').value='';g('arp-outcome').value='';g('arp-booked').checked=false;g('arp-date').value='';
+  g('arp-note').textContent='\u2713 Saved ('+set.length+' in the test set)';
+  if(again)g('arp-thread').focus();else g('ar-past-form').style.display='none';
 }
 function exportAgentTestSet(){
   const set=_arTestSet();if(!set.length){showToast('Nothing to export yet.');return;}
