@@ -1,6 +1,10 @@
 // supabase/functions/agent-reply/index.ts
 // Drafts a reply to a customer's moving enquiry (including ones written by an AI assistant).
 // Instructions updated 2026-10-06: published rates, fees and quoting rules; short replies; "Thanks, CareMore Moving".
+// 2026-11-17: THE GOAL section — every reply works toward a call, their number, a video, or a
+// scheduled estimate. Replies carry INSTRUCTIONS_VERSION so MoveDesk can track which wording wins.
+// The request may include `extraInstructions` (used by the test loop to try a variation without
+// redeploying); they are added after the main instructions and can never override facts or prices.
 //
 // Deploy alongside the existing parse-lead function — it uses the same ANTHROPIC_API_KEY secret,
 // so no new configuration is needed.
@@ -22,6 +26,8 @@ SERVICE AREA
 - We do NOT do interstate moves. If the move leaves California, say so plainly, then offer what we
   CAN do: pack, move out, hold everything in our own San Francisco warehouse, and load it onto the
   interstate carrier or one-way rental truck the customer arranges.
+- We do NOT ship items out of state or to other countries. If they ask about shipping, say so
+  plainly, then offer to help with the loading and coordinating with their shipper if needed.
 
 RATES (same price weekdays and weekends)
 - 2 movers + truck: $150/hour, or $140/hour if paid in cash. 3-hour minimum.
@@ -64,6 +70,14 @@ STORAGE (mention only if they ask about storage)
 - A few days of storage between a pack-out and a load-out can be free; the labour of unloading
   into storage and loading back out is still charged.
 
+DELIVERIES (we accept deliveries at our warehouse for customers)
+- $80 per delivery, unless more than 1 hour of labour is needed; then it is charged on an hourly
+  basis.
+- A full inspection of a delivery is done on request and is charged accordingly (do not quote a
+  price for it).
+- If no full inspection is requested, CareMore is not responsible for any damage. Always say this
+  whenever deliveries come up.
+
 OTHER
 - We can help arrange San Francisco temporary no-parking / tow-away permits.
 - Office: (415) 822-8547, move@caremoremoving.com, www.caremoremoving.com
@@ -75,6 +89,9 @@ ESTIMATES AND BOOKING
 - Most customers book about 2 weeks ahead, but we can often handle shorter notice. Never turn
   down a short-notice request; say we will check availability.
 `;
+
+// Bump this whenever the instructions below change, so results can be compared version by version.
+const INSTRUCTIONS_VERSION = "v2-goal-2026-11-17";
 
 const SYSTEM = `CAREMORE MOVING - INSTRUCTIONS FOR REPLYING TO CUSTOMER ENQUIRIES
 
@@ -99,6 +116,31 @@ HOW TO QUOTE
   ask for them in one short list instead of guessing.
 - Check your arithmetic before you write a total.
 
+THE GOAL OF EVERY REPLY
+A reply only succeeds if it gets ONE of these four things. Write every reply to make one of them
+easy and natural to do next:
+  1. A phone call - they call us on (415) 822-8547, or agree to a quick call.
+  2. Their phone number - so we can call them.
+  3. A video walkthrough or photos of what's moving.
+  4. A scheduled estimate - a free in-person visit or a FaceTime / video call at a set time.
+How to get there:
+- Earn it first: answer their questions and give the honest price guidance the facts allow, so the
+  reply is useful on its own. Then explain in ONE sentence why a 5-minute call or a quick video
+  gets them a firm number (access, stairs, parking and how much is going are what decide the price).
+- Ask for exactly ONE main action, and offer at most ONE easy alternative. For example: "What's the
+  best number to reach you? If it's easier, a quick phone video walkthrough works too."
+- Make it specific and low-effort: "a 5-minute call", "a 1-2 minute video on your phone", "we can
+  do a FaceTime walkthrough today or tomorrow - what time suits?"
+- If they already gave a phone number, don't ask for it: say we'll call, and suggest a time.
+- If they already sent full details (volume AND access), don't demand a video; offer a short call to
+  confirm and lock in the date.
+- When the enquiry was written by an AI assistant for someone: the assistant usually can't take a
+  call. Ask it to pass along the customer's best phone number and a good time to call, or to have
+  the customer call (415) 822-8547 or send a short video. Phrase it so it is easy for the assistant
+  to relay.
+- Close with the action as the last line before the sign-off. Never end on a vague line such as
+  "let us know if you have any questions".
+
 ANSWERING THEIR QUESTIONS
 - If they asked several questions, answer every one of them, briefly, in the order they asked.
   Skipping a question loses the job.
@@ -110,8 +152,7 @@ TONE
 - Keep it short: answer their question first, then the price, then one clear next step.
 - No filler such as "I hope this email finds you well" or "We pride ourselves on...". Don't
   overuse exclamation points.
-- End with one clear next step: send photos or a video, book a free estimate, or reply to lock in
-  the date.
+- End with one clear next step from THE GOAL OF EVERY REPLY above.
 
 SIGN-OFF
 Always end with:
@@ -124,7 +165,7 @@ Return ONLY the email body, starting "Hi <name>," — no subject line, no preamb
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
-    const { email, notes, examples } = await req.json();
+    const { email, notes, examples, extraInstructions } = await req.json();
     if (!email || !String(email).trim()) {
       return new Response(JSON.stringify({ ok: false, error: "No email text supplied" }),
         { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -164,7 +205,9 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1500,
-        system: SYSTEM,
+        system: SYSTEM + (extraInstructions && String(extraInstructions).trim()
+          ? "\n\nADDITIONAL STYLE GUIDANCE (tone, structure and wording only; it never changes the facts, prices, fees or policies above):\n" + String(extraInstructions).trim().slice(0, 4000)
+          : ""),
         messages: [{ role: "user", content: userMsg }],
       }),
     });
@@ -175,7 +218,7 @@ serve(async (req) => {
         { status: 502, headers: { ...CORS, "Content-Type": "application/json" } });
     }
     const reply = (data.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n").trim();
-    return new Response(JSON.stringify({ ok: true, reply }),
+    return new Response(JSON.stringify({ ok: true, reply, version: INSTRUCTIONS_VERSION + (extraInstructions ? "+trial" : "") }),
       { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String((e as Error).message || e) }),

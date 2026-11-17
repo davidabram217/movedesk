@@ -859,8 +859,19 @@ input[type=number]{-moz-appearance:textfield}
           <button class="btn btn-primary" onclick="copyAgentReply()">📋 Copy</button>
           <button class="btn btn-secondary" onclick="generateAgentReply()">↻ Try again</button>
           <button class="btn btn-secondary" onclick="saveAgentExample()" title="Teach the drafter to write more like this">⭐ Save as house example</button>
+          <button class="btn btn-secondary" onclick="saveAgentTest()" title="Keep this enquiry and the reply you sent, then record what happened">🧪 Save to test set</button>
           <span id="ar-example-note" style="margin-left:8px;font-size:11.5px;color:var(--text3)"></span>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.5">Edit the draft into what you actually send, <strong>then</strong> click 🧪 Save to test set. Later, mark what happened below — that's how we learn which replies get a call, a number, a video or an estimate.</div>
         </div>
+      </div>
+
+      <div class="card" id="ar-results-card" style="margin-top:16px">
+        <div class="card-header"><div>
+          <div class="card-title">📊 Reply results</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:2px">Goal: get them on the phone, get their number, get a video, or schedule an estimate. Mark each saved reply when you know what happened.</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="exportAgentTestSet()" title="Download the test set — used to test new reply instructions">⬇ Export</button></div>
+        <div class="card-body" id="ar-results"><div style="font-size:12.5px;color:var(--text3)">Nothing saved yet.</div></div>
       </div>
     </div>
 
@@ -4712,7 +4723,7 @@ document.addEventListener('visibilitychange',function(){
   }
 });
 const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type'],fuelcalc:['Fuel Calculator','Quick fuel charge from the warehouse and back'],demand:['Demand & Pricing','Your busiest and quietest days — where to charge more and where to discount']};
-function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
+function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();if(n==='agentreply'&&typeof renderAgentResults==='function')renderAgentResults();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
 // Paste-to-lead: takes free-form text (email, SMS, notes) and extracts structured lead fields
 // using regex pattern matching, then auto-fills the New Lead form for review.
 //
@@ -5382,16 +5393,17 @@ async function generateAgentReply(){
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
       // Past approved replies go with the request so the drafter imitates them.
-      body:JSON.stringify({email,notes,examples:((db.agentExamples||[]).length?db.agentExamples:[_AR_SEED_EXAMPLE]).slice(0,3)})
+      body:JSON.stringify({email,notes,examples:(_arExamples().length?_arExamples():[_AR_SEED_EXAMPLE]).slice(0,3)})
     });
     const data=await res.json();
     if(!res.ok||!data.ok)throw new Error(data.error||('Edge function error '+res.status));
     reply=data.reply||'';
+    window._arAiDraft=reply;window._arVersion=data.version||'v1';
   }catch(e){
     // Fall back to the fixed template so the page is useful before the edge function is deployed
     // — and still useful if it is ever down. Says so plainly rather than pretending it is tailored.
     console.warn('agent-reply function unavailable, using the standard template:',e);
-    reply=_agentReplyTemplate(email);
+    reply=_agentReplyTemplate(email);window._arAiDraft=reply;window._arVersion='template';
     if(status){status.textContent='\u26a0 Standard template used \u2014 the AI drafter is not deployed yet.';status.style.color='var(--amber)';}
   }
   if(!reply.trim()){reply=_agentReplyTemplate(email);}
@@ -5575,12 +5587,93 @@ async function saveAgentExample(){
   // Keep the most recent few. More than a handful crowds the prompt and the oldest examples are
   // the least representative of how David writes now.
   db.agentExamples=db.agentExamples.slice(0,5);
+  // Synced through Settings (2026-11-17). The old push called sbFetch with the wrong arguments and a
+  // table that was never created, so house examples only ever lived on the computer that saved them.
+  if(!db.settings)db.settings={};
+  db.settings.agentExamples=db.agentExamples.slice();
   saveDB();
-  try{
-    await sbFetch('agent_reply_examples',{method:'POST',body:[{id:row.id,data:row}]});
-  }catch(e){ console.warn('agent example not synced (table may not exist yet):',e); }
-  if(note){note.textContent='\u2713 Saved \u2014 future drafts will follow this more closely ('+db.agentExamples.length+' stored)';note.style.color='var(--accent)';}
+  if(note){note.textContent='\u2713 Saved \u2014 future drafts will follow this more closely ('+_arExamples().length+' stored)';note.style.color='var(--accent)';}
   showToast('\u2b50 Saved as a house example');
+}
+
+// ── Agent reply test set & results (2026-11-17) ─────────────────────────────────────────────
+// Every saved row: the enquiry, the AI's draft, the reply actually sent, which instructions version
+// wrote it, and — filled in later — the outcome. Outcomes are the four goals (call, number, video,
+// estimate) or a miss. This is the data a test loop scores new instructions against. Synced through
+// Settings so every office computer sees the same set.
+const _AR_OUTCOMES=[
+  ['','\u23f3 Waiting'],
+  ['call','\ud83d\udcde Got them on the phone'],
+  ['number','\u260e\ufe0f Gave us their number'],
+  ['video','\ud83c\udfa5 Sent a video / photos'],
+  ['estimate','\ud83d\udcc5 Scheduled an estimate'],
+  ['noreply','\ud83d\udca4 No reply'],
+  ['lost','\u270b Went elsewhere / not a fit']
+];
+const _AR_WIN=new Set(['call','number','video','estimate']);
+function _arExamples(){
+  const a=(db.settings&&db.settings.agentExamples)||[],b=db.agentExamples||[];
+  const seen=new Set(),out=[];
+  a.concat(b).sort((x,y)=>String(y.savedAt||'').localeCompare(String(x.savedAt||''))).forEach(r=>{if(r&&!seen.has(r.id)){seen.add(r.id);out.push(r);}});
+  return out.slice(0,5);
+}
+function _arTestSet(){if(!db.settings)db.settings={};if(!Array.isArray(db.settings.agentTestSet))db.settings.agentTestSet=[];return db.settings.agentTestSet;}
+function saveAgentTest(){
+  const reply=((document.getElementById('ar-reply')||{}).value||'').trim();
+  const enquiry=((document.getElementById('ar-email')||{}).value||'').trim();
+  if(!reply||!enquiry){showToast('Draft a reply first.');return;}
+  const set=_arTestSet();
+  // Same enquiry saved again → update that row (e.g. after more edits) rather than duplicating it.
+  const existing=set.find(r=>r.enquiry===enquiry.slice(0,6000));
+  const row=existing||{id:uid(),savedAt:new Date().toISOString(),outcome:'',booked:false};
+  const _ai=String(window._arAiDraft||'').trim();
+  // AI draft kept only when it differs from what was sent — keeps the synced Settings row small.
+  Object.assign(row,{enquiry:enquiry.slice(0,6000),aiDraft:(_ai&&_ai!==reply)?_ai.slice(0,8000):'',
+    sentReply:reply.slice(0,8000),notes:((document.getElementById('ar-notes')||{}).value||'').trim(),
+    version:window._arVersion||'',edited:!!(window._arAiDraft&&window._arAiDraft.trim()!==reply)});
+  if(!existing)set.unshift(row);
+  db.settings.agentTestSet=set.slice(0,150);
+  saveDB();renderAgentResults();
+  showToast(existing?'\u2713 Test set updated':'\ud83e\uddea Saved to the test set \u2014 mark the outcome when you know it');
+}
+function setAgentOutcome(id,val){const r=_arTestSet().find(x=>x.id===id);if(!r)return;r.outcome=val;r.outcomeAt=val?new Date().toISOString():'';saveDB();renderAgentResults();}
+function setAgentBooked(id,on){const r=_arTestSet().find(x=>x.id===id);if(!r)return;r.booked=!!on;saveDB();renderAgentResults();}
+function deleteAgentTest(id){if(!confirm('Remove this reply from the test set?'))return;db.settings.agentTestSet=_arTestSet().filter(x=>x.id!==id);saveDB();renderAgentResults();}
+function _arFirstLine(t){const s=String(t||'').replace(/\s+/g,' ').trim();return s.length>90?s.slice(0,90)+'\u2026':s;}
+function renderAgentResults(){
+  const host=document.getElementById('ar-results');if(!host)return;
+  const set=_arTestSet();
+  if(!set.length){host.innerHTML='<div style="font-size:12.5px;color:var(--text3)">Nothing saved yet. Draft a reply, edit it into what you send, then click \ud83e\uddea Save to test set.</div>';return;}
+  const decided=set.filter(r=>r.outcome),wins=decided.filter(r=>_AR_WIN.has(r.outcome));
+  const pct=decided.length?Math.round(wins.length/decided.length*100):0;
+  const count=k=>set.filter(r=>r.outcome===k).length;
+  const byV={};decided.forEach(r=>{const v=r.version||'(unknown)';(byV[v]=byV[v]||[0,0]);byV[v][1]++;if(_AR_WIN.has(r.outcome))byV[v][0]++;});
+  const esc=escHtml;
+  const opts=sel=>_AR_OUTCOMES.map(([v,l])=>'<option value="'+v+'"'+(v===sel?' selected':'')+'>'+l+'</option>').join('');
+  host.innerHTML=
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div class="stat-card" style="flex:1;min-width:150px"><div class="stat-label">Goal reached</div><div class="stat-value">'+(decided.length?pct+'%':'\u2014')+'</div><div class="stat-sub">'+wins.length+' of '+decided.length+' with an outcome</div></div>'
+    +'<div class="stat-card" style="flex:1;min-width:150px"><div class="stat-label">Saved replies</div><div class="stat-value">'+set.length+'</div><div class="stat-sub">'+(set.length-decided.length)+' waiting for an outcome</div></div>'
+    +'<div class="stat-card" style="flex:2;min-width:220px"><div class="stat-label">How they responded</div><div style="font-size:12px;line-height:1.7">'
+      +'\ud83d\udcde '+count('call')+' call \u00b7 \u260e\ufe0f '+count('number')+' number \u00b7 \ud83c\udfa5 '+count('video')+' video \u00b7 \ud83d\udcc5 '+count('estimate')+' estimate<br>\ud83d\udca4 '+count('noreply')+' no reply \u00b7 \u270b '+count('lost')+' lost \u00b7 \u2705 '+set.filter(r=>r.booked).length+' booked</div></div>'
+    +'</div>'
+    +(Object.keys(byV).length>1?'<div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">By instructions version: '+Object.keys(byV).map(v=>esc(v)+' '+byV[v][0]+'/'+byV[v][1]).join(' \u00b7 ')+'</div>':'')
+    +(set.length<20?'<div style="font-size:11.5px;color:var(--amber);margin-bottom:10px">'+set.length+' of about 20 saved \u2014 once there are around 20 with outcomes, we can start testing new reply instructions against them.</div>':'')
+    +'<div class="table-wrap"><table><thead><tr><th>Saved</th><th>Enquiry</th><th>Outcome</th><th>Booked</th><th></th></tr></thead><tbody>'
+    +set.map(r=>'<tr><td class="td-mono" style="white-space:nowrap">'+esc(String(r.savedAt||'').slice(0,10))+'</td>'
+      +'<td style="font-size:12px"><details><summary style="cursor:pointer">'+esc(_arFirstLine(r.enquiry))+'</summary>'
+        +'<div style="white-space:pre-wrap;font-size:11.5px;color:var(--text2);margin-top:6px;max-height:220px;overflow:auto"><strong>They wrote:</strong>\n'+esc(r.enquiry)+'\n\n<strong>We sent'+(r.edited?' (edited from the AI draft)':'')+':</strong>\n'+esc(r.sentReply)+'</div>'
+        +'<div style="font-size:10.5px;color:var(--text3);margin-top:4px">'+esc(r.version||'')+'</div></details></td>'
+      +'<td><select onchange="setAgentOutcome(\''+r.id+'\',this.value)" style="font-size:12px;padding:4px 6px">'+opts(r.outcome||'')+'</select></td>'
+      +'<td style="text-align:center"><input type="checkbox" '+(r.booked?'checked':'')+' onchange="setAgentBooked(\''+r.id+'\',this.checked)"></td>'
+      +'<td><button class="btn btn-danger btn-sm" onclick="deleteAgentTest(\''+r.id+'\')">\u2715</button></td></tr>').join('')
+    +'</tbody></table></div>';
+}
+function exportAgentTestSet(){
+  const set=_arTestSet();if(!set.length){showToast('Nothing to export yet.');return;}
+  const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),goal:['call','number','video','estimate'],items:set},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='agent-reply-test-set-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
 }
 
 function copyAgentReply(){
