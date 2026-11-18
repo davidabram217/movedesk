@@ -881,6 +881,8 @@ input[type=number]{-moz-appearance:textfield}
             <div class="form-group"><label>What they sent</label><textarea id="arp-enquiry" style="min-height:160px;font-size:12px" placeholder="Paste the AI agent's enquiry…"></textarea></div>
             <div class="form-group"><label>What we replied</label><textarea id="arp-reply" style="min-height:160px;font-size:12px" placeholder="Paste the reply you sent…"></textarea></div>
           </div>
+          <div class="form-group"><label>What happened after <span style="font-size:10.5px;color:var(--text3);font-weight:400">— the rest of the thread (their later emails, and ours). Used to suggest the outcome below.</span></label>
+            <textarea id="arp-after" style="min-height:70px;font-size:12px" placeholder="Filled in from the thread, if there's more after our first reply…"></textarea></div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
             <label style="font-size:12.5px;font-weight:600">What happened <select id="arp-outcome" style="margin-left:6px;font-size:12.5px"></select></label>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="arp-booked"> Booked the move</label>
@@ -5682,7 +5684,7 @@ function renderAgentResults(){
     +'<div class="table-wrap"><table><thead><tr><th>Saved</th><th>Enquiry</th><th>Outcome</th><th>Booked</th><th></th></tr></thead><tbody>'
     +set.map(r=>'<tr><td class="td-mono" style="white-space:nowrap">'+esc(String(r.savedAt||'').slice(0,10))+'</td>'
       +'<td style="font-size:12px"><details><summary style="cursor:pointer">'+esc(_arFirstLine(r.enquiry))+'</summary>'
-        +'<div style="white-space:pre-wrap;font-size:11.5px;color:var(--text2);margin-top:6px;max-height:220px;overflow:auto"><strong>They wrote:</strong>\n'+esc(r.enquiry)+'\n\n<strong>We sent'+(r.edited?' (edited from the AI draft)':'')+':</strong>\n'+esc(r.sentReply)+'</div>'
+        +'<div style="white-space:pre-wrap;font-size:11.5px;color:var(--text2);margin-top:6px;max-height:220px;overflow:auto"><strong>They wrote:</strong>\n'+esc(r.enquiry)+'\n\n<strong>We sent'+(r.edited?' (edited from the AI draft)':'')+':</strong>\n'+esc(r.sentReply)+(r.followUp?'\n\n<strong>What happened after:</strong>\n'+esc(r.followUp):'')+'</div>'
         +'<div style="font-size:10.5px;color:var(--text3);margin-top:4px">'+esc(r.version||'')+'</div></details></td>'
       +'<td><select onchange="setAgentOutcome(\''+r.id+'\',this.value)" style="font-size:12px;padding:4px 6px">'+opts(r.outcome||'')+'</select></td>'
       +'<td style="text-align:center"><input type="checkbox" '+(r.booked?'checked':'')+' onchange="setAgentBooked(\''+r.id+'\',this.checked)"></td>'
@@ -5722,6 +5724,7 @@ function _arpParseThread(text){
   if(firstThem<0)return null;
   const firstUs=msgs.findIndex((m,i)=>i>firstThem&&isUs(m));
   const later=firstUs>=0?msgs.slice(firstUs+1).filter(m=>!isUs(m)).map(clean).join('\n'):'';
+  const after=firstUs>=0?msgs.slice(firstUs+1).map(m=>(isUs(m)?'WE WROTE:':'THEY WROTE:')+'\n'+clean(m)).join('\n\n'):'';
   let outcome='';
   if(firstUs>=0){
     // Order matters: a "no thanks" email can still mention calls, walkthroughs or a phone number.
@@ -5736,14 +5739,14 @@ function _arpParseThread(text){
     else if(est.test(L)&&!/\b(won'?t|don'?t|not|no need to)\b[^.]{0,40}\b(schedul|walkthrough|survey|estimate|call)/.test(L))outcome='estimate';
     else if(!later.trim())outcome='noreply';
   }
-  return {enquiry:clean(msgs[firstThem]),reply:firstUs>=0?clean(msgs[firstUs]):'',outcome,messages:msgs.length,laterFromThem:!!later.trim()};
+  return {enquiry:clean(msgs[firstThem]),reply:firstUs>=0?clean(msgs[firstUs]):'',after,outcome,messages:msgs.length,laterFromThem:!!later.trim()};
 }
 function _arpSplitThread(){
   const g=id=>document.getElementById(id);
   const r=_arpParseThread(g('arp-thread').value);
   const note=g('arp-split-note');
   if(!r){if(note)note.textContent=g('arp-thread').value.trim()?'Couldn\u2019t find the sender lines \u2014 paste their email and our reply into the boxes below instead.':'';return;}
-  g('arp-enquiry').value=r.enquiry;g('arp-reply').value=r.reply;
+  g('arp-enquiry').value=r.enquiry;g('arp-reply').value=r.reply;g('arp-after').value=r.after||'';
   const oc=g('arp-outcome');if(oc&&!oc.options.length)openAddPastAgent();
   if(oc&&r.outcome)oc.value=r.outcome;
   const lbl=(_AR_OUTCOMES.find(o=>o[0]===r.outcome)||[,''])[1];
@@ -5758,10 +5761,10 @@ function saveAddPastAgent(again){
   if(set.some(r=>r.enquiry===enquiry.slice(0,6000))){showToast('That enquiry is already in the test set.');return;}
   const d=g('arp-date').value;
   set.unshift({id:uid(),savedAt:d?d+'T12:00:00.000Z':new Date().toISOString(),enquiry:enquiry.slice(0,6000),aiDraft:'',
-    sentReply:reply.slice(0,8000),notes:'',version:'past (by hand)',edited:false,
+    sentReply:reply.slice(0,8000),followUp:((g('arp-after')||{}).value||'').trim().slice(0,6000),notes:'',version:'past (by hand)',edited:false,
     outcome:g('arp-outcome').value||'',outcomeAt:g('arp-outcome').value?new Date().toISOString():'',booked:!!g('arp-booked').checked});
   db.settings.agentTestSet=set.slice(0,150);saveDB();renderAgentResults();
-  g('arp-thread').value='';g('arp-split-note').textContent='';g('arp-enquiry').value='';g('arp-reply').value='';g('arp-outcome').value='';g('arp-booked').checked=false;g('arp-date').value='';
+  g('arp-thread').value='';g('arp-split-note').textContent='';g('arp-after').value='';g('arp-enquiry').value='';g('arp-reply').value='';g('arp-outcome').value='';g('arp-booked').checked=false;g('arp-date').value='';
   g('arp-note').textContent='\u2713 Saved ('+set.length+' in the test set)';
   if(again)g('arp-thread').focus();else g('ar-past-form').style.display='none';
 }
