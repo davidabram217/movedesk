@@ -17822,7 +17822,8 @@ function openQuoteBuilder(leadId){
   document.getElementById('qb-description').value=''; // no default project description (removed 2026-07-10)
   document.getElementById('qb-cash-discount').value='';
   document.getElementById('qb-storage-costs').value='';
-  document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.';
+  // Second default line added 2026-11-18 (owner unlock of Section 1, this change only).
+  document.getElementById('qb-stipulations').value='CareMore is not responsible for any parking tickets.\nReturn drive time back to warehouse in San Francisco at completion (30 Minute Minimum)';
   // qb-notes is hidden and unused (customer-facing notes are typed manually in the confirmation
   // email modal at send time). FORCE-CLEAR unconditionally so stale content from a previous lead's
   // Quote Builder session can't bleed through to this lead's saved quote.
