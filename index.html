@@ -123,7 +123,7 @@ input[type=number]{-moz-appearance:textfield}
       <div style="position:relative">
         <div class="search-bar" style="width:220px;background:var(--surface2)">
           <span style="color:var(--text3);font-size:14px">⌕</span>
-          <input type="text" id="global-search-input" placeholder="Search all customers…" oninput="globalSearch(this.value)" onkeydown="if(event.key==='Escape'){this.value='';closeGlobalSearch()}" autocomplete="off" style="font-size:12.5px">
+          <input type="text" id="global-search-input" placeholder="Search customers &amp; notes…" oninput="globalSearch(this.value)" onkeydown="if(event.key==='Escape'){this.value='';closeGlobalSearch()}" autocomplete="off" style="font-size:12.5px">
           <button id="global-search-clear" onclick="document.getElementById('global-search-input').value='';closeGlobalSearch()" style="display:none;background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0;line-height:1">✕</button>
         </div>
         <div id="global-search-results" style="display:none;position:absolute;top:calc(100% + 4px);right:0;width:420px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);z-index:300;max-height:480px;overflow-y:auto"></div>
@@ -184,7 +184,7 @@ input[type=number]{-moz-appearance:textfield}
       <div id="leads-pipeline"><div class="pipeline" id="pipeline-board"></div></div>
       <div id="leads-list" style="display:none">
         <div class="filter-bar">
-          <div class="search-bar"><span style="color:var(--text3)">⌕</span><input type="text" placeholder="Search leads…" oninput="filterLeads(this.value)"></div>
+          <div class="search-bar"><span style="color:var(--text3)">⌕</span><input type="text" placeholder="Search leads &amp; notes…" oninput="filterLeads(this.value)"></div>
           <select onchange="filterLeadsSource(this.value)"><option value="">All sources</option><option>Yelp</option><option>Google</option><option>ChatGPT</option><option>Referral</option><option>Building</option><option>Realtor</option><option>Stager</option><option>Social media</option><option>Repeat customer</option><option>ZippGo</option><option>Old Folks</option><option>Woodshanti</option><option>Juli Lipprie</option><option>Philippe</option><option>Kuzak</option><option>Storage Out</option><option>Pack Attack</option><option>Moving Company</option><option>Tammy / Libby Organizer</option><option>Unknown</option><option>Other</option></select>
           <select onchange="filterLeadsEst(this.value)"><option value="">All estimate types</option><option>FaceTime</option><option>Video</option><option>Onsite</option><option>Summary + rough quote</option><option>Unseen</option></select>
         </div>
@@ -7319,7 +7319,7 @@ function renderLeadsTable(){
     if(aCreated!==bCreated)return bCreated.localeCompare(aCreated);
     return (b.id||'').localeCompare(a.id||'');
   });
-  if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone||'\u2014'}</td><td class="td-mono">${fmtDate(l.date)}</td>${leadAgeCell(l.createdAt)}<td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
+  if(leadFilter.text){const q=leadFilter.text.toLowerCase();leads=leads.filter(l=>(l.name||'').toLowerCase().includes(q)||(l.phone||'').includes(leadFilter.text)||(l.email||'').toLowerCase().includes(q)||_notesHit(l,q));}if(leadFilter.source)leads=leads.filter(l=>l.source===leadFilter.source);if(leadFilter.est)leads=leads.filter(l=>l.estimateType===leadFilter.est);document.getElementById('leads-tbody').innerHTML=leads.length?leads.map(l=>`<tr><td class="td-name" style="cursor:pointer" onclick="viewLead('${l.id}')">${l.name}</td><td class="td-mono">${l.phone||'\u2014'}</td><td class="td-mono">${fmtDate(l.date)}</td>${leadAgeCell(l.createdAt)}<td>${l.size||'—'}</td><td>${sourceBadge(l.source,l.sourceDetail)}</td><td>${l.estimateType?estBadge(l.estimateType):'—'}</td><td>${statusBadge(l.status)}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewLead('${l.id}')">View</button><button class="btn btn-primary btn-sm" onclick="openBooking('${l.id}')">Book</button><button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">✕</button></div></td></tr>`).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">◎</div><div class="empty-title">No active leads</div><div class="empty-sub">Click "+ New Lead" to add one</div></div></td></tr>`;
 }
 function filterLeads(v){leadFilter.text=v;renderLeadsTable();}
 function filterLeadsSource(v){leadFilter.source=v;renderLeadsTable();}
@@ -7332,7 +7332,7 @@ function renderArchivedLeads(){
   const archived=db.leads.filter(l=>l.status==='Did not book');
   const countEl=document.getElementById('archived-count');if(countEl)countEl.textContent=archived.length;
   let leads=archived;
-  if(archivedFilter.text)leads=leads.filter(l=>l.name.toLowerCase().includes(archivedFilter.text.toLowerCase())||l.phone.includes(archivedFilter.text));
+  if(archivedFilter.text)leads=leads.filter(l=>(l.name||'').toLowerCase().includes(archivedFilter.text.toLowerCase())||(l.phone||'').includes(archivedFilter.text)||_notesHit(l,archivedFilter.text));
   if(archivedFilter.source)leads=leads.filter(l=>l.source===archivedFilter.source);
   document.getElementById('archived-tbody').innerHTML=leads.length?leads.map(l=>`
     <tr>
@@ -11444,7 +11444,7 @@ function renderBooked(){
   const uc=[...new Set(db.bookedJobs.map(j=>j.crew).filter(Boolean))];
   crewSel.innerHTML='<option value="">All crew</option>'+uc.map(c=>`<option>${c}</option>`).join('');
   let jobs=db.bookedJobs;
-  if(bookedFilter.text)jobs=jobs.filter(j=>j.name.toLowerCase().includes(bookedFilter.text.toLowerCase()));
+  if(bookedFilter.text)jobs=jobs.filter(j=>(j.name||'').toLowerCase().includes(bookedFilter.text.toLowerCase())||_notesHit(j,bookedFilter.text));
   if(bookedFilter.crew)jobs=jobs.filter(j=>j.crew===bookedFilter.crew);
   jobs=[...jobs].sort((a,b)=>((a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase()))||((a.date||'').localeCompare(b.date||'')));
   const today=new Date().toISOString().split('T')[0];
@@ -13723,7 +13723,7 @@ function deleteCompletedJob(id){
   renderCompleted();showToast('Job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
 }
-function renderCompleted(){let jobs=db.completedJobs;if(compFilter.text)jobs=jobs.filter(j=>j.name.toLowerCase().includes(compFilter.text.toLowerCase()));if(compFilter.crew)jobs=jobs.filter(j=>j.crew===compFilter.crew);if(compFilter.source)jobs=jobs.filter(j=>j.source===compFilter.source);if(compFilter.paid==='paid')jobs=jobs.filter(j=>Number(j.total)===Number(j.paid));if(compFilter.paid==='owing')jobs=jobs.filter(j=>Number(j.total)>Number(j.paid));jobs=[...jobs].sort((a,b)=>((a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase()))||((b.date||'').localeCompare(a.date||'')));const tr=jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);const to=jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);const tsm=jobs.reduce((s,j)=>s+(Number(j.feeMaterials)||0),0);const tpm=jobs.reduce((s,j)=>s+(Number(j.feePackMaterials)||0),0);document.getElementById('completed-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Jobs shown</div><div class="stat-value">${jobs.length}</div></div><div class="stat-card"><div class="stat-label">Revenue collected</div><div class="stat-value">${fmtMoney(tr)}</div></div><div class="stat-card"><div class="stat-label">Still owing</div><div class="stat-value ${to>0?'owe-badge':''}">${fmtMoney(to)}</div></div><div class="stat-card"><div class="stat-label">Standard materials</div><div class="stat-value">${fmtMoney(tsm)}</div></div><div class="stat-card"><div class="stat-label">Packing materials</div><div class="stat-value">${fmtMoney(tpm)}</div></div>`;document.getElementById('completed-tbody').innerHTML=jobs.length?jobs.map(j=>{const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));return`<tr><td class="td-name">${j.name}${j.multiDay&&j.days&&j.days.length>1?` <span class="badge pill-blue" style="font-size:10px">${j.days.length}d</span>`:''}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${sourceBadge(j.source,j.sourceDetail)}</td><td>${j.crew||'—'}</td><td><span class="badge pill-gray">${j.payment||'—'}</span></td><td class="td-mono">${fmtMoney(j.total)}</td><td class="td-mono">${fmtMoney(j.paid)}</td><td>${owed>0?`<span class="badge pill-amber" style="font-size:11.5px;padding:3px 10px">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid ✓</span>'}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewCompletedJob('${j.id}')">View</button><button class="btn btn-danger btn-sm" onclick="deleteCompletedJob('${j.id}')">✕</button></div></td></tr>`;}).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">▣</div><div class="empty-title">No completed jobs yet</div></div></td></tr>`;}
+function renderCompleted(){let jobs=db.completedJobs;if(compFilter.text)jobs=jobs.filter(j=>(j.name||'').toLowerCase().includes(compFilter.text.toLowerCase())||_notesHit(j,compFilter.text));if(compFilter.crew)jobs=jobs.filter(j=>j.crew===compFilter.crew);if(compFilter.source)jobs=jobs.filter(j=>j.source===compFilter.source);if(compFilter.paid==='paid')jobs=jobs.filter(j=>Number(j.total)===Number(j.paid));if(compFilter.paid==='owing')jobs=jobs.filter(j=>Number(j.total)>Number(j.paid));jobs=[...jobs].sort((a,b)=>((a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase()))||((b.date||'').localeCompare(a.date||'')));const tr=jobs.reduce((s,j)=>s+(Number(j.paid)||0),0);const to=jobs.reduce((s,j)=>s+Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0)),0);const tsm=jobs.reduce((s,j)=>s+(Number(j.feeMaterials)||0),0);const tpm=jobs.reduce((s,j)=>s+(Number(j.feePackMaterials)||0),0);document.getElementById('completed-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Jobs shown</div><div class="stat-value">${jobs.length}</div></div><div class="stat-card"><div class="stat-label">Revenue collected</div><div class="stat-value">${fmtMoney(tr)}</div></div><div class="stat-card"><div class="stat-label">Still owing</div><div class="stat-value ${to>0?'owe-badge':''}">${fmtMoney(to)}</div></div><div class="stat-card"><div class="stat-label">Standard materials</div><div class="stat-value">${fmtMoney(tsm)}</div></div><div class="stat-card"><div class="stat-label">Packing materials</div><div class="stat-value">${fmtMoney(tpm)}</div></div>`;document.getElementById('completed-tbody').innerHTML=jobs.length?jobs.map(j=>{const owed=Math.max(0,(Number(j.total)||0)-(Number(j.paid)||0));return`<tr><td class="td-name">${j.name}${j.multiDay&&j.days&&j.days.length>1?` <span class="badge pill-blue" style="font-size:10px">${j.days.length}d</span>`:''}</td><td class="td-mono">${fmtDate(j.date)}</td><td>${sourceBadge(j.source,j.sourceDetail)}</td><td>${j.crew||'—'}</td><td><span class="badge pill-gray">${j.payment||'—'}</span></td><td class="td-mono">${fmtMoney(j.total)}</td><td class="td-mono">${fmtMoney(j.paid)}</td><td>${owed>0?`<span class="badge pill-amber" style="font-size:11.5px;padding:3px 10px">Owes ${fmtMoney(owed)}</span>`:'<span class="badge pill-green">Paid ✓</span>'}</td><td><div style="display:flex;gap:5px"><button class="btn btn-secondary btn-sm" onclick="viewCompletedJob('${j.id}')">View</button><button class="btn btn-danger btn-sm" onclick="deleteCompletedJob('${j.id}')">✕</button></div></td></tr>`;}).join(''):`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">▣</div><div class="empty-title">No completed jobs yet</div></div></td></tr>`;}
 function filterCompleted(v){compFilter.text=v;renderCompleted();}
 function filterCompletedCrew(v){compFilter.crew=v;renderCompleted();}
 function filterCompletedSource(v){compFilter.source=v;renderCompleted();}
@@ -17073,6 +17073,16 @@ document.addEventListener('click',e=>{
   });
 });
 
+// Office-notes search (2026-11-18): every search bar also looks inside office notes (and the estimate
+// office notes) once at least 3 characters are typed, so "piano", "gate code" or a street name finds the
+// customer. _notesSnippet returns a short piece of the note around the match to show in the results.
+function _notesText(r){return [r&&r.officeNotes,r&&r.estimateOfficeNotes].filter(Boolean).join('  \u00b7  ');}
+function _notesHit(r,q){q=String(q||'').trim().toLowerCase();return q.length>=3&&_notesText(r).toLowerCase().includes(q);}
+function _notesSnippet(r,q){
+  const t=_notesText(r).replace(/\s+/g,' ');const i=t.toLowerCase().indexOf(String(q||'').trim().toLowerCase());if(i<0)return '';
+  const a=Math.max(0,i-35),b=Math.min(t.length,i+String(q).trim().length+45);
+  return (a>0?'\u2026':'')+t.slice(a,b)+(b<t.length?'\u2026':'');
+}
 function globalSearch(val){
   const q=val.trim().toLowerCase();
   const clearBtn=document.getElementById('global-search-clear');
@@ -17116,7 +17126,8 @@ function globalSearch(val){
     // returns nothing.
     const qDigits=q.replace(/\D/g,'');
     const qClean=qDigits.length>=3?qDigits:null;
-    const matches=ln.includes(q)||(qClean&&lp.includes(qClean))||(qClean&&(l.phone||'').includes(q))||(l.email||'').toLowerCase().includes(q);
+    const noteHit=!(ln.includes(q)||(qClean&&lp.includes(qClean))||(qClean&&(l.phone||'').includes(q))||(l.email||'').toLowerCase().includes(q))&&_notesHit(l,q);
+    const matches=ln.includes(q)||(qClean&&lp.includes(qClean))||(qClean&&(l.phone||'').includes(q))||(l.email||'').toLowerCase().includes(q)||noteHit;
     if(!matches)return;
     // Skip if already found via customers with same phone
     if(lp&&matched.some(m=>(m.phone||'').replace(/\D/g,'')===lp))return;
@@ -17125,7 +17136,7 @@ function globalSearch(val){
     seenKeys.add(key);
     const isBooked=l.status==='Booked'||l.status==='Quote accepted'||l.status==='Confirmation sent';
     matched.push({custId:null,name:l.name,phone:l.phone||'',totalJobs:0,totalSpent:0,
-      latestJob:null,latestLead:l,isBooked,leadId:l.id});
+      latestJob:null,latestLead:l,isBooked,leadId:l.id,noteSnip:noteHit?_notesSnippet(l,q):''});
   });
 
   // Also search booked jobs directly
@@ -17140,14 +17151,16 @@ function globalSearch(val){
     // returns nothing.
     const qDigits=q.replace(/\D/g,'');
     const qClean=qDigits.length>=3?qDigits:null;
-    const matches=jn.includes(q)||(qClean&&jp.includes(qClean))||(qClean&&(j.phone||'').includes(q))||(j.email||'').toLowerCase().includes(q);
+    const noteHitJ=!(jn.includes(q)||(qClean&&jp.includes(qClean))||(qClean&&(j.phone||'').includes(q))||(j.email||'').toLowerCase().includes(q))&&_notesHit(j,q);
+    const matches=jn.includes(q)||(qClean&&jp.includes(qClean))||(qClean&&(j.phone||'').includes(q))||(j.email||'').toLowerCase().includes(q)||noteHitJ;
     if(!matches)return;
+    if(j.leadId&&matched.some(m=>m.leadId===j.leadId))return;
     if(jp&&matched.some(m=>(m.phone||'').replace(/\D/g,'')===jp))return;
     const key='bj:'+j.id;
     if(seenKeys.has(key))return;
     seenKeys.add(key);
     matched.push({custId:null,name:j.name,phone:j.phone||'',totalJobs:0,totalSpent:0,
-      latestJob:null,latestLead:null,isBooked:true,bookedJobId:j.id,leadId:j.leadId||null});
+      latestJob:null,latestLead:null,isBooked:true,bookedJobId:j.id,leadId:j.leadId||null,noteSnip:noteHitJ?_notesSnippet(j,q):''});
   });
 
   if(!matched.length){
@@ -17175,6 +17188,7 @@ function globalSearch(val){
       <div>
         <div style="font-size:13px;font-weight:500;margin-bottom:3px">${c.name}</div>
         <div style="font-size:11.5px;color:var(--text2)">${sub.join(' · ')}</div>
+        ${c.noteSnip?`<div style="font-size:11px;color:var(--amber);margin-top:3px">🔒 Notes: ${escHtml(c.noteSnip)}</div>`:''}
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${badges.join('')}</div>
     </div>`;
