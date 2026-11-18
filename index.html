@@ -5712,11 +5712,11 @@ function _arpParseThread(text){
       // Skip the date line and the "to me" / "to Phil" line that Gmail puts right after the sender.
       let k=i+1;let skipped=0;
       while(k<lines.length&&skipped<3){const t=lines[k].trim();
-        if(!t||/^(mon|tue|wed|thu|fri|sat|sun)\b|\d{1,2}:\d{2}\s*(am|pm)|\bago\)?$|^(to|cc)\b\s/i.test(t)){k++;if(t)skipped++;}else break;}
+        if(!t||/^(mon|tue|wed|thu|fri|sat|sun)\b|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d|\d{1,2}:\d{2}\s*(am|pm)|\bago\)?$|^(to|cc)\b\s|^attachments?$/i.test(t)){k++;if(t)skipped++;}else break;}
       i=k-1;continue;}
     if(cur)cur.body.push(lines[i]);
   }
-  const clean=m=>m.body.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  const clean=m=>m.body.filter(l=>!/^\s*(•\s*)?(scanned by gmail|one attachment|\d+ attachments?|attachments?)\s*$/i.test(l)).join('\n').replace(/\n{3,}/g,'\n\n').trim();
   const isUs=m=>_AR_OUR_DOMAIN.test(m.email)||_AR_OUR_DOMAIN.test(m.from);
   const firstThem=msgs.findIndex(m=>!isUs(m));
   if(firstThem<0)return null;
@@ -5724,9 +5724,16 @@ function _arpParseThread(text){
   const later=firstUs>=0?msgs.slice(firstUs+1).filter(m=>!isUs(m)).map(clean).join('\n'):'';
   let outcome='';
   if(firstUs>=0){
-    if(/\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/.test(later))outcome='number';
-    else if(/\bvideo|\bphotos?\b|\bpictures?\b/i.test(later))outcome='video';
-    else if(/\b(schedul|walkthrough|survey|estimate)\w*\b.*\b(at|on)\b/i.test(later))outcome='estimate';
+    // Order matters: a "no thanks" email can still mention calls, walkthroughs or a phone number.
+    const L=later.toLowerCase().replace(/[‘’]/g,"'");
+    const lost=/(another|other|different) (company|mover|moving company|movers|vendor|provider)|went with|going with (someone|another|a different)|moving forward with (another|a different|someone)|decided (to go|not to)|won'?t (need|be needing)|no longer need|not (going|moving) (ahead|forward)|we('ve| have) (hired|booked|found)|found (someone|another)|chose (another|a different)|pass on this|(cancel|postpone)\w* (the|our) move/;
+    const nm=/\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/;
+    const vid=/(here('s| is| are) (a |the )?(video|photos?|pictures?)|(attached|sending|sent|uploaded|recorded) (a |the |some )?(video|photos?|pictures?)|video (is )?attached|photos? (are )?attached)/;
+    const est=/(see you (on|at|then|tomorrow)|works for (us|me)|(that|this) (time|day) works|confirm(ed|ing)? (the|our|a) (walkthrough|survey|estimate|visit|call)|(book|schedul)\w* (a|the|an) (walkthrough|survey|estimate|visit|video call|facetime))/;
+    if(lost.test(L))outcome='lost';
+    else if(nm.test(later))outcome='number';
+    else if(vid.test(L))outcome='video';
+    else if(est.test(L)&&!/\b(won'?t|don'?t|not|no need to)\b[^.]{0,40}\b(schedul|walkthrough|survey|estimate|call)/.test(L))outcome='estimate';
     else if(!later.trim())outcome='noreply';
   }
   return {enquiry:clean(msgs[firstThem]),reply:firstUs>=0?clean(msgs[firstUs]):'',outcome,messages:msgs.length,laterFromThem:!!later.trim()};
