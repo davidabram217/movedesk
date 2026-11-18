@@ -3365,6 +3365,11 @@ async function loadDB(){
     // Settings
     const s=settingsRows&&settingsRows[0];
     if(s&&s.data){db.settings={...db.settings,...s.data};}
+    // Agent test set + house examples (2026-11-17): combine this computer's copy with the cloud's
+    // instead of letting the cloud copy replace it. Settings used to be taken wholesale from the
+    // cloud on load, so a reply saved just before a reload (or while the database was unreachable)
+    // vanished. Rows are matched by id; the most recently changed copy wins; deletions are remembered.
+    try{_mergeAgentSettings((_LD&&_LD.settings)||{});}catch(e){console.warn('agent settings merge skipped:',e);}
     if(!db.settings.crew||!db.settings.crew.length)db.settings.crew=['John','Dave'];
     // Self-heal: remove orphaned booked jobs that also exist in completedJobs.
     // Match by bookedJobId (the back-reference on the completed job) — NOT by id, which is always
@@ -5639,6 +5644,19 @@ function _arExamples(){
   a.concat(b).sort((x,y)=>String(y.savedAt||'').localeCompare(String(x.savedAt||''))).forEach(r=>{if(r&&!seen.has(r.id)){seen.add(r.id);out.push(r);}});
   return out.slice(0,5);
 }
+function _arStamp(r){return String(r&&(r._editedAt||r.outcomeAt||r.savedAt)||'');}
+function _mergeAgentSettings(localSettings){
+  if(!db.settings)db.settings={};
+  const dead=new Set([...(db.settings.agentTestDeleted||[]),...(localSettings.agentTestDeleted||[])]);
+  db.settings.agentTestDeleted=[...dead].slice(-300);
+  const mergeList=(cloudArr,localArr,cap)=>{
+    const m=new Map();
+    (cloudArr||[]).concat(localArr||[]).forEach(r=>{if(!r||!r.id||dead.has(r.id))return;const prev=m.get(r.id);if(!prev||_arStamp(r)>_arStamp(prev))m.set(r.id,r);});
+    return [...m.values()].sort((a,b)=>String(b.savedAt||'').localeCompare(String(a.savedAt||''))).slice(0,cap);
+  };
+  db.settings.agentTestSet=mergeList(db.settings.agentTestSet,localSettings.agentTestSet,150);
+  db.settings.agentExamples=mergeList(db.settings.agentExamples,localSettings.agentExamples,5);
+}
 function _arTestSet(){if(!db.settings)db.settings={};if(!Array.isArray(db.settings.agentTestSet))db.settings.agentTestSet=[];return db.settings.agentTestSet;}
 function saveAgentTest(){
   const reply=((document.getElementById('ar-reply')||{}).value||'').trim();
@@ -5653,14 +5671,15 @@ function saveAgentTest(){
   Object.assign(row,{enquiry:enquiry.slice(0,6000),aiDraft:(_ai&&_ai!==reply)?_ai.slice(0,8000):'',
     sentReply:reply.slice(0,8000),notes:((document.getElementById('ar-notes')||{}).value||'').trim(),
     version:window._arVersion||'',edited:!!(window._arAiDraft&&window._arAiDraft.trim()!==reply)});
+  row._editedAt=new Date().toISOString();
   if(!existing)set.unshift(row);
   db.settings.agentTestSet=set.slice(0,150);
   saveDB();renderAgentResults();
   showToast(existing?'\u2713 Test set updated':'\ud83e\uddea Saved to the test set \u2014 mark the outcome when you know it');
 }
-function setAgentOutcome(id,val){const r=_arTestSet().find(x=>x.id===id);if(!r)return;r.outcome=val;r.outcomeAt=val?new Date().toISOString():'';saveDB();renderAgentResults();}
-function setAgentBooked(id,on){const r=_arTestSet().find(x=>x.id===id);if(!r)return;r.booked=!!on;saveDB();renderAgentResults();}
-function deleteAgentTest(id){if(!confirm('Remove this reply from the test set?'))return;db.settings.agentTestSet=_arTestSet().filter(x=>x.id!==id);saveDB();renderAgentResults();}
+function setAgentOutcome(id,val){const r=_arTestSet().find(x=>x.id===id);if(!r)return;r._editedAt=new Date().toISOString();r.outcome=val;r.outcomeAt=val?new Date().toISOString():'';saveDB();renderAgentResults();}
+function setAgentBooked(id,on){const r=_arTestSet().find(x=>x.id===id);if(!r)return;r._editedAt=new Date().toISOString();r.booked=!!on;saveDB();renderAgentResults();}
+function deleteAgentTest(id){if(!confirm('Remove this reply from the test set?'))return;db.settings.agentTestSet=_arTestSet().filter(x=>x.id!==id);db.settings.agentTestDeleted=(db.settings.agentTestDeleted||[]).concat([id]).slice(-300);saveDB();renderAgentResults();}
 function _arFirstLine(t){const s=String(t||'').replace(/\s+/g,' ').trim();return s.length>90?s.slice(0,90)+'\u2026':s;}
 function renderAgentResults(){
   const host=document.getElementById('ar-results');if(!host)return;
@@ -5707,9 +5726,16 @@ const _AR_OUR_DOMAIN=/caremoremoving\.com|caremore/i;
 function _arpParseThread(text){
   const lines=String(text||'').replace(/\r/g,'').split('\n');
   const hdr=/^\s*(.{1,80}?)\s*<([^<>\s]+@[^<>\s]+)>\s*$/;
+  // Gmail shows a sender with no saved name as just the address ("bellagc@mail.instinct.com").
+  // A bare address only counts as a sender line when a date line follows it, so an email address
+  // inside someone's signature is never mistaken for the start of a new message. (2026-11-17)
+  const bare=/^\s*([^\s<>@"]+@[^\s<>@"]+\.[a-z]{2,})\s*$/i;
+  const dateLine=/^(mon|tue|wed|thu|fri|sat|sun)\b|^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d|\d{1,2}:\d{2}\s*(am|pm)|^\d{1,2}\/\d{1,2}\/\d{2,4}/i;
+  const nextText=(i)=>{for(let k=i+1;k<lines.length&&k<i+4;k++){const t=lines[k].trim();if(t&&!/^attachments?$/i.test(t))return t;}return '';};
   const msgs=[];let cur=null;
   for(let i=0;i<lines.length;i++){
-    const m=lines[i].match(hdr);
+    let m=lines[i].match(hdr);
+    if(!m){const b=lines[i].match(bare);if(b&&dateLine.test(nextText(i)))m=[b[0],b[1],b[1]];}
     if(m){cur={from:m[1].trim(),email:m[2].trim(),body:[]};msgs.push(cur);
       // Skip the date line and the "to me" / "to Phil" line that Gmail puts right after the sender.
       let k=i+1;let skipped=0;
