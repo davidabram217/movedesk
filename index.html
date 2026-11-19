@@ -545,12 +545,11 @@ input[type=number]{-moz-appearance:textfield}
       
       <div id="payroll-weekly" style="display:none">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-          <div style="font-size:12px;color:var(--text2);font-weight:500">Week of:</div>
-          <input type="date" id="week-start-date" onchange="loadWeek()" style="width:auto">
           <button class="btn btn-secondary btn-sm" onclick="prevWeek()">← Prev</button>
+          <span id="week-label" style="font-size:16px;font-weight:600;color:var(--text);min-width:210px;text-align:center"></span>
           <button class="btn btn-secondary btn-sm" onclick="nextWeek()">Next →</button>
           <button class="btn btn-secondary btn-sm" onclick="goToCurrentWeek()">This week</button>
-          <span id="week-label" style="font-size:12px;color:var(--text3)"></span>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-left:6px">Jump to a date <input type="date" id="week-start-date" onchange="loadWeek()" style="width:auto;font-size:12px;padding:5px 8px" title="Pick any day — it opens that Saturday-to-Friday week"></label>
         </div>
         <div class="card" style="margin-bottom:16px">
           <div class="card-header"><div class="card-title">Hours, wages & gas</div></div>
@@ -9425,6 +9424,22 @@ let _bjDays=[];
 // warehouse, day 2 warehouse → new house. Leaving a day blank is NOT the same as a load-only
 // day: the confirmation email falls back to the job addresses, and only says "Load trucks only"
 // when there is genuinely no destination anywhere.
+// Per-day fuel & materials from a multi-day quote's fee lines (2026-11-19). Quotes keep these as
+// whole-job lines ("Fuel Fee", "Fuel & Toll Fee Day 2", "Standard Material Fee"), so the day boxes
+// in the booking and completion forms started blank. A line naming a day ("Day 2") goes on that
+// day; any other fuel / materials line goes on Day 1. Packing materials are left out (own boxes).
+function _quoteFeesByDay(fees,n){
+  const out=[];for(let i=0;i<Math.max(1,n||1);i++)out.push({fuel:0,mat:0});
+  (fees||[]).forEach(f=>{
+    if(!f||f.included===false)return;
+    const L=String(f.label||f.name||'').toLowerCase();
+    const kind=/fuel/.test(L)?'fuel':((/material/.test(L)&&!/packing/.test(L))?'mat':null);if(!kind)return;
+    const amt=Number(f.type==='range'?(f.hrsMax||f.hrsMin):f.amount)||Number(f.amount)||0;if(!amt)return;
+    const m=L.match(/\bday\s*(\d+)/);let idx=m?Number(m[1])-1:0;if(!(idx>=0&&idx<out.length))idx=0;
+    out[idx][kind]+=amt;
+  });
+  return out;
+}
 function _bjBlankDay(){return {date:'',crew:'3',rate:'',rateCash:'',flatRate:false,hrsMin:'',hrsMax:'',flatPrice:'',flatPriceCash:'',feeFuel:'',feeMaterials:'',arrivalWindow:'',from:'',to:''};}
 function toggleBjMultiDay(){
   const cb=document.getElementById('bj-multiday');const on=cb&&cb.checked;
@@ -9945,6 +9960,19 @@ function openBooking(leadId){
         setIfEmpty('bj-pack-mat-min',packMat.hrsMin||packMat.amount);
         setIfEmpty('bj-pack-mat-max',packMat.hrsMax||packMat.amount);
       }
+    }
+    // Multi-day quote (2026-11-19, owner unlock): put each day's fuel and materials into its day
+    // box, and point the hidden Day-1 fields at Day 1's own amounts (the single-day lookup above
+    // takes the FIRST fuel line it finds, which could be Day 2's).
+    if(_isMultiDay&&quote.days&&quote.days.length>1&&Array.isArray(quote.fees)){
+      const _fd=_quoteFeesByDay(quote.fees,quote.days.length);
+      const _full=window._bjQuoteDaysFull||[];
+      _fd.forEach((v,i)=>{const d=_full[i];if(!d)return;if(!Number(d.feeFuel)&&v.fuel)d.feeFuel=v.fuel;if(!Number(d.feeMaterials)&&v.mat)d.feeMaterials=v.mat;});
+      (_bjDays||[]).forEach(r=>{const v=_fd[r._qIdx];if(!v)return;if(!Number(r.feeFuel)&&v.fuel)r.feeFuel=String(v.fuel);if(!Number(r.feeMaterials)&&v.mat)r.feeMaterials=String(v.mat);});
+      const _d0=(_bjDays||[])[0]||{};
+      const _ffEl=document.getElementById('bj-fee-fuel');if(_ffEl)_ffEl.value=Number(_d0.feeFuel)?_d0.feeFuel:'';
+      const _fmEl=document.getElementById('bj-fee-materials');if(_fmEl)_fmEl.value=Number(_d0.feeMaterials)?_d0.feeMaterials:'';
+      try{renderBjDays();}catch(_){}
     }
     // Insurance type from quote
     if(quote.insuranceType){
@@ -12520,6 +12548,11 @@ function renderMultiDayCompleteRows(j){
     return'Moving';
   }
   // Append day cards using the shared _buildCjmdDayCard so add/remove use the same template.
+  // Fuel & materials per day (2026-11-19): the day's own booked amount, else (Day 1) the booking's
+  // job-level fee, else the quote's fee lines for that day. The booked job is preferred because the
+  // booking form is where the office corrects them.
+  const _fq=_quoteFeesByDay(j.quoteFees,qDays.length);
+  const _feeFor=(qd,i,dayKey,jobKey,qKey)=>Number(qd[dayKey])||(i===0?(Number(j[jobKey])||_fq[0][qKey]):(_fq[i]?_fq[i][qKey]:0))||0;
   container.innerHTML=qDays.map((qd,i)=>{
     return _buildCjmdDayCard(i,{
       date:qd.date||j.date||'',
@@ -12527,7 +12560,9 @@ function renderMultiDayCompleteRows(j){
       movers:Number(qd.crew)||2,
       moveRate:Number(qd.rate)||225,
       packers:Number(qd.packCrewSize)||0,
-      packRate:Number(qd.packRate)||0
+      packRate:Number(qd.packRate)||0,
+      fuel:_feeFor(qd,i,'feeFuel','feeFuel','fuel'),
+      materials:_feeFor(qd,i,'feeMaterials','feeMaterials','mat')
     });
   }).join('');
 }
@@ -17261,7 +17296,9 @@ function getSaturdayOfWeek(dateStr){
 function fmtWeekLabel(satStr){
   const sat=new Date(satStr+'T12:00:00');
   const fri=new Date(sat);fri.setDate(fri.getDate()+6);
-  return`Sat ${sat.toLocaleDateString('en-US',{month:'short',day:'numeric'})} — Fri ${fri.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+  // "Week 10/24/26 – 10/30/26" — payroll weeks run Saturday to Friday (2026-11-19, owner's format).
+  const f=d=>String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2);
+  return`Week ${f(sat)} \u2013 ${f(fri)}`;
 }
 
 // ── TAB ──
