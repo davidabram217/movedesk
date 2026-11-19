@@ -7478,7 +7478,7 @@ const _leadQuotesBlock=_leadQuotes.length?`<div style="margin-top:12px;padding:1
   ${_leadQuotes.map((q,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 0;${i<_leadQuotes.length-1?'border-bottom:1px solid var(--border2)':''}">
     <div style="font-size:12.5px;min-width:0">
       <strong>${fmtMoney(q.totalMin)}${(q.totalMax&&q.totalMax!==q.totalMin)?' \u2013 '+fmtMoney(q.totalMax):''}</strong>
-      ${_qBadge(q.status)}${i===0?`<span class="badge pill-gray" style="font-size:9.5px">Latest</span>`:''}
+      ${_quoteStatusBadge(q)||_qBadge(q.status)}${i===0?`<span class="badge pill-gray" style="font-size:9.5px">Latest</span>`:''}
       <div style="color:var(--text3);font-size:11px;margin-top:2px">${q.sentAt?fmtDate(q.sentAt):(q.createdAt?fmtDate(q.createdAt):'\u2014')}${q.sentBy?' \u00b7 by '+escHtml(q.sentBy):''}${q.jobType==='multi'?' \u00b7 Multi-day':''}</div>
     </div>
     <div style="display:flex;gap:6px;white-space:nowrap">
@@ -19289,6 +19289,7 @@ function buildQuotePlainText(){
 }
 
 async function openQuoteGmail(){
+  window._qResendOnly=false;
   const sentBy=document.getElementById('qb-sent-by')?.value?.trim();
   if(!sentBy){showToast('Please fill in who is sending this quote (Sent by field).');return;}
   const estType=document.getElementById('qb-estimate-type')?.value;
@@ -19351,6 +19352,54 @@ function _quoteSendFieldsOk(){
   return true;
 }
 
+// ── Quote email delivery state (2026-11-18) ───────────────────────────────────────────────────
+// pending = Send clicked, email not confirmed (server unreachable, page closed mid-send…)
+// gmail   = EmailJS failed and Gmail was opened as a backup — not confirmed it was sent from there
+// emailed = EmailJS confirmed, or someone ticked "It went"
+function _quoteEmailStore(q){
+  const l=q&&q.leadId?(db.leads||[]).find(x=>x.id===q.leadId):null;
+  if(l){if(!l._quoteEmailStatus)l._quoteEmailStatus={};return l._quoteEmailStatus;}
+  if(!db.settings)db.settings={};if(!db.settings.quoteEmailStatus)db.settings.quoteEmailStatus={};return db.settings.quoteEmailStatus;
+}
+function _setQuoteEmailState(q,state){if(!q)return;const st=_quoteEmailStore(q);st[q.id]={state:state,at:new Date().toISOString()};const l=(db.leads||[]).find(x=>x.id===q.leadId);if(l)l._localEditedAt=new Date().toISOString();}
+function _quoteEmailState(q){if(!q)return '';const st=_quoteEmailStore(q);return (st[q.id]&&st[q.id].state)||'';}
+function _quoteNotEmailed(q){const s=_quoteEmailState(q);return q&&q.status==='sent'&&(s==='pending'||s==='gmail');}
+// Push one quote to the database and wait at most `ms`. Returns 'ok' | 'frozen' (already there and
+// locked — fine) | 'fail' | 'timeout'.
+async function _pushQuoteNow(q,ms){
+  const ctl=typeof AbortController!=='undefined'?new AbortController():null;
+  const tm=ctl?setTimeout(()=>ctl.abort(),ms||15000):null;
+  try{
+    const res=await fetch(SUPABASE_URL+'/rest/v1/quotes',{method:'POST',signal:ctl?ctl.signal:undefined,
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify([{id:q.id,data:q}])});
+    if(res.ok)return 'ok';
+    const t=await res.text().catch(()=>'');
+    if(/frozen/i.test(t)){try{_noteFrozenQuoteRejection(t);}catch(_){}return 'frozen';}
+    console.warn('Quote push failed:',res.status,t);return 'fail';
+  }catch(e){return (e&&e.name==='AbortError')?'timeout':'fail';}
+  finally{if(tm)clearTimeout(tm);}
+}
+// "↻ Send again" for a quote that was locked as sent but never emailed.
+function resendQuoteEmail(quoteId){
+  const q=db.quotes.find(x=>x.id===quoteId);if(!q)return;
+  const l=q.leadId?db.leads.find(x=>x.id===q.leadId):null;
+  currentQuoteId=q.id;currentQuoteLeadId=q.leadId||null;window._qResendOnly=true;
+  const name=l&&l.name?l.name.split(' ')[0]:'there';
+  const quoteLink='https://davidabram217.github.io/movedesk/quote.html?id='+q.publicId;
+  const draft=(l&&l._quoteEmailDrafts&&l._quoteEmailDrafts[q.id])||q._emailDraft;
+  document.getElementById('qe-to').value=(draft&&draft.to)||q.customerEmail||(l&&l.email)||'';
+  document.getElementById('qe-subject').value=(draft&&draft.subject)||'Your Move Estimate \u2014 CareMore Moving & Storage';
+  document.getElementById('qe-body').value=(draft&&draft.body)||('Hi '+name+',\n\nPlease find your move estimate from CareMore Moving & Storage at the link below. If you have any questions or would like to confirm the booking please feel free to contact us anytime and we will be happy to help.\n\nView your quote here:\n'+quoteLink+'\n\nThank you,\nThe CareMore Team\n(415) 822-8547\nwww.caremoremoving.com');
+  const btn=document.querySelector('#modal-quote-email .btn-primary');if(btn){btn.disabled=false;btn.textContent='\u2709 Send Email';}
+  openModal('quote-email');
+}
+function markQuoteEmailed(quoteId){const q=db.quotes.find(x=>x.id===quoteId);if(!q)return;_setQuoteEmailState(q,'emailed');saveDB();renderQuotes();showToast('\u2713 Marked as emailed');}
+function _quoteStatusBadge(q,cls){
+  if(_quoteNotEmailed(q)){const g=_quoteEmailState(q)==='gmail';
+    return '<span class="badge pill-amber" title="'+(g?'Gmail was opened as a backup \u2014 check it was actually sent':'Send was clicked but the email never went out')+'">\u26a0 '+(g?'Check Gmail':'Not emailed')+'</span>';}
+  return null;
+}
 async function sendQuoteEmail(){
   if(!_quoteSendFieldsOk())return;
   const to=document.getElementById('qe-to').value.trim();
@@ -19379,7 +19428,10 @@ async function sendQuoteEmail(){
   // re-saves cleanly). All other paths now refuse to mutate sent quotes.
   let q=null;
   try{
-    if(currentQuoteId&&qbDays&&qbDays.length){
+    if(window._qResendOnly){
+      // "Send again" from the Quotes list — the quote is already sent and locked; send it as it is.
+      q=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
+    } else if(currentQuoteId&&qbDays&&qbDays.length){
       q=saveQuote('sent',{fromSendButton:true});
     } else {
       // Fallback: form state isn't available (shouldn't happen, but just in case)
@@ -19399,38 +19451,30 @@ async function sendQuoteEmail(){
   q.status='sent';
   if(!q.sentAt)q.sentAt=new Date().toISOString().split('T')[0];
   q._localEditedAt=new Date().toISOString();
-  // Direct upsert (not via saveDB debounce) so we can await the result and verify
-  try{
-    if(btn)btn.textContent='Saving quote...';
-    // Push the (just-frozen) quote directly to Supabase before sending the email so the
-    // customer's link points at the right content. Use sbFetch (same as the rest of the
-    // app) — it's the known-good write path with proper auth headers and conflict resolution.
-    try{
-      await sbFetch('quotes','POST',[{id:q.id,data:q}]);
-      _cloudQuoteStatus[q.id]=q.status; // authorized send: cloud now holds 'sent'
-    }catch(pushErr){
-      // Direct push failed — the customer's link might not work yet. Fall back to the normal
-      // saveDB() which will retry via the background sync. The hard lock will keep the
-      // saved record stable, so when sync does succeed it'll have the right content.
-      console.warn('Direct quote push failed, falling back to debounced sync:',pushErr);
-    }
-    // Persist locally so localStorage is in sync
-    saveDB();
-  }catch(verifyErr){
+  // Whether the email actually went out is tracked SEPARATELY from the quote's status (2026-11-18,
+  // owner unlock). The quote still flips to 'sent' first — that is the hard lock that protects a
+  // quote the customer may see (see the 2026-07-08/09 note in the original code) — but MoveDesk now
+  // only SHOWS it as sent once the email goes out. Kept on the lead, never on the quote: a sent
+  // quote is frozen on the server, so writing to it after the send would be rejected.
+  _setQuoteEmailState(q,'pending');
+  saveDB();
+  // Direct upsert with a time limit. It used to wait forever when the database didn't answer —
+  // the button sat on "Saving quote..." and no email went out, while the quote already read "sent".
+  if(btn)btn.textContent='Saving quote...';
+  const _push=await _pushQuoteNow(q,15000);
+  if(_push!=='ok'&&_push!=='frozen'){
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
-    // DO NOT revert the status to 'draft' here.
-    // Reverting strips the sent/accepted HARD LOCK in saveQuote(), leaving the record writable by
-    // autosave and by a blank Quote Builder. During the 2026-07-08/09 Supabase outage this verify
-    // step failed routinely, quietly un-protecting quotes that had already reached customers — and
-    // two of them were later overwritten with blank-builder defaults (1 day, 2 crew, 2-4h) and lost.
-    // The quote stays 'sent' (and therefore immutable); we only record that the cloud copy is not
-    // yet confirmed. The background sync will push it, and _noteCloudQuoteStatuses clears the flag
-    // once the cloud acknowledges the row.
+    // DO NOT revert the status to 'draft' — reverting strips the sent/accepted HARD LOCK (see the
+    // 2026-07-08/09 outage note). The quote stays locked; the list shows "⚠ Not emailed".
     q._cloudUnconfirmed=true;
     saveDB();
-    showToast('⚠ Quote saved but not confirmed on the server — email NOT sent. It will sync in the background; try Send again shortly.');
+    showToast(_push==='timeout'
+      ?'\u26a0 The database didn\u2019t answer \u2014 the quote was NOT emailed. It\u2019s saved; click Send again in a minute.'
+      :'\u26a0 Couldn\u2019t save the quote to the database \u2014 it was NOT emailed. Click Send again in a minute.');
     return;
   }
+  _cloudQuoteStatus[q.id]=q.status; // authorized send: cloud now holds 'sent'
+  saveDB();
 
   // ── PHASE 2: SEND THE EMAILS — cloud is now confirmed in sync with preview ──
   if(btn)btn.textContent='Sending email...';
@@ -19457,6 +19501,7 @@ async function sendQuoteEmail(){
     });
     const l=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
     if(l){l.status='Estimate sent';l.estimateDate=new Date().toISOString().split('T')[0];if(q.sentBy&&!l.estimateSentBy)l.estimateSentBy=q.sentBy;if(q.estimateType)l.estimateType=q.estimateType;saveDB();renderLeads();}
+    _setQuoteEmailState(q,'emailed');window._qResendOnly=false;saveDB();renderQuotes();
     showToast('✓ Quote email sent to '+to);
     closeModal('quote-email');
   }catch(e){
@@ -19465,7 +19510,7 @@ async function sendQuoteEmail(){
     if(btn){btn.disabled=false;btn.textContent='✉ Send Email';}
     // Mark quote as sent since we're opening Gmail
     const _fq=currentQuoteId?db.quotes.find(x=>x.id===currentQuoteId):null;
-    if(_fq){_fq.status='sent';_fq.sentAt=new Date().toISOString().split('T')[0];saveDB();}
+    if(_fq){_fq.status='sent';_fq.sentAt=new Date().toISOString().split('T')[0];_setQuoteEmailState(_fq,'gmail');saveDB();try{renderQuotes();}catch(_){}}
     const _fl=currentQuoteLeadId?db.leads.find(x=>x.id===currentQuoteLeadId):null;
     if(_fl){_fl.status='Estimate sent';_fl.estimateDate=new Date().toISOString().split('T')[0];if(_fq&&_fq.sentBy&&!_fl.estimateSentBy)_fl.estimateSentBy=_fq.sentBy;if(_fq&&_fq.estimateType)_fl.estimateType=_fq.estimateType;saveDB();renderLeads();}
     const url='https://mail.google.com/mail/?view=cm'
@@ -19566,11 +19611,12 @@ function renderQuotes(){
       <td style="padding:10px 14px;border-bottom:1px solid var(--border);text-align:right;font-family:'DM Mono',monospace">${fmtMoney(q.totalMin)} — ${fmtMoney(q.totalMax)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap">${_quoteSentCell(q)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${q.sentBy||'—'}</td>
-      <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${statusBadgeQ(q.status)}</td>
+      <td style="padding:10px 14px;border-bottom:1px solid var(--border)">${_quoteStatusBadge(q)||statusBadgeQ(q.status)}</td>
       <td style="padding:10px 14px;border-bottom:1px solid var(--border)">
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${q.status==='draft'?`<button class="btn btn-secondary btn-sm" onclick="openQuoteFromList('${q.id}')">Edit</button>`:''}
           <button class="btn btn-secondary btn-sm" onclick="previewQuoteFromList('${q.id}')">Preview</button>
+          ${_quoteNotEmailed(q)?`<button class="btn btn-primary btn-sm" style="font-size:11px" onclick="resendQuoteEmail('${q.id}')">↻ Send again</button><button class="btn btn-secondary btn-sm" style="font-size:11px" onclick="markQuoteEmailed('${q.id}')" title="It did go out (e.g. you sent it from Gmail)">✓ It went</button>`:''}
           ${q.status==='draft'?`<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--accent);border-color:var(--accent)" onclick="markQuoteSent('${q.id}')">✓ Mark sent</button>`:''}
           ${(q.status==='sent'||q.status==='accepted')?`<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--accent);border-color:var(--accent)" onclick="cloneSentQuoteToDraft('${q.id}')" title="Start a new draft based on this quote">📋 New from this</button>`:''}
           <button class="btn btn-danger btn-sm" onclick="deleteQuote('${q.id}')">✕</button>
