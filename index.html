@@ -17457,11 +17457,13 @@ function loadWeek(){
   document.getElementById('week-notes').value=week.notes||'';
   const tbody=document.getElementById('weekly-hours-tbody');
   const activeEmps=db.employees.filter(e=>e.active!==false);
-  // Sort by saved order if available
-  if(db.settings.empOrder&&db.settings.empOrder.length){
+  // Sort by THIS WEEK's saved order (2026-11-19), else the latest order. Each week keeps the order it
+  // was arranged in, so rearranging next week never shuffles a past week.
+  const _ord=_weekEmpOrder(currentWeekSat);
+  if(_ord.length){
     activeEmps.sort((a,b)=>{
-      const ai=db.settings.empOrder.indexOf(a.id);
-      const bi=db.settings.empOrder.indexOf(b.id);
+      const ai=_ord.indexOf(a.id);
+      const bi=_ord.indexOf(b.id);
       return (ai===-1?999:ai)-(bi===-1?999:bi);
     });
   }
@@ -17511,8 +17513,25 @@ function rowDrop(e){
   // Save new order
   const newOrder=Array.from(tbody.querySelectorAll('tr')).map(r=>r.dataset.empid).filter(Boolean);
   if(!db.settings.empOrder)db.settings.empOrder=[];
+  // Per-week order (2026-11-19). Weeks already filled in that never had their own order are pinned to
+  // the order they were showing, so this change can't move them. A drag in Weekly Payroll is saved on
+  // that week; it also becomes the latest order, which new weeks and the Employees list start from.
+  _pinUnorderedWeeks(db.settings.empOrder.slice());
+  if(tbody.id==='weekly-hours-tbody'&&typeof currentWeekSat!=='undefined'&&currentWeekSat){
+    if(!db.weeklyPayroll[currentWeekSat])db.weeklyPayroll[currentWeekSat]={hours:{},sickHours:{},holidayHours:{},overrides:{},gas:[],quickbooks:0,notes:''};
+    db.weeklyPayroll[currentWeekSat].empOrder=newOrder.slice();
+  }
   db.settings.empOrder=newOrder;
   saveDB();
+}
+function _weekEmpOrder(weekKey){
+  const w=db.weeklyPayroll&&db.weeklyPayroll[weekKey];
+  if(w&&Array.isArray(w.empOrder)&&w.empOrder.length)return w.empOrder;
+  return (db.settings&&db.settings.empOrder)||[];
+}
+function _pinUnorderedWeeks(order){
+  if(!order||!order.length||!db.weeklyPayroll)return;
+  Object.keys(db.weeklyPayroll).forEach(k=>{const w=db.weeklyPayroll[k];if(w&&typeof w==='object'&&!(Array.isArray(w.empOrder)&&w.empOrder.length))w.empOrder=order.slice();});
 }
 
 function calcCashOwed(e,hrs){
