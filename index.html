@@ -17467,6 +17467,13 @@ function loadWeek(){
       return (ai===-1?999:ai)-(bi===-1?999:bi);
     });
   }
+  // Everyone who worked that week goes to the top (2026-11-19): any hours, sick or holiday hours, or
+  // gas. They keep the week's order among themselves; everyone else follows in the same order.
+  // Done when the week is opened, so nobody jumps around while hours are being typed.
+  {const _worked=e=>Number(week.hours&&week.hours[e.id])>0||Number(week.sickHours&&week.sickHours[e.id])>0||Number(week.holidayHours&&week.holidayHours[e.id])>0
+     ||(Array.isArray(week.gas)?week.gas:[]).some(g=>g&&g.empId===e.id&&Number(g.amount)>0);
+   const _w=activeEmps.filter(_worked),_n=activeEmps.filter(e=>!_worked(e));
+   activeEmps.length=0;_w.concat(_n).forEach(e=>activeEmps.push(e));}
   tbody.innerHTML=activeEmps.length?activeEmps.map(e=>{
     const hrs=week.hours?.[e.id]||'';
     const sickHrs=week.sickHours?.[e.id]||'';
