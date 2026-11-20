@@ -5452,6 +5452,41 @@ function deleteHotel(id){
 // when the assistant compares vendors; quoting blind wins that comparison but is often wrong.
 // So the draft answers everything answerable, says plainly why a firm number needs five minutes,
 // and asks for a phone number LAST — the end of the message is what gets surfaced to the person.
+// Real job times for the reply drafter (2026-11-20). Without them it guessed hour ranges from general
+// knowledge. This sends a compact, name-free summary of completed jobs — grouped by job type, size
+// (bedrooms, or pod / truck size for pod jobs), crew and SF vs outside SF — with billed hours, so the
+// drafter can say "similar 1-bed moves take us 3–4 hours" from our own numbers. Uses the same
+// training pool as the AI Quote Builder (excluded jobs stay excluded).
+function _arJobHistory(){
+  try{
+    if(typeof _aiTrainingPool!=='function')return '';
+    const rows=_aiTrainingPool().filter(j=>j&&Number(j.actualHours)>0);
+    const q=h=>Math.round(h*4)/4;
+    const pct=(a,p)=>{const i=(a.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return a[lo]+(a[hi]-a[lo])*(i-lo);};
+    const isSF=j=>{const f=String(j.fromZip||'').split('.')[0],t=String(j.toZip||'').split('.')[0];
+      if(!f&&!t)return null;return (!f||/^941/.test(f))&&(!t||/^941/.test(t));};
+    const groups={};
+    rows.forEach(j=>{
+      const type=(typeof _canonMoveTypeLabel==='function'?_canonMoveTypeLabel(j.moveType):j.moveType)||'Move';
+      if(/^(internal|warehouse labor)$/i.test(type))return;
+      const size=(_isPodTruckType(type)&&j.containerSize)?j.containerSize:(j.size||'size not recorded');
+      const men=Number(j.moveMen)||0;
+      const sf=isSF(j);
+      const area=sf===null?'area unknown':(sf?'SF':'outside SF');
+      const k=[type,size,men?men+' movers':'crew not recorded',area].join(' · ');
+      (groups[k]=groups[k]||[]).push(Number(j.actualHours));
+    });
+    const lines=Object.keys(groups).map(k=>{
+      const h=groups[k].slice().sort((a,b)=>a-b),n=h.length;
+      let txt;
+      if(n===1)txt='1 job: '+q(h[0])+' hrs';
+      else if(n<4)txt=n+' jobs: '+h.map(q).join(', ')+' hrs';
+      else txt=n+' jobs: typical '+q(pct(h,.5))+' hrs, middle half '+q(pct(h,.25))+'–'+q(pct(h,.75))+', range '+q(h[0])+'–'+q(h[n-1]);
+      return {n,line:'- '+k+': '+txt};
+    }).sort((a,b)=>b.n-a.n).slice(0,80);
+    return lines.map(x=>x.line).join('\n');
+  }catch(e){return '';}
+}
 async function generateAgentReply(){
   const emailEl=document.getElementById('ar-email');
   const email=(emailEl&&emailEl.value||'').trim();
@@ -5467,7 +5502,7 @@ async function generateAgentReply(){
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
       // Past approved replies go with the request so the drafter imitates them.
-      body:JSON.stringify({email,notes,examples:(_arExamples().length?_arExamples():[_AR_SEED_EXAMPLE]).slice(0,3)})
+      body:JSON.stringify({email,notes,examples:(_arExamples().length?_arExamples():[_AR_SEED_EXAMPLE]).slice(0,3),jobHistory:_arJobHistory()})
     });
     const data=await res.json();
     if(!res.ok||!data.ok)throw new Error(data.error||('Edge function error '+res.status));
