@@ -3548,9 +3548,9 @@ async function loadDB(){
         console.log('Initial-load lead-state self-heal: removed '+_ldExclusionFixed+' bookedJob(s) whose lead is already completed');
       }
     }catch(e){console.warn('Initial-load lead-state exclusion failed:',e);}
-    // Also save to localStorage as fallback
-    localStorage.setItem('movedesk_db',JSON.stringify(db));
-    localStorage.setItem('movedesk-db',JSON.stringify(db));
+    // Also save to localStorage as fallback — guarded: a full browser storage must never send loadDB
+    // into its error path, which would replace the database data with the old local copy.
+    _writeLocalCopy();
   }catch(e){
     console.error('Supabase loadDB failed, falling back to localStorage:',e);
     // Fallback to localStorage
@@ -3924,6 +3924,22 @@ document.addEventListener('wheel',function(e){
 // Up/down arrows also nudge the value, which is fine deliberately but not while scrolling a long
 // modal with the keyboard — left alone, since that one IS usually intentional.
 
+// ── This computer's copy (2026-11-19) ────────────────────────────────────────────────────────────
+// MoveDesk keeps a copy of everything in the browser as a fallback. It used to write it TWICE
+// ('movedesk_db' and 'movedesk-db'), which filled the browser's ~5 MB storage. Once full, the write
+// at the end of loadDB threw, and loadDB's error handler then REPLACED the freshly loaded database
+// data with the old local copy — so the app silently ran on stale data and lost recent work.
+// Now: one copy only; if it still doesn't fit, a slimmer copy without the AI-training rows (which
+// live in their own database table); and a failure here can never interrupt anything else.
+let _localCopyWarned=false;
+function _writeLocalCopy(){
+  try{localStorage.removeItem('movedesk-db');}catch(_){}
+  let data;try{data=JSON.stringify(db);}catch(e){return false;}
+  try{localStorage.setItem('movedesk_db',data);return true;}catch(e){}
+  try{const slim=Object.assign({},db,{aiTraining:[]});localStorage.setItem('movedesk_db',JSON.stringify(slim));return true;}catch(e){}
+  if(!_localCopyWarned){_localCopyWarned=true;console.warn('This computer\u2019s backup copy of MoveDesk is too big for the browser\u2019s storage \u2014 the database copy is unaffected.');}
+  return false;
+}
 function saveDB(){
   // Detect local edits to leads and stamp timestamps that protect them from being overwritten
   // by stale cloud data on the next sync. Two timestamps:
@@ -4002,7 +4018,7 @@ function saveDB(){
     });
   }catch(_){}
   // Save to localStorage immediately as fast fallback
-  try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  _writeLocalCopy();
   // Debounce Supabase saves to avoid hammering the API
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(()=>syncToSupabase(),3000);
@@ -4232,6 +4248,22 @@ async function syncToSupabase(){
     _push('employees',empRows);
     _push('payroll_weeks',weekRows,'week_key');
     _push('cash_transactions',txnRows);
+    // Settings is ONE shared record for every computer (2026-11-19). Before uploading it, fold in the
+    // agent test set / house examples another computer may have added since this one loaded —
+    // otherwise a computer with an older copy (e.g. rearranging employees on payroll) wiped them.
+    if(_dirtyRows('settings',[{id:'main',data:db.settings}]).length){
+      try{
+        const _cs=await sbFetch('settings?select=id,data');
+        const _cd=_cs&&_cs[0]&&_cs[0].data;
+        if(_cd){
+          const _keep={agentTestSet:db.settings.agentTestSet,agentExamples:db.settings.agentExamples,agentTestDeleted:db.settings.agentTestDeleted};
+          db.settings.agentTestSet=_cd.agentTestSet||[];db.settings.agentExamples=_cd.agentExamples||[];db.settings.agentTestDeleted=_cd.agentTestDeleted||[];
+          _mergeAgentSettings(_keep);
+          _writeLocalCopy();
+          if(document.getElementById('ar-results')&&typeof renderAgentResults==='function')try{renderAgentResults();}catch(_){}
+        }
+      }catch(e){console.warn('settings pre-merge skipped:',e);}
+    }
     _push('settings',[{id:'main',data:db.settings}]);
     // ai_training — wrapped so a missing table doesn't break other syncs
     const aiRows=(db.aiTraining||[]).map(r=>({id:r.id,data:r}));
@@ -4726,7 +4758,7 @@ async function refreshFromSupabase(){
     }catch(e){console.warn('Self-heal during refresh failed:',e);}
     if(updated>0){
       // Save merged data to localStorage
-      try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+      _writeLocalCopy();
       // Re-render current page
       const activePage=document.querySelector('.page.active');
       if(activePage){
@@ -13781,7 +13813,7 @@ function deleteCompletedJob(id){
     tombstones[id]=new Date().toISOString();
     localStorage.setItem('movedesk_completed_tombstones',JSON.stringify(tombstones));
   }catch(_){}
-  try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  _writeLocalCopy();
   sbDelete('completed_jobs',id);
   renderCompleted();showToast('Job deleted');
   if(document.getElementById('page-dashboard').classList.contains('active'))renderDashboard();
@@ -19659,7 +19691,7 @@ async function sendQuote(){
 function deleteQuote(id){
   if(!confirm('Delete this quote? This cannot be undone.'))return;
   db.quotes=db.quotes.filter(q=>q.id!==id);
-  try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  _writeLocalCopy();
   sbDelete('quotes',id);
   renderQuotes();showToast('Quote deleted');
 }
@@ -19962,7 +19994,7 @@ function deleteLead(id){
     localStorage.setItem('movedesk_lead_tombstones',JSON.stringify(tombstones));
   }catch(_){}
   // Save to localStorage and delete from Supabase without triggering a full sync
-  try{const data=JSON.stringify(db);localStorage.setItem('movedesk_db',data);localStorage.setItem('movedesk-db',data);}catch(e){}
+  _writeLocalCopy();
   // Cloud-shared soft delete. If it fails (offline / timeout) the local tombstone above still
   // suppresses the lead here, and loadDB re-asserts the tombstone on the next successful load.
   _sbSoftDelete('leads',id).then(function(ok){
