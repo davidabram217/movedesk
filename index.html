@@ -3326,7 +3326,16 @@ async function loadDB(){
     }else{_setCloudOffline(false);}
     // Payroll weeks keyed by week_key
     if(payrollRows===null){db.weeklyPayroll=_LD.weeklyPayroll||{};}
-    else{db.weeklyPayroll={};payrollRows.forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});}
+    else{db.weeklyPayroll={};payrollRows.forEach(r=>{db.weeklyPayroll[r.week_key]=r.data;});
+      // Keep this computer's payroll weeks when they're newer than the cloud's (2026-11-19). Weeks used
+      // to be taken from the cloud only, so hours typed in and not yet uploaded — page closed within a
+      // few seconds, or the database unreachable — were wiped on the next load.
+      let _keptWeeks=0;
+      Object.keys(_LD.weeklyPayroll||{}).forEach(k=>{const lw=_LD.weeklyPayroll[k],cw=db.weeklyPayroll[k];
+        if(!lw||typeof lw!=='object')return;
+        if(!cw||(lw._editedAt&&(!cw._editedAt||lw._editedAt>cw._editedAt))){db.weeklyPayroll[k]=lw;_keptWeeks++;}});
+      if(_keptWeeks){console.log('Kept '+_keptWeeks+' payroll week(s) from this computer that the cloud did not have yet \u2014 re-uploading');setTimeout(()=>{try{saveDB();}catch(_){}},1500);}
+    }
     db.cashTransactions=_cloudOrLocal(transactions,_LD.cashTransactions);
     // ai_training — load if table exists, otherwise keep whatever's in localStorage
     // hotels — the truck-parking list is only useful if it is shared, so pull it the same way.
@@ -3964,6 +3973,12 @@ function saveDB(){
       const allKeys=new Set([...Object.keys(before),...Object.keys(j)]);
       for(const k of allKeys){if(_metaKeys.has(k))continue;if(JSON.stringify(before[k])!==JSON.stringify(j[k])){j._localEditedAt=_nowIso;break;}}
     });
+    // Payroll weeks (2026-11-19) — stamp a week when anything in it changes, so loadDB can tell a newer
+    // local week from the cloud's copy.
+    const _prevWeeks=_prev.weeklyPayroll||{};
+    Object.keys(db.weeklyPayroll||{}).forEach(k=>{const w=db.weeklyPayroll[k];if(!w||typeof w!=='object')return;
+      const a=JSON.stringify(Object.assign({},_prevWeeks[k]||{},{_editedAt:0})),b=JSON.stringify(Object.assign({},w,{_editedAt:0}));
+      if(a!==b)w._editedAt=_nowIso;});
     // Same protection for completed jobs — stamp _localEditedAt on any content change so a stale cloud
     // copy (e.g. pushed by another device or an old tab that never saw this edit) cannot overwrite it on
     // the next refresh. Without this, toggling "Exclude from Quote Accuracy" or any completed-job edit
@@ -5634,6 +5649,7 @@ const _AR_OUTCOMES=[
   ['number','\u260e\ufe0f Gave us their number'],
   ['video','\ud83c\udfa5 Sent a video / photos'],
   ['estimate','\ud83d\udcc5 Scheduled an estimate'],
+  ['replied','\ud83d\udcac They replied (no number yet)'],
   ['noreply','\ud83d\udca4 No reply'],
   ['lost','\u270b Went elsewhere / not a fit']
 ];
@@ -5696,7 +5712,7 @@ function renderAgentResults(){
     +'<div class="stat-card" style="flex:1;min-width:150px"><div class="stat-label">Goal reached</div><div class="stat-value">'+(decided.length?pct+'%':'\u2014')+'</div><div class="stat-sub">'+wins.length+' of '+decided.length+' with an outcome</div></div>'
     +'<div class="stat-card" style="flex:1;min-width:150px"><div class="stat-label">Saved replies</div><div class="stat-value">'+set.length+'</div><div class="stat-sub">'+(set.length-decided.length)+' waiting for an outcome</div></div>'
     +'<div class="stat-card" style="flex:2;min-width:220px"><div class="stat-label">How they responded</div><div style="font-size:12px;line-height:1.7">'
-      +'\ud83d\udcde '+count('call')+' call \u00b7 \u260e\ufe0f '+count('number')+' number \u00b7 \ud83c\udfa5 '+count('video')+' video \u00b7 \ud83d\udcc5 '+count('estimate')+' estimate<br>\ud83d\udca4 '+count('noreply')+' no reply \u00b7 \u270b '+count('lost')+' lost \u00b7 \u2705 '+set.filter(r=>r.booked).length+' booked</div></div>'
+      +'\ud83d\udcde '+count('call')+' call \u00b7 \u260e\ufe0f '+count('number')+' number \u00b7 \ud83c\udfa5 '+count('video')+' video \u00b7 \ud83d\udcc5 '+count('estimate')+' estimate<br>\ud83d\udcac '+count('replied')+' replied \u00b7 \ud83d\udca4 '+count('noreply')+' no reply \u00b7 \u270b '+count('lost')+' lost \u00b7 \u2705 '+set.filter(r=>r.booked).length+' booked</div></div>'
     +'</div>'
     +(Object.keys(byV).length>1?'<div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">By instructions version: '+Object.keys(byV).map(v=>esc(v)+' '+byV[v][0]+'/'+byV[v][1]).join(' \u00b7 ')+'</div>':'')
     +(set.length<20?'<div style="font-size:11.5px;color:var(--amber);margin-bottom:10px">'+set.length+' of about 20 saved \u2014 once there are around 20 with outcomes, we can start testing new reply instructions against them.</div>':'')
@@ -5764,6 +5780,8 @@ function _arpParseThread(text){
     else if(vid.test(L))outcome='video';
     else if(est.test(L)&&!/\b(won'?t|don'?t|not|no need to)\b[^.]{0,40}\b(schedul|walkthrough|survey|estimate|call)/.test(L))outcome='estimate';
     else if(!later.trim())outcome='noreply';
+    // They wrote back but gave none of the four (2026-11-19): still better than silence.
+    else outcome='replied';
   }
   return {enquiry:clean(msgs[firstThem]),reply:firstUs>=0?clean(msgs[firstUs]):'',after,outcome,messages:msgs.length,laterFromThem:!!later.trim()};
 }
