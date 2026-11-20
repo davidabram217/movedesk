@@ -5834,14 +5834,27 @@ function saveAddPastAgent(again){
   const enquiry=(g('arp-enquiry').value||'').trim(),reply=(g('arp-reply').value||'').trim();
   if(!enquiry||!reply){showToast('Paste both what they sent and what we replied.');return;}
   const set=_arTestSet();
-  if(set.some(r=>r.enquiry===enquiry.slice(0,6000))){showToast('That enquiry is already in the test set.');return;}
   const d=g('arp-date').value;
+  // Already saved (e.g. one that came back from the recovery): don't add it twice, but take anything
+  // new from this paste — outcome, Booked, what happened after — and clear the form as usual. (2026-11-19)
+  const dup=set.find(r=>r.enquiry===enquiry.slice(0,6000));
+  let msg;
+  if(dup){
+    const oc=g('arp-outcome').value||'',fu=((g('arp-after')||{}).value||'').trim();
+    if(oc&&oc!==dup.outcome){dup.outcome=oc;dup.outcomeAt=new Date().toISOString();}
+    if(g('arp-booked').checked)dup.booked=true;
+    if(fu&&fu.length>String(dup.followUp||'').length)dup.followUp=fu.slice(0,6000);
+    dup._editedAt=new Date().toISOString();
+    msg='\u2713 Already in your list \u2014 updated it instead of adding a copy ('+set.length+' in the test set)';
+  }else{
   set.unshift({id:uid(),savedAt:d?d+'T12:00:00.000Z':new Date().toISOString(),enquiry:enquiry.slice(0,6000),aiDraft:'',
     sentReply:reply.slice(0,8000),followUp:((g('arp-after')||{}).value||'').trim().slice(0,6000),notes:'',version:'past (by hand)',edited:false,
-    outcome:g('arp-outcome').value||'',outcomeAt:g('arp-outcome').value?new Date().toISOString():'',booked:!!g('arp-booked').checked});
+    outcome:g('arp-outcome').value||'',outcomeAt:g('arp-outcome').value?new Date().toISOString():'',booked:!!g('arp-booked').checked,_editedAt:new Date().toISOString()});
+  msg='\u2713 Saved ('+set.length+' in the test set)';
+  }
   db.settings.agentTestSet=set.slice(0,150);saveDB();renderAgentResults();
   g('arp-thread').value='';g('arp-split-note').textContent='';g('arp-after').value='';g('arp-enquiry').value='';g('arp-reply').value='';g('arp-outcome').value='';g('arp-booked').checked=false;g('arp-date').value='';
-  g('arp-note').textContent='\u2713 Saved ('+set.length+' in the test set)';
+  g('arp-note').textContent=msg;showToast(msg);
   if(again)g('arp-thread').focus();else g('ar-past-form').style.display='none';
 }
 function exportAgentTestSet(){
