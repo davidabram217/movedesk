@@ -26,7 +26,7 @@ const cors = {
 };
 
 const MODEL = "claude-sonnet-5-5";
-const VERSION = "v1-2026-11-23";
+const VERSION = "v2-2026-11-23";
 
 const SYSTEM = `You help CareMore Moving & Storage (San Francisco) quote a move from a customer's video
 walkthrough. You are given still frames taken from the video (in order) and sometimes photos, plus
@@ -79,7 +79,7 @@ serve(async (req) => {
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) return json({ ok: false, error: "Server missing ANTHROPIC_API_KEY" }, 500);
 
-    const imgs = frames.slice(0, 60).filter((f: unknown) => typeof f === "string" && f.length > 100)
+    const imgs = frames.slice(0, 95).filter((f: unknown) => typeof f === "string" && f.length > 100)
       .map((data: string) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } }));
     const c = context || {};
     const known = [
@@ -90,6 +90,11 @@ serve(async (req) => {
     ].filter(Boolean).join("\n") || "(nothing entered yet)";
     const text = `What the office has entered so far:\n${known}\n\n` +
       (c.vaultGuide ? `Vault guide from CareMore's own completed jobs:\n${String(c.vaultGuide).slice(0, 1500)}\n\n` : "") +
+      (c.previous ? `EARLIER CHECK: the office already checked other videos/photos of this SAME job and got the result
+below. The pictures above are NEW ones. Return ONE combined result for the whole job: keep
+everything from the earlier check, add what is new, and count an item seen in both only once (the
+same sofa filmed twice is one sofa). Re-estimate vaults, packing and size for the whole job.
+${JSON.stringify(c.previous).slice(0, 8000)}\n\n` : "") +
       `There are ${imgs.length} pictures above, in video order. Return the JSON.`;
 
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
