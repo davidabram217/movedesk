@@ -753,6 +753,13 @@ input[type=number]{-moz-appearance:textfield}
       </div>
       <div class="card" style="margin-bottom:14px">
         <div class="card-header">
+          <div class="card-title">🎯 AI accuracy</div>
+          <div style="font-size:12px;color:var(--text3)">Saved estimates vs. how long the jobs really took</div>
+        </div>
+        <div class="card-body" id="ai-accuracy"></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header">
           <div class="card-title">📋 Quoting rules</div>
           <div style="font-size:12px;color:var(--text3)">Business rules that inform every estimate — kept separate from training data</div>
         </div>
@@ -4265,8 +4272,8 @@ async function syncToSupabase(){
         const _cs=await sbFetch('settings?select=id,data');
         const _cd=_cs&&_cs[0]&&_cs[0].data;
         if(_cd){
-          const _keep={agentTestSet:db.settings.agentTestSet,agentExamples:db.settings.agentExamples,agentTestDeleted:db.settings.agentTestDeleted};
-          db.settings.agentTestSet=_cd.agentTestSet||[];db.settings.agentExamples=_cd.agentExamples||[];db.settings.agentTestDeleted=_cd.agentTestDeleted||[];
+          const _keep={agentTestSet:db.settings.agentTestSet,agentExamples:db.settings.agentExamples,agentTestDeleted:db.settings.agentTestDeleted,aiEstimates:db.settings.aiEstimates};
+          db.settings.agentTestSet=_cd.agentTestSet||[];db.settings.agentExamples=_cd.agentExamples||[];db.settings.agentTestDeleted=_cd.agentTestDeleted||[];db.settings.aiEstimates=_cd.aiEstimates||[];
           _mergeAgentSettings(_keep);
           _writeLocalCopy();
           if(document.getElementById('ar-results')&&typeof renderAgentResults==='function')try{renderAgentResults();}catch(_){}
@@ -4806,7 +4813,7 @@ document.addEventListener('visibilitychange',function(){
   }
 });
 const pageTitles={dashboard:['Dashboard','Your business at a glance'],leads:['Leads & Estimates','Track and manage all incoming leads'],customers:['Customers','Your customer database'],quotes:['Quotes','All quotes sent to customers'],booked:['Booked Jobs','Confirmed upcoming moves'],completed:['Completed Jobs','Full job history and payment tracking'],calendar:['Calendar','All jobs and estimates at a glance'],analytics:['Analytics','Lead sources, close rates, and revenue'],payroll:['Payroll & Cash','Employee hours, wages, and cash tracking'],settings:['Settings','Business info, crew, and rates'],aiquote:['AI Quote Builder','Instant estimates based on your real job data'],packcalc:['Packing Materials Calculator','Estimate packing costs by job size and type'],fuelcalc:['Fuel Calculator','Quick fuel charge from the warehouse and back'],demand:['Demand & Pricing','Your busiest and quietest days — where to charge more and where to discount']};
-function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote')renderAIQuote();if(n==='agentreply'&&typeof renderAgentResults==='function')renderAgentResults();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
+function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.add('active');document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+n+"'"))x.classList.add('active');});const[t,s]=pageTitles[n]||[n,''];document.getElementById('page-title').textContent=t;document.getElementById('page-sub').textContent=s;if(n==='dashboard')renderDashboard();if(n==='leads')renderLeads();if(n==='customers')renderCustomers();if(n==='quotes')renderQuotes();if(n==='booked')renderBooked();if(n==='completed')renderCompleted();if(n==='calendar')renderCalendar();if(n==='analytics')renderAnalytics();if(n==='payroll'){initPayrollDB();renderEmployees();}if(n==='settings')renderSettings();if(n==='aiquote'){renderAIQuote();if(typeof renderAIAccuracy==='function')try{renderAIAccuracy();}catch(e){}}if(n==='agentreply'&&typeof renderAgentResults==='function')renderAgentResults();if(n==='settings'&&typeof renderBackups==='function')renderBackups();}
 // Paste-to-lead: takes free-form text (email, SMS, notes) and extracts structured lead fields
 // using regex pattern matching, then auto-fills the New Lead form for review.
 //
@@ -5748,6 +5755,7 @@ function _mergeAgentSettings(localSettings){
   };
   db.settings.agentTestSet=mergeList(db.settings.agentTestSet,localSettings.agentTestSet,150);
   db.settings.agentExamples=mergeList(db.settings.agentExamples,localSettings.agentExamples,5);
+  db.settings.aiEstimates=mergeList(db.settings.aiEstimates,localSettings.aiEstimates,300);   // saved AI estimates (2026-11-23)
 }
 function _arTestSet(){if(!db.settings)db.settings={};if(!Array.isArray(db.settings.agentTestSet))db.settings.agentTestSet=[];return db.settings.agentTestSet;}
 function saveAgentTest(){
@@ -22430,6 +22438,115 @@ function similarity(job,inputs){
 }
 
 
+
+// ── Saved AI estimates + accuracy (2026-11-23) ────────────────────────────────────────────────
+// "💾 Save this estimate" keeps what the AI said (range, crew, inputs, video used) in
+// db.settings.aiEstimates, linked to a lead. When that lead's job is completed, the real hours are
+// found automatically (no re-typing); an estimate with no lead can have hours typed in. The
+// "🎯 AI accuracy" card shows hit rate and lean, overall and by job type, and _aiCalibration turns a
+// steady lean into a small correction for future estimates of that type.
+function _aiEstList(){if(!db.settings)db.settings={};if(!Array.isArray(db.settings.aiEstimates))db.settings.aiEstimates=[];return db.settings.aiEstimates;}
+function _aiEstActual(e){
+  if(Number(e.actualHours)>0)return {h:Number(e.actualHours),src:'typed in'};
+  if(!e.leadId)return null;
+  const after=String(e.savedAt||'').slice(0,10);
+  // The lead's completed job: the first one on/after the day the estimate was saved, else its latest.
+  const mine=(db.completedJobs||[]).filter(c=>c&&c.leadId===e.leadId).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+  const cj=mine.find(c=>!c.date||String(c.date)>=after)||mine[mine.length-1];
+  if(!cj)return null;
+  const tr=getJobTrainingData().find(r=>r&&r.completedJobId===cj.id&&Number(r.actualHours)>0);
+  const h=tr?Number(tr.actualHours):Number(cj.hours)||0;
+  return h>0?{h,src:'from completed job',cjId:cj.id,date:cj.date}:null;
+}
+function _aiEstScored(){
+  return _aiEstList().map(e=>{const a=_aiEstActual(e);if(!a)return null;
+    const inRange=a.h>=e.low-0.25&&a.h<=e.high+0.25;
+    const mid=(e.low+e.high)/2;
+    // ratio on WORK hours, before any correction, so the correction doesn't feed on itself
+    const work=Math.max(0.5,a.h-(e.drive||0));const raw=e.rawMid||(mid-(e.drive||0))/(e.calib||1);
+    return {...e,actual:a.h,actualSrc:a.src,inRange,offPct:Math.round((a.h-mid)/mid*100),ratio:raw>0?work/raw:null};}).filter(Boolean);
+}
+function _aiCalibration(moveType){
+  try{
+    const key=moveType==='__moveday__'?'__moveday__':_normMoveType(moveType||'');
+    const rows=_aiEstScored().filter(e=>e.ratio>0&&!e.curated&&(key==='__moveday__'?e.split:(!e.split&&_normMoveType(e.inputs&&e.inputs.moveType||'')===key)));
+    if(rows.length<10)return {apply:false,n:rows.length};
+    const r=rows.map(e=>e.ratio).sort((a,b)=>a-b);const med=r[Math.floor(r.length/2)];
+    const f=Math.min(1.25,Math.max(0.8,med));
+    return {apply:Math.abs(f-1)>=0.05,f,n:rows.length};
+  }catch(e){return null;}
+}
+function _aiRenderSaveBar(){
+  const el=document.getElementById('ai-result');const E=window._aiLastEst;if(!el||!E)return;
+  const old=document.getElementById('ai-save-bar');if(old)old.remove();
+  const leads=(db.leads||[]).filter(l=>l&&!/did not book|archiv/i.test(String(l.status||'')))
+    .sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||''))).slice(0,150);
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const bar=document.createElement('div');bar.id='ai-save-bar';
+  bar.style.cssText='margin-bottom:14px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--accent-light);display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+  bar.innerHTML='<span style="font-size:12.5px;font-weight:600">💾 Save this estimate</span>'
+    +'<select id="ai-save-lead" style="flex:1;min-width:160px;font-size:12px"><option value="">Link to a lead…</option>'+leads.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||'(no name)')+(l.date?' · '+esc(l.date):'')+'</option>').join('')+'<option value="__none">No lead — I’ll type the hours later</option></select>'
+    +'<button class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="saveAIEstimate()">Save</button>'
+    +'<span style="font-size:10.5px;color:var(--text3);width:100%">Saves '+esc(E.low)+'–'+esc(E.high)+' hrs with '+esc(E.men)+' movers'+(E.split?' (split pack / move)':'')+'. When the lead’s job is completed, the real hours are matched automatically.</span>';
+  el.insertBefore(bar,el.firstChild);
+}
+function saveAIEstimate(){
+  const E=window._aiLastEst;if(!E){showToast('Generate an estimate first.');return;}
+  const sel=document.getElementById('ai-save-lead');const v=sel?sel.value:'';
+  if(!v){showToast('Pick a lead, or choose "No lead".');if(sel)sel.focus();return;}
+  const lead=v!=='__none'?(db.leads||[]).find(l=>l.id===v):null;
+  const now=new Date().toISOString();
+  const i=E.inputs||{};
+  const rec={id:uid(),savedAt:now,_editedAt:now,leadId:lead?lead.id:null,leadName:lead?lead.name:'',
+    inputs:{size:i.size,vaults:i.vaults,sqft:i.sqft,moveType:i.moveType,packing:i.packing,accessLoad:i.accessLoad,accessUnload:i.accessUnload,loadZip:i.loadZip,unloadZip:i.unloadZip,containerSize:i.containerSize},
+    men:E.men,rate:E.rate,low:E.low,high:E.high,estDays:E.estDays,totalMin:E.totalMin,totalMax:E.totalMax,
+    rawMid:E.rawMid,drive:E.drive,calib:E.calib,split:E.split,packDays:E.packDays,usedVideo:E.usedVideo,videoVaults:E.videoVaults,curated:E.curated,actualHours:null};
+  if(lead&&_aiEstList().some(x=>x.leadId===lead.id&&!_aiEstActual(x))&&!confirm(lead.name+' already has a saved estimate waiting for its job. Save this one too?'))return;
+  _aiEstList().unshift(rec);db.settings.aiEstimates=_aiEstList().slice(0,300);
+  saveDB();showToast('✓ Estimate saved'+(lead?' for '+lead.name:''));
+  const b=document.getElementById('ai-save-bar');if(b)b.innerHTML='<span style="font-size:12.5px">✓ Saved'+(lead?' for <strong>'+String(lead.name).replace(/</g,'&lt;')+'</strong>':'')+'. You’ll see how it compares in 🎯 AI accuracy below once the job is done.</span>';
+  renderAIAccuracy();
+}
+function setAIEstActual(id){
+  const e=_aiEstList().find(x=>x.id===id);if(!e)return;
+  const v=prompt('How many hours did the job actually take (billed hours)?',e.actualHours||'');if(v===null)return;
+  const n=parseFloat(v);if(v!==''&&!(n>0)){showToast('Enter a number of hours.');return;}
+  e.actualHours=v===''?null:n;e._editedAt=new Date().toISOString();saveDB();renderAIAccuracy();
+}
+function deleteAIEst(id){
+  if(!confirm('Remove this saved estimate?'))return;
+  db.settings.aiEstimates=_aiEstList().filter(x=>x.id!==id);
+  db.settings.agentTestDeleted=[...(db.settings.agentTestDeleted||[]),id].slice(-300);   // shared deletion list, so other computers drop it too
+  saveDB();renderAIAccuracy();
+}
+function renderAIAccuracy(){
+  const box=document.getElementById('ai-accuracy');if(!box)return;
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const all=_aiEstList();const sc=_aiEstScored();const scoredIds=new Set(sc.map(x=>x.id));
+  const singles=sc.filter(e=>!e.split);
+  const stat=rows=>{if(!rows.length)return null;const hit=rows.filter(r=>r.inRange).length;const offs=rows.map(r=>r.offPct).sort((a,b)=>a-b);
+    return {n:rows.length,hit:Math.round(hit/rows.length*100),med:offs[Math.floor(offs.length/2)]};};
+  const lean=m=>m==null?'':(Math.abs(m)<5?'about right':(m>0?'jobs take ~'+m+'% longer':'jobs take ~'+(-m)+'% less'));
+  const line=(label,st,extra)=>st?'<tr><td style="padding:4px 6px">'+esc(label)+'</td><td style="padding:4px 6px">'+st.n+'</td><td style="padding:4px 6px">'+st.hit+'%</td><td style="padding:4px 6px">'+lean(st.med)+'</td><td style="padding:4px 6px;color:var(--text3)">'+(extra||'')+'</td></tr>':'';
+  const byType={};singles.forEach(e=>{const t=(e.inputs&&e.inputs.moveType)||'Not set';(byType[t]=byType[t]||[]).push(e);});
+  let rows=line('All single-day estimates',stat(singles));
+  Object.keys(byType).sort((a,b)=>byType[b].length-byType[a].length).forEach(t=>{const c=_aiCalibration(t);
+    rows+=line(t,stat(byType[t]),c&&c.apply?'correcting '+(c.f>1?'+':'')+Math.round((c.f-1)*100)+'%':(c&&c.n<10?(10-c.n)+' more to start correcting':''));});
+  const split=sc.filter(e=>e.split);if(split.length){const c=_aiCalibration('__moveday__');rows+=line('Move day of split pack jobs',stat(split),c&&c.apply?'correcting '+Math.round((c.f-1)*100)+'%':'');}
+  const vid=stat(singles.filter(e=>e.usedVideo)),novid=stat(singles.filter(e=>!e.usedVideo));
+  if(vid)rows+=line('  …with a video',vid);if(vid&&novid)rows+=line('  …without a video',novid);
+  const list=all.slice(0,25).map(e=>{const a=sc.find(x=>x.id===e.id);const i=e.inputs||{};
+    const what=[i.moveType,i.size,i.vaults?i.vaults+' vaults':'',e.men+' movers',e.usedVideo?'📹':''].filter(Boolean).map(esc).join(' · ');
+    const res=a?('actual <strong>'+a.actual+' hrs</strong> '+(a.inRange?'<span style="color:var(--accent)">✓ in range</span>':'<span style="color:var(--amber)">'+(a.offPct>0?'+':'')+a.offPct+'%</span>')+' <span style="color:var(--text3)">('+esc(a.actualSrc)+')</span>')
+      :(e.leadId?'<span style="color:var(--text3)">waiting for the job to be completed</span>':'<span style="color:var(--text3)">no lead linked</span>');
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border2);font-size:12px"><div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span><strong>'+esc(e.leadName||'(no lead)')+'</strong> · '+esc(String(e.savedAt||'').slice(0,10))+'</span>'
+      +'<span><button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="setAIEstActual(\''+e.id+'\')">'+(Number(e.actualHours)>0?'Edit hours':'Type hours')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="deleteAIEst(\''+e.id+'\')">✕</button></span></div>'
+      +'<div style="color:var(--text2)">'+what+'</div><div>AI said <strong>'+esc(e.low)+'–'+esc(e.high)+' hrs</strong>'+(e.split?' (move day)':'')+' → '+res+'</div></div>';}).join('');
+  box.innerHTML=(all.length?'':'<div style="font-size:12px;color:var(--text3)">No saved estimates yet. After you generate an AI quote, use 💾 Save this estimate at the top of the result.</div>')
+    +(singles.length||split.length?'<div style="overflow-x:auto;margin-bottom:10px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th style="padding:4px 6px">Estimates</th><th style="padding:4px 6px">Done</th><th style="padding:4px 6px">Landed in range</th><th style="padding:4px 6px">Lean</th><th style="padding:4px 6px"></th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+      :(all.length?'<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+all.length+' saved · none completed yet. Results appear here when their jobs are done.</div>':''))
+    +(all.length?'<details'+(sc.length?'':' open')+'><summary style="cursor:pointer;font-size:12px;font-weight:600">Saved estimates ('+all.length+')</summary>'+list+'</details>':'');
+}
 // ── AI Quote: video walkthrough (2026-11-23) ─────────────────────────────────────────────────
 // The office adds the customer's video(s) / photos. Still frames are pulled out HERE, in the
 // browser (phone videos are far too big to upload), shrunk, and sent to the analyze-video edge
@@ -23302,6 +23419,12 @@ function generateAIQuote(isRecalc){
   // Never let the top of the range fall below the bottom (2026-10-09): a big negative access
   // adjustment (easy access vs. stair-heavy matches) could push the high end under 1 hr → "1.5–0 hrs".
   p25=Math.max(1,p25);p75=Math.max(p25,p75);
+  // ACCURACY CORRECTION (2026-11-23): once 10+ saved AI estimates of this job type have real hours,
+  // a steady lean (e.g. jobs taking ~15% longer than estimated) nudges the work hours. Capped at
+  // ±25%, ignored under 5%, off while hand-picking jobs. Shown on the result.
+  const _rawMid=(p25+p75)/2;
+  const _cal=(!_curating&&typeof _aiCalibration==='function')?_aiCalibration(_moveDayPool?'__moveday__':inputs.moveType):null;
+  if(_cal&&_cal.apply){p25*=_cal.f;p75*=_cal.f;}
   const hoursLow=Math.max(1,Math.floor(p25*2)/2);
   const hoursHigh=Math.ceil(p75*2)/2;
 
@@ -23360,7 +23483,7 @@ function generateAIQuote(isRecalc){
 
   document.getElementById('ai-result').innerHTML=`
     <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${scored.some(j=>j._workRaw>0&&Math.abs(j._work/j._workRaw-1)>0.05)?' · scaled to job size':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_storageFill.length&&scored.some(j=>_storageFill.some(f=>_trainKey(f)===_trainKey(j)))?' · incl. move-to-storage jobs':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Based on ${scored.length} similar jobs${men!==Math.round(avgMen)?' · crew adjusted':''}${Math.abs(accessHourDelta)>0.3?' · access adjusted':''}${_usedSqftReg?' · size-scaled':''}${scored.some(j=>j._workRaw>0&&Math.abs(j._work/j._workRaw-1)>0.05)?' · scaled to job size':''}${isOutsideSF?' · outside SF billing':''}${estDays>1?' · '+estDays+'-day job':''}${_sameTypeCount&&_sameTypeCount<4?' · limited data for this move type':''}${_storageFill.length&&scored.some(j=>_storageFill.some(f=>_trainKey(f)===_trainKey(j)))?' · incl. move-to-storage jobs':''}${_volFallback?' · closest available differ in size':''}${_curating?' · your picks only (trend line off)':''}${_cal&&_cal.apply?' · adjusted '+(_cal.f>1?'+':'')+Math.round((_cal.f-1)*100)+'% from past accuracy ('+_cal.n+' jobs)':''}</div>
       <div style="font-size:28px;font-weight:700;color:var(--accent)">$${totalMin.toLocaleString()} — $${totalMax.toLocaleString()}</div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Estimated total (incl. fees)</div>
     </div>
@@ -23458,8 +23581,12 @@ function generateAIQuote(isRecalc){
           ${_aiExcludedKeys.size?'<button onclick="resetAIExclusions()" class="btn" style="font-size:12px;padding:6px 12px">Reset (use all jobs)</button>':''}
         </div>
       </div>
-    </details>`;  try{_aiAfterMoveQuote({inputs,men,rate,ratePerMan,low:totalHoursLowAdj,high:totalHoursHighAdj,estDays,perDayLow,perDayHigh,labourMin,labourMax,fuel:fuelEstimate,packingMaterials:packingMaterials||0});}
+    </details>`;  window._aiLastEst={inputs:{...inputs},men,rate,low:totalHoursLowAdj,high:totalHoursHighAdj,estDays,totalMin,totalMax,
+    rawMid:_rawMid,drive:extraDriveHours||0,calib:(_cal&&_cal.apply)?_cal.f:1,split:!!_moveDayPool||(_aiPlan&&_aiPlan.packDays>0),
+    packDays:(_aiPlan&&_aiPlan.packDays)||0,usedVideo:!!(typeof _avLast!=='undefined'&&_avLast),videoVaults:(typeof _avLast!=='undefined'&&_avLast&&_avLast.result)?_avLast.result.vaults||null:null,curated:!!_curating};
+  try{_aiAfterMoveQuote({inputs,men,rate,ratePerMan,low:totalHoursLowAdj,high:totalHoursHighAdj,estDays,perDayLow,perDayHigh,labourMin,labourMax,fuel:fuelEstimate,packingMaterials:packingMaterials||0});}
   catch(e){console.warn('Day plan failed:',e);}
+  try{_aiRenderSaveBar();}catch(e){console.warn('save bar failed',e);}
 }
 
 // Recalculate the current AI quote, dropping any jobs the user unchecked in the readout.
