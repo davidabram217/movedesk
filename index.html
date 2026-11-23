@@ -136,6 +136,21 @@ input[type=number]{-moz-appearance:textfield}
   #m-nav button.on{color:var(--accent);font-weight:600}
   #m-nav button.m-plus span{background:var(--accent);color:#fff;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin-top:-14px;box-shadow:0 3px 8px rgba(45,90,61,.35)}
   .m-actions{gap:8px;margin:10px 0 2px;flex-wrap:wrap}
+  /* AI Quote Builder on a phone: short fields two to a row, Generate always in reach, result tiles
+     two across, the price first. */
+  #page-aiquote>.form-grid-2{grid-template-columns:1fr!important}
+  #page-aiquote .card:first-child .card-body{overflow:visible}
+  #page-aiquote .card-body .form-grid-2{grid-template-columns:1fr 1fr!important;gap:0 10px}
+  #page-aiquote .card-body .form-group{margin-bottom:10px}
+  #page-aiquote .card-body .form-group label{font-size:12px}
+  #page-aiquote .card-body .form-group>div[style*="font-size:11px"]{display:none}
+  #page-aiquote input,#page-aiquote select{padding:9px 8px}
+  #page-aiquote .ai-gen-btn{position:sticky;bottom:calc(-8px + env(safe-area-inset-bottom));z-index:5;padding:14px;font-size:16px;box-shadow:0 4px 14px rgba(45,90,61,.35)}
+  #ai-result [style*="grid-template-columns"]{grid-template-columns:1fr 1fr!important;gap:8px!important}
+  #ai-result [style*="font-size:28px"]{font-size:26px!important}
+  #ai-result [style*="font-size:16px"]{font-size:15px!important}
+  #ai-save-bar select{flex:1 1 100%}
+  #ai-save-bar .btn{flex:1;justify-content:center}
   .m-actions a{flex:1 1 70px;text-align:center;text-decoration:none;padding:10px 6px;border-radius:var(--radius);background:var(--accent-light);color:var(--accent);font-weight:600;font-size:13px}
 }
 </style>
@@ -801,7 +816,7 @@ input[type=number]{-moz-appearance:textfield}
                 <div id="av-status" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
                 <div id="av-result"></div>
               </div>
-              <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="generateAIQuote()">🤖 Generate instant quote</button>
+              <button class="btn btn-primary ai-gen-btn" style="width:100%;margin-top:4px" onclick="generateAIQuote();_aiPhoneShowResult()">🤖 Generate instant quote</button>
           </div>
         </div>
         <div class="card" id="ai-result-card">
@@ -22560,7 +22575,9 @@ function _aiRenderSaveBar(){
     +'<select id="ai-save-lead" style="flex:1;min-width:160px;font-size:12px"><option value="">Link to a lead…</option>'+leads.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||'(no name)')+(l.date?' · '+esc(l.date):'')+'</option>').join('')+'<option value="__none">No lead — I’ll type the hours later</option></select>'
     +'<button class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="saveAIEstimate()">Save</button>'
     +'<span style="font-size:10.5px;color:var(--text3);width:100%">Saves '+esc(E.low)+'–'+esc(E.high)+' hrs with '+esc(E.men)+' movers'+(E.split?' (split pack / move)':'')+'. When the lead’s job is completed, the real hours are matched automatically.</span>';
-  el.insertBefore(bar,el.firstChild);
+  // After the headline price, so the price is the first thing you see (2026-11-23).
+  const head=el.firstElementChild;
+  if(head&&head.nextSibling)el.insertBefore(bar,head.nextSibling);else el.appendChild(bar);
 }
 function saveAIEstimate(){
   const E=window._aiLastEst;if(!E){showToast('Generate an estimate first.');return;}
@@ -23620,7 +23637,8 @@ function generateAIQuote(isRecalc){
         return false;
       });
       if(!applicable.length)return'';
-      return`<div style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);font-size:12px;margin-bottom:10px;border-left:3px solid var(--accent)"><div style="font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Rules to apply when quoting</div>${applicable.map(r=>`<div style="margin-bottom:6px;line-height:1.5"><strong style="color:var(--text)">${r.title}:</strong> <span style="color:var(--text2)">${r.body}</span></div>`).join('')}</div>`;
+      // Folded away on a phone (2026-11-23) — it's reference text and pushed the result off screen.
+      return`<details ${(typeof _isPhone==='function'&&_isPhone())?'':'open'} style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);font-size:12px;margin-bottom:10px;border-left:3px solid var(--accent)"><summary style="cursor:pointer;font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Rules to apply when quoting</summary>${applicable.map(r=>`<div style="margin-bottom:6px;line-height:1.5"><strong style="color:var(--text)">${r.title}:</strong> <span style="color:var(--text2)">${r.body}</span></div>`).join('')}</details>`;
     })()}
     <div style="font-size:11.5px;color:var(--text3);line-height:1.6">
       Labour: $${labourMin.toLocaleString()}–$${labourMax.toLocaleString()} · Fuel: $${fuelEstimate}${packingMaterials?' · Packing: $'+packingMaterials:''}<br>
@@ -24008,6 +24026,16 @@ window.deleteLead=deleteLead;
   document.getElementById('page-sub').textContent='Your business at a glance';
 })();
 
+// AI Quote on a phone: jump to the result after Generate, with a way back up to the details.
+function _aiPhoneShowResult(){
+  if(!_isPhone())return;
+  const el=document.getElementById('ai-result');if(!el)return;
+  if(!document.getElementById('ai-back-edit')){const b=document.createElement('button');b.id='ai-back-edit';b.className='btn m-only';
+    b.style.cssText='width:100%;justify-content:center;margin-bottom:12px';b.textContent='✏️ Change job details';
+    b.onclick=()=>{const c=document.querySelector('#page-aiquote .card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});};
+    el.insertBefore(b,el.firstChild);}
+  setTimeout(()=>{const c=document.getElementById('ai-result-card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});},60);
+}
 // ── Phone layout helpers (2026-11-23) ─────────────────────────────────────────────────────────
 function _isPhone(){return window.matchMedia&&window.matchMedia('(max-width:820px)').matches;}
 function mNav(open){document.body.classList.toggle('m-nav-open',!!open);}
