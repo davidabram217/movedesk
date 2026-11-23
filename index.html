@@ -729,6 +729,15 @@ input[type=number]{-moz-appearance:textfield}
                 <label>Additional notes <span style="font-size:11px;font-weight:400;color:var(--text3)">— affects the estimate</span></label>
                 <textarea id="ai-notes" placeholder="e.g. Lots of disassembly needed, piano, fragile art, very long walk from elevator, customer has a lot of books…" style="min-height:70px" oninput="saveAIQuoteDraft()"></textarea>
               </div>
+              <div id="av-box" style="margin:6px 0 10px;padding:10px 12px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface2)">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div><div style="font-size:13px;font-weight:600">📹 Video walkthrough <span style="font-size:11px;font-weight:400;color:var(--text3)">— optional</span></div>
+                  <div style="font-size:11px;color:var(--text3);margin-top:2px">Add the customer's video(s) or photos. The AI lists what it sees and fills in size, vaults, packing and access. Hours still come from your past jobs.</div></div>
+                  <label class="btn" style="font-size:12px;padding:6px 12px;cursor:pointer;white-space:nowrap">📹 Add video / photos<input type="file" id="av-file" accept="video/*,image/*" multiple style="display:none" onchange="analyzeAIVideo(this.files)"></label>
+                </div>
+                <div id="av-status" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+                <div id="av-result"></div>
+              </div>
               <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="generateAIQuote()">🤖 Generate instant quote</button>
           </div>
         </div>
@@ -22420,6 +22429,134 @@ function similarity(job,inputs){
   return score;
 }
 
+
+// ── AI Quote: video walkthrough (2026-11-23) ─────────────────────────────────────────────────
+// The office adds the customer's video(s) / photos. Still frames are pulled out HERE, in the
+// browser (phone videos are far too big to upload), shrunk, and sent to the analyze-video edge
+// function with what's already entered and a vault guide from our own completed jobs. It returns
+// an inventory and suggested inputs. Blank fields are filled in; a field the office already set is
+// never overwritten — a difference is shown with a "Use video" button. The hours are still worked
+// out from past jobs by generateAIQuote, exactly as before. The last analysis is kept per browser.
+let _avLast=null;
+const AV_MAX_FRAMES=48;
+function _avStatus(t,c){const el=document.getElementById('av-status');if(el){el.textContent=t||'';el.style.color=c||'var(--text3)';}}
+function _avDraw(src,w,h){
+  const scale=Math.min(1,768/Math.max(w,h));const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
+  c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',0.62).split(',')[1];
+}
+function _avImageFrame(file){
+  return new Promise((res,rej)=>{const url=URL.createObjectURL(file);const im=new Image();
+    im.onload=()=>{try{res(_avDraw(im,im.naturalWidth,im.naturalHeight));}catch(e){rej(e);}URL.revokeObjectURL(url);};
+    im.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('Could not open '+file.name));};im.src=url;});
+}
+async function _avVideoFrames(file,want,onTick){
+  const url=URL.createObjectURL(file);const v=document.createElement('video');
+  v.muted=true;v.playsInline=true;v.preload='auto';v.src=url;
+  const wait=(ev,ms)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout')),ms);
+    v.addEventListener(ev,()=>{clearTimeout(t);res();},{once:true});v.addEventListener('error',()=>{clearTimeout(t);rej(new Error('decode'));},{once:true});});
+  try{
+    await wait('loadeddata',20000);
+    const dur=v.duration;
+    if(!v.videoWidth||!isFinite(dur)||dur<=0)throw new Error('decode');
+    const n=Math.max(4,Math.min(want,Math.round(dur/2.5)));
+    const out=[];
+    for(let i=0;i<n;i++){
+      const t=Math.min(dur-0.05,dur*(i+0.5)/n);
+      const p=wait('seeked',10000);v.currentTime=t;await p;
+      out.push(_avDraw(v,v.videoWidth,v.videoHeight));if(onTick)onTick(i+1,n);
+    }
+    return {frames:out,dur};
+  }finally{URL.revokeObjectURL(url);v.removeAttribute('src');try{v.load();}catch(e){}}
+}
+// Vaults by home size from our own completed jobs, so "1 Bedroom ≈ 3.5 vaults" is OUR number.
+function _avVaultGuide(){
+  try{
+    const g={};
+    _aiTrainingPool().forEach(j=>{const v=_jobVaults(j,true);if(v>0&&j.size)(g[j.size]=g[j.size]||[]).push(v);});
+    return Object.keys(g).filter(k=>g[k].length>=2).map(k=>{const a=g[k].sort((x,y)=>x-y);
+      return k+': '+a.length+' jobs, typical '+a[Math.floor(a.length/2)]+' vaults (range '+a[0]+'–'+a[a.length-1]+')';}).join('\n');
+  }catch(e){return '';}
+}
+async function analyzeAIVideo(fileList){
+  const files=[...(fileList||[])];const inp=document.getElementById('av-file');if(inp)inp.value='';
+  if(!files.length)return;
+  const vids=files.filter(f=>/^video\//.test(f.type)||/\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name));
+  const pics=files.filter(f=>!vids.includes(f));
+  const per=vids.length?Math.max(6,Math.floor((AV_MAX_FRAMES-Math.min(pics.length,12))/vids.length)):0;
+  const frames=[];const bad=[];
+  try{
+    for(let k=0;k<vids.length;k++){
+      _avStatus('Reading video '+(k+1)+' of '+vids.length+'…');
+      try{const r=await _avVideoFrames(vids[k],per,(i,n)=>_avStatus('Reading video '+(k+1)+' of '+vids.length+' — frame '+i+' of '+n+'…'));frames.push(...r.frames);}
+      catch(e){bad.push(vids[k].name);}
+    }
+    for(const f of pics.slice(0,12)){try{frames.push(await _avImageFrame(f));}catch(e){bad.push(f.name);}}
+    if(!frames.length){
+      _avStatus('Couldn’t read '+(bad.join(', ')||'that file')+'. iPhone videos (HEVC) don’t open in every browser: try Chrome or Safari on a Mac, or on the iPhone set Settings › Camera › Formats › Most Compatible. Screenshots or photos work too.','var(--danger)');
+      return;
+    }
+    const g=id=>(document.getElementById(id)||{}).value||'';
+    const context={size:g('ai-size'),moveType:g('ai-movetype'),packing:g('ai-packing'),vaults:g('ai-vaults'),sqft:g('ai-sqft'),
+      accessLoad:g('ai-access-load'),accessUnload:g('ai-access-unload'),notes:g('ai-notes'),vaultGuide:_avVaultGuide()};
+    _avStatus('Looking at '+frames.length+' pictures… (about 20–40 seconds)');
+    const res=await fetch(SUPABASE_URL+'/functions/v1/analyze-video',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY,'apikey':SUPABASE_KEY},
+      body:JSON.stringify({frames,context})});
+    let data={};try{data=await res.json();}catch(e){}
+    if(!res.ok||!data.ok)throw new Error(data.error||(res.status===404?'The analyze-video function isn’t deployed in Supabase yet.':'Error '+res.status));
+    _avLast={result:data.result||{},frames:frames.length,files:files.map(f=>f.name),at:new Date().toISOString(),version:data.version||''};
+    try{localStorage.setItem('aiVideoAnalysis',JSON.stringify(_avLast));}catch(e){}
+    _avApply(true);
+    _avStatus('✓ Looked at '+frames.length+' pictures'+(bad.length?' · couldn’t read: '+bad.join(', '):'')+'. Check the fields, then Generate.','var(--accent)');
+  }catch(e){const m=String(e&&e.message||e);_avStatus('Video check failed: '+(/failed to fetch|networkerror|load failed/i.test(m)?'couldn\u2019t reach the analyze-video function. Check it\u2019s deployed in Supabase and you\u2019re online.':m),'var(--danger)');}
+}
+function _avSuggestions(){
+  const r=(_avLast&&_avLast.result)||{};const out=[];
+  const add=(id,label,val)=>{if(val===undefined||val===null||val==='')return;const el=document.getElementById(id);if(!el)return;
+    if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===String(val)))return;out.push({id,label,val:String(val)});};
+  add('ai-size','Home size',r.homeSize);
+  if(Number(r.vaults)>0)add('ai-vaults','Vaults',Math.round(Number(r.vaults)*2)/2);
+  add('ai-packing','Packing',r.packing);
+  add('ai-access-load','Access at load',r.accessLoad);
+  return out;
+}
+function _avApply(fillBlanks){
+  if(fillBlanks)_avSuggestions().forEach(s=>{const el=document.getElementById(s.id);if(el&&!el.value){el.value=s.val;el.dataset.fromVideo='1';}});
+  if(fillBlanks)try{saveAIQuoteDraft();}catch(e){}
+  _avRender();
+}
+function avUse(id){const s=_avSuggestions().find(x=>x.id===id);const el=document.getElementById(id);if(s&&el){el.value=s.val;el.dataset.fromVideo='1';try{saveAIQuoteDraft();}catch(e){}_avRender();}}
+function avAddToNotes(){
+  const r=(_avLast&&_avLast.result)||{};const el=document.getElementById('ai-notes');if(!el)return;
+  const bits=[(r.specialItems||[]).length?'Special: '+r.specialItems.join(', '):'',(r.disassembly||[]).length?'Disassembly: '+r.disassembly.join(', '):'',r.accessNote?'Access: '+r.accessNote:''].filter(Boolean);
+  if(!bits.length)return;const line='From video — '+bits.join('. ');
+  if(!el.value.includes(line))el.value=(el.value.trim()?el.value.trim()+'\n':'')+line;
+  try{saveAIQuoteDraft();}catch(e){}showToast('Added to notes');
+}
+function avClear(){_avLast=null;try{localStorage.removeItem('aiVideoAnalysis');}catch(e){}_avStatus('');_avRender();}
+function _avRender(){
+  const box=document.getElementById('av-result');if(!box)return;
+  if(!_avLast){box.innerHTML='';return;}
+  const r=_avLast.result||{};const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const rows=_avSuggestions().map(s=>{const el=document.getElementById(s.id);const cur=el?el.value:'';
+    const same=cur===s.val;
+    return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:3px 0;font-size:12px"><span>'+esc(s.label)+': <strong>'+esc(s.val)+'</strong>'
+      +(s.id==='ai-vaults'&&r.vaultsLow&&r.vaultsHigh?' <span style="color:var(--text3)">('+esc(r.vaultsLow)+'–'+esc(r.vaultsHigh)+')</span>':'')+'</span>'
+      +(same?'<span style="color:var(--accent);font-size:11px">✓ in the form</span>':'<span style="font-size:11px;color:var(--amber)">you have '+esc(cur||'nothing')+' <button class="btn" style="font-size:11px;padding:2px 8px;margin-left:4px" onclick="avUse(\''+s.id+'\')">Use video</button></span>')+'</div>';}).join('');
+  const list=(t,a)=>(a&&a.length)?'<div style="font-size:12px;margin-top:6px"><strong>'+t+':</strong> '+a.map(esc).join(', ')+'</div>':'';
+  const rooms=(r.rooms||[]).map(x=>'<div style="font-size:12px;margin-top:3px"><strong>'+esc(x.room)+':</strong> '+(x.items||[]).map(esc).join(', ')+'</div>').join('');
+  box.innerHTML='<div style="margin-top:8px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)">'
+    +(r.summary?'<div style="font-size:12.5px;margin-bottom:6px">'+esc(r.summary)+'</div>':'')
+    +'<div style="font-size:10.5px;color:var(--text3);margin-bottom:4px">Confidence: '+esc(r.confidence||'?')+' · '+esc(_avLast.frames)+' pictures'+(r.boxesSeen?' · ~'+esc(r.boxesSeen)+' boxes seen':'')+(r.packingReason?' · packing: '+esc(r.packingReason):'')+'</div>'
+    +rows
+    +list('Special items',r.specialItems)+list('Needs disassembly',r.disassembly)+(r.accessNote?'<div style="font-size:12px;margin-top:6px"><strong>Access seen:</strong> '+esc(r.accessNote)+'</div>':'')
+    +list('Not shown in the video',r.notShown)+list('⚠ Differs from what you entered',r.conflicts)
+    +(rooms?'<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;font-weight:600">Item list by room</summary>'+rooms+'</details>':'')
+    +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn" style="font-size:11.5px;padding:4px 10px" onclick="avAddToNotes()">Add special items to notes</button><button class="btn" style="font-size:11.5px;padding:4px 10px" onclick="avClear()">Clear video</button></div></div>';
+}
+function _avRestore(){try{const raw=localStorage.getItem('aiVideoAnalysis');if(raw){_avLast=JSON.parse(raw);_avRender();}}catch(e){}}
 // Auto-save the AI Quote Builder form state to localStorage on every keystroke. Restored when
 // the user navigates back to the page so in-progress work isn't lost on refresh / tab close.
 let _aiQuoteDraftTimer=null;
@@ -22447,6 +22584,7 @@ function saveAIQuoteDraft(){
 }
 
 function restoreAIQuoteDraft(){
+  try{if(typeof _avRestore==='function')_avRestore();}catch(e){}
   try{
     const raw=localStorage.getItem('aiQuoteDraft');
     if(!raw)return;
