@@ -57,7 +57,15 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- Phone app (2026-11-23): Add to Home Screen opens MoveDesk full-screen like an app. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MoveDesk">
+<meta name="theme-color" content="#f5f3ee">
 <title>MoveDesk CRM</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
 <style>:root{--bg:#f5f3ee;--surface:#fff;--surface2:#f0ede6;--border:#e0dbd0;--border2:#ccc8bc;--text:#1a1916;--text2:#6b6760;--text3:#9e9b94;--accent:#2d5a3d;--accent-light:#e8f0ea;--danger:#c0392b;--danger-light:#fceaea;--info:#1a5276;--info-light:#eaf2fb;--amber:#b7860b;--amber-light:#fdf6e3;--purple:#6c3483;--purple-light:#f5eef8;--radius:10px;--radius-lg:16px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);--shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04)}*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5}.app{display:flex;height:100vh;overflow:hidden}.sidebar{width:200px;background:var(--text);color:#fff;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}.sidebar-logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.08)}.logo-mark{font-size:16px;font-weight:600;letter-spacing:-.5px}.logo-sub{font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;font-family:'DM Mono',monospace;letter-spacing:.5px}.sidebar-nav{flex:1;padding:10px 0}.nav-section-label{font-size:9px;font-weight:500;letter-spacing:1px;color:rgba(255,255,255,.3);padding:10px 16px 5px;text-transform:uppercase;font-family:'DM Mono',monospace}.nav-item{display:flex;align-items:center;gap:8px;padding:8px 16px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;transition:all .15s;border-left:2px solid transparent}.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}.nav-item.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:#6ec98a;font-weight:500}.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:rgba(255,255,255,.3);font-family:'DM Mono',monospace}.main{flex:1;display:flex;flex-direction:column;overflow:hidden}.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}.topbar-title{font-size:14px;font-weight:600}.topbar-sub{font-size:11px;color:var(--text3);margin-top:1px}.content{padding:20px 24px;flex:1;overflow-y:auto}.page{display:none}.page.active{display:block}.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all .15s;white-space:nowrap}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-primary:hover{background:#234a31}.btn-secondary{background:var(--surface);color:var(--text);border-color:var(--border2)}.btn-secondary:hover{background:var(--surface2)}.btn-danger{background:var(--danger-light);color:var(--danger);border-color:#f5c6c2}.btn-sm{padding:4px 10px;font-size:12px}.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow)}.card-header{padding:14px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}.card-title{font-size:13px;font-weight:600}.card-body{padding:16px 18px}.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow)}.stat-label{font-size:10.5px;color:var(--text2);font-weight:500;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.stat-value{font-size:22px;font-weight:600;line-height:1}.stat-sub{font-size:11px;color:var(--text3);margin-top:3px}.pill-green{background:var(--accent-light);color:var(--accent)}.pill-amber{background:var(--amber-light);color:var(--amber)}.pill-red{background:var(--danger-light);color:var(--danger)}.pill-blue{background:var(--info-light);color:var(--info)}.pill-purple{background:var(--purple-light);color:var(--purple)}.pill-gray{background:var(--surface2);color:var(--text2)}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10.5px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:middle}tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg)}.td-name{font-weight:500}.td-mono{font-family:'DM Mono',monospace;font-size:11.5px}.leads-table th,.leads-table td{padding:7px 8px}
@@ -75,6 +83,61 @@ Respecting locks is the only thing that keeps known-good behavior stable.
 input[type=number]::-webkit-outer-spin-button,
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield}
+
+/* ── Phone layout (2026-11-23) ─────────────────────────────────────────────────────────────
+   Below 820px wide: the side menu becomes a slide-out drawer, a bottom bar holds the everyday
+   actions (Leads, Search, + New lead, Customers, Menu), pages and forms go to one column, pop-ups
+   fill the screen, and inputs use 16px text so the iPhone doesn't zoom in when you tap a field.
+   Desktop is unchanged. */
+.m-only,#m-nav,#m-nav-backdrop{display:none}
+@media (max-width:820px){
+  .app{height:100vh;height:100dvh}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:270px;z-index:800;transform:translateX(-105%);transition:transform .22s ease;padding-top:env(safe-area-inset-top);box-shadow:4px 0 20px rgba(0,0,0,.25)}
+  body.m-nav-open .sidebar{transform:none}
+  body.m-nav-open #m-nav-backdrop{display:block}
+  #m-nav-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:790}
+  .sidebar .nav-item{padding:12px 18px;font-size:15px}
+  .topbar{height:auto;min-height:52px;padding:calc(6px + env(safe-area-inset-top)) 12px 6px;gap:8px;flex-wrap:wrap}
+  .topbar>div:first-child{flex:1;min-width:0}
+  .topbar-title{font-size:16px}.topbar-sub{display:none}
+  .topbar>div:last-child{width:100%;order:3}
+  .topbar>div:last-child>div{flex:1}
+  .topbar .search-bar{width:100%!important;padding:9px 12px}
+  .topbar>div:last-child>.btn-primary{display:none}
+  #global-search-results{position:fixed!important;left:8px!important;right:8px!important;width:auto!important;top:calc(110px + env(safe-area-inset-top))!important;max-height:65vh;overflow-y:auto}
+  .content{padding:12px 12px calc(84px + env(safe-area-inset-bottom))}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .stat-value{font-size:19px}
+  .form-grid-2,.form-grid-3,.pipeline{grid-template-columns:1fr!important}
+  .page [style*="grid-template-columns"]:not(.stats-grid):not(.cal-grid),.modal-body:not(#view-modal-body) [style*="grid-template-columns"]:not(.cal-grid){grid-template-columns:1fr!important}
+  #view-modal-body [style*="grid-template-columns"]{gap:10px 14px!important}
+  .card-body{overflow-x:auto}
+  .tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  .tab{padding:10px 14px}
+  .filter-bar>*{flex:1 1 140px}
+  .filter-bar select{width:100%}
+  input,select,textarea{font-size:16px!important;padding:10px 12px}
+  .search-bar input{border:none!important;padding:0!important;box-shadow:none!important;background:none!important}
+  .btn{padding:10px 14px;font-size:14px}
+  .btn-sm{padding:7px 11px;font-size:13px}
+  .modal-bg{padding:0;align-items:stretch;z-index:900}
+  .modal{max-width:none!important;width:100%!important;max-height:100%!important;height:100%;border-radius:0;padding-bottom:env(safe-area-inset-bottom)}
+  .modal-header{border-radius:0;padding-top:calc(14px + env(safe-area-inset-top))}
+  .modal-close{font-size:24px;padding:6px 10px}
+  .modal-footer{border-radius:0;justify-content:flex-start}
+  .pipeline-card{padding:12px 14px}
+  .pipeline-card-name{font-size:15px}.pipeline-card-meta{font-size:13px}
+  .m-only{display:flex}
+  .cal-day{min-height:56px;padding:3px}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom));right:12px;left:12px;max-width:none}
+  #m-nav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:600;background:var(--surface);border-top:1px solid var(--border);padding:4px 4px calc(4px + env(safe-area-inset-bottom));box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+  #m-nav button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;font-family:inherit;font-size:11px;color:var(--text2);cursor:pointer}
+  #m-nav button span{font-size:20px;line-height:1.1}
+  #m-nav button.on{color:var(--accent);font-weight:600}
+  #m-nav button.m-plus span{background:var(--accent);color:#fff;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin-top:-14px;box-shadow:0 3px 8px rgba(45,90,61,.35)}
+  .m-actions{gap:8px;margin:10px 0 2px;flex-wrap:wrap}
+  .m-actions a{flex:1 1 70px;text-align:center;text-decoration:none;padding:10px 6px;border-radius:var(--radius);background:var(--accent-light);color:var(--accent);font-weight:600;font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -3009,6 +3072,14 @@ input[type=number]{-moz-appearance:textfield}
 </div>
 
 <div id="toast"></div>
+<div id="m-nav-backdrop" onclick="mNav(false)"></div>
+<nav id="m-nav" aria-label="Phone menu">
+  <button id="mn-leads" onclick="mGo('leads')"><span>◎</span>Leads</button>
+  <button id="mn-search" onclick="mSearch()"><span>⌕</span>Search</button>
+  <button class="m-plus" onclick="mNav(false);openModal('new-lead')"><span>+</span>New lead</button>
+  <button id="mn-customers" onclick="mGo('customers')"><span>👤</span>Customers</button>
+  <button onclick="mNav(true)"><span>☰</span>Menu</button>
+</nav>
 
 <script>
 let db={leads:[],bookedJobs:[],completedJobs:[],quotes:[],customers:[],aiTraining:[],hotels:[],vehicles:[],agentExamples:[],settings:{bizName:'',bizPhone:'',bizEmail:'',crew:['John','Dave'],rateBase:140,ratePacking:40}};
@@ -22459,7 +22530,8 @@ function _aiEstActual(e){
   return h>0?{h,src:'from completed job',cjId:cj.id,date:cj.date}:null;
 }
 function _aiEstScored(){
-  return _aiEstList().map(e=>{const a=_aiEstActual(e);if(!a)return null;
+  // "Job changed — don't compare" (2026-11-23): left out of the stats and the correction.
+  return _aiEstList().map(e=>{if(e.excluded)return null;const a=_aiEstActual(e);if(!a)return null;
     const inRange=a.h>=e.low-0.25&&a.h<=e.high+0.25;
     const mid=(e.low+e.high)/2;
     // ratio on WORK hours, before any correction, so the correction doesn't feed on itself
@@ -22513,6 +22585,13 @@ function setAIEstActual(id){
   const n=parseFloat(v);if(v!==''&&!(n>0)){showToast('Enter a number of hours.');return;}
   e.actualHours=v===''?null:n;e._editedAt=new Date().toISOString();saveDB();renderAIAccuracy();
 }
+function toggleAIEstExclude(id){
+  const e=_aiEstList().find(x=>x.id===id);if(!e)return;
+  if(!e.excluded){const why=prompt('The job changed from what was quoted, so this won\u2019t count towards AI accuracy.\nWhat changed? (optional, e.g. "added a storage unit", "half the items didn\u2019t go")','');
+    if(why===null)return;e.excluded=true;e.excludedWhy=String(why||'').trim().slice(0,200);}
+  else{e.excluded=false;e.excludedWhy='';}
+  e._editedAt=new Date().toISOString();saveDB();renderAIAccuracy();
+}
 function deleteAIEst(id){
   if(!confirm('Remove this saved estimate?'))return;
   db.settings.aiEstimates=_aiEstList().filter(x=>x.id!==id);
@@ -22535,12 +22614,12 @@ function renderAIAccuracy(){
   const split=sc.filter(e=>e.split);if(split.length){const c=_aiCalibration('__moveday__');rows+=line('Move day of split pack jobs',stat(split),c&&c.apply?'correcting '+Math.round((c.f-1)*100)+'%':'');}
   const vid=stat(singles.filter(e=>e.usedVideo)),novid=stat(singles.filter(e=>!e.usedVideo));
   if(vid)rows+=line('  …with a video',vid);if(vid&&novid)rows+=line('  …without a video',novid);
-  const list=all.slice(0,25).map(e=>{const a=sc.find(x=>x.id===e.id);const i=e.inputs||{};
+  const list=all.slice(0,25).map(e=>{const a=e.excluded?null:sc.find(x=>x.id===e.id);const i=e.inputs||{};const act=e.excluded?_aiEstActual(e):null;
     const what=[i.moveType,i.size,i.vaults?i.vaults+' vaults':'',e.men+' movers',e.usedVideo?'📹':''].filter(Boolean).map(esc).join(' · ');
-    const res=a?('actual <strong>'+a.actual+' hrs</strong> '+(a.inRange?'<span style="color:var(--accent)">✓ in range</span>':'<span style="color:var(--amber)">'+(a.offPct>0?'+':'')+a.offPct+'%</span>')+' <span style="color:var(--text3)">('+esc(a.actualSrc)+')</span>')
+    const res=e.excluded?('<span style="color:var(--text3)">🚫 job changed — not compared'+(act?' (actual '+act.h+' hrs)':'')+(e.excludedWhy?': '+esc(e.excludedWhy):'')+'</span>'):a?('actual <strong>'+a.actual+' hrs</strong> '+(a.inRange?'<span style="color:var(--accent)">✓ in range</span>':'<span style="color:var(--amber)">'+(a.offPct>0?'+':'')+a.offPct+'%</span>')+' <span style="color:var(--text3)">('+esc(a.actualSrc)+')</span>')
       :(e.leadId?'<span style="color:var(--text3)">waiting for the job to be completed</span>':'<span style="color:var(--text3)">no lead linked</span>');
-    return '<div style="padding:6px 0;border-bottom:1px solid var(--border2);font-size:12px"><div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span><strong>'+esc(e.leadName||'(no lead)')+'</strong> · '+esc(String(e.savedAt||'').slice(0,10))+'</span>'
-      +'<span><button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="setAIEstActual(\''+e.id+'\')">'+(Number(e.actualHours)>0?'Edit hours':'Type hours')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="deleteAIEst(\''+e.id+'\')">✕</button></span></div>'
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border2);font-size:12px'+(e.excluded?';opacity:.65':'')+'"><div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span><strong>'+esc(e.leadName||'(no lead)')+'</strong> · '+esc(String(e.savedAt||'').slice(0,10))+'</span>'
+      +'<span><button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="setAIEstActual(\''+e.id+'\')">'+(Number(e.actualHours)>0?'Edit hours':'Type hours')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" title="The job ended up different from what was quoted — leave it out of the accuracy numbers" onclick="toggleAIEstExclude(\''+e.id+'\')">'+(e.excluded?'Compare again':'Job changed')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="deleteAIEst(\''+e.id+'\')">✕</button></span></div>'
       +'<div style="color:var(--text2)">'+what+'</div><div>AI said <strong>'+esc(e.low)+'–'+esc(e.high)+' hrs</strong>'+(e.split?' (move day)':'')+' → '+res+'</div></div>';}).join('');
   box.innerHTML=(all.length?'':'<div style="font-size:12px;color:var(--text3)">No saved estimates yet. After you generate an AI quote, use 💾 Save this estimate at the top of the result.</div>')
     +(singles.length||split.length?'<div style="overflow-x:auto;margin-bottom:10px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th style="padding:4px 6px">Estimates</th><th style="padding:4px 6px">Done</th><th style="padding:4px 6px">Landed in range</th><th style="padding:4px 6px">Lean</th><th style="padding:4px 6px"></th></tr></thead><tbody>'+rows+'</tbody></table></div>'
@@ -23928,6 +24007,28 @@ window.deleteLead=deleteLead;
   document.getElementById('page-title').textContent='Dashboard';
   document.getElementById('page-sub').textContent='Your business at a glance';
 })();
+
+// ── Phone layout helpers (2026-11-23) ─────────────────────────────────────────────────────────
+function _isPhone(){return window.matchMedia&&window.matchMedia('(max-width:820px)').matches;}
+function mNav(open){document.body.classList.toggle('m-nav-open',!!open);}
+function mGo(pg){mNav(false);showPage(pg);try{document.querySelector('.content').scrollTop=0;}catch(e){}}
+function mSearch(){mNav(false);const i=document.getElementById('global-search-input');if(i){i.focus();i.scrollIntoView({block:'nearest'});}}
+function _mMark(n){['leads','customers'].forEach(k=>{const b=document.getElementById('mn-'+k);if(b)b.classList.toggle('on',k===n);});}
+// Close the drawer when a menu item is tapped; highlight the bottom bar.
+document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.sidebar .nav-item'))mNav(false);},true);
+(function(){const _sp=showPage;window.showPage=showPage=function(n){_sp.apply(this,arguments);try{_mMark(n);}catch(e){}};})();
+// Lead pop-up on a phone: big Call / Text / Email / Directions buttons under the name.
+(function(){const _vl=viewLead;window.viewLead=viewLead=function(id){_vl.apply(this,arguments);try{
+  const l=(db.leads||[]).find(x=>x.id===id);const st=document.getElementById('view-modal-status');if(!l||!st)return;
+  const old=document.getElementById('m-lead-actions');if(old)old.remove();
+  const tel=String(l.phone||'').replace(/[^\d+]/g,'');const addr=l.from||l.to||'';
+  const a=[];
+  if(tel)a.push('<a href="tel:'+tel+'">📞 Call</a>','<a href="sms:'+tel+'">💬 Text</a>');
+  if(l.email)a.push('<a href="mailto:'+encodeURIComponent(l.email)+'">✉️ Email</a>');
+  if(addr)a.push('<a href="https://maps.apple.com/?daddr='+encodeURIComponent(addr)+'" target="_blank" rel="noopener">🗺 Map</a>');
+  if(!a.length)return;
+  const d=document.createElement('div');d.id='m-lead-actions';d.className='m-only m-actions';d.innerHTML=a.join('');st.appendChild(d);
+}catch(e){}};})();
 </script>
 </body>
 </html>
