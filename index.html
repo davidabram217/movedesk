@@ -684,13 +684,13 @@ input[type=number]{-moz-appearance:textfield}
               <div class="form-group"><label>Access at load</label>
                 <select id="ai-access-load" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
-                  <option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option>
+                  <option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option><option>Not sure yet</option>
                 </select>
               </div>
               <div class="form-group"><label>Access at unload</label>
                 <select id="ai-access-unload" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
-                  <option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option>
+                  <option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option><option>Not sure yet</option>
                 </select>
               </div>
               <div class="form-group"><label>Load zip code</label>
@@ -1067,7 +1067,7 @@ input[type=number]{-moz-appearance:textfield}
             <select id="nl-from-type"><option value="">Select…</option><option>House</option><option>Apartment</option><option>Condo</option><option>Office</option><option>Storage unit</option><option>Other</option></select>
           </div>
           <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor" placeholder="e.g. 2"></div>
-          <div class="form-group"><label>Access at load</label><select id="nl-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+          <div class="form-group"><label>Access at load</label><select id="nl-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
           <div class="form-group"><label>Parking at load</label><select id="nl-parking-load"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
           <div class="form-group full"><label>Load location notes</label><input type="text" id="nl-from-notes" placeholder="Parking details, gate codes, access info…"></div>
         </div>
@@ -1094,7 +1094,7 @@ input[type=number]{-moz-appearance:textfield}
           <select id="nl-to-type"><option value="">Select…</option><option>House</option><option>Apartment</option><option>Condo</option><option>Office</option><option>Storage unit</option><option>Other</option></select>
         </div>
         <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor" placeholder="e.g. 3"></div>
-        <div class="form-group"><label>Access at unload</label><select id="nl-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="nl-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
         <div class="form-group"><label>Parking at unload</label><select id="nl-parking-unload"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
         <div class="form-group full"><label>Unload location notes</label><input type="text" id="nl-to-notes" placeholder="Parking details, gate codes, access info…"></div>
       </div>
@@ -1492,8 +1492,8 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Square footage</label><input type="number" id="cj-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="cj-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cj-container"><option value="">Select…</option></select></div>
-        <div class="form-group"><label>Access at load</label><select id="cj-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-        <div class="form-group"><label>Access at unload</label><select id="cj-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at load</label><select id="cj-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="cj-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
       </div>
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job info</div>
@@ -1651,8 +1651,8 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="cjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cjmd-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label id="cjmd-vaults-label">Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff — helps the AI quote)</span></label><input type="number" id="cjmd-vaults" placeholder="e.g. 6" step="0.5"></div>
-        <div class="form-group"><label>Access at load</label><select id="cjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-        <div class="form-group"><label>Access at unload</label><select id="cjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at load</label><select id="cjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="cjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
       </div>
 
       <!-- Per-day rows are rendered into here by renderMultiDayCompleteRows(j) -->
@@ -2188,8 +2188,8 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="ecjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="ecjmd-container"><option value="">Select…</option></select></div>
         <div class="form-group"><label id="ecjmd-vaults-label">Vaults <span style="font-size:11px;color:var(--text3);font-weight:400">(how much stuff — helps the AI quote)</span></label><input type="number" id="ecjmd-vaults" placeholder="e.g. 6" step="0.5"></div>
-        <div class="form-group"><label>Access at load</label><select id="ecjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
-        <div class="form-group"><label>Access at unload</label><select id="ecjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+        <div class="form-group"><label>Access at load</label><select id="ecjmd-access-load"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
+        <div class="form-group"><label>Access at unload</label><select id="ecjmd-access-unload"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
       </div>
 
       <div id="ecjmd-days-container"></div>
@@ -2330,10 +2330,10 @@ input[type=number]{-moz-appearance:textfield}
         <div class="form-group full"><label>From address</label><input type="text" id="ad-from" placeholder="Pickup address for this day"></div>
         <div class="form-group full"><label>To address</label><input type="text" id="ad-to" placeholder="Drop-off address for this day"></div>
         <div class="form-group"><label>Access at load</label>
-          <select id="ad-access-load"><option value="">Select…</option><option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option></select>
+          <select id="ad-access-load"><option value="">Select…</option><option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option><option>Not sure yet</option></select>
         </div>
         <div class="form-group"><label>Access at unload</label>
-          <select id="ad-access-unload"><option value="">Select…</option><option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option></select>
+          <select id="ad-access-unload"><option value="">Select…</option><option>Flat</option><option>1 Flight</option><option>2 Flight</option><option>3 Flight</option><option>Elevator</option><option>Not sure yet</option></select>
         </div>
         <div class="form-group"><label>Fuel fee</label><input type="number" id="ad-fuel" placeholder="e.g. 50"></div>
         <div class="form-group"><label>Materials fee</label><input type="number" id="ad-materials" placeholder="e.g. 50"></div>
@@ -18282,7 +18282,7 @@ function updateQbExtraLocation(dayId,type,idx,field,val){
 }
 
 function accessOpts(cur){
-  return ['','Flat','Flat with a long walk','A few steps','1 flight','2 flights','3 flights','4 flights','Elevator','Elevator with a long walk']
+  return ['','Flat','Flat with a long walk','A few steps','1 flight','2 flights','3 flights','4 flights','Elevator','Elevator with a long walk','Not sure yet']
     .map(v=>`<option value="${v}"${cur===v?' selected':''}>${v||'Select…'}</option>`).join('');
 }
 function parkingOpts(cur){
@@ -22168,6 +22168,9 @@ function selfHealAITraining(){
 // ('1 Flight', '2 Flight', 'Elevator'), so older records written "1 flight", "2 flights",
 // "Elevator with long walk", "3rd floor walk-up" all scored 0 = flat — which made every new
 // quote look harder than its matched jobs and padded the hours (~+0.5 h on a typical 1-bed).
+// "Not sure yet" (2026-11-22): access not known. The AI treats that end as matching the jobs it is
+// compared with, instead of reading it as flat.
+function _accessUnknown(a){return /not\s*sure|unknown|\btbd\b/i.test(String(a||''));}
 function accessScore(access){
   const t=String(access||'').toLowerCase().trim();
   if(!t)return 0;
@@ -22376,8 +22379,9 @@ function similarity(job,inputs){
     score+=Math.max(0,30-(ratio-1)*30);
   }
   // Access at each end — third priority. Up to 13 pts per end.
-  const loadDiff=Math.abs(accessScore(job.accessLoad)-accessScore(inputs.accessLoad));
-  const unloadDiff=Math.abs(accessScore(job.accessUnload)-accessScore(inputs.accessUnload));
+  const _ad=(x,y)=>(_accessUnknown(x)||_accessUnknown(y))?0:Math.abs(accessScore(x)-accessScore(y));
+  const loadDiff=_ad(job.accessLoad,inputs.accessLoad);
+  const unloadDiff=_ad(job.accessUnload,inputs.accessUnload);
   score+=Math.max(0,13-(loadDiff*3));
   score+=Math.max(0,13-(unloadDiff*3));
   // NOTE: driving is NOT scored here. Two jobs of the same size do the same loading/unloading
@@ -22934,6 +22938,23 @@ function generateAIQuote(isRecalc){
   const _wantType=_normMoveType(inputs.moveType);
   let _cands=allData.filter(j=>j.actualHours);
   if(_wantType)_cands=_cands.filter(j=>_normMoveType(j.moveType)===_wantType);
+  // MOVE DAY OF A SPLIT JOB (2026-11-22): with separate pack day(s), the move day is plain moving
+  // work, so it is compared with plain moves of the same type ("Pack and move" → "Move", "Pack and
+  // move to storage" → "Move to storage"), the same jobs a "Move" quote uses. Past multi-day pack
+  // jobs still count, using their move-day hours only. Single-day pack-and-move jobs are left out:
+  // their hours have the packing baked in, which made the move day read far longer than a plain
+  // move (owner's report: 4 movers 3–6 hrs as a move, 6–11.5 hrs as the move day of a pack job).
+  let _moveDayPool=false;
+  if(_aiMoveOnly){
+    const _plainOf={[_normMoveType('Pack and move')]:'Move',[_normMoveType('Pack and move to storage')]:'Move to storage'};
+    const _plain=_plainOf[_wantType];
+    if(_plain){
+      const _pt=_normMoveType(_plain);
+      const _plainJobs=allData.filter(j=>j.actualHours&&_normMoveType(j.moveType)===_pt);
+      const _mdJobs=_cands.filter(j=>j.multiDay&&j.completedJobId&&_aiDayMoveMap&&_aiDayMoveMap[j.completedJobId]>0);
+      if(_plainJobs.length+_mdJobs.length>=3){_cands=_plainJobs.concat(_mdJobs);_moveDayPool=true;}
+    }
+  }
   const _sameTypeCount=_cands.length;
   // STORAGE FILL-IN (2026-10-09, owner's rule): for a plain "Move" with no packing, a "Move to
   // storage" job with no packing is the same loading work. When this quote's home size has fewer
@@ -22985,7 +23006,7 @@ function generateAIQuote(isRecalc){
   const _volFallback=!_curatedPool&&_inBand.length===0&&_cands.length>0;
   const _pool=_curatedPool||(_inBand.length>0?_inBand:_cands);
   const _top8=_pool
-    .map(j=>{const _raw=_aiHoursOf(j);return {...j,score:similarity(j,inputs),_workRaw:_raw,_work:_aiScaleToSize(_raw,j,inputs)};})
+    .map(j=>{const _raw=_aiHoursOf(j);return {...j,score:similarity(j,_moveDayPool?{...inputs,packing:''}:inputs),_workRaw:_raw,_work:_aiScaleToSize(_raw,j,inputs)};})
     .sort((a,b)=>b.score-a.score)
     .slice(0,8);
   // Weak-match filter (2026-10-01): when at least 5 jobs are strong matches (within 20% of the best
@@ -23034,12 +23055,10 @@ function generateAIQuote(isRecalc){
   // More men = stairs take less wall-clock time (trips are shared)
   // We use 3-man as baseline for the 0.81 figure, then scale by crew
   // Uses accessScore(), which reads any wording ("2 flights", "Elevator with long walk") — 2026-10-01.
-  const inputAccessScore=accessScore(inputs.accessLoad)+accessScore(inputs.accessUnload);
-  const avgAccessScore=scored.reduce((s,j)=>{
-    const ls=accessScore(j.accessLoad);
-    const us=accessScore(j.accessUnload);
-    return s+(ls+us);
-  },0)/scored.length;
+  // An end marked "Not sure yet" (on the quote or a past job) adds no access delta for that end.
+  const _endDelta=(inp,past)=>(_accessUnknown(inp)||_accessUnknown(past))?0:accessScore(inp)-accessScore(past);
+  const inputAccessScore=0;
+  const avgAccessScore=-scored.reduce((s,j)=>s+_endDelta(inputs.accessLoad,j.accessLoad)+_endDelta(inputs.accessUnload,j.accessUnload),0)/scored.length;
 
   // Access delta per access point: 0.81 hrs at 3-man baseline, scaled DOWN by crew size
   // (more movers means stairs / long carries get shared — fewer wall-clock hours per access point).
@@ -23056,8 +23075,10 @@ function generateAIQuote(isRecalc){
   // there isn't enough data to fit reliably, we fall back to the pure neighbor estimate.
   // Because the vault term increases smoothly with vault count, the blended estimate is
   // monotonic: adding vaults never lowers the hours.
-  const _vaultReg=computeVaultRegression(inputs.moveType);
-  const _sqftReg=(!inputs.vaults&&inputs.sqft)?computeSqftRegression(inputs.moveType):null;
+  // Move day of a split job: the trend lines learn from the same plain-move type as the job list.
+  const _regType=_moveDayPool?({[_normMoveType('Pack and move')]:'Move',[_normMoveType('Pack and move to storage')]:'Move to storage'}[_wantType]||inputs.moveType):inputs.moveType;
+  const _vaultReg=computeVaultRegression(_regType);
+  const _sqftReg=(!inputs.vaults&&inputs.sqft)?computeSqftRegression(_regType):null;
   let adjustedHours;
   let _usedVaultReg=false;
   let _usedSqftReg=false;
@@ -23382,7 +23403,7 @@ function addLoadLocation(){
       <div class="form-group"><label>Zip code</label><input type="text" id="nl-from-zip-extra-${id}" placeholder="e.g. 94103"></div>
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-from-unit-extra-${id}" placeholder="e.g. Apt 4B"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-from-floor-extra-${id}" placeholder="e.g. 2"></div>
-      <div class="form-group"><label>Access</label><select id="nl-access-load-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+      <div class="form-group"><label>Access</label><select id="nl-access-load-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
       <div class="form-group"><label>Parking</label><select id="nl-parking-load-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-from-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
@@ -23415,7 +23436,7 @@ function addUnloadLocation(){
       <div class="form-group"><label>Zip code</label><input type="text" id="nl-to-zip-extra-${id}" placeholder="e.g. 94121"></div>
       <div class="form-group"><label>Unit / Suite #</label><input type="text" id="nl-to-unit-extra-${id}" placeholder="e.g. Unit 2"></div>
       <div class="form-group"><label>Floor #</label><input type="text" id="nl-to-floor-extra-${id}" placeholder="e.g. 3"></div>
-      <div class="form-group"><label>Access</label><select id="nl-access-unload-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option></select></div>
+      <div class="form-group"><label>Access</label><select id="nl-access-unload-extra-${id}"><option value="">Select…</option><option>Flat</option><option>Flat with long walk</option><option>A few steps</option><option>1 flight</option><option>2 flights</option><option>3 flights</option><option>4 flights</option><option>Elevator</option><option>Elevator with long walk</option><option>Not sure yet</option></select></div>
       <div class="form-group"><label>Parking</label><select id="nl-parking-unload-extra-${id}"><option value="">Select…</option><option>Loading dock</option><option>Double parking</option><option>Street parking</option><option>White zone</option><option>Save spots</option><option>Permits</option><option>Open parking</option><option>Not sure yet</option></select></div>
       <div class="form-group full"><label>Notes</label><input type="text" id="nl-to-notes-extra-${id}" placeholder="Parking details, gate codes…"></div>
     </div>`;
