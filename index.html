@@ -781,6 +781,10 @@ input[type=number]{-moz-appearance:textfield}
                 <input type="number" id="ai-rate" placeholder="e.g. 75" value="75" oninput="saveAIQuoteDraft()">
                 <div style="font-size:11px;color:var(--text3);margin-top:3px">Total hourly rate = this × number of movers</div>
               </div>
+              <div class="form-group"><label>Standard material fee ($)</label>
+                <input type="number" id="ai-mat-fee" value="50" min="0" step="5" oninput="saveAIQuoteDraft()">
+                <div style="font-size:11px;color:var(--text3);margin-top:3px">Pads, wrap and tape. Added to the total. Set 0 if not charged.</div>
+              </div>
               <div class="form-group"><label id="ai-men-label">Number of movers</label>
                 <select id="ai-men" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
@@ -22915,7 +22919,7 @@ function saveAIQuoteDraft(){
   clearTimeout(_aiQuoteDraftTimer);
   _aiQuoteDraftTimer=setTimeout(()=>{
     try{
-      const ids=['ai-size','ai-vaults','ai-sqft','ai-movetype','ai-container','ai-packing','ai-access-load','ai-access-unload','ai-load-zip','ai-unload-zip','ai-rate','ai-men','ai-pack-days','ai-packers','ai-notes'];
+      const ids=['ai-size','ai-vaults','ai-sqft','ai-movetype','ai-container','ai-packing','ai-access-load','ai-access-unload','ai-load-zip','ai-unload-zip','ai-rate','ai-mat-fee','ai-men','ai-pack-days','ai-packers','ai-notes'];
       const draft={};
       ids.forEach(id=>{const el=document.getElementById(id);if(el)draft[id]=el.value;});
       draft._savedAt=new Date().toISOString();
@@ -23290,12 +23294,12 @@ function _aiAfterMoveQuote(m){
   labLo+=m.labourMin;labHi+=m.labourMax;
   if(packDays&&P.none){/* pack labour unknown — left out of the total */}
   const totalDays=packDays+m.estDays;
-  const fees=(m.fuel||0)+(m.packingMaterials||0);
+  const fees=(m.fuel||0)+(m.packingMaterials||0)+(m.matFee||0);
   const totLo=labLo+fees,totHi=labHi+fees;
   const plan=`<div style="margin-bottom:16px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px"><div style="font-size:13px;font-weight:600">📅 Day plan · ${totalDays} day${totalDays>1?'s':''}</div><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:var(--accent)">${money(totLo)} — ${money(totHi)}</div><div style="font-size:10.5px;color:var(--text3)">whole job, incl. fuel${m.packingMaterials?' + packing materials':''}</div></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px"><div style="font-size:13px;font-weight:600">📅 Day plan · ${totalDays} day${totalDays>1?'s':''}</div><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:var(--accent)">${money(totLo)} — ${money(totHi)}</div><div style="font-size:10.5px;color:var(--text3)">whole job, incl. fuel${m.matFee?' + standard materials':''}${m.packingMaterials?' + packing materials':''}</div></div></div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="${th}">Day</th><th style="${th}">Work</th><th style="${th}">Crew</th><th style="${th}">Hours</th><th style="${th};text-align:right">Labour</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
-    <div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.5">${packDays?'Packing is estimated from past packing work and the move day(s) from move-only time, so nothing is counted twice. ':''}${m.estDays>1?'The move runs over '+m.estDays+' days because it is more than one crew can do in 9.5 hrs. ':''}Fuel ${money(m.fuel||0)}${m.packingMaterials?' · packing materials '+money(m.packingMaterials):''}. Add insurance, COI, parking, dump fees as needed.${_aiPlan.auto&&packDays?' Change "Separate pack day(s)" or "Packers per pack day" to plan it differently.':''}</div>
+    <div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.5">${packDays?'Packing is estimated from past packing work and the move day(s) from move-only time, so nothing is counted twice. ':''}${m.estDays>1?'The move runs over '+m.estDays+' days because it is more than one crew can do in 9.5 hrs. ':''}Fuel ${money(m.fuel||0)}${m.matFee?' · standard materials '+money(m.matFee):''}${m.packingMaterials?' · packing materials '+money(m.packingMaterials):''}. Add insurance, COI, parking, dump fees as needed.${_aiPlan.auto&&packDays?' Change "Separate pack day(s)" or "Packers per pack day" to plan it differently.':''}</div>
   </div>`;
   const packList=!packDays?'':`<details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px" open>
     <summary style="cursor:pointer;font-size:11.5px;color:var(--text3);font-weight:600">📦 ${dayLbl(1,packDays)} (packing) — jobs used (${P.none?0:P.used.length})${_aiPackKept?' · your selection':''}</summary>
@@ -23683,8 +23687,11 @@ function generateAIQuote(isRecalc){
 
   const labourMin=Math.round(totalHoursLowAdj*rate);
   const labourMax=Math.round(totalHoursHighAdj*rate);
-  const totalMin=labourMin+fuelEstimate+(packingMaterials||0);
-  const totalMax=labourMax+fuelEstimate+(packingMaterials||0);
+  // Standard material fee (2026-11-24): pads, wrap and tape — a flat charge on most jobs ($50 by default).
+  const _matFeeEl=document.getElementById('ai-mat-fee');
+  const matFee=_matFeeEl&&_matFeeEl.value!==''?Math.max(0,Number(_matFeeEl.value)||0):0;
+  const totalMin=labourMin+fuelEstimate+(packingMaterials||0)+matFee;
+  const totalMax=labourMax+fuelEstimate+(packingMaterials||0)+matFee;
 
   const isOutsideSF=inputs.loadZip&&inputs.unloadZip&&(!isSFZip(inputs.loadZip)||!isSFZip(inputs.unloadZip));
 
@@ -23764,7 +23771,7 @@ function generateAIQuote(isRecalc){
       return`<details ${(typeof _isPhone==='function'&&_isPhone())?'':'open'} style="padding:12px 14px;background:var(--surface2);border-radius:var(--radius);font-size:12px;margin-bottom:10px;border-left:3px solid var(--accent)"><summary style="cursor:pointer;font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Rules to apply when quoting</summary>${applicable.map(r=>`<div style="margin-bottom:6px;line-height:1.5"><strong style="color:var(--text)">${r.title}:</strong> <span style="color:var(--text2)">${r.body}</span></div>`).join('')}</details>`;
     })()}
     <div style="font-size:11.5px;color:var(--text3);line-height:1.6">
-      Labour: $${labourMin.toLocaleString()}–$${labourMax.toLocaleString()} · Fuel: $${fuelEstimate}${packingMaterials?' · Packing: $'+packingMaterials:''}<br>
+      Labour: $${labourMin.toLocaleString()}–$${labourMax.toLocaleString()} · Fuel: $${fuelEstimate}${matFee?' · Standard materials: $'+matFee:''}${packingMaterials?' · Packing: $'+packingMaterials:''}<br>
       <em>Add insurance, COI, parking, dump fees as needed. 3.5% CC fee if applicable.</em>
     </div>
     <details style="margin-top:14px;border-top:1px solid var(--border2);padding-top:10px"${_aiExcludedKeys.size?' open':''}>
@@ -23804,7 +23811,7 @@ function generateAIQuote(isRecalc){
     </details>`;  window._aiLastEst={inputs:{...inputs},men,rate,low:totalHoursLowAdj,high:totalHoursHighAdj,estDays,totalMin,totalMax,
     rawMid:_rawMid,drive:extraDriveHours||0,calib:(_cal&&_cal.apply)?_cal.f:1,split:!!_moveDayPool||(_aiPlan&&_aiPlan.packDays>0),
     packDays:(_aiPlan&&_aiPlan.packDays)||0,usedVideo:!!(typeof _avLast!=='undefined'&&_avLast),videoVaults:(typeof _avLast!=='undefined'&&_avLast&&_avLast.result)?_avLast.result.vaults||null:null,curated:!!_curating};
-  try{_aiAfterMoveQuote({inputs,men,rate,ratePerMan,low:totalHoursLowAdj,high:totalHoursHighAdj,estDays,perDayLow,perDayHigh,labourMin,labourMax,fuel:fuelEstimate,packingMaterials:packingMaterials||0});}
+  try{_aiAfterMoveQuote({inputs,men,rate,ratePerMan,low:totalHoursLowAdj,high:totalHoursHighAdj,estDays,perDayLow,perDayHigh,labourMin,labourMax,fuel:fuelEstimate,packingMaterials:packingMaterials||0,matFee});}
   catch(e){console.warn('Day plan failed:',e);}
   try{_aiRenderSaveBar();}catch(e){console.warn('save bar failed',e);}
 }
