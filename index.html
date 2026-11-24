@@ -23753,6 +23753,11 @@ function generateAIQuote(isRecalc){
         <div style="font-size:16px;font-weight:600">${inputs.moveType&&inputs.moveType.toLowerCase().includes('pack')?'Insufficient data':'—'}</div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${inputs.moveType&&inputs.moveType.toLowerCase().includes('pack')?'Add more pack jobs to improve':'No packing selected'}</div>
       </div>`}
+      <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius)">
+        <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">Standard material fee</div>
+        <div style="font-size:16px;font-weight:600">${matFee?'$'+matFee:'Not charged'}</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${matFee?'Pads, wrap & tape · included in the total':'Set in the form if needed'}</div>
+      </div>
     </div>
     ${isOutsideSF?`<div style="padding:10px 12px;background:#e8f0fe;border-radius:var(--radius);font-size:12px;margin-bottom:10px;color:#1a56db">
       📍 Outside SF — clock runs from warehouse departure to return. Est. ${fuelCalc.totalMiles} miles total at $2/mile.
