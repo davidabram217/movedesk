@@ -22684,6 +22684,10 @@ function saveAIEstimate(){
     rawMid:E.rawMid,drive:E.drive,calib:E.calib,split:E.split,packDays:E.packDays,usedVideo:E.usedVideo,videoVaults:E.videoVaults,curated:E.curated,actualHours:null};
   if(cj&&_aiEstList().some(x=>x.completedJobId===cj.id)&&!confirm(who+' already has a saved estimate. Save this one too?'))return;
   if(!cj&&lead&&_aiEstList().some(x=>x.leadId===lead.id&&!_aiEstActual(x))&&!confirm(lead.name+' already has a saved estimate waiting for its job. Save this one too?'))return;
+  // Keep what the video showed with the estimate and on the lead (2026-11-24), so it can be checked
+  // against the real job later and seen again when the job is booked.
+  if(E.usedVideo){const vid=_avCompact();if(vid){rec.video=vid;
+    if(lead){lead.videoAnalysis=vid;}}}
   _aiEstList().unshift(rec);db.settings.aiEstimates=_aiEstList().slice(0,300);
   saveDB();showToast('✓ Estimate saved'+(who?' for '+who:''));
   const _a=cj?_aiEstActual(rec):null;
@@ -22756,6 +22760,14 @@ function renderAIAccuracy(){
       +sizeLines
       +'<div style="margin-top:4px;color:var(--text3)">When the crews differ, hours above are compared as the same amount of work for the AI\u2019s crew, using the AI\u2019s own crew-speed table.</div></div>';
   }
+  // 📹 Video accuracy — the video's vault count vs. the real vaults
+  const vr=_avVideoRows();
+  if(vr.length){const hit=vr.filter(x=>x.inRange).length;const avg=Math.round(vr.reduce((t,x)=>t+(x.act-x.guess),0)/vr.length*10)/10;const vc=_avVaultCorrection();
+    cmp+='<div style="margin:4px 0 12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px">'
+      +'<div style="font-weight:600;margin-bottom:4px">📹 Video accuracy — vaults the video counted vs. real vaults ('+vr.length+' job'+(vr.length===1?'':'s')+')</div>'
+      +'<div>Real vaults inside the video\u2019s range: <strong>'+Math.round(hit/vr.length*100)+'%</strong> · on average the video was <strong>'+(Math.abs(avg)<0.25?'about right':(avg>0?avg+' vault'+(avg===1?'':'s')+' short':(-avg)+' vault'+(avg===-1?'':'s')+' over'))+'</strong></div>'
+      +'<div style="margin-top:4px;color:var(--text3)">'+(vc&&vc.apply?'Correcting new video counts by '+(vc.f>1?'+':'')+Math.round((vc.f-1)*100)+'%.':(vr.length<5?(5-vr.length)+' more job'+(5-vr.length===1?'':'s')+' with a video and real vaults before it starts correcting.':'No correction needed.'))+'</div></div>';}
+  else if(sc.some(e=>e.video)){cmp+='<div style="margin:4px 0 12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px;color:var(--text2)">📹 Video accuracy appears once a job checked with a video is completed <strong>with its real vault count</strong>.</div>';}
   const list=all.slice(0,25).map(e=>{const a=e.excluded?null:sc.find(x=>x.id===e.id);const i=e.inputs||{};const act=e.excluded?_aiEstActual(e):null;
     const what=[i.moveType,i.size,i.vaults?i.vaults+' vaults':'',e.men+' movers',e.usedVideo?'📹':''].filter(Boolean).map(esc).join(' · ');
     const res=e.excluded?('<span style="color:var(--text3)">🚫 job changed — not compared'+(act?' (actual '+act.h+' hrs)':'')+(e.excludedWhy?': '+esc(e.excludedWhy):'')+'</span>'):a?('actual <strong>'+a.actual+' hrs</strong> '+(a.inRange?'<span style="color:var(--accent)">✓ in range</span>':'<span style="color:var(--amber)">'+(a.offPct>0?'+':'')+a.offPct+'%</span>')+' <span style="color:var(--text3)">('+esc(a.actualSrc)+')</span>')
@@ -22765,6 +22777,7 @@ function renderAIAccuracy(){
       +'<div style="color:var(--text2)">'+what+'</div><div>AI said <strong>'+esc(e.low)+'–'+esc(e.high)+' hrs</strong>'+(e.split?' (move day)':'')
       +(function(){const y=a?a.yq:_aiEstYourQuote(e);return y?' · you quoted <strong>'+esc(y.low)+(y.high!==y.low?'–'+esc(y.high):'')+' hrs</strong>'+(a&&a.yq?(a.yqIn?' <span style="color:var(--accent)">✓</span>':' <span style="color:var(--amber)">'+(a.yqOffPct>0?'+':'')+a.yqOffPct+'%</span>'):''):'';})()
       +' → '+res+'</div>'
+      +(e.video&&e.video.vaults?(function(){const av=_aiEstActualVaults(e);return '<div style="color:var(--text2)">📹 Video counted '+esc(e.video.vaults)+' vaults'+(e.video.vaultsLow&&e.video.vaultsHigh?' ('+esc(e.video.vaultsLow)+'–'+esc(e.video.vaultsHigh)+')':'')+(av?' → real <strong>'+esc(av)+'</strong>':(a?' → <span style="color:var(--amber)">real vaults not recorded on the job</span>':''))+'</div>';})():'')
       +(a&&a.actualMen&&e.men?'<div style="color:var(--text2)">👷 AI: '+esc(e.men)+' movers · went: '+esc(a.actualMen)+(a.crewDiff?' <span style="color:var(--amber)">('+(a.crewDiff>0?'+':'')+a.crewDiff+')</span> · compared as ~'+(Math.round(a.eqAI*4)/4)+' hrs for '+esc(e.men)+' movers':' ✓')+'</div>':'')
       +'</div>';}).join('');
   box.innerHTML=(all.length?'':'<div style="font-size:12px;color:var(--text3)">No saved estimates yet. After you generate an AI quote, use 💾 Save this estimate at the top of the result.</div>')
@@ -22877,10 +22890,41 @@ function _avSuggestions(){
   const add=(id,label,val)=>{if(val===undefined||val===null||val==='')return;const el=document.getElementById(id);if(!el)return;
     if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===String(val)))return;out.push({id,label,val:String(val)});};
   add('ai-size','Home size',r.homeSize);
-  if(Number(r.vaults)>0)add('ai-vaults','Vaults',Math.round(Number(r.vaults)*2)/2);
+  if(Number(r.vaults)>0){
+    // Learned correction (2026-11-24): once 5+ jobs have both a video vault count and the real
+    // vaults, a steady over/under-count is corrected here. The raw count is kept on the analysis.
+    const vc=_avVaultCorrection();
+    add('ai-vaults','Vaults',Math.round(Number(r.vaults)*(vc&&vc.apply?vc.f:1)*2)/2);
+  }
   add('ai-packing','Packing',r.packing);
   add('ai-access-load','Access at load',r.accessLoad);
   return out;
+}
+function _avCompact(){
+  if(!_avLast||!_avLast.result)return null;const r=_avLast.result;const cut=(a,n)=>(Array.isArray(a)?a:[]).slice(0,n).map(x=>String(x).slice(0,80));
+  const vc=_avVaultCorrection();
+  return {at:_avLast.at,frames:_avLast.frames,batches:_avLast.batches||1,version:_avLast.version||'',
+    vaults:Number(r.vaults)||null,vaultsLow:Number(r.vaultsLow)||null,vaultsHigh:Number(r.vaultsHigh)||null,
+    vaultCorr:vc&&vc.apply?vc.f:1,homeSize:r.homeSize||'',packing:r.packing||'',accessLoad:r.accessLoad||'',boxesSeen:Number(r.boxesSeen)||null,
+    confidence:r.confidence||'',summary:String(r.summary||'').slice(0,400),specialItems:cut(r.specialItems,12),disassembly:cut(r.disassembly,12),notShown:cut(r.notShown,8),
+    rooms:(Array.isArray(r.rooms)?r.rooms:[]).slice(0,12).map(x=>({room:String(x.room||'').slice(0,40),items:cut(x.items,25)}))};
+}
+// Real vaults for a saved estimate's completed job (the count entered when completing it).
+function _aiEstActualVaults(e){
+  const a=_aiEstActual(e);if(!a||!a.cjId)return null;
+  const cj=(db.completedJobs||[]).find(c=>c.id===a.cjId);
+  const tr=getJobTrainingData().find(r=>r&&r.completedJobId===a.cjId);
+  return Number(cj&&cj.vaults)||Number(tr&&tr.actualVaults)||null;
+}
+// Video vault guesses vs. real vaults (raw guesses, before any correction, so it doesn't feed on itself).
+function _avVideoRows(){
+  return _aiEstList().filter(e=>e&&!e.excluded&&e.video&&Number(e.video.vaults)>0).map(e=>{const act=_aiEstActualVaults(e);return act?{e,guess:Number(e.video.vaults),act,
+    inRange:act>=(Number(e.video.vaultsLow)||e.video.vaults)-0.25&&act<=(Number(e.video.vaultsHigh)||e.video.vaults)+0.25}:null;}).filter(Boolean);
+}
+function _avVaultCorrection(){
+  try{const rows=_avVideoRows();if(rows.length<5)return {apply:false,n:rows.length};
+    const r=rows.map(x=>x.act/x.guess).sort((a,b)=>a-b);const med=r[Math.floor(r.length/2)];
+    const f=Math.min(1.4,Math.max(0.7,med));return {apply:Math.abs(f-1)>=0.05,f,n:rows.length};}catch(e){return null;}
 }
 function _avApply(fillBlanks){
   // Fill blanks, and update a field the video itself filled earlier (still unchanged by the office).
@@ -22910,6 +22954,7 @@ function _avRender(){
   const rooms=(r.rooms||[]).map(x=>'<div style="font-size:12px;margin-top:3px"><strong>'+esc(x.room)+':</strong> '+(x.items||[]).map(esc).join(', ')+'</div>').join('');
   box.innerHTML='<div style="margin-top:8px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)">'
     +(r.summary?'<div style="font-size:12.5px;margin-bottom:6px">'+esc(r.summary)+'</div>':'')
+    +(function(){const vc=_avVaultCorrection();return vc&&vc.apply&&Number(r.vaults)>0?'<div style="font-size:11.5px;margin-bottom:4px;color:var(--amber)">📹 The video counted '+esc(r.vaults)+' vaults; adjusted to '+(Math.round(r.vaults*vc.f*2)/2)+' because videos have been '+(vc.f>1?'under':'over')+'-counting by ~'+Math.abs(Math.round((vc.f-1)*100))+'% ('+vc.n+' jobs).</div>':'';})()
     +'<div style="font-size:10.5px;color:var(--text3);margin-bottom:4px">Confidence: '+esc(r.confidence||'?')+' · '+esc(_avLast.frames)+' pictures'+(_avLast.batches>1?' from '+esc(_avLast.batches)+' batches':'')+(r.boxesSeen?' · ~'+esc(r.boxesSeen)+' boxes seen':'')+(r.packingReason?' · packing: '+esc(r.packingReason):'')+'</div>'
     +rows
     +list('Special items',r.specialItems)+list('Needs disassembly',r.disassembly)+(r.accessNote?'<div style="font-size:12px;margin-top:6px"><strong>Access seen:</strong> '+esc(r.accessNote)+'</div>':'')
@@ -24188,16 +24233,28 @@ document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.si
 (function(){const _sp=showPage;window.showPage=showPage=function(n){_sp.apply(this,arguments);try{_mMark(n);}catch(e){}};})();
 // Lead pop-up on a phone: big Call / Text / Email / Directions buttons under the name.
 (function(){const _vl=viewLead;window.viewLead=viewLead=function(id){_vl.apply(this,arguments);try{
-  const l=(db.leads||[]).find(x=>x.id===id);const st=document.getElementById('view-modal-status');if(!l||!st)return;
+  const l=(db.leads||[]).find(x=>x.id===id);const st=document.getElementById('view-modal-status');if(!l||!st)throw 0;
   const old=document.getElementById('m-lead-actions');if(old)old.remove();
   const tel=String(l.phone||'').replace(/[^\d+]/g,'');const addr=l.from||l.to||'';
   const a=[];
   if(tel)a.push('<a href="tel:'+tel+'">📞 Call</a>','<a href="sms:'+tel+'">💬 Text</a>');
   if(l.email)a.push('<a href="mailto:'+encodeURIComponent(l.email)+'">✉️ Email</a>');
   if(addr)a.push('<a href="https://maps.apple.com/?daddr='+encodeURIComponent(addr)+'" target="_blank" rel="noopener">🗺 Map</a>');
-  if(!a.length)return;
+  if(!a.length)throw 0;
   const d=document.createElement('div');d.id='m-lead-actions';d.className='m-only m-actions';d.innerHTML=a.join('');st.appendChild(d);
-}catch(e){}};})();
+}catch(e){}
+  // Video walkthrough saved with an AI estimate (2026-11-24): shown on the lead.
+  try{const l=(db.leads||[]).find(x=>x.id===id);const body=document.getElementById('view-modal-body');const v=l&&l.videoAnalysis;
+    const old=document.getElementById('lead-video-box');if(old)old.remove();
+    if(v&&body){const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      const b=document.createElement('details');b.id='lead-video-box';b.style.cssText='margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12.5px';
+      b.innerHTML='<summary style="cursor:pointer;font-weight:600">📹 Video walkthrough — '+esc(v.homeSize||'')+(v.vaults?' · ~'+esc(v.vaults)+' vaults':'')+(v.packing?' · '+esc(v.packing):'')+'</summary>'
+        +(v.summary?'<div style="margin-top:6px">'+esc(v.summary)+'</div>':'')
+        +((v.specialItems||[]).length?'<div style="margin-top:4px"><strong>Special items:</strong> '+v.specialItems.map(esc).join(', ')+'</div>':'')
+        +((v.disassembly||[]).length?'<div style="margin-top:4px"><strong>Disassembly:</strong> '+v.disassembly.map(esc).join(', ')+'</div>':'')
+        +((v.rooms||[]).map(r=>'<div style="margin-top:3px"><strong>'+esc(r.room)+':</strong> '+(r.items||[]).map(esc).join(', ')+'</div>').join(''));
+      body.appendChild(b);}}catch(e){}
+};})();
 
 // ── "Quote on file" on the completion forms (2026-11-24) ─────────────────────────────────────
 // When closing out a job, show straight away whether a quote went out for it: every formal quote
@@ -24227,8 +24284,10 @@ function _cjQuoteOnFileHTML(j){
   const sum=qi&&(qi.quotedMin||qi.quotedMax||qi.quotedHoursMin)?'<div style="font-size:12px;margin-top:3px">Used for quote-vs-actual: '
     +[qi.quotedCrew?qi.quotedCrew+' movers':'',qi.quotedRate?'$'+qi.quotedRate+'/hr':'',qi.quotedHoursMin?qi.quotedHoursMin+(qi.quotedHoursMax&&qi.quotedHoursMax!==qi.quotedHoursMin?'–'+qi.quotedHoursMax:'')+' hrs':'',
       (qi.quotedMin||qi.quotedMax)?money(qi.quotedMin||qi.quotedMax)+(qi.quotedMax&&qi.quotedMax!==qi.quotedMin?'–'+money(qi.quotedMax):''):''].filter(Boolean).join(' · ')+'</div>':'';
+  const _vid=lead&&lead.videoAnalysis;
   return '<div style="background:'+tone+';border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;font-size:12.5px">'
     +'<div style="font-weight:600">'+head+'</div>'+sum
+    +(_vid&&_vid.vaults?'<div style="font-size:12px;margin-top:3px">📹 The video counted ~'+esc(_vid.vaults)+' vaults — <strong>please enter the real vault count below</strong> so the AI can check its video counts.</div>':'')
     +(textSent&&qs.length?'<div style="font-size:12px;margin-top:3px">💬 Also marked as quote sent by text</div>':'')
     +(!lead?'<div style="font-size:12px;margin-top:3px;color:var(--text2)">This job isn’t linked to a lead, so quotes can’t be looked up.</div>':'')
     +rows+'</div>';
