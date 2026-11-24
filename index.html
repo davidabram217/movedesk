@@ -22592,24 +22592,46 @@ function _aiCalibration(moveType){
 function _aiRenderSaveBar(){
   const el=document.getElementById('ai-result');const E=window._aiLastEst;if(!el||!E)return;
   const old=document.getElementById('ai-save-bar');if(old)old.remove();
-  const leads=(db.leads||[]).filter(l=>l&&!/did not book|archiv/i.test(String(l.status||'')))
-    .sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||''))).slice(0,150);
   const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const bjs=(db.bookedJobs||[]).filter(b=>b&&!b.draft).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,100);
-  const cjs=(db.completedJobs||[]).filter(c=>c).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,150);
+  // Every lead / booked job / completed job, A–Z by name (2026-11-24), searchable with the box above.
+  const byName=(a,b)=>String(a.name||'').trim().toLowerCase().localeCompare(String(b.name||'').trim().toLowerCase())||String(b.date||'').localeCompare(String(a.date||''));
+  const leads=(db.leads||[]).filter(l=>l&&!/did not book|archiv/i.test(String(l.status||''))).sort(byName);
+  const bjs=(db.bookedJobs||[]).filter(b=>b&&!b.draft).sort(byName);
+  const cjs=(db.completedJobs||[]).filter(c=>c).sort(byName);
+  window._aiSaveOpts=[
+    ...leads.map(l=>({g:'Leads',v:'L:'+l.id,t:(l.name||'(no name)')+(l.date?' · '+l.date:'')})),
+    ...bjs.map(b=>({g:'Booked jobs',v:'B:'+b.id,t:(b.name||'(no name)')+(b.date?' · '+b.date:'')})),
+    ...cjs.map(c=>({g:'Completed jobs (looking back)',v:'C:'+c.id,t:(c.name||'(no name)')+(c.date?' · '+c.date:'')+(Number(c.hours)?' · '+c.hours+' hrs':'')}))];
   const bar=document.createElement('div');bar.id='ai-save-bar';
   bar.style.cssText='margin-bottom:14px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--accent-light);display:flex;gap:8px;align-items:center;flex-wrap:wrap';
   bar.innerHTML='<span style="font-size:12.5px;font-weight:600">💾 Save this estimate</span>'
-    +'<select id="ai-save-lead" style="flex:1;min-width:160px;font-size:12px"><option value="">Link to a lead or job…</option>'
-    +'<optgroup label="Leads">'+leads.map(l=>'<option value="L:'+esc(l.id)+'">'+esc(l.name||'(no name)')+(l.date?' · '+esc(l.date):'')+'</option>').join('')+'</optgroup>'
-    +(bjs.length?'<optgroup label="Booked jobs">'+bjs.map(b=>'<option value="B:'+esc(b.id)+'">'+esc(b.name||'(no name)')+(b.date?' · '+esc(b.date):'')+'</option>').join('')+'</optgroup>':'')
-    +(cjs.length?'<optgroup label="Completed jobs (looking back)">'+cjs.map(c=>'<option value="C:'+esc(c.id)+'">'+esc(c.name||'(no name)')+(c.date?' · '+esc(c.date):'')+(Number(c.hours)?' · '+esc(c.hours)+' hrs':'')+'</option>').join('')+'</optgroup>':'')
-    +'<option value="__none">None — I\u2019ll type the hours later</option></select>'
+    +'<input type="search" id="ai-save-search" placeholder="🔍 Type a name to search…" autocomplete="off" oninput="_aiSaveFilter()" style="flex:1 1 100%;font-size:12.5px">'
+    +'<select id="ai-save-lead" style="flex:1;min-width:160px;font-size:12px"></select>'
     +'<button class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="saveAIEstimate()">Save</button>'
-    +'<span style="font-size:10.5px;color:var(--text3);width:100%">Saves '+esc(E.low)+'–'+esc(E.high)+' hrs with '+esc(E.men)+' movers'+(E.split?' (split pack / move)':'')+'. When the job is completed, the real hours are matched automatically. Picking a completed job checks the AI against it straight away (that job\u2019s own hours are left out of the estimate first).</span>';
+    +'<span id="ai-save-count" style="font-size:10.5px;color:var(--text3);width:100%"></span>'
+    +'<span style="font-size:10.5px;color:var(--text3);width:100%">Saves '+esc(E.low)+'–'+esc(E.high)+' hrs with '+esc(E.men)+' movers'+(E.split?' (split pack / move)':'')+'. When the job is completed, the real hours are matched automatically. Picking a completed job checks the AI against it straight away (that job’s own hours are left out of the estimate first).</span>';
   // After the headline price, so the price is the first thing you see (2026-11-23).
   const head=el.firstElementChild;
   if(head&&head.nextSibling)el.insertBefore(bar,head.nextSibling);else el.appendChild(bar);
+  _aiSaveFilter();
+}
+// Rebuild the list from the search box: matches any word of the name (or the date), grouped and A–Z.
+// One match is picked for you.
+function _aiSaveFilter(){
+  const sel=document.getElementById('ai-save-lead');if(!sel)return;
+  const q=String((document.getElementById('ai-save-search')||{}).value||'').trim().toLowerCase();
+  const words=q.split(/\s+/).filter(Boolean);
+  const all=window._aiSaveOpts||[];
+  const hits=words.length?all.filter(o=>{const t=o.t.toLowerCase();return words.every(w=>t.includes(w));}):all;
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const prev=sel.value;
+  const groups=['Leads','Booked jobs','Completed jobs (looking back)'];
+  sel.innerHTML='<option value="">'+(words.length?(hits.length?hits.length+' match'+(hits.length===1?'':'es')+' — pick one…':'No matches'):'Link to a lead or job…')+'</option>'
+    +groups.map(g=>{const os=hits.filter(o=>o.g===g);return os.length?'<optgroup label="'+g+'">'+os.map(o=>'<option value="'+esc(o.v)+'">'+esc(o.t)+'</option>').join('')+'</optgroup>':'';}).join('')
+    +'<option value="__none">None — I’ll type the hours later</option>';
+  if(hits.length===1&&words.length)sel.value=hits[0].v;
+  else if(prev&&[...sel.options].some(o=>o.value===prev))sel.value=prev;
+  const c=document.getElementById('ai-save-count');if(c)c.textContent=words.length?'':all.length+' leads and jobs, A–Z. Type a name above to narrow the list.';
 }
 function saveAIEstimate(){
   const E=window._aiLastEst;if(!E){showToast('Generate an estimate first.');return;}
