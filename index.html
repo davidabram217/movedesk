@@ -1579,6 +1579,7 @@ input[type=number]{-moz-appearance:textfield}
     <div class="modal-header"><div class="modal-title">Mark job as complete</div><button class="modal-close" onclick="closeModal('complete-job')">✕</button></div>
     <div class="modal-body" oninput="cjAutoSave()" onchange="cjAutoSave()">
       <div id="complete-job-summary" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:16px;font-size:12.5px;color:var(--text2)"></div>
+      <div id="cj-quote-onfile"></div>
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— auto-filled from the booking; edit if needed. Used for AI quote training.</span></div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
@@ -1731,6 +1732,7 @@ input[type=number]{-moz-appearance:textfield}
       <div>
         <div class="modal-title">Complete multi-day job</div>
         <div id="cjmd-summary" style="font-size:12px;color:var(--text2);margin-top:4px"></div>
+        <div id="cjmd-quote-onfile" style="margin-top:8px"></div>
       </div>
       <button class="modal-close" onclick="closeModal('complete-job-multiday')">✕</button>
     </div>
@@ -24093,6 +24095,46 @@ document.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.si
   if(!a.length)return;
   const d=document.createElement('div');d.id='m-lead-actions';d.className='m-only m-actions';d.innerHTML=a.join('');st.appendChild(d);
 }catch(e){}};})();
+
+// ── "Quote on file" on the completion forms (2026-11-24) ─────────────────────────────────────
+// When closing out a job, show straight away whether a quote went out for it: every formal quote
+// for the lead (sent date, status, crew / rate / hours / total, with a View button), a rough quote
+// if that's all there is, and a "sent by text" status. Read-only — nothing about quotes changes.
+function _cjQuoteOnFileHTML(j){
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const lead=j&&j.leadId?(db.leads||[]).find(l=>l.id===j.leadId):(db.leads||[]).find(l=>l&&j&&l.name===j.name);
+  const qs=lead?(db.quotes||[]).filter(q=>q&&q.leadId===lead.id&&q.status!=='draft'&&!q.deleted)
+    .sort((a,b)=>String(b.acceptedAt||b.sentAt||b.createdAt||'').localeCompare(String(a.acceptedAt||a.sentAt||a.createdAt||''))):[];
+  let qi=null;try{qi=resolveQuotedInfo({...j,bookedJobId:j.id});}catch(e){}
+  const money=n=>'$'+Math.round(Number(n)).toLocaleString();
+  const rows=qs.map(q=>{
+    const d=(q.days||[])[0]||{};const days=(q.days||[]).length;
+    const bits=[d.crew?d.crew+' movers':'',d.rate?'$'+d.rate+'/hr':'',(d.hrsMin||d.hrsMax)?(d.hrsMin||'?')+'–'+(d.hrsMax||'?')+' hrs':'',days>1?days+' days':'',q.flatRate||q.isFlat?'flat rate':''].filter(Boolean).join(' · ');
+    const when=q.acceptedAt?'accepted '+fmtDate(q.acceptedAt):(q.sentAt?'sent '+fmtDate(q.sentAt):(q.createdAt?'made '+fmtDate(q.createdAt):''));
+    const badge=q.status==='accepted'?'<span class="badge pill-green">Accepted</span>':(q.status==='sent'?'<span class="badge pill-blue">Sent</span>':'<span class="badge pill-gray">'+esc(q.status||'')+'</span>');
+    return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 0;border-top:1px solid var(--border2)">'
+      +'<div>'+badge+' <span style="color:var(--text2)">'+esc(when)+'</span><div style="font-size:12px">'+esc(bits||'—')+'</div></div>'
+      +'<button type="button" class="btn btn-sm" onclick="previewQuoteFromList(\''+esc(q.id)+'\')">View quote</button></div>';}).join('');
+  const textSent=lead&&(/sent by text/i.test(String(lead.status||''))||(lead.statusHistory||[]).some(h=>/sent by text/i.test(String(h&&h.status||h||''))));
+  const rough=qi&&/rough/.test(qi.source||'')&&(qi.quotedMin||qi.quotedMax);
+  let head,tone;
+  if(qs.length){head='📄 '+qs.length+' quote'+(qs.length>1?'s':'')+' on file';tone='var(--accent-light)';}
+  else if(rough||textSent){head=rough?'📝 Rough quote only':'💬 Quote sent by text';tone='var(--amber-light)';}
+  else{head='⚠ No quote on file for this job';tone='var(--amber-light)';}
+  const sum=qi&&(qi.quotedMin||qi.quotedMax||qi.quotedHoursMin)?'<div style="font-size:12px;margin-top:3px">Used for quote-vs-actual: '
+    +[qi.quotedCrew?qi.quotedCrew+' movers':'',qi.quotedRate?'$'+qi.quotedRate+'/hr':'',qi.quotedHoursMin?qi.quotedHoursMin+(qi.quotedHoursMax&&qi.quotedHoursMax!==qi.quotedHoursMin?'–'+qi.quotedHoursMax:'')+' hrs':'',
+      (qi.quotedMin||qi.quotedMax)?money(qi.quotedMin||qi.quotedMax)+(qi.quotedMax&&qi.quotedMax!==qi.quotedMin?'–'+money(qi.quotedMax):''):''].filter(Boolean).join(' · ')+'</div>':'';
+  return '<div style="background:'+tone+';border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;font-size:12.5px">'
+    +'<div style="font-weight:600">'+head+'</div>'+sum
+    +(textSent&&qs.length?'<div style="font-size:12px;margin-top:3px">💬 Also marked as quote sent by text</div>':'')
+    +(!lead?'<div style="font-size:12px;margin-top:3px;color:var(--text2)">This job isn’t linked to a lead, so quotes can’t be looked up.</div>':'')
+    +rows+'</div>';
+}
+(function(){
+  const fill=(id,jobId)=>{try{const el=document.getElementById(id);const j=(db.bookedJobs||[]).find(x=>x.id===jobId);if(el)el.innerHTML=j?_cjQuoteOnFileHTML(j):'';}catch(e){console.warn('quote on file',e);}};
+  const _oc=openComplete;window.openComplete=openComplete=function(jobId){const r=_oc.apply(this,arguments);fill('cj-quote-onfile',jobId);return r;};
+  const _om=openCompleteMultiDay;window.openCompleteMultiDay=openCompleteMultiDay=function(jobId){const r=_om.apply(this,arguments);fill('cjmd-quote-onfile',jobId);return r;};
+})();
 </script>
 </body>
 </html>
