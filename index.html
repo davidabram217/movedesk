@@ -22536,6 +22536,12 @@ function similarity(job,inputs){
 function _aiEstList(){if(!db.settings)db.settings={};if(!Array.isArray(db.settings.aiEstimates))db.settings.aiEstimates=[];return db.settings.aiEstimates;}
 function _aiEstActual(e){
   if(Number(e.actualHours)>0)return {h:Number(e.actualHours),src:'typed in'};
+  // Linked straight to a completed job, or to a booked job that has since been completed (2026-11-24).
+  const _byJob=e.completedJobId?(db.completedJobs||[]).find(c=>c.id===e.completedJobId)
+    :(e.bookedJobId?(db.completedJobs||[]).find(c=>c.bookedJobId===e.bookedJobId):null);
+  if(_byJob){const tr=getJobTrainingData().find(r=>r&&r.completedJobId===_byJob.id&&Number(r.actualHours)>0);
+    const h=tr?Number(tr.actualHours):Number(_byJob.hours)||0;return h>0?{h,src:'from completed job',cjId:_byJob.id,date:_byJob.date}:null;}
+  if(e.completedJobId||e.bookedJobId)return null;
   if(!e.leadId)return null;
   const after=String(e.savedAt||'').slice(0,10);
   // The lead's completed job: the first one on/after the day the estimate was saved, else its latest.
@@ -22550,11 +22556,12 @@ function _aiEstActual(e){
 // AI estimate vs. your quote vs. what the job took. Same lookup the completed-job screens use.
 function _aiEstYourQuote(e){
   try{
-    if(!e||!e.leadId||typeof resolveQuotedInfo!=='function')return null;
+    if(!e||!(e.leadId||e.bookedJobId||e.completedJobId)||typeof resolveQuotedInfo!=='function')return null;
     const a=_aiEstActual(e);
     const cj=a&&a.cjId?(db.completedJobs||[]).find(c=>c.id===a.cjId):null;
+    const bj=!cj&&e.bookedJobId?(db.bookedJobs||[]).find(b=>b.id===e.bookedJobId):null;
     const lead=(db.leads||[]).find(l=>l.id===e.leadId);
-    const qi=resolveQuotedInfo(cj||{name:lead?lead.name:e.leadName,leadId:e.leadId});
+    const qi=resolveQuotedInfo(cj||(bj?{...bj,bookedJobId:bj.id}:null)||{name:lead?lead.name:e.leadName,leadId:e.leadId});
     const lo=Number(qi&&qi.quotedHoursMin)||0,hi=Number(qi&&qi.quotedHoursMax)||lo;
     return (lo||hi)?{low:lo||hi,high:Math.max(lo,hi)}:null;
   }catch(err){return null;}
@@ -22588,12 +22595,18 @@ function _aiRenderSaveBar(){
   const leads=(db.leads||[]).filter(l=>l&&!/did not book|archiv/i.test(String(l.status||'')))
     .sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||''))).slice(0,150);
   const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const bjs=(db.bookedJobs||[]).filter(b=>b&&!b.draft).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,100);
+  const cjs=(db.completedJobs||[]).filter(c=>c).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,150);
   const bar=document.createElement('div');bar.id='ai-save-bar';
   bar.style.cssText='margin-bottom:14px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--accent-light);display:flex;gap:8px;align-items:center;flex-wrap:wrap';
   bar.innerHTML='<span style="font-size:12.5px;font-weight:600">💾 Save this estimate</span>'
-    +'<select id="ai-save-lead" style="flex:1;min-width:160px;font-size:12px"><option value="">Link to a lead…</option>'+leads.map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name||'(no name)')+(l.date?' · '+esc(l.date):'')+'</option>').join('')+'<option value="__none">No lead — I’ll type the hours later</option></select>'
+    +'<select id="ai-save-lead" style="flex:1;min-width:160px;font-size:12px"><option value="">Link to a lead or job…</option>'
+    +'<optgroup label="Leads">'+leads.map(l=>'<option value="L:'+esc(l.id)+'">'+esc(l.name||'(no name)')+(l.date?' · '+esc(l.date):'')+'</option>').join('')+'</optgroup>'
+    +(bjs.length?'<optgroup label="Booked jobs">'+bjs.map(b=>'<option value="B:'+esc(b.id)+'">'+esc(b.name||'(no name)')+(b.date?' · '+esc(b.date):'')+'</option>').join('')+'</optgroup>':'')
+    +(cjs.length?'<optgroup label="Completed jobs (looking back)">'+cjs.map(c=>'<option value="C:'+esc(c.id)+'">'+esc(c.name||'(no name)')+(c.date?' · '+esc(c.date):'')+(Number(c.hours)?' · '+esc(c.hours)+' hrs':'')+'</option>').join('')+'</optgroup>':'')
+    +'<option value="__none">None — I\u2019ll type the hours later</option></select>'
     +'<button class="btn btn-primary" style="font-size:12px;padding:6px 12px" onclick="saveAIEstimate()">Save</button>'
-    +'<span style="font-size:10.5px;color:var(--text3);width:100%">Saves '+esc(E.low)+'–'+esc(E.high)+' hrs with '+esc(E.men)+' movers'+(E.split?' (split pack / move)':'')+'. When the lead’s job is completed, the real hours are matched automatically.</span>';
+    +'<span style="font-size:10.5px;color:var(--text3);width:100%">Saves '+esc(E.low)+'–'+esc(E.high)+' hrs with '+esc(E.men)+' movers'+(E.split?' (split pack / move)':'')+'. When the job is completed, the real hours are matched automatically. Picking a completed job checks the AI against it straight away (that job\u2019s own hours are left out of the estimate first).</span>';
   // After the headline price, so the price is the first thing you see (2026-11-23).
   const head=el.firstElementChild;
   if(head&&head.nextSibling)el.insertBefore(bar,head.nextSibling);else el.appendChild(bar);
@@ -22601,18 +22614,31 @@ function _aiRenderSaveBar(){
 function saveAIEstimate(){
   const E=window._aiLastEst;if(!E){showToast('Generate an estimate first.');return;}
   const sel=document.getElementById('ai-save-lead');const v=sel?sel.value:'';
-  if(!v){showToast('Pick a lead, or choose "No lead".');if(sel)sel.focus();return;}
-  const lead=v!=='__none'?(db.leads||[]).find(l=>l.id===v):null;
+  if(!v){showToast('Pick a lead or job, or choose "None".');if(sel)sel.focus();return;}
+  const kind=v==='__none'?'':v.slice(0,1),vid=v.slice(2);
+  const bj=kind==='B'?(db.bookedJobs||[]).find(b=>b.id===vid):null;
+  const cj=kind==='C'?(db.completedJobs||[]).find(c=>c.id===vid):null;
+  const lead=kind==='L'?(db.leads||[]).find(l=>l.id===vid):((bj||cj)&&(bj||cj).leadId?(db.leads||[]).find(l=>l.id===(bj||cj).leadId):null);
+  // A completed job checked looking back: re-run once with that job held out, then save that estimate.
+  if(cj&&!(_aiHoldOut&&_aiHoldOut.has(cj.id))){
+    const usedIt=getJobTrainingData().some(r=>r&&r.completedJobId===cj.id);
+    if(usedIt){_aiHoldOut=new Set([cj.id]);generateAIQuote(true);const s2=document.getElementById('ai-save-lead');if(s2)s2.value=v;
+      showToast('Re-estimated without '+(cj.name||'that job')+'\u2019s own hours');return saveAIEstimate();}
+  }
+  const who=(cj&&cj.name)||(bj&&bj.name)||(lead&&lead.name)||'';
   const now=new Date().toISOString();
   const i=E.inputs||{};
-  const rec={id:uid(),savedAt:now,_editedAt:now,leadId:lead?lead.id:null,leadName:lead?lead.name:'',
+  const rec={id:uid(),savedAt:now,_editedAt:now,leadId:lead?lead.id:null,leadName:who,bookedJobId:bj?bj.id:null,completedJobId:cj?cj.id:null,lookingBack:!!cj,heldOut:!!(cj&&_aiHoldOut&&_aiHoldOut.has(cj.id)),
     inputs:{size:i.size,vaults:i.vaults,sqft:i.sqft,moveType:i.moveType,packing:i.packing,accessLoad:i.accessLoad,accessUnload:i.accessUnload,loadZip:i.loadZip,unloadZip:i.unloadZip,containerSize:i.containerSize},
     men:E.men,rate:E.rate,low:E.low,high:E.high,estDays:E.estDays,totalMin:E.totalMin,totalMax:E.totalMax,
     rawMid:E.rawMid,drive:E.drive,calib:E.calib,split:E.split,packDays:E.packDays,usedVideo:E.usedVideo,videoVaults:E.videoVaults,curated:E.curated,actualHours:null};
-  if(lead&&_aiEstList().some(x=>x.leadId===lead.id&&!_aiEstActual(x))&&!confirm(lead.name+' already has a saved estimate waiting for its job. Save this one too?'))return;
+  if(cj&&_aiEstList().some(x=>x.completedJobId===cj.id)&&!confirm(who+' already has a saved estimate. Save this one too?'))return;
+  if(!cj&&lead&&_aiEstList().some(x=>x.leadId===lead.id&&!_aiEstActual(x))&&!confirm(lead.name+' already has a saved estimate waiting for its job. Save this one too?'))return;
   _aiEstList().unshift(rec);db.settings.aiEstimates=_aiEstList().slice(0,300);
-  saveDB();showToast('✓ Estimate saved'+(lead?' for '+lead.name:''));
-  const b=document.getElementById('ai-save-bar');if(b)b.innerHTML='<span style="font-size:12.5px">✓ Saved'+(lead?' for <strong>'+String(lead.name).replace(/</g,'&lt;')+'</strong>':'')+'. You’ll see how it compares in 🎯 AI accuracy below once the job is done.</span>';
+  saveDB();showToast('✓ Estimate saved'+(who?' for '+who:''));
+  const _a=cj?_aiEstActual(rec):null;
+  const b=document.getElementById('ai-save-bar');if(b)b.innerHTML='<span style="font-size:12.5px">✓ Saved'+(who?' for <strong>'+String(who).replace(/</g,'&lt;')+'</strong>':'')
+    +(_a?'. AI said '+rec.low+'–'+rec.high+' hrs; the job took <strong>'+_a.h+' hrs</strong>. It\u2019s in 🎯 AI accuracy below.':'. You\u2019ll see how it compares in 🎯 AI accuracy below once the job is done.')+'</span>';
   renderAIAccuracy();
 }
 function setAIEstActual(id){
@@ -22670,8 +22696,8 @@ function renderAIAccuracy(){
   const list=all.slice(0,25).map(e=>{const a=e.excluded?null:sc.find(x=>x.id===e.id);const i=e.inputs||{};const act=e.excluded?_aiEstActual(e):null;
     const what=[i.moveType,i.size,i.vaults?i.vaults+' vaults':'',e.men+' movers',e.usedVideo?'📹':''].filter(Boolean).map(esc).join(' · ');
     const res=e.excluded?('<span style="color:var(--text3)">🚫 job changed — not compared'+(act?' (actual '+act.h+' hrs)':'')+(e.excludedWhy?': '+esc(e.excludedWhy):'')+'</span>'):a?('actual <strong>'+a.actual+' hrs</strong> '+(a.inRange?'<span style="color:var(--accent)">✓ in range</span>':'<span style="color:var(--amber)">'+(a.offPct>0?'+':'')+a.offPct+'%</span>')+' <span style="color:var(--text3)">('+esc(a.actualSrc)+')</span>')
-      :(e.leadId?'<span style="color:var(--text3)">waiting for the job to be completed</span>':'<span style="color:var(--text3)">no lead linked</span>');
-    return '<div style="padding:6px 0;border-bottom:1px solid var(--border2);font-size:12px'+(e.excluded?';opacity:.65':'')+'"><div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span><strong>'+esc(e.leadName||'(no lead)')+'</strong> · '+esc(String(e.savedAt||'').slice(0,10))+'</span>'
+      :((e.leadId||e.bookedJobId||e.completedJobId)?'<span style="color:var(--text3)">waiting for the job to be completed</span>':'<span style="color:var(--text3)">not linked to a lead or job</span>');
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border2);font-size:12px'+(e.excluded?';opacity:.65':'')+'"><div style="display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span><strong>'+esc(e.leadName||'(not linked)')+'</strong> · '+esc(String(e.savedAt||'').slice(0,10))+(e.lookingBack?' <span style="color:var(--text3)">· checked looking back</span>':'')+'</span>'
       +'<span><button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="setAIEstActual(\''+e.id+'\')">'+(Number(e.actualHours)>0?'Edit hours':'Type hours')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" title="The job ended up different from what was quoted — leave it out of the accuracy numbers" onclick="toggleAIEstExclude(\''+e.id+'\')">'+(e.excluded?'Compare again':'Job changed')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="deleteAIEst(\''+e.id+'\')">✕</button></span></div>'
       +'<div style="color:var(--text2)">'+what+'</div><div>AI said <strong>'+esc(e.low)+'–'+esc(e.high)+' hrs</strong>'+(e.split?' (move day)':'')
       +(function(){const y=a?a.yq:_aiEstYourQuote(e);return y?' · you quoted <strong>'+esc(y.low)+(y.high!==y.low?'–'+esc(y.high):'')+' hrs</strong>'+(a&&a.yq?(a.yqIn?' <span style="color:var(--accent)">✓</span>':' <span style="color:var(--amber)">'+(a.yqOffPct>0?'+':'')+a.yqOffPct+'%</span>'):''):'';})()
@@ -23009,7 +23035,10 @@ let _aiExcludedKeys=new Set();
 let _aiKeptKeys=null;
 let _aiLastScored=[];
 function _trainKey(r){return [r.id||'',r.name||'',r.date||'',r.actualHours||'',r.sqft||'',r.estimatedVaults||r.actualVaults||''].join('¦');}
-function _aiTrainingPool(){return getJobTrainingData().filter(r=>!_aiExcludedKeys.has(_trainKey(r)));}
+// _aiHoldOut (2026-11-24): when an estimate is saved against a job that's already COMPLETED, that job's
+// own record is held out so the AI isn't "estimating" from the very hours it will be checked against.
+let _aiHoldOut=null;
+function _aiTrainingPool(){return getJobTrainingData().filter(r=>!_aiExcludedKeys.has(_trainKey(r))&&!(typeof _aiHoldOut!=='undefined'&&_aiHoldOut&&r&&_aiHoldOut.has(r.completedJobId)));}
 
 // Home size as a step on a ladder: studio 0, 1 bed 1, 2 bed 2, 3 bed 3, 4+ bed 4. Anything else null.
 function _bedLadder(size){
@@ -23236,6 +23265,7 @@ function _aiAfterMoveQuote(m){
 let _aiAutoMen=null,_aiAutoMenOrig=null,_aiAutoGaveUp=false,_aiBumping=false;
 function generateAIQuote(isRecalc){
   if(!isRecalc)_aiExcludedKeys=new Set();
+  if(!isRecalc)_aiHoldOut=null;
   if(!isRecalc)_aiKeptKeys=null;
   // Movers not picked and the move spills past one 9.5-hr day → try a bigger crew first (up to 8)
   // before splitting the move over several short days (2026-10-31). _aiBumping marks the re-runs.
