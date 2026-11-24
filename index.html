@@ -11720,7 +11720,10 @@ function deleteBookedJob(id){
   // If the lead's status reflects the booking (Booked / Confirmation sent / Quote accepted),
   // reset it to "Quote accepted" so the lead reappears in the leads list. Update the status
   // timestamps so cloud sync can't overwrite the change.
-  if(j&&j.leadId){
+  // Only when no OTHER booking or completed job remains for this lead (2026-11-24): deleting a
+  // duplicate booking used to knock the lead back to "Quote accepted" while the real one still stood.
+  const _otherJob=j&&j.leadId&&((db.bookedJobs||[]).some(x=>x.id!==id&&x.leadId===j.leadId&&!x.draft)||(db.completedJobs||[]).some(x=>x.leadId===j.leadId));
+  if(j&&j.leadId&&!_otherJob){
     const l=db.leads.find(x=>x.id===j.leadId);
     if(l){
       const _postBookingStatuses=['Booked','Confirmation sent','Quote accepted'];
