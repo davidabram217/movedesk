@@ -22540,7 +22540,8 @@ function _aiEstActual(e){
   const _byJob=e.completedJobId?(db.completedJobs||[]).find(c=>c.id===e.completedJobId)
     :(e.bookedJobId?(db.completedJobs||[]).find(c=>c.bookedJobId===e.bookedJobId):null);
   if(_byJob){const tr=getJobTrainingData().find(r=>r&&r.completedJobId===_byJob.id&&Number(r.actualHours)>0);
-    const h=tr?Number(tr.actualHours):Number(_byJob.hours)||0;return h>0?{h,src:'from completed job',cjId:_byJob.id,date:_byJob.date}:null;}
+    const h=tr?Number(tr.actualHours):Number(_byJob.hours)||0;
+    return h>0?{h,src:'from completed job',cjId:_byJob.id,date:_byJob.date,men:Number(tr&&tr.moveMen)||Number(_byJob.moveMen)||Number(_byJob.movers)||null}:null;}
   if(e.completedJobId||e.bookedJobId)return null;
   if(!e.leadId)return null;
   const after=String(e.savedAt||'').slice(0,10);
@@ -22550,7 +22551,7 @@ function _aiEstActual(e){
   if(!cj)return null;
   const tr=getJobTrainingData().find(r=>r&&r.completedJobId===cj.id&&Number(r.actualHours)>0);
   const h=tr?Number(tr.actualHours):Number(cj.hours)||0;
-  return h>0?{h,src:'from completed job',cjId:cj.id,date:cj.date}:null;
+  return h>0?{h,src:'from completed job',cjId:cj.id,date:cj.date,men:Number(tr&&tr.moveMen)||Number(cj.moveMen)||Number(cj.movers)||null}:null;
 }
 // The hours on the quote you actually sent this lead (2026-11-23), so the card can compare
 // AI estimate vs. your quote vs. what the job took. Same lookup the completed-job screens use.
@@ -22563,21 +22564,38 @@ function _aiEstYourQuote(e){
     const lead=(db.leads||[]).find(l=>l.id===e.leadId);
     const qi=resolveQuotedInfo(cj||(bj?{...bj,bookedJobId:bj.id}:null)||{name:lead?lead.name:e.leadName,leadId:e.leadId});
     const lo=Number(qi&&qi.quotedHoursMin)||0,hi=Number(qi&&qi.quotedHoursMax)||lo;
-    return (lo||hi)?{low:lo||hi,high:Math.max(lo,hi)}:null;
+    return (lo||hi)?{low:lo||hi,high:Math.max(lo,hi),crew:Number(qi.quotedCrew)||null}:null;
   }catch(err){return null;}
 }
 function _aiEstScored(){
   // "Job changed — don't compare" (2026-11-23): left out of the stats and the correction.
   return _aiEstList().map(e=>{if(e.excluded)return null;const a=_aiEstActual(e);if(!a)return null;
-    const inRange=a.h>=e.low-0.25&&a.h<=e.high+0.25;
+    // CREW (2026-11-24): when the crew that went differs from the crew an estimate was made for, the
+    // real hours are converted to that crew's hours with the same crew-speed table the AI uses
+    // (5 men ≈ 0.65 of a 3-man day, 6 ≈ 0.58 …), so the work is compared fairly. Drive time isn't scaled.
+    const drive=e.drive||0;
+    const asCrew=m=>(!m||!a.men||Number(m)===a.men)?a.h:drive+Math.max(0.5,a.h-drive)*(_aiCrewRatio(m)/_aiCrewRatio(a.men));
+    const eqAI=asCrew(e.men);
+    const inRange=eqAI>=e.low-0.25&&eqAI<=e.high+0.25;
     const mid=(e.low+e.high)/2;
     // ratio on WORK hours, before any correction, so the correction doesn't feed on itself
-    const work=Math.max(0.5,a.h-(e.drive||0));const raw=e.rawMid||(mid-(e.drive||0))/(e.calib||1);
+    const work=Math.max(0.5,eqAI-drive);const raw=e.rawMid||(mid-drive)/(e.calib||1);
     const yq=_aiEstYourQuote(e);
-    const yqMid=yq?(yq.low+yq.high)/2:null;
-    return {...e,actual:a.h,actualSrc:a.src,inRange,offPct:Math.round((a.h-mid)/mid*100),ratio:raw>0?work/raw:null,
-      yq,yqIn:yq?(a.h>=yq.low-0.25&&a.h<=yq.high+0.25):null,yqOffPct:yq?Math.round((a.h-yqMid)/yqMid*100):null,
-      closer:yq?(Math.abs(a.h-yqMid)+0.01<Math.abs(a.h-mid)?'you':(Math.abs(a.h-mid)+0.01<Math.abs(a.h-yqMid)?'ai':'tie')):null};}).filter(Boolean);
+    const yqMid=yq?(yq.low+yq.high)/2:null;const eqYQ=yq?asCrew(yq.crew):null;
+    return {...e,actual:a.h,actualMen:a.men,actualSrc:a.src,eqAI,crewDiff:(e.men&&a.men)?Number(e.men)-a.men:null,
+      inRange,offPct:Math.round((eqAI-mid)/mid*100),ratio:raw>0?work/raw:null,
+      yq,eqYQ,yqIn:yq?(eqYQ>=yq.low-0.25&&eqYQ<=yq.high+0.25):null,yqOffPct:yq?Math.round((eqYQ-yqMid)/yqMid*100):null,
+      // "closer" compares how far each was off in percent, since they may be for different crews
+      closer:yq?(Math.abs(eqYQ-yqMid)/yqMid+0.01<Math.abs(eqAI-mid)/mid?'you':(Math.abs(eqAI-mid)/mid+0.01<Math.abs(eqYQ-yqMid)/yqMid?'ai':'tie')):null};}).filter(Boolean);
+}
+const _AI_CREW_RATIOS={1:2.5,2:1.55,3:1.0,4:0.78,5:0.65,6:0.58,7:0.54,8:0.5};
+function _aiCrewRatio(m){m=Math.round(Number(m)||3);return _AI_CREW_RATIOS[Math.min(8,Math.max(1,m))]||1;}
+// Crew check: AI's suggested movers vs. the movers who actually went.
+function _aiCrewStats(rows){
+  const r=rows.filter(e=>e.crewDiff!==null&&e.crewDiff!==undefined);if(!r.length)return null;
+  const over=r.filter(e=>e.crewDiff>0),under=r.filter(e=>e.crewDiff<0),same=r.length-over.length-under.length;
+  const avg=Math.round(r.reduce((x,e)=>x+e.crewDiff,0)/r.length*10)/10;
+  return {n:r.length,over:over.length,under:under.length,same,avg};
 }
 function _aiCalibration(moveType){
   try{
@@ -22715,6 +22733,19 @@ function renderAIAccuracy(){
       +(both.length>=3?'<div style="margin-top:4px;color:var(--text2)">'+verdict+'</div>':'<div style="margin-top:4px;color:var(--text3)">A few more jobs before this means much.</div>')
       +'</div>';
   }
+  // 👷 Crew check
+  const cs=_aiCrewStats(singles.concat(sc.filter(e=>e.split)));
+  if(cs){
+    const bySize={};sc.forEach(e=>{if(e.crewDiff===null||e.crewDiff===undefined)return;const k=(e.inputs&&e.inputs.size)||'Size not set';(bySize[k]=bySize[k]||[]).push(e);});
+    const sizeLines=Object.keys(bySize).filter(k=>bySize[k].length>=2).map(k=>{const st=_aiCrewStats(bySize[k]);
+      return '<div>'+esc(k)+': '+(Math.abs(st.avg)<0.3?'about right':(st.avg>0?'AI suggests ~'+st.avg+' mover'+(st.avg>=1.5?'s':'')+' too many':'AI suggests ~'+(-st.avg)+' too few'))+' ('+st.n+' jobs)</div>';}).join('');
+    cmp+='<div style="margin:4px 0 12px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);font-size:12px">'
+      +'<div style="font-weight:600;margin-bottom:4px">👷 Crew check — AI\u2019s movers vs. who actually went ('+cs.n+' job'+(cs.n===1?'':'s')+')</div>'
+      +'<div>Same crew <strong>'+cs.same+'</strong> · AI suggested more <strong>'+cs.over+'</strong> · AI suggested fewer <strong>'+cs.under+'</strong></div>'
+      +'<div>On average the AI suggests <strong>'+(Math.abs(cs.avg)<0.05?'the same crew':((cs.avg>0?'+':'')+cs.avg+' mover'+(Math.abs(cs.avg)===1?'':'s')))+'</strong> compared with who went.</div>'
+      +sizeLines
+      +'<div style="margin-top:4px;color:var(--text3)">When the crews differ, hours above are compared as the same amount of work for the AI\u2019s crew, using the AI\u2019s own crew-speed table.</div></div>';
+  }
   const list=all.slice(0,25).map(e=>{const a=e.excluded?null:sc.find(x=>x.id===e.id);const i=e.inputs||{};const act=e.excluded?_aiEstActual(e):null;
     const what=[i.moveType,i.size,i.vaults?i.vaults+' vaults':'',e.men+' movers',e.usedVideo?'📹':''].filter(Boolean).map(esc).join(' · ');
     const res=e.excluded?('<span style="color:var(--text3)">🚫 job changed — not compared'+(act?' (actual '+act.h+' hrs)':'')+(e.excludedWhy?': '+esc(e.excludedWhy):'')+'</span>'):a?('actual <strong>'+a.actual+' hrs</strong> '+(a.inRange?'<span style="color:var(--accent)">✓ in range</span>':'<span style="color:var(--amber)">'+(a.offPct>0?'+':'')+a.offPct+'%</span>')+' <span style="color:var(--text3)">('+esc(a.actualSrc)+')</span>')
@@ -22723,7 +22754,9 @@ function renderAIAccuracy(){
       +'<span><button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="setAIEstActual(\''+e.id+'\')">'+(Number(e.actualHours)>0?'Edit hours':'Type hours')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" title="The job ended up different from what was quoted — leave it out of the accuracy numbers" onclick="toggleAIEstExclude(\''+e.id+'\')">'+(e.excluded?'Compare again':'Job changed')+'</button> <button class="btn" style="font-size:10.5px;padding:2px 7px" onclick="deleteAIEst(\''+e.id+'\')">✕</button></span></div>'
       +'<div style="color:var(--text2)">'+what+'</div><div>AI said <strong>'+esc(e.low)+'–'+esc(e.high)+' hrs</strong>'+(e.split?' (move day)':'')
       +(function(){const y=a?a.yq:_aiEstYourQuote(e);return y?' · you quoted <strong>'+esc(y.low)+(y.high!==y.low?'–'+esc(y.high):'')+' hrs</strong>'+(a&&a.yq?(a.yqIn?' <span style="color:var(--accent)">✓</span>':' <span style="color:var(--amber)">'+(a.yqOffPct>0?'+':'')+a.yqOffPct+'%</span>'):''):'';})()
-      +' → '+res+'</div></div>';}).join('');
+      +' → '+res+'</div>'
+      +(a&&a.actualMen&&e.men?'<div style="color:var(--text2)">👷 AI: '+esc(e.men)+' movers · went: '+esc(a.actualMen)+(a.crewDiff?' <span style="color:var(--amber)">('+(a.crewDiff>0?'+':'')+a.crewDiff+')</span> · compared as ~'+(Math.round(a.eqAI*4)/4)+' hrs for '+esc(e.men)+' movers':' ✓')+'</div>':'')
+      +'</div>';}).join('');
   box.innerHTML=(all.length?'':'<div style="font-size:12px;color:var(--text3)">No saved estimates yet. After you generate an AI quote, use 💾 Save this estimate at the top of the result.</div>')
     +(singles.length||split.length?'<div style="overflow-x:auto;margin-bottom:10px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th style="padding:4px 6px">Estimates</th><th style="padding:4px 6px">Done</th><th style="padding:4px 6px">Landed in range</th><th style="padding:4px 6px">Lean</th><th style="padding:4px 6px"></th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       :(all.length?'<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+all.length+' saved · none completed yet. Results appear here when their jobs are done.</div>':''))
