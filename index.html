@@ -22617,12 +22617,15 @@ function _aiRenderSaveBar(){
   const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   // Every lead / booked job / completed job, A–Z by name (2026-11-24), searchable with the box above.
   const byName=(a,b)=>String(a.name||'').trim().toLowerCase().localeCompare(String(b.name||'').trim().toLowerCase())||String(b.date||'').localeCompare(String(a.date||''));
-  const leads=(db.leads||[]).filter(l=>l&&!/did not book|archiv/i.test(String(l.status||''))).sort(byName);
   const bjs=(db.bookedJobs||[]).filter(b=>b&&!b.draft).sort(byName);
+  // A lead that already has a booked or completed job is listed under that job only (2026-11-24) —
+  // the job is the better link (its own hours and crew), and it avoids the same name twice.
+  const _hasJob=new Set([...bjs,...(db.completedJobs||[])].map(x=>x&&x.leadId).filter(Boolean));
+  const leads=(db.leads||[]).filter(l=>l&&!_hasJob.has(l.id)&&!/did not book|archiv/i.test(String(l.status||''))).sort(byName);
   const cjs=(db.completedJobs||[]).filter(c=>c).sort(byName);
   window._aiSaveOpts=[
     ...leads.map(l=>({g:'Leads',v:'L:'+l.id,t:(l.name||'(no name)')+(l.date?' · '+l.date:'')})),
-    ...bjs.map(b=>({g:'Booked jobs',v:'B:'+b.id,t:(b.name||'(no name)')+(b.date?' · '+b.date:'')})),
+    ...bjs.map(b=>({g:'Booked jobs',v:'B:'+b.id,t:(b.name||'(no name)')+(b.date?' · '+b.date:'')+(b.time?' · '+b.time:'')+(b.movers?' · '+b.movers+' movers':'')})),
     ...cjs.map(c=>({g:'Completed jobs (looking back)',v:'C:'+c.id,t:(c.name||'(no name)')+(c.date?' · '+c.date:'')+(Number(c.hours)?' · '+c.hours+' hrs':'')}))];
   const bar=document.createElement('div');bar.id='ai-save-bar';
   bar.style.cssText='margin-bottom:14px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--accent-light);display:flex;gap:8px;align-items:center;flex-wrap:wrap';
