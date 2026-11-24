@@ -11722,7 +11722,7 @@ function deleteBookedJob(id){
   // timestamps so cloud sync can't overwrite the change.
   // Only when no OTHER booking or completed job remains for this lead (2026-11-24): deleting a
   // duplicate booking used to knock the lead back to "Quote accepted" while the real one still stood.
-  const _otherJob=j&&j.leadId&&((db.bookedJobs||[]).some(x=>x.id!==id&&x.leadId===j.leadId&&!x.draft)||(db.completedJobs||[]).some(x=>x.leadId===j.leadId));
+  const _otherJob=j&&j.leadId&&((db.bookedJobs||[]).some(x=>x.id!==id&&x.leadId===j.leadId&&!x._draft)||(db.completedJobs||[]).some(x=>x.leadId===j.leadId));
   if(j&&j.leadId&&!_otherJob){
     const l=db.leads.find(x=>x.id===j.leadId);
     if(l){
@@ -22620,7 +22620,7 @@ function _aiRenderSaveBar(){
   const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   // Every lead / booked job / completed job, A–Z by name (2026-11-24), searchable with the box above.
   const byName=(a,b)=>String(a.name||'').trim().toLowerCase().localeCompare(String(b.name||'').trim().toLowerCase())||String(b.date||'').localeCompare(String(a.date||''));
-  const bjs=(db.bookedJobs||[]).filter(b=>b&&!b.draft).sort(byName);
+  const bjs=(db.bookedJobs||[]).filter(b=>b&&!b._draft).sort(byName);
   // A lead that already has a booked or completed job is listed under that job only (2026-11-24) —
   // the job is the better link (its own hours and crew), and it avoids the same name twice.
   const _hasJob=new Set([...bjs,...(db.completedJobs||[])].map(x=>x&&x.leadId).filter(Boolean));
