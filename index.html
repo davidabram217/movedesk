@@ -731,7 +731,7 @@ input[type=number]{-moz-appearance:textfield}
               <div class="form-group"><label>Home size</label>
                 <select id="ai-size" onchange="saveAIQuoteDraft()">
                   <option value="">Select…</option>
-                  <option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option><option>4+ Bedroom</option><option>Office</option>
+                  <option>1 Room</option><option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option><option>4+ Bedroom</option><option>Office</option>
                 </select>
               </div>
               <div class="form-group"><label>Number of vaults</label>
@@ -882,7 +882,7 @@ input[type=number]{-moz-appearance:textfield}
               <div class="form-group"><label>Home size</label>
                 <select id="pc-size" onchange="calcPackMaterials()">
                   <option value="">Select…</option>
-                  <option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option>
+                  <option>1 Room</option><option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option>
                   <option>3 Bedroom</option><option>4+ Bedroom</option><option>Office / Commercial</option>
                 </select>
               </div>
@@ -1140,7 +1140,7 @@ input[type=number]{-moz-appearance:textfield}
       <div class="form-grid form-grid-2">
         <div class="form-group"><label>Preferred move date</label><input type="date" id="nl-date"><label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:400;cursor:pointer"><input type="checkbox" id="nl-date-tbd" onchange="nlToggleDateTBD()" style="width:15px;height:15px;cursor:pointer">Date TBD (not decided yet)</label></div>
         <div class="form-group"><label>Home size</label>
-          <select id="nl-size" onchange="toggleSizeOther()"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select>
+          <select id="nl-size" onchange="toggleSizeOther()"><option value="">Select…</option><option>1 room</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select>
         </div>
         <div class="form-group" id="nl-size-other-group" style="display:none"><label>Please describe</label><input type="text" id="nl-size-other" placeholder="e.g. Large warehouse, 2 units, etc."></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="nl-sqft" placeholder="e.g. 800"></div>
@@ -1587,7 +1587,7 @@ input[type=number]{-moz-appearance:textfield}
 
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— auto-filled from the booking; edit if needed. Used for AI quote training.</span></div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
-        <div class="form-group"><label>Home size</label><select id="cj-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
+        <div class="form-group"><label>Home size</label><select id="cj-size"><option value="">Select…</option><option>1 room</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cj-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="cj-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="cj-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cj-container"><option value="">Select…</option></select></div>
@@ -1746,7 +1746,7 @@ input[type=number]{-moz-appearance:textfield}
            job was at, not just the per-day hours. -->
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— auto-filled from the booking; edit if needed. Used for AI quote training.</span></div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
-        <div class="form-group"><label>Home size</label><select id="cjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
+        <div class="form-group"><label>Home size</label><select id="cjmd-size"><option value="">Select…</option><option>1 room</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="cjmd-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="cjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="cjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="cjmd-container"><option value="">Select…</option></select></div>
@@ -2283,7 +2283,7 @@ input[type=number]{-moz-appearance:textfield}
       <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Job context <span style="font-weight:400;text-transform:none;color:var(--text3);font-size:10.5px">— used for AI quote training</span></div>
       <div class="form-grid form-grid-2" style="margin-bottom:16px">
         <div class="form-group"><label>Job start date <span style="font-size:11px;color:var(--text3);font-weight:400">— day 1 of the job</span></label><input type="date" id="ecjmd-date"></div>
-        <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
+        <div class="form-group"><label>Home size</label><select id="ecjmd-size"><option value="">Select…</option><option>1 room</option><option>Studio</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4+ bedroom</option><option>Office/commercial</option><option>Storage unit</option><option>Other</option></select></div>
         <div class="form-group"><label>Square footage</label><input type="number" id="ecjmd-sqft" placeholder="e.g. 800"></div>
         <div class="form-group"><label>Move type</label><select id="ecjmd-movetype"><option value="">Select…</option><option>Move</option><option>Pack and move</option><option>Pack, move and unpack</option><option>Packing only</option><option>Move to storage</option><option>Pack and move to storage</option><option>Move out of storage</option><option>Load pod / truck only</option><option>Unload pod / truck only</option><option>Warehouse labor</option><option>Internal</option></select></div>
         <div class="form-group" id="ecjmd-container-wrap" style="display:none"><label>Pod / truck size <span style="font-size:10.5px;color:var(--text3);font-weight:400">— helps the AI quote</span></label><select id="ecjmd-container"><option value="">Select…</option></select></div>
@@ -14934,6 +14934,7 @@ function calcPackMaterials(isRecalc){
 
   // Base box counts by size (full pack)
   const BASE={
+    '1 Room':           {sm:3,med:5,lg:2,paper:1,bubble:1,tape:2,markers:1},
     'Studio':           {sm:5,med:10,lg:5,paper:1,bubble:1,tape:4,markers:1},
     '1 Bedroom':        {sm:8,med:15,lg:8,paper:2,bubble:1,tape:6,markers:1},
     '2 Bedroom':        {sm:12,med:20,lg:10,paper:3,bubble:2,tape:8,markers:2},
@@ -14958,7 +14959,7 @@ function calcPackMaterials(isRecalc){
 
   // Sqft adjustment (if provided)
   if(sqft>0){
-    const sizeDefaults={'Studio':400,'1 Bedroom':650,'2 Bedroom':950,'3 Bedroom':1300,'4+ Bedroom':2000,'Office / Commercial':1200};
+    const sizeDefaults={'1 Room':250,'Studio':400,'1 Bedroom':650,'2 Bedroom':950,'3 Bedroom':1300,'4+ Bedroom':2000,'Office / Commercial':1200};
     const ratio=sqft/(sizeDefaults[size]||1000);
     if(ratio>1.2||ratio<0.8){const r=Math.min(Math.max(ratio,0.6),1.5);Object.keys(b).forEach(k=>{b[k]=Math.ceil(b[k]*r);});}
   }
@@ -23176,6 +23177,7 @@ function _bedLadder(size){
   const t=String(size||'').toLowerCase().replace(/\s+/g,'');
   if(!t)return null;
   if(t.includes('studio'))return 0;
+  if(/^(1|one)room/.test(t))return 0;   // "1 room" (2026-11-25) sits with studios
   const m=t.match(/^(\d)\+?(bed|br)/);
   return m?Math.min(4,Number(m[1])):null;
 }
