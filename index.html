@@ -10655,13 +10655,34 @@ function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
   return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
+// Short calendar titles (2026-11-25, David): "Richard (3) .8" — first name, (movers), then the max
+// hours on the quote as .N (exact, so 8.5 → .8.5). No hours part when they're unknown or it's flat rate.
+// A split crew shows as (3/2). Multi-day entries add that day's label: "Richard (3) .8 Move day".
+function _calHrsMax(j,day){
+  try{
+    if(day){if(day.flatRate)return null;const h=(Number(day.hrsMax)||0)+((day.unloadCrew&&day.unloadRate)?(Number(day.unloadHrsMax)||0):0);return h>0?h:null;}
+    if(j.flatRate)return null;
+    const qd=Array.isArray(j.quoteDays)&&j.quoteDays.length===1?j.quoteDays[0]:null;
+    if(qd){if(qd.flatRate)return null;const h=Number(qd.hrsMax)||0;if(h>0)return h;}
+    const qi=typeof resolveQuotedInfo==='function'?resolveQuotedInfo({...j,bookedJobId:j.id}):null;
+    const h=Number(qi&&qi.quotedHoursMax)||Number(j.hoursMax)||Number(j.hrsMax)||0;
+    return h>0?h:null;
+  }catch(e){return null;}
+}
+function _calShortTitle(j,day,label){
+  const first=String(j.name||'').trim().split(/\s+/)[0]||'Job';
+  const men=day?(day.movers||day.crew||j.movers):j.movers;
+  const crew=(!day&&j.crewDiff)?(j.crewLoad||j.movers||'?')+'/'+(j.crewUnload||j.movers||'?'):(men||'?');
+  const h=_calHrsMax(j,day);
+  return first+' ('+crew+')'+(h?' .'+(Math.round(h*100)/100):'')+(label?' '+label:'');
+}
 function buildJobCalUrl(j){
   const dateStr=j.date||'';const d=dateStr.replace(/-/g,'');
   let startHour='0830',endHour='1730';
   if(j.time){const m=j.time.match(/(\d+)[:.]?(\d*)\s*(am|pm)?/i);if(m){let h=parseInt(m[1]);const mins=m[2]?m[2].padEnd(2,'0'):'00';if(m[3]&&m[3].toLowerCase()==='pm'&&h!==12)h+=12;if(m[3]&&m[3].toLowerCase()==='am'&&h===12)h=0;startHour=String(h).padStart(2,'0')+mins;endHour=String(Math.min(h+9,23)).padStart(2,'0')+mins;}}
 
   const crewDesc=j.crewDiff?(j.crewLoad||j.movers||'?')+' load / '+(j.crewUnload||j.movers||'?')+' unload':(j.movers||'?')+' men';
-  const title=`${j.name} | ${crewDesc} | ${j.from||''}`;
+  const title=_calShortTitle(j);
 
   const lines=[];
 
@@ -11089,7 +11110,7 @@ function buildDayCalUrl(j,day,dayNum){
     :dayNum===1&&totalDays>1?'Day 1 - Pack & Prep'
     :dayNum===totalDays&&totalDays>1?'Day '+dayNum+' - Move Day'
     :'Day '+dayNum;
-  const calTitle=j.name+(j.phone?' ('+j.phone+')':'')+' — '+dayLabelText+' | CareMore Moving';
+  const calTitle=_calShortTitle(j,day,(day.dayLabel||(dayNum===1&&totalDays>1?'Pack & Prep':dayNum===totalDays&&totalDays>1?'Move day':'Day '+dayNum)));
   const fmt=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const lines=[];
 
@@ -11337,7 +11358,7 @@ async function bookingCalDone(){
   const timeStr=j.time?j.time.split('–')[0].trim():'08:30';
   const start=new Date(date+'T'+convertTime12to24(timeStr)+':00');
   const end=new Date(start.getTime()+4*60*60*1000);
-  const title='MOVE - '+j.name+(j.crew?' ('+j.crew+')':'');
+  const title=_calShortTitle(j);
   const desc=buildJobCalDesc(j);
   showToast('Adding job to Google Calendar...');
   const eventId=await addCalendarEvent(title,start,end,desc,j.from||'',false);
