@@ -725,7 +725,7 @@ input[type=number]{-moz-appearance:textfield}
     <div class="page" id="page-aiquote">
       <div class="form-grid form-grid-2" style="gap:16px;margin-bottom:20px">
         <div class="card">
-          <div class="card-header"><div class="card-title">Job details</div></div>
+          <div class="card-header"><div class="card-title">Job details</div><button type="button" class="btn btn-sm" onclick="newAIQuote()" title="Clear the form, video and result to quote a different job">🆕 New quote</button></div>
           <div class="card-body">
             <div class="form-grid form-grid-2">
               <div class="form-group"><label>Home size</label>
@@ -22712,9 +22712,12 @@ function saveAIEstimate(){
     if(lead){lead.videoAnalysis=vid;}}}
   _aiEstList().unshift(rec);db.settings.aiEstimates=_aiEstList().slice(0,300);
   saveDB();showToast('✓ Estimate saved'+(who?' for '+who:''));
+  // The video is now kept with this estimate — clear it so the next job's video isn't added to it.
+  if(E.usedVideo){try{avClear();}catch(e){}}
   const _a=cj?_aiEstActual(rec):null;
   const b=document.getElementById('ai-save-bar');if(b)b.innerHTML='<span style="font-size:12.5px">✓ Saved'+(who?' for <strong>'+String(who).replace(/</g,'&lt;')+'</strong>':'')
-    +(_a?'. AI said '+rec.low+'–'+rec.high+' hrs; the job took <strong>'+_a.h+' hrs</strong>. It\u2019s in 🎯 AI accuracy below.':'. You\u2019ll see how it compares in 🎯 AI accuracy below once the job is done.')+'</span>';
+    +(_a?'. AI said '+rec.low+'–'+rec.high+' hrs; the job took <strong>'+_a.h+' hrs</strong>. It\u2019s in 🎯 AI accuracy below.':'. You\u2019ll see how it compares in 🎯 AI accuracy below once the job is done.')+'</span>'
+    +' <button class="btn btn-sm" style="margin-left:6px" onclick="newAIQuote(false)">🆕 Start the next quote</button>';
   renderAIAccuracy();
 }
 function setAIEstActual(id){
@@ -22963,6 +22966,24 @@ function avAddToNotes(){
   try{saveAIQuoteDraft();}catch(e){}showToast('Added to notes');
 }
 function avClear(){_avLast=null;try{localStorage.removeItem('aiVideoAnalysis');}catch(e){}_avStatus('');_avRender();}
+// 🆕 New quote (2026-11-26): the form, the video check and the result all used to carry over to the
+// next job — and a new video was then ADDED to the last customer's check. This clears everything back
+// to the defaults. Saving an estimate also clears the video (it's kept with the saved estimate).
+function newAIQuote(ask){
+  if(ask!==false&&(_avLast||window._aiLastEst)&&!confirm('Start a new quote? This clears the form, the video check and the result. (Anything you saved is kept.)'))return;
+  const defaults={'ai-rate':'75','ai-mat-fee':'50','ai-pack-days':'auto','ai-packers':'auto'};
+  ['ai-size','ai-vaults','ai-sqft','ai-movetype','ai-container','ai-packing','ai-access-load','ai-access-unload','ai-load-zip','ai-unload-zip','ai-rate','ai-mat-fee','ai-men','ai-pack-days','ai-packers','ai-notes']
+    .forEach(id=>{const el=document.getElementById(id);if(!el)return;el.value=defaults[id]!==undefined?defaults[id]:'';delete el.dataset.fromVideo;delete el.dataset.videoVal;});
+  try{_syncContainerField('ai');}catch(e){}
+  try{if(typeof _aiTogglePackDays==='function')_aiTogglePackDays();}catch(e){}
+  try{localStorage.removeItem('aiQuoteDraft');}catch(e){}
+  avClear();
+  window._aiLastEst=null;try{_aiExcludedKeys=new Set();_aiKeptKeys=null;_aiHoldOut=null;}catch(e){}
+  const r=document.getElementById('ai-result');
+  if(r)r.innerHTML='<div class="empty-state" style="padding:20px 0"><div class="empty-title">Fill in the job details</div><div class="empty-sub">Based on your real job history</div></div>';
+  const c=document.querySelector('#page-aiquote .card');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});
+  showToast('New quote — form cleared');
+}
 function _avRender(){
   const box=document.getElementById('av-result');if(!box)return;
   if(!_avLast){box.innerHTML='';return;}
