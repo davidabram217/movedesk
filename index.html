@@ -1467,9 +1467,12 @@ input[type=number]{-moz-appearance:textfield}
           <option>Onsite estimate</option>
           <option>Video estimate</option>
           <option value="Quote sent">Quote sent by email</option>
-          <option>Quote sent by text</option>
+          <option value="Quote sent by text">Text message quote</option>
           <option>Booked on call — no estimate</option>
-          <option>Repeat customer</option>
+          <option>Storage out job</option>
+          <!-- "Repeat customer" taken out of the list (2026-11-26, David). Kept hidden + disabled so a
+               booking already saved with it still shows its answer when reopened. -->
+          <option hidden disabled>Repeat customer</option>
         </select>
       </div>
 
@@ -10409,6 +10412,28 @@ function _csDate(d){
   if(isNaN(dt.getTime()))return String(d);
   return dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 }
+
+// Location notes (2026-11-28): the "Load / Unload location notes" typed on the lead (gate codes,
+// parking details…) were saved but never shown again after the lead. One list, from the job if it
+// carries them, else from its lead, including extra pickups / drop-offs.
+function _locNotesList(j,l){
+  const n=v=>String(v==null?'':v).trim();
+  l=l||(j&&j.leadId?(db.leads||[]).find(x=>x.id===j.leadId):null);
+  const src=(j&&(n(j.fromNotes)||n(j.toNotes)||(j.extraLoads||[]).some(x=>n(x&&x.notes))||(j.extraUnloads||[]).some(x=>n(x&&x.notes))))?j:(l||{});
+  const out=[];
+  if(n(src.fromNotes))out.push({label:'Load',addr:n(src.from),text:n(src.fromNotes)});
+  (src.extraLoads||[]).forEach((x,i)=>{if(x&&n(x.notes))out.push({label:'Pickup '+(i+2),addr:n(x.address),text:n(x.notes)});});
+  if(n(src.toNotes))out.push({label:'Unload',addr:n(src.to),text:n(src.toNotes)});
+  (src.extraUnloads||[]).forEach((x,i)=>{if(x&&n(x.notes))out.push({label:'Drop-off '+(i+2),addr:n(x.address),text:n(x.notes)});});
+  return out;
+}
+function _locNotesHTML(j,l){
+  const L=_locNotesList(j,l);if(!L.length)return '';
+  const esc=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  return '<div class="loc-notes-box" style="margin:10px 0 14px;padding:10px 12px;background:var(--info-light);border-radius:var(--radius);font-size:12.5px">'
+    +'<div style="font-weight:600;margin-bottom:4px">📍 Location notes</div>'
+    +L.map(x=>'<div style="margin-top:3px"><strong>'+esc(x.label)+':</strong> '+esc(x.text)+(x.label!=='Load'&&x.label!=='Unload'&&x.addr?' <span style="color:var(--text3)">('+esc(x.addr)+')</span>':'')+'</div>').join('')+'</div>';
+}
 function buildCrewCoverSheet(j,l){
   // CareMore calendar / job-book entry — internal crew sheet, not a customer document.
   // Follows David's master order (2026-08-19): critical info and insurance FIRST, then customer
@@ -10427,6 +10452,10 @@ function buildCrewCoverSheet(j,l){
   // Insurance ALWAYS appears, and reads TBD when the customer has not chosen yet (David,
   // 2026-08-19). It is never invented — an explicit TBD tells the crew to ask, whereas an absent
   // line looks like the question was never raised.
+  // 0. OFFICE NOTES — at the very top under their own heading (2026-11-26, David). They used to sit
+  // inside SCOPE OF PROJECT with no heading.
+  const notes=n(l&&l.officeNotes)||n(j.officeNotes);
+  if(notes){put('\u{1F512} OFFICE NOTES ONLY');put(notes);gap();}
   put(n(j.insuranceType)?('INSURANCE CHOICE: '+n(j.insuranceType)):'INSURANCE CHOICE: TBD');
   alerts.forEach(put);
   bring.forEach(put);
@@ -10444,11 +10473,9 @@ function buildCrewCoverSheet(j,l){
   const _cs=n(j.containerSize)||n(l&&l.containerSize);
   if(_cs&&_isPodTruckType(j.moveType||(l&&l.moveType)))bits.push((/^unload/i.test(n(j.moveType||(l&&l.moveType)))?'Unload ':'Load ')+_cs);
   if(Number(j.vaults))bits.push('Around ('+j.vaults+') vaults');
-  const notes=n(l&&l.officeNotes)||n(j.officeNotes);
-  if(bits.length||notes){
+  if(bits.length){
     put('SCOPE OF PROJECT');
-    if(bits.length)put(bits.join(' \u00b7 '));
-    if(notes)put(notes);
+    put(bits.join(' \u00b7 '));
     gap();
   }
 
@@ -10458,6 +10485,8 @@ function buildCrewCoverSheet(j,l){
   if(loadBits.length)put('LOAD: '+loadBits.join(' / '));
   if(unloadBits.length)put('UNLOAD: '+unloadBits.join(' / '));
   if(loadBits.length||unloadBits.length)gap();
+  // Location notes (2026-11-28, owner unlock) — gate codes, parking details, per address.
+  {const _ln=_locNotesList(j,l);if(_ln.length){put('LOCATION NOTES');_ln.forEach(x=>put(x.label.toUpperCase()+': '+x.text+((x.label!=='Load'&&x.label!=='Unload'&&x.addr)?' ('+x.addr+')':'')));gap();}}
 
   // 6+7 FROM THE EMAIL ACTUALLY SENT (2026-11-10, owner unlock). When the confirmation email was sent
   // from MoveDesk, its "Here are the details as I understand them" section (captured at send time as
@@ -10548,6 +10577,9 @@ function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
   const gap=()=>{if(L.length&&L[L.length-1]!=='')L.push('');};
   const D=day||{};
 
+  // Office notes at the very top under their own heading (2026-11-26, David).
+  const _notes=n(l&&l.officeNotes)||n(j.officeNotes);
+  if(_notes){put('\u{1F512} OFFICE NOTES ONLY');put(_notes);gap();}
   _csLines(j.jobAlerts).forEach(a=>put(a.toUpperCase()));
   if(_csLines(j.jobAlerts).length)gap();
 
@@ -10568,9 +10600,9 @@ function buildCrewCoverSheetDay(j,day,dayNum,totalDays,l){
   if(_csd&&_isPodTruckType(j.moveType||(l&&l.moveType)))facts.push((/^unload/i.test(n(j.moveType||(l&&l.moveType)))?'Unload ':'Load ')+_csd);
   put('SCOPE OF PROJECT');
   if(facts.length)put(facts.join(' \u00b7 '));
-  const _notes=n(l&&l.officeNotes)||n(j.officeNotes);
-  if(_notes)put(_notes);
   gap();
+  // Location notes (2026-11-28, owner unlock) — the whole job's, on every day.
+  {const _ln=_locNotesList(j,l);if(_ln.length){put('LOCATION NOTES');_ln.forEach(x=>put(x.label.toUpperCase()+': '+x.text+((x.label!=='Load'&&x.label!=='Unload'&&x.addr)?' ('+x.addr+')':'')));gap();}}
 
   const bring=_csLines(j.bringList);
   if(bring.length){put('BRING: '+bring.join(' / ').toUpperCase());gap();}
@@ -11580,6 +11612,7 @@ function markJobEmailSent(jobId){
 
 function buildJobCalDesc(j){
   const lines=[];
+  if(j.officeNotes)lines.push('\u{1F512} OFFICE NOTES ONLY',j.officeNotes,'');   // top (2026-11-26)
   if(j.phone)lines.push('Phone: '+j.phone);
   if(j.size)lines.push('Size: '+j.size);
   lines.push('');
@@ -11587,7 +11620,6 @@ function buildJobCalDesc(j){
   lines.push('Drop-off: '+fmtUnloadLocations(j));
   if(j.movers)lines.push('Crew: '+j.movers+' movers');
   if(j.crewNotes)lines.push('Notes: '+j.crewNotes);
-  if(j.officeNotes)lines.push('OFFICE: '+j.officeNotes);
   return lines.join('\n');
 }
 
@@ -24340,6 +24372,14 @@ function _cjQuoteOnFileHTML(j){
   const fill=(id,jobId)=>{try{const el=document.getElementById(id);const j=(db.bookedJobs||[]).find(x=>x.id===jobId);if(el)el.innerHTML=j?_cjQuoteOnFileHTML(j):'';}catch(e){console.warn('quote on file',e);}};
   const _oc=openComplete;window.openComplete=openComplete=function(jobId){const r=_oc.apply(this,arguments);fill('cj-quote-onfile',jobId);return r;};
   const _om=openCompleteMultiDay;window.openCompleteMultiDay=openCompleteMultiDay=function(jobId){const r=_om.apply(this,arguments);fill('cjmd-quote-onfile',jobId);return r;};
+})();
+
+// Location notes on the booked-job and completed-job views and on the completion forms (2026-11-28).
+(function(){
+  const addTo=(el,html)=>{if(!el||!html)return;const old=el.querySelector(':scope > .loc-notes-box');if(old)old.remove();el.insertAdjacentHTML('afterbegin',html);};
+  const _vb=viewBookedJob;window.viewBookedJob=viewBookedJob=function(id){const r=_vb.apply(this,arguments);try{const j=(db.bookedJobs||[]).find(x=>x.id===id);if(j)addTo(document.getElementById('view-modal-body'),_locNotesHTML(j));}catch(e){}return r;};
+  const _vc=viewCompletedJob;window.viewCompletedJob=viewCompletedJob=function(id){const r=_vc.apply(this,arguments);try{const j=(db.completedJobs||[]).find(x=>x.id===id);if(j)addTo(document.getElementById('view-modal-body'),_locNotesHTML(j));}catch(e){}return r;};
+  const _oc=openComplete;window.openComplete=openComplete=function(id){const r=_oc.apply(this,arguments);try{const j=(db.bookedJobs||[]).find(x=>x.id===id);const el=document.getElementById(j&&(j.multiDay||((j.quoteDays||[]).length>1))?'cjmd-quote-onfile':'cj-quote-onfile');if(j&&el)el.insertAdjacentHTML('beforeend',_locNotesHTML(j));}catch(e){}return r;};
 })();
 </script>
 </body>
